@@ -1,4 +1,4 @@
-winget install ezwinports.make.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup
+.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup
 
 up:
 	docker compose up -d
