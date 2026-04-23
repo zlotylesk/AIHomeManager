@@ -1,5 +1,7 @@
 FROM php:8.4-fpm-alpine
 
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
 RUN apk add --no-cache $PHPIZE_DEPS rabbitmq-c-dev \
     && pecl install amqp \
     && pecl install redis \
