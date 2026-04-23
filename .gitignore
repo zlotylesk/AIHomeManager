@@ -1,0 +1,10 @@
+.claude
+app/vendor/
+app/var/
+app/.env.local
+app/.phpunit.cache/
+*.cache
+.idea/
+.vscode/
+*.swp
+docker/mysql/data/
