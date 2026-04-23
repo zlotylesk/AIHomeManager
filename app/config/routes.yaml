@@ -8,4 +8,9 @@
 #   bin/console debug:router
 
 controllers:
-    resource: routing.controllers
+    resource: ../src/
+    type: attribute
+    exclude:
+        - '../src/Domain/'
+        - '../src/Infrastructure/'
+        - '../src/Kernel.php'
