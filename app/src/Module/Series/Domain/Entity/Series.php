@@ -18,6 +18,7 @@ final class Series
     public function __construct(
         private readonly string $id,
         private readonly string $title,
+        private readonly \DateTimeImmutable $createdAt = new \DateTimeImmutable(),
     ) {}
 
     public function id(): string
@@ -28,6 +29,11 @@ final class Series
     public function title(): string
     {
         return $this->title;
+    }
+
+    public function createdAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
     }
 
     /** @return array<string, Season> */

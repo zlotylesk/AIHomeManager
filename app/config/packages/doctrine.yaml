@@ -10,7 +10,17 @@ doctrine:
     orm:
         naming_strategy: doctrine.orm.naming_strategy.underscore
         auto_mapping: false
-        mappings: []
+        mappings:
+            SeriesDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Series/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Series\Domain\Entity'
+            SeriesDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Series/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Series\Domain\ValueObject'
 
 when@test:
     doctrine:
