@@ -8,3 +8,4 @@ app/.phpunit.cache/
 .vscode/
 *.swp
 docker/mysql/data/
+.env.local
