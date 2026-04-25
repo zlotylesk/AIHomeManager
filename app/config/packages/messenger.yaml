@@ -1,19 +1,15 @@
 framework:
     messenger:
-        # Uncomment this (and the failed transport below) to send failed messages to this transport for later handling.
-        # failure_transport: failed
+        default_bus: command.bus
+
+        buses:
+            command.bus: ~
+            query.bus: ~
+            event.bus: ~
 
         transports:
-            command.bus: 'in-memory://'
-            query.bus: 'in-memory://'
-            event.bus: 'in-memory://'
+            in_memory:
+                dsn: 'in-memory://'
 
-        routing: []
-
-# when@test:
-#    framework:
-#        messenger:
-#            transports:
-#                # replace with your transport name here (e.g., my_transport: 'in-memory://')
-#                # For more Messenger testing tools, see https://github.com/zenstruck/messenger-test
-#                async: 'in-memory://'
+        routing:
+            App\Module\Series\Domain\Event\EpisodeRated: in_memory
