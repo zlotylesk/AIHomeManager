@@ -24,3 +24,4 @@ services:
 
     App\Module\Series\Domain\Repository\SeriesRepositoryInterface:
         alias: App\Module\Series\Infrastructure\Persistence\DoctrineSeriesRepository
+
