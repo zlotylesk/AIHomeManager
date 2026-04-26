@@ -54,6 +54,63 @@ final class ArticleTest extends TestCase
 
         self::assertTrue($article->isRead());
         self::assertSame($readAt, $article->readAt());
+    }
+
+    public function testMarkAsReadSetsIsReadAndReadAt(): void
+    {
+        $article = new Article(
+            id: 'test-id',
+            title: 'Unread Article',
+            url: new ArticleUrl('https://example.com'),
+            category: null,
+            estimatedReadTime: null,
+            addedAt: new \DateTimeImmutable(),
+            readAt: null,
+            isRead: false,
+        );
+
+        $readAt = new \DateTimeImmutable('2024-06-01 10:00:00');
+        $article->markAsRead($readAt);
+
+        self::assertTrue($article->isRead());
+        self::assertSame($readAt, $article->readAt());
+    }
+
+    public function testUpdateMetadataChangesFields(): void
+    {
+        $article = new Article(
+            id: 'test-id',
+            title: 'Original Title',
+            url: new ArticleUrl('https://example.com'),
+            category: 'tech',
+            estimatedReadTime: 5,
+            addedAt: new \DateTimeImmutable(),
+            readAt: null,
+            isRead: false,
+        );
+
+        $article->updateMetadata('New Title', 'news', 10);
+
+        self::assertSame('New Title', $article->title());
+        self::assertSame('news', $article->category());
+        self::assertSame(10, $article->estimatedReadTime());
+    }
+
+    public function testUpdateMetadataCanClearOptionalFields(): void
+    {
+        $article = new Article(
+            id: 'test-id',
+            title: 'Title',
+            url: new ArticleUrl('https://example.com'),
+            category: 'tech',
+            estimatedReadTime: 5,
+            addedAt: new \DateTimeImmutable(),
+            readAt: null,
+            isRead: false,
+        );
+
+        $article->updateMetadata('Title', null, null);
+
         self::assertNull($article->category());
         self::assertNull($article->estimatedReadTime());
     }

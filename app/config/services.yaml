@@ -50,3 +50,19 @@ services:
     App\Module\Articles\Domain\Repository\ArticleRepositoryInterface:
         alias: App\Module\Articles\Infrastructure\Persistence\DoctrineArticleRepository
 
+    App\Module\Articles\Domain\Repository\ArticleDailyPickRepositoryInterface:
+        alias: App\Module\Articles\Infrastructure\Persistence\DoctrineArticleDailyPickRepository
+
+    App\Module\Articles\Application\QueryHandler\GetArticleOfTheDayHandler:
+        arguments:
+            $redis: '@app.redis'
+            $preferredCategory: '%articles.preferred_category%'
+
+    App\Module\Articles\Application\Handler\MarkArticleAsReadHandler:
+        arguments:
+            $redis: '@app.redis'
+
+    App\Module\Articles\Application\Handler\DeleteArticleHandler:
+        arguments:
+            $redis: '@app.redis'
+
