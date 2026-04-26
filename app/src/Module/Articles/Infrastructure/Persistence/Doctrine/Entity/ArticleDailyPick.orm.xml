@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Articles\Domain\Entity\ArticleDailyPick" table="article_daily_picks">
+        <indexes>
+            <index name="idx_article_daily_picks_picked_at" columns="picked_at"/>
+            <index name="idx_article_daily_picks_article_id" columns="article_id"/>
+        </indexes>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="articleId" type="string" column="article_id" length="36" nullable="false"/>
+        <field name="pickedAt" type="datetime_immutable" column="picked_at" nullable="false"/>
+    </entity>
+
+</doctrine-mapping>

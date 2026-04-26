@@ -25,4 +25,15 @@ final class DoctrineArticleRepository implements ArticleRepositoryInterface
             ['url' => $url],
         );
     }
+
+    public function findById(string $id): ?Article
+    {
+        return $this->em->find(Article::class, $id);
+    }
+
+    public function delete(Article $article): void
+    {
+        $this->em->remove($article);
+        $this->em->flush();
+    }
 }
