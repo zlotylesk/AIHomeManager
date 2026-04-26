@@ -2,7 +2,7 @@
 
 ## Projekt
 System automatyzacji codziennych czynności. Backend: PHP 8.4 + Symfony 8 + MySQL.
-Moduły: Series, Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub React.
+Moduły (zaimplementowane): Series. [PLANNED]: Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub React.
 
 ## Uruchamianie i testowanie
 - Środowisko: `make up` (uruchom kontenery), `make setup` (pełna inicjalizacja)
@@ -27,7 +27,8 @@ Moduły: Series, Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub Reac
 - Aggregate Root: `Series`, `Task`, `Book`
 - Value Object: `Rating`, `ISBN`, `TimeSlot` (immutable, bez setterów)
 - Command: `CreateSeries`, `AddEpisodeRating`
-- Handler: `CreateSeriesHandler` (#[AsMessageHandler])
+- Command Handler: `CreateSeriesHandler` (#[AsMessageHandler(bus: 'command.bus')])
+- Query Handler: `GetAllSeriesHandler` (#[AsMessageHandler(bus: 'query.bus')])
 - Query: `GetAllSeries`, `GetSeriesDetail`
 - DTO: `SeriesDetailDTO`, `EpisodeDTO`
 - Repository Interface: `SeriesRepositoryInterface`
@@ -40,8 +41,8 @@ Moduły: Series, Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub Reac
 - Wzorzec: `app/tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 
 ## Kluczowe zmienne środowiskowe (.env)
-- `DATABASE_URL=mysql://homemanager:homemanager@mysql:3306/homemanager`
-- `MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0`
+- `DATABASE_URL=mysql://homemanager:homemanager@mysql:3306/homemanager?serverVersion=8.0&charset=utf8mb4`
+- `MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages`
 - `REDIS_URL=redis://redis:6379`
 
 ## Infrastruktura — Redis
