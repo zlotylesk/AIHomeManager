@@ -1,6 +1,7 @@
 framework:
     messenger:
         default_bus: command.bus
+        failure_transport: failed
 
         buses:
             command.bus: ~
@@ -11,10 +12,27 @@ framework:
             in_memory:
                 dsn: 'in-memory://'
             async:
-                dsn: '%env(REDIS_URL)%'
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
-                    stream: series_events
-                    group: workers
+                    exchange:
+                        name: series_events
+                        type: topic
+                    queues:
+                        series_events:
+                            binding_keys: ['#']
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 2
+                    max_delay: 30000
+            failed:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    exchange:
+                        name: series_events_failed
+                        type: direct
+                    queues:
+                        series_events_failed: ~
 
         routing:
             App\Module\Series\Domain\Event\EpisodeRated: async
@@ -24,4 +42,6 @@ when@test:
         messenger:
             transports:
                 async:
+                    dsn: 'in-memory://'
+                failed:
                     dsn: 'in-memory://'
