@@ -17,20 +17,18 @@ final readonly class AddSeasonHandler
         private SeriesRepositoryInterface $repository,
     ) {}
 
-    public function __invoke(AddSeason $command): void
+    public function __invoke(AddSeason $command): string
     {
         $series = $this->repository->findById($command->seriesId);
         if ($series === null) {
             throw new \DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        $season = new Season(
-            id: Uuid::v4()->toRfc4122(),
-            seriesId: $command->seriesId,
-            number: $command->number,
-        );
+        $id = Uuid::v4()->toRfc4122();
 
-        $series->addSeason($season);
+        $series->addSeason(new Season(id: $id, seriesId: $command->seriesId, number: $command->number));
         $this->repository->save($series);
+
+        return $id;
     }
 }
