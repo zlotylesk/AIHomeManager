@@ -21,6 +21,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Series/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Series\Domain\ValueObject'
+            ArticlesDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Articles/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Articles\Domain\Entity'
+            ArticlesDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Articles/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Articles\Domain\ValueObject'
 
 when@test:
     doctrine:
