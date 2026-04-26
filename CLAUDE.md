@@ -59,6 +59,17 @@ Moduły (zaimplementowane): Series. [PLANNED]: Tasks, Books, Music, Articles. Fr
 - Event handlery w `Infrastructure/Messenger/` — `#[AsMessageHandler]` bez `bus:` (domyślny command.bus)
 - W testach: transport `async` i `failed` nadpisywane przez `in-memory://` (`when@test` w messenger.yaml)
 
+## Infrastruktura — MCP Servers
+
+- Node.js wymagany: v18+ (zainstalowane: v24.x LTS)
+- Konfiguracja w `.mcp.json` w katalogu projektu (nie globalnie)
+- Serwery skonfigurowane:
+  - `sequential-thinking` — `npx @modelcontextprotocol/server-sequential-thinking`
+  - `github` — `npx @modelcontextprotocol/server-github` (wymaga `GITHUB_PERSONAL_ACCESS_TOKEN`)
+  - `context7` — `npx @upstash/context7-mcp`
+  - `filesystem` — `npx @modelcontextprotocol/server-filesystem` (root: projekt AIHM)
+- Atlassian Rovo MCP konfigurowany przez claude.ai (nie przez `.mcp.json`)
+
 ## Zasady pracy z Claude Code
 - Przed każdym git commit pokaż mi pełny diff i zaproponowany commit message. Nie commituj bez mojej zgody.
 - Po każdej zmianie kodu uruchom make test. Jeśli testy nie przechodzą, napraw błędy przed zgłoszeniem gotowości.
