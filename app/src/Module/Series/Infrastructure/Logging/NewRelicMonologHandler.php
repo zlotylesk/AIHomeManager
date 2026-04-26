@@ -12,10 +12,13 @@ final class NewRelicMonologHandler extends AbstractProcessingHandler
 {
     private bool $extensionAvailable;
 
-    public function __construct(int|string|Level $level = Level::Debug, bool $bubble = true)
-    {
+    public function __construct(
+        int|string|Level $level = Level::Debug,
+        bool $bubble = true,
+        ?bool $extensionAvailable = null,
+    ) {
         parent::__construct($level, $bubble);
-        $this->extensionAvailable = extension_loaded('newrelic');
+        $this->extensionAvailable = $extensionAvailable ?? extension_loaded('newrelic');
 
         if (!$this->extensionAvailable) {
             error_log('NewRelicMonologHandler: newrelic extension not loaded, handler disabled');
@@ -28,12 +31,14 @@ final class NewRelicMonologHandler extends AbstractProcessingHandler
             return;
         }
 
-        if ($record->level->value >= Level::Error->value) {
+        if ($record->level->value >= Level::Error->value && function_exists('newrelic_notice_error')) {
             newrelic_notice_error($record->message);
         }
 
-        newrelic_add_custom_parameter('log_channel', $record->channel);
-        newrelic_add_custom_parameter('log_level', $record->level->getName());
-        newrelic_add_custom_parameter('log_message', $record->message);
+        if (function_exists('newrelic_add_custom_parameter')) {
+            newrelic_add_custom_parameter('log_channel', $record->channel);
+            newrelic_add_custom_parameter('log_level', $record->level->getName());
+            newrelic_add_custom_parameter('log_message', $record->message);
+        }
     }
 }

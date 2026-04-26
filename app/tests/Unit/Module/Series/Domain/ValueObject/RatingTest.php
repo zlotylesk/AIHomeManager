@@ -29,4 +29,18 @@ final class RatingTest extends TestCase
 
         new Rating(11);
     }
+
+    public function testCreatesWithMinimumBoundaryValue(): void
+    {
+        $rating = new Rating(1);
+
+        self::assertSame(1, $rating->value());
+    }
+
+    public function testCreatesWithMaximumBoundaryValue(): void
+    {
+        $rating = new Rating(10);
+
+        self::assertSame(10, $rating->value());
+    }
 }
