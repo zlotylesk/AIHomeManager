@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup
+.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs
 
 up:
 	docker compose up -d
@@ -48,3 +48,12 @@ messenger-status:
 setup: build up install
 	docker compose exec php bin/console doctrine:database:create --if-not-exists
 	docker compose exec php bin/console doctrine:migrations:migrate --no-interaction
+
+monitoring-up:
+	docker compose --profile monitoring up -d
+
+monitoring-down:
+	docker compose --profile monitoring down
+
+monitoring-logs:
+	docker compose --profile monitoring logs -f graylog

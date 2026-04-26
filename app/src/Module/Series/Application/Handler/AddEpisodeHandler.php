@@ -8,6 +8,7 @@ use App\Module\Series\Application\Command\AddEpisode;
 use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\Repository\SeriesRepositoryInterface;
 use App\Module\Series\Domain\ValueObject\Rating;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -19,6 +20,7 @@ final readonly class AddEpisodeHandler
     public function __construct(
         private SeriesRepositoryInterface $repository,
         #[Target('event.bus')] private MessageBusInterface $eventBus,
+        #[Target('series')] private LoggerInterface $logger,
     ) {}
 
     public function __invoke(AddEpisode $command): string
@@ -40,6 +42,8 @@ final readonly class AddEpisodeHandler
         foreach ($series->releaseEvents() as $event) {
             $this->eventBus->dispatch($event);
         }
+
+        $this->logger->info('Episode added', ['id' => $id, 'seriesId' => $command->seriesId, 'seasonId' => $command->seasonId]);
 
         return $id;
     }

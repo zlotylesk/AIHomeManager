@@ -10,6 +10,7 @@ use App\Module\Series\Application\Command\CreateSeries;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,13 +27,18 @@ final class SeriesController extends AbstractController
     public function __construct(
         private readonly MessageBusInterface $commandBus,
         #[Target('query.bus')] private readonly MessageBusInterface $queryBus,
+        #[Target('series')] private readonly LoggerInterface $logger,
     ) {}
 
     #[Route('', methods: ['GET'])]
     public function list(): JsonResponse
     {
+        $this->logger->debug('GET /api/series requested');
+
         /** @var SeriesDetailDTO[] $series */
         $series = $this->queryBus->dispatch(new GetAllSeries())->last(HandledStamp::class)->getResult();
+
+        $this->logger->debug('GET /api/series returned {count} series', ['count' => count($series)]);
 
         return new JsonResponse(array_map($this->serializeDTO(...), $series));
     }
@@ -57,10 +63,14 @@ final class SeriesController extends AbstractController
         $title = trim($data['title'] ?? '');
 
         if ($title === '') {
+            $this->logger->warning('POST /api/series failed: title is empty');
+
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $id = $this->commandBus->dispatch(new CreateSeries($title))->last(HandledStamp::class)->getResult();
+
+        $this->logger->info('Series created', ['id' => $id, 'title' => $title]);
 
         return new JsonResponse(['id' => $id], Response::HTTP_CREATED);
     }

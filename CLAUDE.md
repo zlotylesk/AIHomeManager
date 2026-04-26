@@ -59,6 +59,20 @@ Moduły (zaimplementowane): Series. [PLANNED]: Tasks, Books, Music, Articles. Fr
 - Event handlery w `Infrastructure/Messenger/` — `#[AsMessageHandler]` bez `bus:` (domyślny command.bus)
 - W testach: transport `async` i `failed` nadpisywane przez `in-memory://` (`when@test` w messenger.yaml)
 
+## Infrastruktura — Graylog + New Relic (centralne logowanie i APM)
+
+- Serwisy uruchamiane **wyłącznie przez profil monitoring**: `make monitoring-up` / `make monitoring-down`
+- Domyślny `make up` **nie uruchamia** Grayloga (za ciężki na codzienne dev)
+- Stack monitoring: `mongodb:6` + `opensearch:2` + `graylog/graylog:5.2`
+- Graylog UI: http://localhost:9000 (login: admin / admin)
+- GELF UDP input: port 12201 — **musi być skonfigurowany ręcznie** w Graylog UI po pierwszym uruchomieniu:
+  System → Inputs → GELF UDP → Launch new input
+- Kanał Monolog: `series` — logują do niego: `SeriesController`, `CreateSeriesHandler`, `AddEpisodeHandler`, `AddEpisodeRatingHandler`
+- Poziomy logowania: dev → debug+, prod → warning+
+- `NewRelicMonologHandler` w `src/Module/Series/Infrastructure/Logging/` — jeśli extension `newrelic` nie jest zainstalowane, handler cicho pomija (bez wyjątku)
+- Zmienne środowiskowe: `GRAYLOG_HOST`, `GRAYLOG_PORT=12201`, `NEW_RELIC_LICENSE_KEY`, `NEW_RELIC_APP_NAME`
+- Makefile: `make monitoring-up`, `make monitoring-down`, `make monitoring-logs`
+
 ## Infrastruktura — MCP Servers
 
 - Node.js wymagany: v18+ (zainstalowane: v24.x LTS)

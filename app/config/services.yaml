@@ -34,3 +34,16 @@ services:
         arguments:
             $redis: '@app.redis'
 
+    gelf.transport:
+        class: Gelf\Transport\UdpTransport
+        arguments:
+            - '%env(GRAYLOG_HOST)%'
+            - '%env(int:GRAYLOG_PORT)%'
+
+    gelf.publisher:
+        class: Gelf\Publisher
+        arguments:
+            - '@gelf.transport'
+
+    App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler: ~
+
