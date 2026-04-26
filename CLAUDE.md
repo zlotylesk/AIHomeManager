@@ -46,12 +46,17 @@ Moduły: Series, Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub Reac
 
 ## Infrastruktura — Redis
 - Kontener: `redis:7-alpine`, port 6379
-- Worker: `messenger_worker` konsumuje transport `async` (`bin/console messenger:consume async`)
-- Event handlery w `Infrastructure/Messenger/` — `#[AsMessageHandler]` bez `bus:` (domyślny command.bus)
 - Serwis Redis: `app.redis` via `RedisAdapter::createConnection('%env(REDIS_URL)%')`
 - Cache pool: `series.ratings.cache` (Redis, TTL 3600)
 - Klucze Redis: `series:avg:{id}`, `season:avg:{id}` — ustawiane przez `EpisodeRatedHandler`
-- W testach: transport `async` nadpisywany przez `in-memory://` (`when@test` w messenger.yaml)
+
+## Infrastruktura — RabbitMQ + Messenger Worker
+- Kontener: `rabbitmq:3.12-management-alpine`, porty 5672 (AMQP) i 15672 (Management UI, guest/guest)
+- Worker: `messenger_worker` konsumuje transport `async` (`bin/console messenger:consume async --time-limit=3600 -vv`)
+- Transport `async`: AMQP, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ: `failed`
+- `MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages`
+- Event handlery w `Infrastructure/Messenger/` — `#[AsMessageHandler]` bez `bus:` (domyślny command.bus)
+- W testach: transport `async` i `failed` nadpisywane przez `in-memory://` (`when@test` w messenger.yaml)
 
 ## Zasady pracy z Claude Code
 - Przed każdym git commit pokaż mi pełny diff i zaproponowany commit message. Nie commituj bez mojej zgody.
