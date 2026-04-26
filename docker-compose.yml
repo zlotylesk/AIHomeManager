@@ -6,8 +6,11 @@ services:
       - ./app:/var/www/html
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
+      REDIS_URL: redis://redis:6379
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   nginx:
@@ -36,6 +39,32 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  messenger_worker:
+    build:
+      context: docker/php
+    volumes:
+      - ./app:/var/www/html
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
+      REDIS_URL: redis://redis:6379
+    command: php bin/console messenger:consume async --time-limit=3600 -vv
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   mysql_data:

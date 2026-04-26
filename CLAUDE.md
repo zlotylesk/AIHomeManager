@@ -42,6 +42,16 @@ Moduły: Series, Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub Reac
 ## Kluczowe zmienne środowiskowe (.env)
 - `DATABASE_URL=mysql://homemanager:homemanager@mysql:3306/homemanager`
 - `MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0`
+- `REDIS_URL=redis://redis:6379`
+
+## Infrastruktura — Redis
+- Kontener: `redis:7-alpine`, port 6379
+- Worker: `messenger_worker` konsumuje transport `async` (`bin/console messenger:consume async`)
+- Event handlery w `Infrastructure/Messenger/` — `#[AsMessageHandler]` bez `bus:` (domyślny command.bus)
+- Serwis Redis: `app.redis` via `RedisAdapter::createConnection('%env(REDIS_URL)%')`
+- Cache pool: `series.ratings.cache` (Redis, TTL 3600)
+- Klucze Redis: `series:avg:{id}`, `season:avg:{id}` — ustawiane przez `EpisodeRatedHandler`
+- W testach: transport `async` nadpisywany przez `in-memory://` (`when@test` w messenger.yaml)
 
 ## Zasady pracy z Claude Code
 - Przed każdym git commit pokaż mi pełny diff i zaproponowany commit message. Nie commituj bez mojej zgody.

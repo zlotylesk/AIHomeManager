@@ -25,3 +25,12 @@ services:
     App\Module\Series\Domain\Repository\SeriesRepositoryInterface:
         alias: App\Module\Series\Infrastructure\Persistence\DoctrineSeriesRepository
 
+    app.redis:
+        class: \Redis
+        factory: ['Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection']
+        arguments: ['%env(REDIS_URL)%']
+
+    App\Module\Series\Infrastructure\Messenger\EpisodeRatedHandler:
+        arguments:
+            $redis: '@app.redis'
+
