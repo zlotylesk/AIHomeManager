@@ -2,7 +2,7 @@
 
 ## Projekt
 System automatyzacji codziennych czynności. Backend: PHP 8.4 + Symfony 8 + MySQL.
-Moduły (zaimplementowane): Series. [PLANNED]: Tasks, Books, Music, Articles. Frontend: Twig/Stimulus lub React.
+Moduły (zaimplementowane): Series, Articles (import CSV). [PLANNED]: Tasks, Books, Music. Frontend: Twig/Stimulus lub React.
 
 ## Uruchamianie i testowanie
 - Środowisko: `make up` (uruchom kontenery), `make setup` (pełna inicjalizacja)
