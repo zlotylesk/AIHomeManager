@@ -10,6 +10,18 @@ framework:
         transports:
             in_memory:
                 dsn: 'in-memory://'
+            async:
+                dsn: '%env(REDIS_URL)%'
+                options:
+                    stream: series_events
+                    group: workers
 
         routing:
-            App\Module\Series\Domain\Event\EpisodeRated: in_memory
+            App\Module\Series\Domain\Event\EpisodeRated: async
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                async:
+                    dsn: 'in-memory://'
