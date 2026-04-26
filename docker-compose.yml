@@ -83,5 +83,39 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  mongodb:
+    image: mongo:6
+    profiles: [monitoring]
+    volumes:
+      - mongodb_data:/data/db
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    profiles: [monitoring]
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
+  graylog:
+    image: graylog/graylog:5.2
+    profiles: [monitoring]
+    environment:
+      GRAYLOG_PASSWORD_SECRET: somepasswordpepper
+      GRAYLOG_ROOT_PASSWORD_SHA2: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      GRAYLOG_HTTP_EXTERNAL_URI: http://localhost:9000/
+      GRAYLOG_MONGODB_URI: mongodb://mongodb:27017/graylog
+      GRAYLOG_ELASTICSEARCH_HOSTS: http://opensearch:9200
+    ports:
+      - "9000:9000"
+      - "12201:12201/udp"
+    depends_on:
+      - mongodb
+      - opensearch
+
 volumes:
   mysql_data:
+  mongodb_data:
+  opensearch_data:
