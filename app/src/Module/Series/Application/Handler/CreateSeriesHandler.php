@@ -17,13 +17,12 @@ final readonly class CreateSeriesHandler
         private SeriesRepositoryInterface $repository,
     ) {}
 
-    public function __invoke(CreateSeries $command): void
+    public function __invoke(CreateSeries $command): string
     {
-        $series = new Series(
-            id: Uuid::v4()->toRfc4122(),
-            title: $command->title,
-        );
+        $id = Uuid::v4()->toRfc4122();
 
-        $this->repository->save($series);
+        $this->repository->save(new Series(id: $id, title: $command->title));
+
+        return $id;
     }
 }
