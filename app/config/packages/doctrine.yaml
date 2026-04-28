@@ -32,6 +32,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Articles/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Articles\Domain\ValueObject'
+            TasksDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Tasks/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Tasks\Domain\Entity'
+            TasksDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Tasks/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Tasks\Domain\ValueObject'
 
 when@test:
     doctrine:
