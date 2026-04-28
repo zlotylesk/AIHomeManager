@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Tasks\Domain\Entity\Task" table="tasks">
+        <indexes>
+            <index name="idx_tasks_status" columns="status"/>
+            <index name="idx_tasks_time_start" columns="time_start"/>
+        </indexes>
+        <id name="id" type="string" column="id" length="36"/>
+        <embedded name="title" class="App\Module\Tasks\Domain\ValueObject\TaskTitle" use-column-prefix="false"/>
+        <embedded name="timeSlot" class="App\Module\Tasks\Domain\ValueObject\TimeSlot" use-column-prefix="false"/>
+        <field name="status" type="string" column="status" length="50" enumType="App\Module\Tasks\Domain\Enum\TaskStatus"/>
+        <field name="googleEventId" type="string" column="google_event_id" length="255" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>
