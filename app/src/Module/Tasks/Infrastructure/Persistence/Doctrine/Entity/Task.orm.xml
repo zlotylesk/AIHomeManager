@@ -12,7 +12,7 @@
         <id name="id" type="string" column="id" length="36"/>
         <embedded name="title" class="App\Module\Tasks\Domain\ValueObject\TaskTitle" use-column-prefix="false"/>
         <embedded name="timeSlot" class="App\Module\Tasks\Domain\ValueObject\TimeSlot" use-column-prefix="false"/>
-        <field name="status" type="string" column="status" length="50" enumType="App\Module\Tasks\Domain\Enum\TaskStatus"/>
+        <field name="status" type="task_status" column="status" length="50"/>
         <field name="googleEventId" type="string" column="google_event_id" length="255" nullable="true"/>
     </entity>
 
