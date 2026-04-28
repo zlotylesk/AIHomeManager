@@ -47,6 +47,30 @@ services:
 
     App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler: ~
 
+    App\Module\Tasks\Domain\Port\CalendarServiceInterface:
+        alias: App\Module\Tasks\Infrastructure\Google\GoogleCalendarService
+
+    App\Module\Tasks\Infrastructure\Google\GoogleClientFactory:
+        arguments:
+            $clientId: '%env(GOOGLE_CLIENT_ID)%'
+            $clientSecret: '%env(GOOGLE_CLIENT_SECRET)%'
+            $redirectUri: '%env(GOOGLE_REDIRECT_URI)%'
+
+    google.client:
+        class: Google\Client
+        factory: ['@App\Module\Tasks\Infrastructure\Google\GoogleClientFactory', 'create']
+
+    App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface:
+        alias: App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository
+
+    App\Module\Tasks\Infrastructure\Google\GoogleCalendarService:
+        arguments:
+            $client: '@google.client'
+
+    App\Controller\GoogleAuthController:
+        arguments:
+            $client: '@google.client'
+
     App\Module\Articles\Domain\Repository\ArticleRepositoryInterface:
         alias: App\Module\Articles\Infrastructure\Persistence\DoctrineArticleRepository
 
