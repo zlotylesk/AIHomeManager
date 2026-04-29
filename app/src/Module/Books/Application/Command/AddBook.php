@@ -8,11 +8,11 @@ final readonly class AddBook
 {
     public function __construct(
         public string $isbn,
-        public string $title,
-        public string $author,
-        public string $publisher,
-        public int $year,
-        public ?string $coverUrl,
-        public int $totalPages,
+        public ?string $title = null,
+        public ?string $author = null,
+        public ?string $publisher = null,
+        public ?int $year = null,
+        public ?string $coverUrl = null,
+        public ?int $totalPages = null,
     ) {}
 }
