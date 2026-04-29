@@ -53,6 +53,18 @@ services:
     App\Module\Books\Domain\Repository\BookRepositoryInterface:
         alias: App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository
 
+    App\Module\Music\Domain\Port\MusicListeningHistoryInterface:
+        alias: App\Module\Music\Infrastructure\External\LastFmApiClient
+
+    App\Module\Music\Infrastructure\External\LastFmApiClient:
+        arguments:
+            $redis: '@app.redis'
+            $apiKey: '%env(LASTFM_API_KEY)%'
+
+    App\Controller\MusicController:
+        arguments:
+            $lastfmUsername: '%env(LASTFM_USERNAME)%'
+
     App\Module\Books\Domain\Port\BookMetadataProviderInterface:
         alias: App\Module\Books\Infrastructure\External\NationalLibraryApiClient
 
