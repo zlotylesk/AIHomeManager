@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Module\Music\Application\DTO\AlbumDTO;
+use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
+use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +21,9 @@ final class MusicController extends AbstractController
 
     public function __construct(
         private readonly MusicListeningHistoryInterface $listeningHistory,
+        private readonly VinylCollectionInterface $vinylCollection,
         private readonly string $lastfmUsername,
+        private readonly string $discogsUsername,
     ) {}
 
     #[Route('/top-albums', methods: ['GET'])]
@@ -49,6 +53,27 @@ final class MusicController extends AbstractController
                 'imageUrl' => $a->imageUrl,
             ],
             $albums
+        ));
+    }
+
+    #[Route('/collection', methods: ['GET'])]
+    public function collection(): JsonResponse
+    {
+        try {
+            $records = $this->vinylCollection->getUserCollection($this->discogsUsername);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
+        return new JsonResponse(array_map(
+            fn(VinylRecordDTO $r) => [
+                'artist' => $r->artist,
+                'title' => $r->title,
+                'year' => $r->year,
+                'format' => $r->format,
+                'discogsId' => $r->discogsId,
+            ],
+            $records
         ));
     }
 }

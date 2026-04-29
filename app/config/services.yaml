@@ -53,6 +53,29 @@ services:
     App\Module\Books\Domain\Repository\BookRepositoryInterface:
         alias: App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository
 
+    App\Module\Music\Domain\Port\VinylCollectionInterface:
+        alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
+
+    App\Module\Music\Infrastructure\External\DiscogsApiClient:
+        arguments:
+            $redis: '@app.redis'
+            $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
+            $consumerSecret: '%env(DISCOGS_CONSUMER_SECRET)%'
+
+    App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface:
+        alias: App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository
+
+    App\Controller\DiscogsAuthController:
+        arguments:
+            $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
+            $consumerSecret: '%env(DISCOGS_CONSUMER_SECRET)%'
+            $callbackUrl: '%env(DISCOGS_CALLBACK_URL)%'
+
+    App\Controller\MusicController:
+        arguments:
+            $lastfmUsername: '%env(LASTFM_USERNAME)%'
+            $discogsUsername: '%env(DISCOGS_USERNAME)%'
+
     App\Module\Music\Domain\Port\MusicListeningHistoryInterface:
         alias: App\Module\Music\Infrastructure\External\LastFmApiClient
 
@@ -60,10 +83,6 @@ services:
         arguments:
             $redis: '@app.redis'
             $apiKey: '%env(LASTFM_API_KEY)%'
-
-    App\Controller\MusicController:
-        arguments:
-            $lastfmUsername: '%env(LASTFM_USERNAME)%'
 
     App\Module\Books\Domain\Port\BookMetadataProviderInterface:
         alias: App\Module\Books\Infrastructure\External\NationalLibraryApiClient
