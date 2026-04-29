@@ -88,14 +88,13 @@ final class BookAggregateTest extends TestCase
         self::assertSame(BookStatus::COMPLETED, $book->status());
     }
 
-    public function testCurrentPageDoesNotExceedTotalPages(): void
+    public function testAddReadingSessionThrowsWhenExceedingTotalPages(): void
     {
         $book = $this->makeBook(100);
 
-        $book->addReadingSession($this->makeSession($book->id(), 150));
+        $this->expectException(\DomainException::class);
 
-        self::assertSame(100, $book->readingProgress()->currentPage());
-        self::assertSame(BookStatus::COMPLETED, $book->status());
+        $book->addReadingSession($this->makeSession($book->id(), 150));
     }
 
     public function testReleaseEventsClearsCollection(): void

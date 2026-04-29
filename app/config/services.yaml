@@ -50,6 +50,9 @@ services:
     App\Module\Tasks\Domain\Repository\TaskRepositoryInterface:
         alias: App\Module\Tasks\Infrastructure\Persistence\DoctrineTaskRepository
 
+    App\Module\Books\Domain\Repository\BookRepositoryInterface:
+        alias: App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository
+
     App\Module\Tasks\Domain\Port\CalendarServiceInterface:
         alias: App\Module\Tasks\Infrastructure\Google\GoogleCalendarService
 

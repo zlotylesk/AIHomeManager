@@ -22,12 +22,12 @@ final class Book
     public function __construct(
         private readonly string $id,
         private readonly ISBN $isbn,
-        private readonly string $title,
-        private readonly string $author,
-        private readonly string $publisher,
-        private readonly int $year,
-        private readonly ?string $coverUrl,
-        private readonly int $totalPages,
+        private string $title,
+        private string $author,
+        private string $publisher,
+        private int $year,
+        private ?string $coverUrl,
+        int $totalPages,
     ) {
         $this->status = BookStatus::TO_READ;
         $this->readingProgress = new ReadingProgress(0, $totalPages);
@@ -70,7 +70,7 @@ final class Book
 
     public function totalPages(): int
     {
-        return $this->totalPages;
+        return $this->readingProgress->totalPages();
     }
 
     public function readingProgress(): ReadingProgress
@@ -83,16 +83,30 @@ final class Book
         return $this->status;
     }
 
+    public function updateMetadata(string $title, string $author, string $publisher, int $year, ?string $coverUrl): void
+    {
+        $this->title = $title;
+        $this->author = $author;
+        $this->publisher = $publisher;
+        $this->year = $year;
+        $this->coverUrl = $coverUrl;
+    }
+
     public function addReadingSession(ReadingSession $session): void
     {
+        $newCurrentPage = $this->readingProgress->currentPage() + $session->pagesRead();
+
+        if ($newCurrentPage > $this->readingProgress->totalPages()) {
+            throw new \DomainException(sprintf(
+                'Cannot log %d pages: would exceed total pages (%d).',
+                $session->pagesRead(),
+                $this->readingProgress->totalPages()
+            ));
+        }
+
         if ($this->status === BookStatus::TO_READ) {
             $this->status = BookStatus::READING;
         }
-
-        $newCurrentPage = min(
-            $this->readingProgress->currentPage() + $session->pagesRead(),
-            $this->totalPages
-        );
 
         $this->readingProgress = $this->readingProgress->withCurrentPage($newCurrentPage);
 
