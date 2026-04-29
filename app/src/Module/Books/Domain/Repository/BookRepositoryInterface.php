@@ -18,4 +18,6 @@ interface BookRepositoryInterface
 
     /** @return Book[] */
     public function findByStatus(BookStatus $status): array;
+
+    public function remove(Book $book): void;
 }

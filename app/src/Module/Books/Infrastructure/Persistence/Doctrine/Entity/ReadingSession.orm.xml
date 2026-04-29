@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Books\Domain\Entity\ReadingSession" table="book_reading_sessions">
+        <indexes>
+            <index name="idx_reading_sessions_book_id" columns="book_id"/>
+        </indexes>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="bookId" type="string" column="book_id" length="36" nullable="false"/>
+        <field name="date" type="date_immutable" column="date" nullable="false"/>
+        <field name="pagesRead" type="integer" column="pages_read" nullable="false"/>
+        <field name="notes" type="text" column="notes" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>
