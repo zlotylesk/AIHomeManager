@@ -9,9 +9,10 @@ use App\Module\Books\Application\Command\LogReadingSession;
 use App\Module\Books\Application\Command\RemoveBook;
 use App\Module\Books\Application\Command\UpdateBook;
 use App\Module\Books\Application\DTO\BookDTO;
+use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
+use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
-use App\Module\Books\Domain\Enum\BookStatus;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -66,30 +67,35 @@ final class BooksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        $required = ['isbn', 'title', 'author', 'publisher', 'year', 'total_pages'];
-        foreach ($required as $field) {
-            if (empty($data[$field])) {
-                return new JsonResponse(
-                    ['error' => sprintf('Field "%s" is required.', $field)],
-                    Response::HTTP_UNPROCESSABLE_ENTITY
-                );
-            }
+        if (empty($data['isbn'])) {
+            return new JsonResponse(['error' => 'Field "isbn" is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         try {
             $id = $this->commandBus->dispatch(new AddBook(
                 isbn: trim($data['isbn']),
-                title: trim($data['title']),
-                author: trim($data['author']),
-                publisher: trim($data['publisher']),
-                year: (int) $data['year'],
+                title: isset($data['title']) ? trim($data['title']) : null,
+                author: isset($data['author']) ? trim($data['author']) : null,
+                publisher: isset($data['publisher']) ? trim($data['publisher']) : null,
+                year: isset($data['year']) ? (int) $data['year'] : null,
                 coverUrl: isset($data['cover_url']) ? trim($data['cover_url']) : null,
-                totalPages: (int) $data['total_pages'],
+                totalPages: isset($data['total_pages']) ? (int) $data['total_pages'] : null,
             ))->last(HandledStamp::class)->getResult();
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \InvalidArgumentException) {
-                return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            $prev = $e->getPrevious();
+
+            if ($prev instanceof BookMetadataNotFoundException) {
+                return new JsonResponse(['error' => $prev->getMessage()], Response::HTTP_NOT_FOUND);
             }
+
+            if ($prev instanceof BookMetadataUnavailableException) {
+                return new JsonResponse(['error' => $prev->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
+            }
+
+            if ($prev instanceof \InvalidArgumentException) {
+                return new JsonResponse(['error' => $prev->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
             throw $e;
         }
 
