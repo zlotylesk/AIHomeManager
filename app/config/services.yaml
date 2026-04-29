@@ -53,6 +53,13 @@ services:
     App\Module\Books\Domain\Repository\BookRepositoryInterface:
         alias: App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository
 
+    App\Module\Books\Domain\Port\BookMetadataProviderInterface:
+        alias: App\Module\Books\Infrastructure\External\NationalLibraryApiClient
+
+    App\Module\Books\Infrastructure\External\NationalLibraryApiClient:
+        arguments:
+            $redis: '@app.redis'
+
     App\Module\Tasks\Domain\Port\CalendarServiceInterface:
         alias: App\Module\Tasks\Infrastructure\Google\GoogleCalendarService
 
