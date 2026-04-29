@@ -53,6 +53,12 @@ services:
     App\Module\Books\Domain\Repository\BookRepositoryInterface:
         alias: App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository
 
+    App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
+        arguments:
+            $redis: '@app.redis'
+            $lastfmUsername: '%env(LASTFM_USERNAME)%'
+            $discogsUsername: '%env(DISCOGS_USERNAME)%'
+
     App\Module\Music\Domain\Port\VinylCollectionInterface:
         alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
 
