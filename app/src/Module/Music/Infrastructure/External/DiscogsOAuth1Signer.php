@@ -14,12 +14,14 @@ final class DiscogsOAuth1Signer
         string $tokenSecret,
         string $oauthToken = '',
         array $extraParams = [],
+        ?string $overrideNonce = null,
+        ?int $overrideTimestamp = null,
     ): string {
         $oauthParams = [
             'oauth_consumer_key' => $consumerKey,
-            'oauth_nonce' => bin2hex(random_bytes(16)),
+            'oauth_nonce' => $overrideNonce ?? bin2hex(random_bytes(16)),
             'oauth_signature_method' => 'HMAC-SHA1',
-            'oauth_timestamp' => (string) time(),
+            'oauth_timestamp' => (string) ($overrideTimestamp ?? time()),
             'oauth_version' => '1.0',
         ];
 
