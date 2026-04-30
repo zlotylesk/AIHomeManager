@@ -22,4 +22,28 @@ final class FrontendController extends AbstractController
     {
         return $this->render('series/index.html.twig');
     }
+
+    #[Route('/tasks', name: 'app_frontend_tasks', methods: ['GET'])]
+    public function tasks(): Response
+    {
+        return $this->render('tasks/index.html.twig');
+    }
+
+    #[Route('/books', name: 'app_frontend_books', methods: ['GET'])]
+    public function books(): Response
+    {
+        return $this->render('books/index.html.twig');
+    }
+
+    #[Route('/articles', name: 'app_frontend_articles', methods: ['GET'])]
+    public function articles(): Response
+    {
+        return $this->render('articles/index.html.twig');
+    }
+
+    #[Route('/music', name: 'app_frontend_music', methods: ['GET'])]
+    public function music(): Response
+    {
+        return $this->render('music/index.html.twig');
+    }
 }

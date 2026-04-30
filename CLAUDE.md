@@ -6,12 +6,14 @@ Moduły (zaimplementowane): Series, Articles (import CSV). [PLANNED]: Tasks, Boo
 
 ## Frontend
 - Silnik szablonów: `symfony/twig-bundle` (zainstalowany)
-- Statyczne assety: `public/css/app.css`, `public/js/series.js` — bez Webpack/Node.js
-- Frontend controller: `src/Controller/FrontendController.php` — `GET /` → redirect, `GET /series` → Twig SPA shell
-- Szablony: `templates/base.html.twig`, `templates/series/index.html.twig`
+- Statyczne assety: `public/css/app.css`, `public/js/{module}.js` — bez Webpack/Node.js
+- Frontend controller: `src/Controller/FrontendController.php` — `GET /` → redirect, trasy: `/series`, `/tasks`, `/books`, `/articles`, `/music`
+- Globalny navbar w `templates/base.html.twig`, jeden plik CSS `public/css/app.css` dla wszystkich modułów
+- Szablony: `templates/{module}/index.html.twig` (series, tasks, books, articles, music)
 - JS komunikuje się z REST API przez `fetch()` (vanilla JS, brak frameworka)
-- Selektor ocen: 10 przycisków (1–10), nie `<input type=number>`
+- Selektor ocen Series: 10 przycisków (1–10), nie `<input type=number>`
 - Brak CORS — frontend i API serwowane z tego samego kontenera
+- Tasks: brak endpointów create/list w API — widok Tasks pokazuje tylko time-report (`GET /api/tasks/time-report`)
 - Brakujący zakres (Jira): HMAI-41 (Webpack Encore + Stimulus), HMAI-42 (testy E2E), HMAI-43 (PATCH rating endpoint)
 
 ## Uruchamianie i testowanie

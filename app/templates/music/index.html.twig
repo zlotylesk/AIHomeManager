@@ -1,0 +1,67 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Music — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app">
+    <header class="app-header">
+        <h1 class="app-title">Music</h1>
+        <div class="header-actions">
+            <select id="period-select" class="select-filter">
+                <option value="7day">7 days</option>
+                <option value="1month" selected>1 month</option>
+                <option value="3month">3 months</option>
+                <option value="6month">6 months</option>
+                <option value="12month">12 months</option>
+                <option value="overall">Overall</option>
+            </select>
+            <button class="btn btn-primary" id="btn-load-music">Load</button>
+        </div>
+    </header>
+
+    <div id="music-loading" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Fetching data from Last.fm and Discogs…</p>
+    </div>
+
+    <div id="music-content" class="hidden">
+        <div class="music-grid">
+            <section class="card">
+                <h2 class="section-title">Top Albums <small id="top-albums-period"></small></h2>
+                <div id="top-albums-list"></div>
+            </section>
+
+            <section class="card">
+                <h2 class="section-title">Vinyl Collection</h2>
+                <div id="collection-list"></div>
+            </section>
+        </div>
+
+        <section class="card" style="margin-top:1rem">
+            <div class="comparison-header">
+                <h2 class="section-title">Comparison</h2>
+                <div class="match-score" id="match-score-badge"></div>
+            </div>
+
+            <div class="comparison-grid">
+                <div>
+                    <h3 class="subsection-title">Owned & Listened</h3>
+                    <div id="owned-list"></div>
+                </div>
+                <div>
+                    <h3 class="subsection-title">Want List <small>(top listened, not owned)</small></h3>
+                    <div id="want-list"></div>
+                </div>
+                <div>
+                    <h3 class="subsection-title">Dusty Shelf <small>(owned, rarely listened)</small></h3>
+                    <div id="dusty-list"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div id="music-error" class="hidden"></div>
+</div>
+
+<script src="{{ asset('js/music.js') }}"></script>
+{% endblock %}
