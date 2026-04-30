@@ -2,7 +2,17 @@
 
 ## Projekt
 System automatyzacji codziennych czynności. Backend: PHP 8.4 + Symfony 8 + MySQL.
-Moduły (zaimplementowane): Series, Articles (import CSV). [PLANNED]: Tasks, Books, Music. Frontend: Twig/Stimulus lub React.
+Moduły (zaimplementowane): Series, Articles (import CSV). [PLANNED]: Tasks, Books, Music. Frontend: Twig + vanilla JS (Series UI).
+
+## Frontend
+- Silnik szablonów: `symfony/twig-bundle` (zainstalowany)
+- Statyczne assety: `public/css/app.css`, `public/js/series.js` — bez Webpack/Node.js
+- Frontend controller: `src/Controller/FrontendController.php` — `GET /` → redirect, `GET /series` → Twig SPA shell
+- Szablony: `templates/base.html.twig`, `templates/series/index.html.twig`
+- JS komunikuje się z REST API przez `fetch()` (vanilla JS, brak frameworka)
+- Selektor ocen: 10 przycisków (1–10), nie `<input type=number>`
+- Brak CORS — frontend i API serwowane z tego samego kontenera
+- Brakujący zakres (Jira): HMAI-41 (Webpack Encore + Stimulus), HMAI-42 (testy E2E), HMAI-43 (PATCH rating endpoint)
 
 ## Uruchamianie i testowanie
 - Środowisko: `make up` (uruchom kontenery), `make setup` (pełna inicjalizacja)
