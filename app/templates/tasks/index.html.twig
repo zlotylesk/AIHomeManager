@@ -1,0 +1,53 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Tasks — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app">
+    <header class="app-header">
+        <h1 class="app-title">Tasks — Time Report</h1>
+    </header>
+
+    <section class="card">
+        <form id="form-time-report" class="time-report-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="input-from">From</label>
+                    <input id="input-from" type="date" required>
+                </div>
+                <div class="form-group">
+                    <label for="input-to">To</label>
+                    <input id="input-to" type="date" required>
+                </div>
+                <div class="form-group form-group--action">
+                    <button type="submit" class="btn btn-primary">Generate Report</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <div id="report-result" class="hidden">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-hours">—</div>
+                <div class="stat-label">Total hours</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-minutes">—</div>
+                <div class="stat-label">Total minutes</div>
+            </div>
+        </div>
+        <div class="card">
+            <h2 class="section-title">Breakdown</h2>
+            <table class="data-table" id="breakdown-table">
+                <thead><tr><th>Task</th><th>Minutes</th><th>Hours</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="report-empty" class="empty-state hidden">No tasks found in selected period.</div>
+</div>
+
+<script src="{{ asset('js/tasks.js') }}"></script>
+{% endblock %}
