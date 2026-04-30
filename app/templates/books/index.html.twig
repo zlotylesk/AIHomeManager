@@ -1,0 +1,60 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Books — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app">
+    <header class="app-header">
+        <h1 class="app-title">Books</h1>
+        <div class="header-actions">
+            <select id="filter-status" class="select-filter">
+                <option value="">All</option>
+                <option value="to_read">To Read</option>
+                <option value="reading">Reading</option>
+                <option value="completed">Completed</option>
+            </select>
+            <button class="btn btn-primary" id="btn-add-book">+ Add Book</button>
+        </div>
+    </header>
+
+    <div id="modal-add-book" class="modal hidden">
+        <div class="modal-box">
+            <h2>Add Book by ISBN</h2>
+            <form id="form-add-book">
+                <label for="input-isbn">ISBN (13 digits)</label>
+                <input id="input-isbn" type="text" placeholder="e.g. 9780306406157" required>
+                <p class="form-hint">Metadata (title, author, cover) will be fetched automatically.</p>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Add Book</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-book">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-reading-session" class="modal hidden">
+        <div class="modal-box">
+            <h2>Log Reading Session</h2>
+            <form id="form-reading-session">
+                <input type="hidden" id="session-book-id">
+                <label for="input-pages">Pages read</label>
+                <input id="input-pages" type="number" min="1" placeholder="e.g. 30" required>
+                <label for="input-session-date">Date</label>
+                <input id="input-session-date" type="date" required>
+                <label for="input-notes">Notes (optional)</label>
+                <input id="input-notes" type="text" placeholder="Optional notes">
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Session</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-session">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="books-grid" class="books-grid">
+        <div class="loading">Loading…</div>
+    </div>
+</div>
+
+<script src="{{ asset('js/books.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Articles — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app">
+    <header class="app-header">
+        <h1 class="app-title">Articles</h1>
+        <div class="header-actions">
+            <select id="filter-category" class="select-filter">
+                <option value="">All categories</option>
+            </select>
+        </div>
+    </header>
+
+    <div id="today-section" class="hidden">
+        <h2 class="section-title">Today's Article</h2>
+        <div id="today-article"></div>
+    </div>
+
+    <h2 class="section-title" style="margin-top:1.5rem">All Articles</h2>
+    <div id="articles-list" class="articles-list">
+        <div class="loading">Loading…</div>
+    </div>
+</div>
+
+<script src="{{ asset('js/articles.js') }}"></script>
+{% endblock %}
