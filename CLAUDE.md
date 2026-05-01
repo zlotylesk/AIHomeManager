@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: brak `security.yaml`, plaintext OAuth tokens, HTTP w Last.fm, `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), plaintext OAuth tokens, HTTP w Last.fm, `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -88,7 +88,17 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 - Integration: `tests/Integration/`
 - Framework: PHPUnit 13
-- Stan: 219/219 passing (HMAI-44)
+- Stan: 225/225 passing (HMAI-34)
+- Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
+
+## Security — API Key
+
+- `^/api/*` chronione firewall'em `api` w `app/config/packages/security.yaml` (stateless, custom authenticator)
+- Authenticator: `App\Security\ApiKeyAuthenticator` — czyta header `X-API-Key`, porównuje przez `hash_equals` z `%env(API_KEY)%`
+- 401 JSON `{"error": "..."}` przy braku/błędnym kluczu
+- Klucz produkcyjny w `app/.env.local` (gitignored). `app/.env` ma tylko placeholder
+- `/auth/google*`, `/auth/discogs*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
+- Test env: `API_KEY=test-api-key` w `app/.env.test`
 
 ## MCP servers (`.mcp.json`)
 

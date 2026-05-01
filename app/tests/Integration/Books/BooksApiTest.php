@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Books;
 
+use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 class BooksApiTest extends WebTestCase
 {
+    use AuthenticatedApiTrait;
+
     private KernelBrowser $client;
 
     protected function setUp(): void
     {
         $this->client = static::createClient();
+        $this->authenticate($this->client);
         $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
         $conn->executeStatement('SET FOREIGN_KEY_CHECKS=0');
         $conn->executeStatement('TRUNCATE TABLE book_reading_sessions');

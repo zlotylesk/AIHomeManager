@@ -140,3 +140,6 @@ services:
         arguments:
             $redis: '@app.redis'
 
+    App\Security\ApiKeyAuthenticator:
+        arguments:
+            $expectedApiKey: '%env(API_KEY)%'

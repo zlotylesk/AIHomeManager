@@ -1,0 +1,17 @@
+security:
+    providers:
+        api_key_provider:
+            id: App\Security\ApiUserProvider
+
+    firewalls:
+        dev:
+            pattern: ^/(_profiler|_wdt|assets|build)/
+            security: false
+        api:
+            pattern: ^/api
+            stateless: true
+            provider: api_key_provider
+            custom_authenticators:
+                - App\Security\ApiKeyAuthenticator
+        main:
+            security: false

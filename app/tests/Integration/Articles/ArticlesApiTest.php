@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Articles;
 
+use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 class ArticlesApiTest extends WebTestCase
 {
+    use AuthenticatedApiTrait;
+
     private KernelBrowser $client;
     private \Redis $redis;
 
     protected function setUp(): void
     {
         $this->client = static::createClient();
+        $this->authenticate($this->client);
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $this->redis = static::getContainer()->get('app.redis');
 
