@@ -1,103 +1,126 @@
 # AIHomeManager — Claude Code Context
 
-## Projekt
-System automatyzacji codziennych czynności. Backend: PHP 8.4 + Symfony 8 + MySQL.
-Moduły (zaimplementowane): Series, Articles (import CSV). [PLANNED]: Tasks, Books, Music. Frontend: Twig + vanilla JS (Series UI).
+Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfony 8 + MySQL 8 + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami. Wszystkie moduły zaimplementowane (HMAI-1—HMAI-30).
 
-## Frontend
-- Silnik szablonów: `symfony/twig-bundle` (zainstalowany)
-- Statyczne assety: `public/css/app.css`, `public/js/{module}.js` — bez Webpack/Node.js
-- Frontend controller: `src/Controller/FrontendController.php` — `GET /` → redirect, trasy: `/series`, `/tasks`, `/books`, `/articles`, `/music`
-- Globalny navbar w `templates/base.html.twig`, jeden plik CSS `public/css/app.css` dla wszystkich modułów
-- Szablony: `templates/{module}/index.html.twig` (series, tasks, books, articles, music)
-- JS komunikuje się z REST API przez `fetch()` (vanilla JS, brak frameworka)
-- Selektor ocen Series: 10 przycisków (1–10), nie `<input type=number>`
-- Brak CORS — frontend i API serwowane z tego samego kontenera
-- Tasks: brak endpointów create/list w API — widok Tasks pokazuje tylko time-report (`GET /api/tasks/time-report`)
-- Brakujący zakres (Jira): HMAI-41 (Webpack Encore + Stimulus), HMAI-42 (testy E2E), HMAI-43 (PATCH rating endpoint)
+**Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-## Uruchamianie i testowanie
-- Środowisko: `make up` (uruchom kontenery), `make setup` (pełna inicjalizacja)
-- Shell PHP: `make shell`
-- Testy: `make test` (wszystkie), `make test-unit` (Domain), `make test-integration` (API)
-- Cache: `make cc`
-- Migracje: `make migrate` (dev), `make migrate-test` (test)
-- Logi: `make logs`
-- Routing: `make routes`
-- Kontenery: `make services`
-- Messenger: `make messenger-status`
+**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: brak `security.yaml`, plaintext OAuth tokens, HTTP w Last.fm, `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
 ## Architektura — ZASADY NIENARUSZALNE
-- Architektura heksagonalna: Domain / Application / Infrastructure
-- Struktura modułu: `src/Module/{Name}/Domain/`, `Application/`, `Infrastructure/`
-- Doctrine XML mapping w `Infrastructure/Persistence/Doctrine/*.orm.xml` — NIGDY nie zmieniać na atrybuty PHP
-- Weryfikacja: `grep -r "use Doctrine" src/Module/*/Domain/` musi zwracać pusty wynik
-- Domain Events: gromadzone w `$recordedEvents` na agregacie, dispatchowane przez handler po `releaseEvents()`
-- Query handlery: czytają przez DBAL (nie ORM) — nie hydratuj agregatów do odczytu
+
+- Hexagonal: `src/Module/{Name}/{Domain,Application,Infrastructure}/`
+- Domain bez frameworka: `grep -r "use Doctrine" src/Module/*/Domain/` MUSI zwracać pusty wynik
+- Doctrine XML w `Infrastructure/Persistence/Doctrine/*.orm.xml` — NIE migrować na atrybuty PHP (ADR-001)
+- Domain Events: agregat gromadzi w `$recordedEvents`, handler dispatchuje po `releaseEvents()`. Wzorzec: `Series` aggregate
+- Query handlery: DBAL, NIE ORM (nie hydratuj agregatów do odczytu)
+- Command handler: `#[AsMessageHandler(bus: 'command.bus')]`
+- Query handler: `#[AsMessageHandler(bus: 'query.bus')]`
+- Event handler: `#[AsMessageHandler]` bez `bus:` (default)
 
 ## Konwencje nazewnictwa
-- Aggregate Root: `Series`, `Task`, `Book`
-- Value Object: `Rating`, `ISBN`, `TimeSlot` (immutable, bez setterów)
-- Command: `CreateSeries`, `AddEpisodeRating`
-- Command Handler: `CreateSeriesHandler` (#[AsMessageHandler(bus: 'command.bus')])
-- Query Handler: `GetAllSeriesHandler` (#[AsMessageHandler(bus: 'query.bus')])
-- Query: `GetAllSeries`, `GetSeriesDetail`
-- DTO: `SeriesDetailDTO`, `EpisodeDTO`
-- Repository Interface: `SeriesRepositoryInterface`
-- Repository Impl: `DoctrineSeriesRepository`
 
-## Struktura testów
-- Testy jednostkowe: `tests/Unit/Module/{Name}/Domain/`
-- Testy integracyjne: `tests/Integration/`
+| Element | Wzorzec | Lokalizacja |
+|---|---|---|
+| Aggregate Root | `Series`, `Task`, `Book`, `Article` | `Domain/Entity/` |
+| Value Object (immutable, `final readonly`) | `Rating`, `ISBN`, `TimeSlot`, `ReadingProgress` | `Domain/ValueObject/` |
+| Command | `CreateSeries`, `LogReadingSession` | `Application/Command/` |
+| Command Handler | `*Handler` | `Application/Handler/` |
+| Query | `GetAllSeries`, `GetSeriesDetail` | `Application/Query/` |
+| Query Handler | `*Handler` | `Application/QueryHandler/` |
+| DTO | `*DTO` | `Application/DTO/` |
+| Repository Interface | `*RepositoryInterface` | `Domain/Repository/` |
+| Repository Impl | `Doctrine*Repository` | `Infrastructure/Persistence/` |
+
+## Frontend
+
+- Twig + vanilla JS, **bez Webpack/Node.js**
+- Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`
+- Selektor ocen Series: 10 przycisków (NIE `<input type=number>`)
+- Tasks UI = tylko `/api/tasks/time-report` (brak create/list endpointów)
+- Brakujący zakres frontu (Jira): HMAI-41 (Webpack Encore + Stimulus), HMAI-42 (E2E), HMAI-43 (PATCH rating endpoint)
+
+## Infrastruktura
+
+| Serwis | Kontener / Port | Notatki |
+|---|---|---|
+| MySQL 8 | `mysql:3306` | DB `homemanager` |
+| Redis 7 | `redis:6379` | Pool `series.ratings.cache` (TTL 3600); klucze `series:avg:{id}`, `season:avg:{id}` ustawiane przez `EpisodeRatedHandler` |
+| RabbitMQ 3.12 | `rabbitmq:5672` (AMQP), `:15672` UI (guest/guest) | Transport `async`, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ `failed` |
+| Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
+| Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | NIE w `make up` — `make monitoring-up`. Kanał Monolog `series` |
+
+W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
+
+`NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic`.
+
+GELF UDP input w Graylog: konfigurować ręcznie po pierwszym `make monitoring-up` (System → Inputs → GELF UDP → Launch).
+
+### .env — kluczowe
+
+```
+DATABASE_URL=mysql://homemanager:homemanager@mysql:3306/homemanager?serverVersion=8.0&charset=utf8mb4
+MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages
+REDIS_URL=redis://redis:6379
+GRAYLOG_HOST, GRAYLOG_PORT=12201
+NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
+```
+
+## Komendy Makefile
+
+| Akcja | Komenda |
+|---|---|
+| Start środowiska | `make up` |
+| Pełna inicjalizacja | `make setup` |
+| Shell PHP | `make shell` |
+| Wszystkie testy | `make test` |
+| Domain only | `make test-unit` |
+| Integration only | `make test-integration` |
+| Cache clear | `make cc` |
+| Migracje dev/test | `make migrate` / `make migrate-test` |
+| Logi | `make logs` |
+| Routing | `make routes` |
+| Kontenery | `make services` |
+| Status workera | `make messenger-status` |
+| Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
+
+## Testy
+
+- Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
+- Integration: `tests/Integration/`
 - Framework: PHPUnit 13
-- Wzorzec: `app/tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
+- Stan: 219/219 passing (HMAI-44)
 
-## Kluczowe zmienne środowiskowe (.env)
-- `DATABASE_URL=mysql://homemanager:homemanager@mysql:3306/homemanager?serverVersion=8.0&charset=utf8mb4`
-- `MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages`
-- `REDIS_URL=redis://redis:6379`
+## MCP servers (`.mcp.json`)
 
-## Infrastruktura — Redis
-- Kontener: `redis:7-alpine`, port 6379
-- Serwis Redis: `app.redis` via `RedisAdapter::createConnection('%env(REDIS_URL)%')`
-- Cache pool: `series.ratings.cache` (Redis, TTL 3600)
-- Klucze Redis: `series:avg:{id}`, `season:avg:{id}` — ustawiane przez `EpisodeRatedHandler`
+- `sequential-thinking` (npx)
+- `github` (npx — wymaga `GITHUB_PERSONAL_ACCESS_TOKEN`; aktualnie zwraca "Bad credentials" przy próbach create_pull_request — odnowić PAT lub używać `gh` CLI / Web UI)
+- `context7` (npx — docs Symfony/Doctrine/PHP)
+- `filesystem` (npx — root: AIHM)
+- Atlassian Rovo: konfigurowane przez claude.ai (NIE `.mcp.json`)
+- Wymóg: Node.js v18+ (zainstalowane v24.x LTS)
 
-## Infrastruktura — RabbitMQ + Messenger Worker
-- Kontener: `rabbitmq:3.12-management-alpine`, porty 5672 (AMQP) i 15672 (Management UI, guest/guest)
-- Worker: `messenger_worker` konsumuje transport `async` (`bin/console messenger:consume async --time-limit=3600 -vv`)
-- Transport `async`: AMQP, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ: `failed`
-- `MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages`
-- Event handlery w `Infrastructure/Messenger/` — `#[AsMessageHandler]` bez `bus:` (domyślny command.bus)
-- W testach: transport `async` i `failed` nadpisywane przez `in-memory://` (`when@test` w messenger.yaml)
+## Skills przydatne dla projektu
 
-## Infrastruktura — Graylog + New Relic (centralne logowanie i APM)
-
-- Serwisy uruchamiane **wyłącznie przez profil monitoring**: `make monitoring-up` / `make monitoring-down`
-- Domyślny `make up` **nie uruchamia** Grayloga (za ciężki na codzienne dev)
-- Stack monitoring: `mongodb:6` + `opensearch:2` + `graylog/graylog:5.2`
-- Graylog UI: http://localhost:9000 (login: admin / admin)
-- GELF UDP input: port 12201 — **musi być skonfigurowany ręcznie** w Graylog UI po pierwszym uruchomieniu:
-  System → Inputs → GELF UDP → Launch new input
-- Kanał Monolog: `series` — logują do niego: `SeriesController`, `CreateSeriesHandler`, `AddEpisodeHandler`, `AddEpisodeRatingHandler`
-- Poziomy logowania: dev → debug+, prod → warning+
-- `NewRelicMonologHandler` w `src/Module/Series/Infrastructure/Logging/` — jeśli extension `newrelic` nie jest zainstalowane, handler cicho pomija (bez wyjątku)
-- Zmienne środowiskowe: `GRAYLOG_HOST`, `GRAYLOG_PORT=12201`, `NEW_RELIC_LICENSE_KEY`, `NEW_RELIC_APP_NAME`
-- Makefile: `make monitoring-up`, `make monitoring-down`, `make monitoring-logs`
-
-## Infrastruktura — MCP Servers
-
-- Node.js wymagany: v18+ (zainstalowane: v24.x LTS)
-- Konfiguracja w `.mcp.json` w katalogu projektu (nie globalnie)
-- Serwery skonfigurowane:
-  - `sequential-thinking` — `npx @modelcontextprotocol/server-sequential-thinking`
-  - `github` — `npx @modelcontextprotocol/server-github` (wymaga `GITHUB_PERSONAL_ACCESS_TOKEN`)
-  - `context7` — `npx @upstash/context7-mcp`
-  - `filesystem` — `npx @modelcontextprotocol/server-filesystem` (root: projekt AIHM)
-- Atlassian Rovo MCP konfigurowany przez claude.ai (nie przez `.mcp.json`)
+- `/start-task HMAI-XX` — Jira → branch → implement → PR → Confluence → transition (workflow z preferencjami: skip STOP checkpoints, no Co-Authored-By)
+- `/review`, `/security-review` — review pending changes / security
+- `superpowers-symfony:symfony-tdd-pest` lub `:symfony-tdd-phpunit` — TDD RED/GREEN/REFACTOR
+- `superpowers-symfony:symfony-check` — PHP-CS-Fixer + PHPStan + tests
+- `superpowers-symfony:doctrine-architect` (subagent) — projektowanie schemy
+- `superpowers-symfony:symfony-reviewer` (subagent) — review po zmianie kodu
+- `superpowers-symfony:functional-tests` — WebTestCase + TDD dla kontrolerów
 
 ## Zasady pracy z Claude Code
-- Przed każdym git commit pokaż mi pełny diff i zaproponowany commit message. Nie commituj bez mojej zgody.
-- Po każdej zmianie kodu uruchom make test. Jeśli testy nie przechodzą, napraw błędy przed zgłoszeniem gotowości.
-- Zawsze zaczynaj od przeczytania pliku CLAUDE.md i opisania planu przed implementacją.
-- Jedno zadanie Jira = jedna sesja Claude Code.
+
+1. Najpierw przeczytaj CLAUDE.md i opisz plan przed implementacją
+2. Jedno zadanie Jira = jedna sesja
+3. Po każdej zmianie kodu: `make test`. Nie zgłaszaj gotowości jeśli testy nie przechodzą
+4. Przed `git commit`: pokaż diff + propozycję commit message, NIE commituj bez zgody
+5. NIE dodawaj `Co-Authored-By: Claude` w commitach (preferencja)
+6. Branche: `HMAI-XX-krotki-opis` od `develop`
+
+## Linki
+
+- Confluence hub: https://honemanager.atlassian.net/wiki/spaces/H/pages/46661633
+- Code review HMAI-44: https://honemanager.atlassian.net/wiki/spaces/H/pages/52658177
+- Jira board: https://honemanager.atlassian.net/jira/software/projects/HMAI/boards
+- Repo: `zlotylesk/AIHomeManager` (GitHub)
