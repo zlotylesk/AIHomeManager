@@ -8,10 +8,16 @@
     "github": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
-      }
+      "args": [
+        "-y",
+        "dotenv-cli",
+        "-e",
+        ".env.local",
+        "--",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ]
     },
     "context7": {
       "type": "stdio",
