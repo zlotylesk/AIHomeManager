@@ -8,6 +8,8 @@ use App\Module\Books\Domain\Entity\Book;
 use App\Module\Books\Domain\Entity\ReadingSession;
 use App\Module\Books\Domain\Enum\BookStatus;
 use App\Module\Books\Domain\ValueObject\ISBN;
+use DateTimeImmutable;
+use DomainException;
 use PHPUnit\Framework\TestCase;
 
 final class BookAggregateTest extends TestCase
@@ -31,7 +33,7 @@ final class BookAggregateTest extends TestCase
         return new ReadingSession(
             id: 'session-uuid-1',
             bookId: $bookId,
-            date: new \DateTimeImmutable('2025-01-15'),
+            date: new DateTimeImmutable('2025-01-15'),
             pagesRead: $pagesRead,
             notes: $notes,
         );
@@ -74,7 +76,7 @@ final class BookAggregateTest extends TestCase
         $book = $this->makeBook(300);
 
         $book->addReadingSession($this->makeSession($book->id(), 100));
-        $book->addReadingSession(new ReadingSession('s2', $book->id(), new \DateTimeImmutable(), 100));
+        $book->addReadingSession(new ReadingSession('s2', $book->id(), new DateTimeImmutable(), 100));
 
         self::assertSame(200, $book->readingProgress()->currentPage());
     }
@@ -92,7 +94,7 @@ final class BookAggregateTest extends TestCase
     {
         $book = $this->makeBook(100);
 
-        $this->expectException(\DomainException::class);
+        $this->expectException(DomainException::class);
 
         $book->addReadingSession($this->makeSession($book->id(), 150));
     }

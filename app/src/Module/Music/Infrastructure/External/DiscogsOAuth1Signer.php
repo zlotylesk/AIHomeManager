@@ -25,33 +25,33 @@ final class DiscogsOAuth1Signer
             'oauth_version' => '1.0',
         ];
 
-        if ($oauthToken !== '') {
+        if ('' !== $oauthToken) {
             $oauthParams['oauth_token'] = $oauthToken;
         }
 
-        $allParams = array_merge($oauthParams, array_map('strval', $extraParams));
+        $allParams = array_merge($oauthParams, array_map(strval(...), $extraParams));
         ksort($allParams);
 
         $paramString = implode('&', array_map(
-            fn($k, $v) => rawurlencode($k) . '=' . rawurlencode($v),
+            fn ($k, $v) => rawurlencode((string) $k).'='.rawurlencode($v),
             array_keys($allParams),
             array_values($allParams)
         ));
 
         $baseString = strtoupper($method)
-            . '&' . rawurlencode($url)
-            . '&' . rawurlencode($paramString);
+            .'&'.rawurlencode($url)
+            .'&'.rawurlencode($paramString);
 
-        $signingKey = rawurlencode($consumerSecret) . '&' . rawurlencode($tokenSecret);
+        $signingKey = rawurlencode($consumerSecret).'&'.rawurlencode($tokenSecret);
 
         $oauthParams['oauth_signature'] = base64_encode(hash_hmac('sha1', $baseString, $signingKey, true));
 
         $headerParts = array_map(
-            fn($k, $v) => rawurlencode($k) . '="' . rawurlencode($v) . '"',
+            fn ($k, $v) => rawurlencode($k).'="'.rawurlencode($v).'"',
             array_keys($oauthParams),
             array_values($oauthParams)
         );
 
-        return 'OAuth ' . implode(', ', $headerParts);
+        return 'OAuth '.implode(', ', $headerParts);
     }
 }

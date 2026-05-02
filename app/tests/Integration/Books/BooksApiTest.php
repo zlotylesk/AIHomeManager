@@ -85,7 +85,7 @@ class BooksApiTest extends WebTestCase
         $created = $this->createBook(['total_pages' => 200]);
         $id = $created['id'];
 
-        $this->client->request('GET', '/api/books/' . $id);
+        $this->client->request('GET', '/api/books/'.$id);
 
         self::assertResponseIsSuccessful();
         $data = json_decode($this->client->getResponse()->getContent(), true);
@@ -106,7 +106,7 @@ class BooksApiTest extends WebTestCase
         $this->createBook(['isbn' => '9780306406157', 'title' => 'Book A']);
         $id2 = $this->createBook(['isbn' => '080442957X', 'title' => 'Book B', 'total_pages' => 100])['id'];
 
-        $this->client->request('POST', '/api/books/' . $id2 . '/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id2.'/reading-sessions', content: json_encode([
             'pages_read' => 50,
             'date' => '2025-01-10',
         ]));
@@ -129,7 +129,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook()['id'];
 
-        $this->client->request('PUT', '/api/books/' . $id, content: json_encode([
+        $this->client->request('PUT', '/api/books/'.$id, content: json_encode([
             'title' => 'Clean Code Updated',
             'author' => 'Robert C. Martin',
             'publisher' => 'Prentice Hall',
@@ -138,7 +138,7 @@ class BooksApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(204);
 
-        $this->client->request('GET', '/api/books/' . $id);
+        $this->client->request('GET', '/api/books/'.$id);
         $data = json_decode($this->client->getResponse()->getContent(), true);
         self::assertSame('Clean Code Updated', $data['title']);
         self::assertSame(2009, $data['year']);
@@ -157,10 +157,10 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook()['id'];
 
-        $this->client->request('DELETE', '/api/books/' . $id);
+        $this->client->request('DELETE', '/api/books/'.$id);
         self::assertResponseStatusCodeSame(204);
 
-        $this->client->request('GET', '/api/books/' . $id);
+        $this->client->request('GET', '/api/books/'.$id);
         self::assertResponseStatusCodeSame(404);
     }
 
@@ -175,14 +175,14 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 200])['id'];
 
-        $this->client->request('POST', '/api/books/' . $id . '/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
             'pages_read' => 100,
             'date' => '2025-01-15',
         ]));
 
         self::assertResponseStatusCodeSame(201);
 
-        $this->client->request('GET', '/api/books/' . $id);
+        $this->client->request('GET', '/api/books/'.$id);
         $data = json_decode($this->client->getResponse()->getContent(), true);
         self::assertSame(100, $data['currentPage']);
         self::assertEquals(50.0, $data['percentage']);
@@ -193,12 +193,12 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 100])['id'];
 
-        $this->client->request('POST', '/api/books/' . $id . '/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
             'pages_read' => 100,
             'date' => '2025-01-15',
         ]));
 
-        $this->client->request('GET', '/api/books/' . $id);
+        $this->client->request('GET', '/api/books/'.$id);
         $data = json_decode($this->client->getResponse()->getContent(), true);
         self::assertSame('completed', $data['status']);
         self::assertEquals(100.0, $data['percentage']);
@@ -218,7 +218,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 100])['id'];
 
-        $this->client->request('POST', '/api/books/' . $id . '/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
             'pages_read' => 200,
             'date' => '2025-01-15',
         ]));

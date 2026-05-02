@@ -10,6 +10,7 @@ use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Handler\AddBookHandler;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class AddBookHandlerTest extends TestCase
@@ -71,7 +72,7 @@ final class AddBookHandlerTest extends TestCase
 
         $repository = $this->createMock(BookRepositoryInterface::class);
         $repository->expects(self::once())->method('save')->with(
-            self::callback(fn($book) => $book->author() === 'User Author')
+            self::callback(fn ($book) => 'User Author' === $book->author())
         );
 
         $handler = new AddBookHandler($repository, $this->metadataProvider);
@@ -91,7 +92,7 @@ final class AddBookHandlerTest extends TestCase
 
         $handler = new AddBookHandler($this->repository, $this->metadataProvider);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $handler(new AddBook(isbn: '9780306406157'));
     }

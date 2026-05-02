@@ -7,6 +7,7 @@ namespace App\Module\Books\Domain\Entity;
 use App\Module\Books\Domain\Enum\BookStatus;
 use App\Module\Books\Domain\ValueObject\ISBN;
 use App\Module\Books\Domain\ValueObject\ReadingProgress;
+use DomainException;
 
 final class Book
 {
@@ -97,14 +98,10 @@ final class Book
         $newCurrentPage = $this->readingProgress->currentPage() + $session->pagesRead();
 
         if ($newCurrentPage > $this->readingProgress->totalPages()) {
-            throw new \DomainException(sprintf(
-                'Cannot log %d pages: would exceed total pages (%d).',
-                $session->pagesRead(),
-                $this->readingProgress->totalPages()
-            ));
+            throw new DomainException(sprintf('Cannot log %d pages: would exceed total pages (%d).', $session->pagesRead(), $this->readingProgress->totalPages()));
         }
 
-        if ($this->status === BookStatus::TO_READ) {
+        if (BookStatus::TO_READ === $this->status) {
             $this->status = BookStatus::READING;
         }
 

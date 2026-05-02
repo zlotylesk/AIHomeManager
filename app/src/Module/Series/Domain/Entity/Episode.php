@@ -14,7 +14,8 @@ final class Episode
         private readonly string $id,
         private readonly string $seasonId,
         private readonly string $title,
-    ) {}
+    ) {
+    }
 
     public function id(): string
     {

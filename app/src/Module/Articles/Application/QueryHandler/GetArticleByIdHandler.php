@@ -12,7 +12,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler(bus: 'query.bus')]
 final readonly class GetArticleByIdHandler
 {
-    public function __construct(private Connection $connection) {}
+    public function __construct(private Connection $connection)
+    {
+    }
 
     public function __invoke(GetArticleById $query): ?ArticleDTO
     {
@@ -22,6 +24,6 @@ final readonly class GetArticleByIdHandler
             ['id' => $query->id]
         );
 
-        return $row !== false ? ArticleDTO::fromRow($row) : null;
+        return false !== $row ? ArticleDTO::fromRow($row) : null;
     }
 }

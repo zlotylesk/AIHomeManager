@@ -9,11 +9,12 @@ use App\Module\Tasks\Domain\Enum\TaskStatus;
 use App\Module\Tasks\Domain\Event\TaskScheduled;
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 
 final class TaskAggregateTest extends TestCase
 {
-    private const TASK_ID = 'task-uuid-1';
+    private const string TASK_ID = 'task-uuid-1';
 
     private function makeTask(): Task
     {
@@ -21,8 +22,8 @@ final class TaskAggregateTest extends TestCase
             id: self::TASK_ID,
             title: new TaskTitle('Write unit tests'),
             timeSlot: new TimeSlot(
-                new \DateTimeImmutable('2025-01-01 09:00:00'),
-                new \DateTimeImmutable('2025-01-01 10:00:00'),
+                new DateTimeImmutable('2025-01-01 09:00:00'),
+                new DateTimeImmutable('2025-01-01 10:00:00'),
             ),
         );
     }
@@ -56,7 +57,7 @@ final class TaskAggregateTest extends TestCase
         $event = $events[0];
         self::assertSame(self::TASK_ID, $event->taskId);
         self::assertSame('Write unit tests', $event->title->value());
-        self::assertInstanceOf(\DateTimeImmutable::class, $event->occurredAt);
+        self::assertInstanceOf(DateTimeImmutable::class, $event->occurredAt);
     }
 
     public function testScheduleSetsStatusToPending(): void

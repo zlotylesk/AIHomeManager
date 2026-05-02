@@ -10,6 +10,8 @@ use App\Module\Series\Application\Command\CreateSeries;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
+use DomainException;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
@@ -26,9 +28,12 @@ final class SeriesController extends AbstractController
 {
     public function __construct(
         private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')] private readonly MessageBusInterface $queryBus,
-        #[Target('series')] private readonly LoggerInterface $logger,
-    ) {}
+        #[Target('query.bus')]
+        private readonly MessageBusInterface $queryBus,
+        #[Target('series')]
+        private readonly LoggerInterface $logger,
+    ) {
+    }
 
     #[Route('', methods: ['GET'])]
     public function list(): JsonResponse
@@ -49,7 +54,7 @@ final class SeriesController extends AbstractController
         /** @var SeriesDetailDTO|null $dto */
         $dto = $this->queryBus->dispatch(new GetSeriesDetail($id))->last(HandledStamp::class)->getResult();
 
-        if ($dto === null) {
+        if (null === $dto) {
             return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
         }
 
@@ -62,7 +67,7 @@ final class SeriesController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         $title = trim($data['title'] ?? '');
 
-        if ($title === '') {
+        if ('' === $title) {
             $this->logger->warning('POST /api/series failed: title is empty');
 
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -88,7 +93,7 @@ final class SeriesController extends AbstractController
         try {
             $id = $this->commandBus->dispatch(new AddSeason($seriesId, $number))->last(HandledStamp::class)->getResult();
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \DomainException) {
+            if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -104,7 +109,7 @@ final class SeriesController extends AbstractController
         $title = trim($data['title'] ?? '');
         $rating = isset($data['rating']) ? (int) $data['rating'] : null;
 
-        if ($title === '') {
+        if ('' === $title) {
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -114,10 +119,10 @@ final class SeriesController extends AbstractController
                 ->getResult();
         } catch (HandlerFailedException $e) {
             $original = $e->getPrevious();
-            if ($original instanceof \DomainException) {
+            if ($original instanceof DomainException) {
                 return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
             }
-            if ($original instanceof \InvalidArgumentException) {
+            if ($original instanceof InvalidArgumentException) {
                 return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             throw $e;
@@ -129,16 +134,16 @@ final class SeriesController extends AbstractController
     private function serializeDTO(SeriesDetailDTO $dto): array
     {
         $seasons = array_map(function ($season) {
-            $ratedEpisodes = array_filter($season->episodes, fn($e) => $e->rating !== null);
+            $ratedEpisodes = array_filter($season->episodes, fn ($e) => null !== $e->rating);
             $seasonAvg = count($ratedEpisodes) > 0
-                ? round(array_sum(array_map(fn($e) => $e->rating, $ratedEpisodes)) / count($ratedEpisodes), 2)
+                ? round(array_sum(array_map(fn ($e) => $e->rating, $ratedEpisodes)) / count($ratedEpisodes), 2)
                 : null;
 
             return [
                 'id' => $season->id,
                 'number' => $season->number,
                 'averageRating' => $seasonAvg,
-                'episodes' => array_map(fn($e) => [
+                'episodes' => array_map(fn ($e) => [
                     'id' => $e->id,
                     'title' => $e->title,
                     'rating' => $e->rating,
@@ -147,11 +152,11 @@ final class SeriesController extends AbstractController
         }, $dto->seasons);
 
         $allRated = array_merge(...array_map(
-            fn($s) => array_filter($s->episodes, fn($e) => $e->rating !== null),
+            fn ($s) => array_filter($s->episodes, fn ($e) => null !== $e->rating),
             $dto->seasons
         ));
         $seriesAvg = count($allRated) > 0
-            ? round(array_sum(array_map(fn($e) => $e->rating, $allRated)) / count($allRated), 2)
+            ? round(array_sum(array_map(fn ($e) => $e->rating, $allRated)) / count($allRated), 2)
             : null;
 
         return [

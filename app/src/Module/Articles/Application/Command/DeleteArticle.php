@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Articles\Application\Command;
 
-final class DeleteArticle
+final readonly class DeleteArticle
 {
-    public function __construct(public readonly string $id) {}
+    public function __construct(public string $id)
+    {
+    }
 }

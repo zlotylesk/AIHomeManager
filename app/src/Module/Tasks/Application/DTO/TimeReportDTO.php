@@ -11,5 +11,6 @@ final readonly class TimeReportDTO
         public float $totalHours,
         /** @var TaskTimeDTO[] */
         public array $breakdown,
-    ) {}
+    ) {
+    }
 }

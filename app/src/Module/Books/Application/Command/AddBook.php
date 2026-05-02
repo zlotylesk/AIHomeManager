@@ -14,5 +14,6 @@ final readonly class AddBook
         public ?int $year = null,
         public ?string $coverUrl = null,
         public ?int $totalPages = null,
-    ) {}
+    ) {
+    }
 }

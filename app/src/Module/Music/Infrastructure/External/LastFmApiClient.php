@@ -6,32 +6,35 @@ namespace App\Module\Music\Infrastructure\External;
 
 use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
+use Redis;
+use RuntimeException;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class LastFmApiClient implements MusicListeningHistoryInterface
+final readonly class LastFmApiClient implements MusicListeningHistoryInterface
 {
-    private const API_URL = 'http://ws.audioscrobbler.com/2.0/';
-    private const CACHE_TTL = 3600;
-    private const PREFERRED_IMAGE_SIZES = ['extralarge', 'large', 'medium', 'small'];
+    private const string API_URL = 'http://ws.audioscrobbler.com/2.0/';
+    private const int CACHE_TTL = 3600;
+    private const array PREFERRED_IMAGE_SIZES = ['extralarge', 'large', 'medium', 'small'];
 
     public function __construct(
-        private readonly HttpClientInterface $httpClient,
-        private readonly \Redis $redis,
-        private readonly string $apiKey,
-    ) {}
+        private HttpClientInterface $httpClient,
+        private Redis $redis,
+        private string $apiKey,
+    ) {
+    }
 
     /** @return AlbumDTO[] */
     public function getTopAlbums(string $username, string $period, int $limit): array
     {
-        if ($this->apiKey === '') {
-            throw new \RuntimeException('Last.fm API key not configured');
+        if ('' === $this->apiKey) {
+            throw new RuntimeException('Last.fm API key not configured');
         }
 
         $cacheKey = sprintf('lastfm:top:%s:%s:%d', $username, $period, $limit);
 
         $cached = $this->redis->get($cacheKey);
-        if ($cached !== false) {
+        if (false !== $cached) {
             return unserialize($cached);
         }
 
@@ -49,7 +52,7 @@ final class LastFmApiClient implements MusicListeningHistoryInterface
 
             $data = $response->toArray();
         } catch (TransportExceptionInterface $e) {
-            throw new \RuntimeException('Last.fm API unavailable.', 0, $e);
+            throw new RuntimeException('Last.fm API unavailable.', 0, $e);
         }
 
         $albums = $this->parseAlbums($data);

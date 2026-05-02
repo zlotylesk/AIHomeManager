@@ -9,5 +9,6 @@ final readonly class AddSeason
     public function __construct(
         public string $seriesId,
         public int $number,
-    ) {}
+    ) {
+    }
 }

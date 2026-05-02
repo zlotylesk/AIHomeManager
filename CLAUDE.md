@@ -100,6 +100,21 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - `/auth/google*`, `/auth/discogs*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
 - Test env: `API_KEY=test-api-key` w `app/.env.test`
 
+## Static Analysis (HMAI-40)
+
+- **PHPStan** level 8 + `phpstan-symfony` + `phpstan-doctrine` + `phpstan-phpunit`. Config: `app/phpstan.neon.dist`. Baseline (182 errors): `app/phpstan-baseline.neon` — celowo, by nie blokować mergy istniejącego długu; nowe błędy wymagają fixu lub rozszerzenia baseline'u przez `make phpstan-baseline`
+- **PHP CS Fixer**: `@Symfony` + `@PHP84Migration` + `global_namespace_import` (klasy importowane). Config: `app/.php-cs-fixer.dist.php`
+- **Rector**: `withPhpSets()` + `deadCode` (49 plików zmienionych przy starcie). Config: `app/rector.php`
+- CI: `.github/workflows/static-analysis.yml` uruchamia CS Fixer + PHPStan na każdy push/PR
+
+| Komenda | Akcja |
+|---|---|
+| `make analyse` | CS Fixer (dry-run) + PHPStan |
+| `make phpstan` | PHPStan analyse |
+| `make phpstan-baseline` | Regeneruj baseline (po naprawie błędów) |
+| `make cs-check` / `cs-fix` | CS Fixer dry-run / apply |
+| `make rector-dry` / `rector` | Rector dry-run / apply |
+
 ## MCP servers (`.mcp.json`)
 
 - `sequential-thinking` (npx)

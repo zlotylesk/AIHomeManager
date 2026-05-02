@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Series\Infrastructure\Logging;
 
 use App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler;
+use DateTimeImmutable;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\TestCase;
@@ -88,7 +89,7 @@ final class NewRelicMonologHandlerTest extends TestCase
     private function makeRecord(Level $level, string $message = 'Test message'): LogRecord
     {
         return new LogRecord(
-            datetime: new \DateTimeImmutable(),
+            datetime: new DateTimeImmutable(),
             channel: 'series',
             level: $level,
             message: $message,

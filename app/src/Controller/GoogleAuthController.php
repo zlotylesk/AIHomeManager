@@ -19,7 +19,8 @@ final class GoogleAuthController extends AbstractController
     public function __construct(
         private readonly Client $client,
         private readonly GoogleTokenRepositoryInterface $tokenRepository,
-    ) {}
+    ) {
+    }
 
     #[Route('', methods: ['GET'])]
     public function authorize(): RedirectResponse
@@ -34,7 +35,7 @@ final class GoogleAuthController extends AbstractController
     {
         $code = $request->query->get('code');
 
-        if ($code === null) {
+        if (null === $code) {
             return new JsonResponse(
                 ['error' => 'Authorization code missing.'],
                 Response::HTTP_BAD_REQUEST
@@ -45,7 +46,7 @@ final class GoogleAuthController extends AbstractController
 
         if (isset($token['error'])) {
             return new JsonResponse(
-                ['error' => 'OAuth2 token exchange failed: ' . $token['error']],
+                ['error' => 'OAuth2 token exchange failed: '.$token['error']],
                 Response::HTTP_BAD_REQUEST
             );
         }

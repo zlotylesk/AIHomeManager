@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Articles\Application\Command;
 
-final class CreateArticle
+final readonly class CreateArticle
 {
     public function __construct(
-        public readonly string $title,
-        public readonly string $url,
-        public readonly ?string $category = null,
-        public readonly ?int $estimatedReadTime = null,
-    ) {}
+        public string $title,
+        public string $url,
+        public ?string $category = null,
+        public ?int $estimatedReadTime = null,
+    ) {
+    }
 }

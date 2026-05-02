@@ -10,7 +10,7 @@ use Monolog\LogRecord;
 
 final class NewRelicMonologHandler extends AbstractProcessingHandler
 {
-    private bool $extensionAvailable;
+    private readonly bool $extensionAvailable;
 
     public function __construct(
         int|string|Level $level = Level::Debug,

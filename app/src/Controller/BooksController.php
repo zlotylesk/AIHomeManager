@@ -13,6 +13,8 @@ use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
+use DomainException;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -28,15 +30,17 @@ final class BooksController extends AbstractController
 {
     public function __construct(
         private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')] private readonly MessageBusInterface $queryBus,
-    ) {}
+        #[Target('query.bus')]
+        private readonly MessageBusInterface $queryBus,
+    ) {
+    }
 
     #[Route('', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $statusParam = $request->query->get('status');
 
-        if ($statusParam !== null && !in_array($statusParam, ['to_read', 'reading', 'completed'], true)) {
+        if (null !== $statusParam && !in_array($statusParam, ['to_read', 'reading', 'completed'], true)) {
             return new JsonResponse(
                 ['error' => 'Invalid status. Allowed: to_read, reading, completed.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
@@ -55,7 +59,7 @@ final class BooksController extends AbstractController
         /** @var BookDTO|null $dto */
         $dto = $this->queryBus->dispatch(new GetBookDetail($id))->last(HandledStamp::class)->getResult();
 
-        if ($dto === null) {
+        if (null === $dto) {
             return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
         }
 
@@ -73,12 +77,12 @@ final class BooksController extends AbstractController
 
         try {
             $id = $this->commandBus->dispatch(new AddBook(
-                isbn: trim($data['isbn']),
-                title: isset($data['title']) ? trim($data['title']) : null,
-                author: isset($data['author']) ? trim($data['author']) : null,
-                publisher: isset($data['publisher']) ? trim($data['publisher']) : null,
+                isbn: trim((string) $data['isbn']),
+                title: isset($data['title']) ? trim((string) $data['title']) : null,
+                author: isset($data['author']) ? trim((string) $data['author']) : null,
+                publisher: isset($data['publisher']) ? trim((string) $data['publisher']) : null,
                 year: isset($data['year']) ? (int) $data['year'] : null,
-                coverUrl: isset($data['cover_url']) ? trim($data['cover_url']) : null,
+                coverUrl: isset($data['cover_url']) ? trim((string) $data['cover_url']) : null,
                 totalPages: isset($data['total_pages']) ? (int) $data['total_pages'] : null,
             ))->last(HandledStamp::class)->getResult();
         } catch (HandlerFailedException $e) {
@@ -92,7 +96,7 @@ final class BooksController extends AbstractController
                 return new JsonResponse(['error' => $prev->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
             }
 
-            if ($prev instanceof \InvalidArgumentException) {
+            if ($prev instanceof InvalidArgumentException) {
                 return new JsonResponse(['error' => $prev->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
@@ -120,14 +124,14 @@ final class BooksController extends AbstractController
         try {
             $this->commandBus->dispatch(new UpdateBook(
                 id: $id,
-                title: trim($data['title']),
-                author: trim($data['author']),
-                publisher: trim($data['publisher']),
+                title: trim((string) $data['title']),
+                author: trim((string) $data['author']),
+                publisher: trim((string) $data['publisher']),
                 year: (int) $data['year'],
-                coverUrl: isset($data['cover_url']) ? trim($data['cover_url']) : null,
+                coverUrl: isset($data['cover_url']) ? trim((string) $data['cover_url']) : null,
             ));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \DomainException) {
+            if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -142,7 +146,7 @@ final class BooksController extends AbstractController
         try {
             $this->commandBus->dispatch(new RemoveBook($id));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \DomainException) {
+            if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -171,7 +175,7 @@ final class BooksController extends AbstractController
             ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
-            if ($prev instanceof \DomainException) {
+            if ($prev instanceof DomainException) {
                 $message = str_contains($prev->getMessage(), 'not found') ? 'Book not found.' : $prev->getMessage();
                 $status = str_contains($prev->getMessage(), 'not found') ? Response::HTTP_NOT_FOUND : Response::HTTP_UNPROCESSABLE_ENTITY;
 

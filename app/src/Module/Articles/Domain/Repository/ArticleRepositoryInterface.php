@@ -9,7 +9,10 @@ use App\Module\Articles\Domain\Entity\Article;
 interface ArticleRepositoryInterface
 {
     public function save(Article $article): void;
+
     public function existsByUrl(string $url): bool;
+
     public function findById(string $id): ?Article;
+
     public function delete(Article $article): void;
 }

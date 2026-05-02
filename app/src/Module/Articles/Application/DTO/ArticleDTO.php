@@ -15,7 +15,8 @@ final readonly class ArticleDTO
         public string $addedAt,
         public ?string $readAt,
         public bool $isRead,
-    ) {}
+    ) {
+    }
 
     public static function fromRow(array $row): self
     {
@@ -24,7 +25,7 @@ final readonly class ArticleDTO
             title: $row['title'],
             url: $row['url'],
             category: $row['category'] ?? null,
-            estimatedReadTime: isset($row['estimated_read_time']) && $row['estimated_read_time'] !== null
+            estimatedReadTime: isset($row['estimated_read_time']) && null !== $row['estimated_read_time']
                 ? (int) $row['estimated_read_time']
                 : null,
             addedAt: $row['added_at'],

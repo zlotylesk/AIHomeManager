@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Books\Domain\ValueObject;
 
 use App\Module\Books\Domain\ValueObject\ISBN;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class ISBNTest extends TestCase
@@ -46,35 +47,35 @@ final class ISBNTest extends TestCase
 
     public function testThrowsForInvalidIsbn10Checksum(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ISBN('0306406153');
     }
 
     public function testThrowsForInvalidIsbn13Checksum(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ISBN('9780306406158');
     }
 
     public function testThrowsForTooShortValue(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ISBN('123456789');
     }
 
     public function testThrowsForTooLongValue(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ISBN('97803064061570');
     }
 
     public function testThrowsForNonNumericCharacters(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ISBN('030640615A');
     }

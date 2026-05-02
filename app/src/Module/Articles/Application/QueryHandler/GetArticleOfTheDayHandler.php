@@ -8,7 +8,9 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Articles\Application\Query\GetArticleOfTheDay;
 use App\Module\Articles\Domain\Entity\ArticleDailyPick;
 use App\Module\Articles\Domain\Repository\ArticleDailyPickRepositoryInterface;
+use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
+use Redis;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Symfony\Component\Uid\Uuid;
 
@@ -18,34 +20,35 @@ final readonly class GetArticleOfTheDayHandler
     public function __construct(
         private Connection $connection,
         private ArticleDailyPickRepositoryInterface $pickRepository,
-        private \Redis $redis,
+        private Redis $redis,
         private string $preferredCategory = '',
-    ) {}
+    ) {
+    }
 
     public function __invoke(GetArticleOfTheDay $query): ?ArticleDTO
     {
         $cachedId = $this->redis->get('articles:today');
-        if ($cachedId !== false) {
+        if (false !== $cachedId) {
             $row = $this->connection->fetchAssociative(
                 'SELECT id, title, url, category, estimated_read_time, added_at, read_at, is_read
                  FROM articles WHERE id = :id',
                 ['id' => $cachedId]
             );
 
-            return $row !== false ? ArticleDTO::fromRow($row) : null;
+            return false !== $row ? ArticleDTO::fromRow($row) : null;
         }
 
         $recentIds = $this->pickRepository->findRecentlyPickedIds(7);
         $row = $this->findCandidate($recentIds, $this->preferredCategory ?: null);
 
-        if ($row === null) {
+        if (null === $row) {
             return null;
         }
 
         $this->pickRepository->save(new ArticleDailyPick(
             id: Uuid::v4()->toRfc4122(),
             articleId: $row['id'],
-            pickedAt: new \DateTimeImmutable(),
+            pickedAt: new DateTimeImmutable(),
         ));
 
         $ttl = strtotime('tomorrow midnight') - time();
@@ -65,7 +68,7 @@ final readonly class GetArticleOfTheDayHandler
             $params = $excludeIds;
         }
 
-        if ($preferredCategory !== null && $preferredCategory !== '') {
+        if (null !== $preferredCategory && '' !== $preferredCategory) {
             $row = $this->connection->fetchAssociative(
                 "SELECT id, title, url, category, estimated_read_time, added_at, read_at, is_read
                  FROM articles
@@ -73,7 +76,7 @@ final readonly class GetArticleOfTheDayHandler
                  ORDER BY RAND() LIMIT 1",
                 [...$params, $preferredCategory]
             );
-            if ($row !== false) {
+            if (false !== $row) {
                 return $row;
             }
         }
@@ -86,6 +89,6 @@ final readonly class GetArticleOfTheDayHandler
             $params
         );
 
-        return $row !== false ? $row : null;
+        return false !== $row ? $row : null;
     }
 }

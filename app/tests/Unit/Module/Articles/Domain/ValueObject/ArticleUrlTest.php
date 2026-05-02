@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Articles\Domain\ValueObject;
 
 use App\Module\Articles\Domain\ValueObject\ArticleUrl;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class ArticleUrlTest extends TestCase
@@ -25,21 +26,21 @@ final class ArticleUrlTest extends TestCase
 
     public function testThrowsOnMissingScheme(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ArticleUrl('example.com/article');
     }
 
     public function testThrowsOnEmptyString(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ArticleUrl('');
     }
 
     public function testThrowsOnPlainText(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ArticleUrl('not a url at all');
     }
