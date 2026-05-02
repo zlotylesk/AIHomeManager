@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Domain\Event;
 
-final class EpisodeRated
+use DateTimeImmutable;
+
+final readonly class EpisodeRated
 {
-    public readonly \DateTimeImmutable $occurredAt;
+    public DateTimeImmutable $occurredAt;
 
     public function __construct(
-        public readonly string $seriesId,
-        public readonly string $seasonId,
-        public readonly string $episodeId,
-        public readonly int $rating,
+        public string $seriesId,
+        public string $seasonId,
+        public string $episodeId,
+        public int $rating,
     ) {
-        $this->occurredAt = new \DateTimeImmutable();
+        $this->occurredAt = new DateTimeImmutable();
     }
 }

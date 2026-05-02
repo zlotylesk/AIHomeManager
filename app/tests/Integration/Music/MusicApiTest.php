@@ -57,7 +57,7 @@ class MusicApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(503);
         $data = json_decode($this->client->getResponse()->getContent(), true);
-        self::assertStringContainsString('not authorized', strtolower($data['error']));
+        self::assertStringContainsString('not authorized', strtolower((string) $data['error']));
     }
 
     public function testTopAlbumsDefaultPeriodIsAccepted(): void

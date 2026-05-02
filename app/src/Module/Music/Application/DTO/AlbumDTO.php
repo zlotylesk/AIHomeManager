@@ -11,5 +11,6 @@ final readonly class AlbumDTO
         public string $title,
         public int $playCount,
         public ?string $imageUrl,
-    ) {}
+    ) {
+    }
 }

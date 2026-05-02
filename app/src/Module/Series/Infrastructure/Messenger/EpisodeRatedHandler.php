@@ -6,6 +6,7 @@ namespace App\Module\Series\Infrastructure\Messenger;
 
 use App\Module\Series\Domain\Event\EpisodeRated;
 use Doctrine\DBAL\Connection;
+use Redis;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
@@ -13,8 +14,9 @@ final readonly class EpisodeRatedHandler
 {
     public function __construct(
         private Connection $connection,
-        private \Redis $redis,
-    ) {}
+        private Redis $redis,
+    ) {
+    }
 
     public function __invoke(EpisodeRated $event): void
     {
@@ -33,11 +35,11 @@ final readonly class EpisodeRatedHandler
 
         $ttl = 3600;
 
-        if ($seasonAvg !== false && $seasonAvg !== null) {
+        if (false !== $seasonAvg && null !== $seasonAvg) {
             $this->redis->setex("season:avg:{$event->seasonId}", $ttl, (string) round((float) $seasonAvg, 2));
         }
 
-        if ($seriesAvg !== false && $seriesAvg !== null) {
+        if (false !== $seriesAvg && null !== $seriesAvg) {
             $this->redis->setex("series:avg:{$event->seriesId}", $ttl, (string) round((float) $seriesAvg, 2));
         }
     }

@@ -17,8 +17,10 @@ final readonly class CreateSeriesHandler
 {
     public function __construct(
         private SeriesRepositoryInterface $repository,
-        #[Target('series')] private LoggerInterface $logger,
-    ) {}
+        #[Target('series')]
+        private LoggerInterface $logger,
+    ) {
+    }
 
     public function __invoke(CreateSeries $command): string
     {

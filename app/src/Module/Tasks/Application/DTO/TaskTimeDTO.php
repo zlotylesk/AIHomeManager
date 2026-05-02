@@ -10,5 +10,6 @@ final readonly class TaskTimeDTO
         public string $taskId,
         public string $title,
         public int $minutes,
-    ) {}
+    ) {
+    }
 }

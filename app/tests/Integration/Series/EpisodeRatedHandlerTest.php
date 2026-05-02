@@ -7,12 +7,13 @@ namespace App\Tests\Integration\Series;
 use App\Module\Series\Domain\Event\EpisodeRated;
 use App\Module\Series\Infrastructure\Messenger\EpisodeRatedHandler;
 use Doctrine\ORM\EntityManagerInterface;
+use Redis;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class EpisodeRatedHandlerTest extends KernelTestCase
 {
     private EpisodeRatedHandler $handler;
-    private \Redis $redis;
+    private Redis $redis;
 
     protected function setUp(): void
     {

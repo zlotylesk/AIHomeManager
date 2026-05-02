@@ -6,16 +6,18 @@ namespace App\Tests\Unit\Module\Music\Infrastructure;
 
 use App\Module\Music\Infrastructure\External\LastFmApiClient;
 use PHPUnit\Framework\TestCase;
+use Redis;
+use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class LastFmApiClientTest extends TestCase
 {
-    private \Redis $redis;
+    private Redis $redis;
 
     protected function setUp(): void
     {
-        $this->redis = $this->createStub(\Redis::class);
+        $this->redis = $this->createStub(Redis::class);
         $this->redis->method('get')->willReturn(false);
         $this->redis->method('setex')->willReturn(true);
     }
@@ -90,7 +92,7 @@ final class LastFmApiClientTest extends TestCase
         $httpClient = new MockHttpClient(new MockResponse('', ['error' => 'Connection refused']));
         $client = new LastFmApiClient($httpClient, $this->redis, 'test-api-key');
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
 
         $client->getTopAlbums('testuser', '1month', 10);
     }
@@ -100,7 +102,7 @@ final class LastFmApiClientTest extends TestCase
         $httpClient = new MockHttpClient();
         $client = new LastFmApiClient($httpClient, $this->redis, '');
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Last.fm API key not configured');
 
         $client->getTopAlbums('testuser', '1month', 10);
@@ -110,7 +112,7 @@ final class LastFmApiClientTest extends TestCase
     {
         $dto = new \App\Module\Music\Application\DTO\AlbumDTO('Artist', 'Album', 99, null);
 
-        $redis = $this->createMock(\Redis::class);
+        $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn(serialize([$dto]));
         $redis->expects(self::never())->method('setex');
 

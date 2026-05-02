@@ -6,16 +6,17 @@ namespace App\Module\Tasks\Domain\Event;
 
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
+use DateTimeImmutable;
 
-final class TaskScheduled
+final readonly class TaskScheduled
 {
-    public readonly \DateTimeImmutable $occurredAt;
+    public DateTimeImmutable $occurredAt;
 
     public function __construct(
-        public readonly string $taskId,
-        public readonly TaskTitle $title,
-        public readonly TimeSlot $timeSlot,
+        public string $taskId,
+        public TaskTitle $title,
+        public TimeSlot $timeSlot,
     ) {
-        $this->occurredAt = new \DateTimeImmutable();
+        $this->occurredAt = new DateTimeImmutable();
     }
 }

@@ -9,28 +9,30 @@ use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Application\Service\AlbumNormalizer;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use Redis;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
 final readonly class GetMusicComparisonHandler
 {
-    private const DUSTY_SHELF_LIMIT = 500;
-    private const CACHE_TTL = 3600;
+    private const int DUSTY_SHELF_LIMIT = 500;
+    private const int CACHE_TTL = 3600;
 
     public function __construct(
         private MusicListeningHistoryInterface $listeningHistory,
         private VinylCollectionInterface $vinylCollection,
-        private \Redis $redis,
+        private Redis $redis,
         private string $lastfmUsername,
         private string $discogsUsername,
-    ) {}
+    ) {
+    }
 
     public function __invoke(GetMusicComparison $query): MusicComparisonDTO
     {
         $cacheKey = sprintf('music:comparison:%s:%s:%d', $this->lastfmUsername, $query->period, $query->limit);
 
         $cached = $this->redis->get($cacheKey);
-        if ($cached !== false) {
+        if (false !== $cached) {
             return unserialize($cached);
         }
 

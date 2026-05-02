@@ -10,6 +10,7 @@ use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,15 +23,17 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/music')]
 final class MusicController extends AbstractController
 {
-    private const VALID_PERIODS = ['7day', '1month', '3month', '6month', '12month', 'overall'];
+    private const array VALID_PERIODS = ['7day', '1month', '3month', '6month', '12month', 'overall'];
 
     public function __construct(
         private readonly MusicListeningHistoryInterface $listeningHistory,
         private readonly VinylCollectionInterface $vinylCollection,
-        #[Target('query.bus')] private readonly MessageBusInterface $queryBus,
+        #[Target('query.bus')]
+        private readonly MessageBusInterface $queryBus,
         private readonly string $lastfmUsername,
         private readonly string $discogsUsername,
-    ) {}
+    ) {
+    }
 
     #[Route('/top-albums', methods: ['GET'])]
     public function topAlbums(Request $request): JsonResponse
@@ -40,19 +43,19 @@ final class MusicController extends AbstractController
 
         if (!in_array($period, self::VALID_PERIODS, true)) {
             return new JsonResponse(
-                ['error' => 'Invalid period. Allowed: ' . implode(', ', self::VALID_PERIODS)],
+                ['error' => 'Invalid period. Allowed: '.implode(', ', self::VALID_PERIODS)],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
 
         try {
             $albums = $this->listeningHistory->getTopAlbums($this->lastfmUsername, $period, $limit);
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
         return new JsonResponse(array_map(
-            fn(AlbumDTO $a) => [
+            fn (AlbumDTO $a) => [
                 'artist' => $a->artist,
                 'title' => $a->title,
                 'playCount' => $a->playCount,
@@ -70,7 +73,7 @@ final class MusicController extends AbstractController
 
         if (!in_array($period, self::VALID_PERIODS, true)) {
             return new JsonResponse(
-                ['error' => 'Invalid period. Allowed: ' . implode(', ', self::VALID_PERIODS)],
+                ['error' => 'Invalid period. Allowed: '.implode(', ', self::VALID_PERIODS)],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -78,7 +81,7 @@ final class MusicController extends AbstractController
         try {
             /** @var MusicComparisonDTO $result */
             $result = $this->queryBus->dispatch(new GetMusicComparison($period, $limit))->last(HandledStamp::class)->getResult();
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
@@ -95,7 +98,7 @@ final class MusicController extends AbstractController
     {
         try {
             $records = $this->vinylCollection->getUserCollection($this->discogsUsername);
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 

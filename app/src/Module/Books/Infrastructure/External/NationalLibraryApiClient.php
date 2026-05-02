@@ -8,26 +8,31 @@ use App\Module\Books\Application\DTO\BookMetadataDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
+use Exception;
+use Redis;
+use RuntimeException;
+use SimpleXMLElement;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class NationalLibraryApiClient implements BookMetadataProviderInterface
+final readonly class NationalLibraryApiClient implements BookMetadataProviderInterface
 {
-    private const API_URL = 'https://api.bn.org.pl/api/bibs';
-    private const CACHE_TTL = 86400;
-    private const CACHE_PREFIX = 'book:metadata:';
+    private const string API_URL = 'https://api.bn.org.pl/api/bibs';
+    private const int CACHE_TTL = 86400;
+    private const string CACHE_PREFIX = 'book:metadata:';
 
     public function __construct(
-        private readonly HttpClientInterface $httpClient,
-        private readonly \Redis $redis,
-    ) {}
+        private HttpClientInterface $httpClient,
+        private Redis $redis,
+    ) {
+    }
 
     public function getByIsbn(string $isbn): BookMetadataDTO
     {
-        $cacheKey = self::CACHE_PREFIX . $isbn;
+        $cacheKey = self::CACHE_PREFIX.$isbn;
 
         $cached = $this->redis->get($cacheKey);
-        if ($cached !== false) {
+        if (false !== $cached) {
             return unserialize($cached);
         }
 
@@ -43,15 +48,15 @@ final class NationalLibraryApiClient implements BookMetadataProviderInterface
         }
 
         try {
-            $xml = new \SimpleXMLElement($content);
-        } catch (\Exception $e) {
-            throw new \RuntimeException('Failed to parse National Library API response.', 0, $e);
+            $xml = new SimpleXMLElement($content);
+        } catch (Exception $e) {
+            throw new RuntimeException('Failed to parse National Library API response.', 0, $e);
         }
 
         $bibs = $xml->bibs ?? $xml;
         $bibNodes = $bibs->bib ?? [];
 
-        if (count($bibNodes) === 0) {
+        if (0 === count($bibNodes)) {
             throw new BookMetadataNotFoundException('Book not found in National Library.');
         }
 
@@ -62,13 +67,13 @@ final class NationalLibraryApiClient implements BookMetadataProviderInterface
         return $dto;
     }
 
-    private function parseBib(\SimpleXMLElement $bib): BookMetadataDTO
+    private function parseBib(SimpleXMLElement $bib): BookMetadataDTO
     {
         $dc = $bib->children('http://purl.org/dc/elements/1.1/');
 
         $title = trim((string) ($dc->title ?? '')) ?: null;
 
-        if ($title === null) {
+        if (null === $title) {
             throw new BookMetadataNotFoundException('Book not found in National Library.');
         }
 
@@ -76,11 +81,11 @@ final class NationalLibraryApiClient implements BookMetadataProviderInterface
         $publisher = trim((string) ($dc->publisher ?? '')) ?: null;
 
         $yearStr = trim((string) ($dc->date ?? ''));
-        $year = $yearStr !== '' ? (int) $yearStr : null;
+        $year = '' !== $yearStr ? (int) $yearStr : null;
 
         $formatStr = trim((string) ($dc->format ?? ''));
         $totalPages = null;
-        if ($formatStr !== '' && preg_match('/\d+/', $formatStr, $matches)) {
+        if ('' !== $formatStr && preg_match('/\d+/', $formatStr, $matches)) {
             $totalPages = (int) $matches[0];
         }
 

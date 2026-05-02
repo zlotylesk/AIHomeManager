@@ -8,5 +8,6 @@ final readonly class CreateSeries
 {
     public function __construct(
         public string $title,
-    ) {}
+    ) {
+    }
 }

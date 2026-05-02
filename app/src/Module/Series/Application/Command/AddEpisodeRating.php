@@ -11,5 +11,6 @@ final readonly class AddEpisodeRating
         public string $seasonId,
         public string $episodeId,
         public int $rating,
-    ) {}
+    ) {
+    }
 }

@@ -7,6 +7,8 @@ namespace App\Controller;
 use App\Module\Tasks\Application\DTO\TaskTimeDTO;
 use App\Module\Tasks\Application\DTO\TimeReportDTO;
 use App\Module\Tasks\Application\Query\GetTimeReport;
+use DateTimeImmutable;
+use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,8 +22,10 @@ use Symfony\Component\Routing\Attribute\Route;
 final class TasksController extends AbstractController
 {
     public function __construct(
-        #[Target('query.bus')] private readonly MessageBusInterface $queryBus,
-    ) {}
+        #[Target('query.bus')]
+        private readonly MessageBusInterface $queryBus,
+    ) {
+    }
 
     #[Route('/time-report', methods: ['GET'])]
     public function timeReport(Request $request): JsonResponse
@@ -29,7 +33,7 @@ final class TasksController extends AbstractController
         $fromStr = $request->query->get('from');
         $toStr = $request->query->get('to');
 
-        if ($fromStr === null || $toStr === null) {
+        if (null === $fromStr || null === $toStr) {
             return new JsonResponse(
                 ['error' => 'Parameters from and to are required.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
@@ -37,9 +41,9 @@ final class TasksController extends AbstractController
         }
 
         try {
-            $from = new \DateTimeImmutable($fromStr);
-            $to = new \DateTimeImmutable($toStr);
-        } catch (\Exception) {
+            $from = new DateTimeImmutable($fromStr);
+            $to = new DateTimeImmutable($toStr);
+        } catch (Exception) {
             return new JsonResponse(
                 ['error' => 'Invalid date format. Use YYYY-MM-DD.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
@@ -53,7 +57,7 @@ final class TasksController extends AbstractController
             'totalMinutes' => $report->totalMinutes,
             'totalHours' => $report->totalHours,
             'breakdown' => array_map(
-                fn(TaskTimeDTO $t) => [
+                fn (TaskTimeDTO $t) => [
                     'taskId' => $t->taskId,
                     'title' => $t->title,
                     'minutes' => $t->minutes,

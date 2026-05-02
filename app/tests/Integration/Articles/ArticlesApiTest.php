@@ -6,6 +6,7 @@ namespace App\Tests\Integration\Articles;
 
 use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use Redis;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -14,7 +15,7 @@ class ArticlesApiTest extends WebTestCase
     use AuthenticatedApiTrait;
 
     private KernelBrowser $client;
-    private \Redis $redis;
+    private Redis $redis;
 
     protected function setUp(): void
     {
@@ -187,7 +188,7 @@ class ArticlesApiTest extends WebTestCase
             'title' => 'Article A',
             'url' => 'https://example.com/a',
         ]));
-        $idA = json_decode($this->client->getResponse()->getContent(), true)['id'];
+        json_decode($this->client->getResponse()->getContent(), true);
 
         $this->client->request('POST', '/api/articles', content: json_encode([
             'title' => 'Article B',
@@ -202,7 +203,7 @@ class ArticlesApiTest extends WebTestCase
         $this->client->request('GET', '/api/articles/today');
         $newToday = json_decode($this->client->getResponse()->getContent(), true);
 
-        if ($this->client->getResponse()->getStatusCode() === 200) {
+        if (200 === $this->client->getResponse()->getStatusCode()) {
             self::assertNotSame($today['id'], $newToday['id']);
         } else {
             self::assertResponseStatusCodeSame(204);

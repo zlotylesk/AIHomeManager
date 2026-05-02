@@ -14,5 +14,6 @@ final readonly class MusicComparisonDTO
         /** @var VinylRecordDTO[] */
         public array $dustyShelf,
         public float $matchScore,
-    ) {}
+    ) {
+    }
 }

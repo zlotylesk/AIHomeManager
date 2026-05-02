@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Tasks\Domain\Repository;
 
 use App\Module\Tasks\Domain\Entity\Task;
+use DateTimeImmutable;
 
 interface TaskRepositoryInterface
 {
@@ -18,5 +19,5 @@ interface TaskRepositoryInterface
     /**
      * @return Task[]
      */
-    public function findByDateRange(\DateTimeImmutable $from, \DateTimeImmutable $to): array;
+    public function findByDateRange(DateTimeImmutable $from, DateTimeImmutable $to): array;
 }

@@ -16,7 +16,8 @@ final readonly class GetAllSeriesHandler
 {
     public function __construct(
         private Connection $connection,
-    ) {}
+    ) {
+    }
 
     /** @return SeriesDetailDTO[] */
     public function __invoke(GetAllSeries $query): array
@@ -50,16 +51,16 @@ final readonly class GetAllSeriesHandler
                 $seasonMap[$seriesId] = [];
             }
 
-            if ($seasonId !== null && !isset($seasonMap[$seriesId][$seasonId])) {
+            if (null !== $seasonId && !isset($seasonMap[$seriesId][$seasonId])) {
                 $seasonMap[$seriesId][$seasonId] = ['id' => $seasonId, 'number' => (int) $row['season_number']];
                 $episodeMap[$seasonId] = [];
             }
 
-            if ($row['episode_id'] !== null) {
+            if (null !== $row['episode_id']) {
                 $episodeMap[$seasonId][] = new EpisodeDTO(
                     id: $row['episode_id'],
                     title: $row['episode_title'],
-                    rating: $row['episode_rating'] !== null ? (int) $row['episode_rating'] : null,
+                    rating: null !== $row['episode_rating'] ? (int) $row['episode_rating'] : null,
                 );
             }
         }

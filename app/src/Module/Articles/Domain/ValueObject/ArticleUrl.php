@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Articles\Domain\ValueObject;
 
-final class ArticleUrl
+use InvalidArgumentException;
+
+final readonly class ArticleUrl
 {
-    public function __construct(private readonly string $url)
+    public function __construct(private string $url)
     {
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new \InvalidArgumentException(sprintf('Invalid URL: "%s".', $url));
+            throw new InvalidArgumentException(sprintf('Invalid URL: "%s".', $url));
         }
     }
 

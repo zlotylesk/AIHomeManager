@@ -13,5 +13,6 @@ final readonly class BookMetadataDTO
         public ?int $year,
         public ?int $totalPages,
         public ?string $coverUrl,
-    ) {}
+    ) {
+    }
 }

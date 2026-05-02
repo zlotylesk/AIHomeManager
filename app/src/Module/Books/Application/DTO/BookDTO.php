@@ -18,5 +18,6 @@ final readonly class BookDTO
         public int $currentPage,
         public float $percentage,
         public string $status,
-    ) {}
+    ) {
+    }
 }

@@ -8,16 +8,17 @@ use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Infrastructure\External\NationalLibraryApiClient;
 use PHPUnit\Framework\TestCase;
+use Redis;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class NationalLibraryApiClientTest extends TestCase
 {
-    private \Redis $redis;
+    private Redis $redis;
 
     protected function setUp(): void
     {
-        $this->redis = $this->createStub(\Redis::class);
+        $this->redis = $this->createStub(Redis::class);
         $this->redis->method('get')->willReturn(false);
         $this->redis->method('setex')->willReturn(true);
     }
@@ -26,7 +27,7 @@ final class NationalLibraryApiClientTest extends TestCase
     {
         $dc = '';
         foreach ($fields as $key => $value) {
-            $dc .= sprintf('<dc:%s xmlns:dc="http://purl.org/dc/elements/1.1/">%s</dc:%s>', $key, htmlspecialchars($value), $key);
+            $dc .= sprintf('<dc:%s xmlns:dc="http://purl.org/dc/elements/1.1/">%s</dc:%s>', $key, htmlspecialchars((string) $value), $key);
         }
 
         return sprintf('<?xml version="1.0" encoding="UTF-8"?><bibs><bib>%s</bib></bibs>', $dc);
@@ -110,7 +111,7 @@ final class NationalLibraryApiClientTest extends TestCase
             coverUrl: null,
         );
 
-        $redis = $this->createMock(\Redis::class);
+        $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn(serialize($dto));
         $redis->expects(self::never())->method('setex');
 

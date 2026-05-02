@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs
+.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse
 
 up:
 	docker compose up -d
@@ -57,3 +57,23 @@ monitoring-down:
 
 monitoring-logs:
 	docker compose --profile monitoring logs -f graylog
+
+phpstan:
+	docker compose exec php vendor/bin/phpstan analyse --memory-limit=1G
+
+phpstan-baseline:
+	docker compose exec php vendor/bin/phpstan analyse --generate-baseline --memory-limit=1G
+
+cs-check:
+	docker compose exec php vendor/bin/php-cs-fixer fix --dry-run --diff
+
+cs-fix:
+	docker compose exec php vendor/bin/php-cs-fixer fix
+
+rector-dry:
+	docker compose exec php vendor/bin/rector process --dry-run
+
+rector:
+	docker compose exec php vendor/bin/rector process
+
+analyse: cs-check phpstan

@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Books\Domain\Entity;
 
-final class ReadingSession
+use DateTimeImmutable;
+
+final readonly class ReadingSession
 {
     public function __construct(
-        private readonly string $id,
-        private readonly string $bookId,
-        private readonly \DateTimeImmutable $date,
-        private readonly int $pagesRead,
-        private readonly ?string $notes = null,
-    ) {}
+        private string $id,
+        private string $bookId,
+        private DateTimeImmutable $date,
+        private int $pagesRead,
+        private ?string $notes = null,
+    ) {
+    }
 
     public function id(): string
     {
@@ -24,7 +27,7 @@ final class ReadingSession
         return $this->bookId;
     }
 
-    public function date(): \DateTimeImmutable
+    public function date(): DateTimeImmutable
     {
         return $this->date;
     }

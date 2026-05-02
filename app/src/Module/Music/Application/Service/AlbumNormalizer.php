@@ -8,7 +8,7 @@ final class AlbumNormalizer
 {
     public static function normalize(string $artist, string $title): string
     {
-        $combined = $artist . ' ' . $title;
+        $combined = $artist.' '.$title;
 
         // Remove parenthetical content: (Remastered 2011), [Deluxe Edition], {Special}
         $combined = preg_replace('/\s*[\(\[\{][^\)\]\}]*[\)\]\}]\s*/u', ' ', $combined) ?? $combined;
@@ -17,7 +17,7 @@ final class AlbumNormalizer
 
         // Transliterate diacritics to ASCII (works without intl extension)
         $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $combined);
-        if ($transliterated !== false) {
+        if (false !== $transliterated) {
             $combined = $transliterated;
         }
 

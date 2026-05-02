@@ -6,6 +6,8 @@ namespace App\Module\Series\Domain\Entity;
 
 use App\Module\Series\Domain\Event\EpisodeRated;
 use App\Module\Series\Domain\ValueObject\Rating;
+use DateTimeImmutable;
+use DomainException;
 
 final class Series
 {
@@ -18,8 +20,9 @@ final class Series
     public function __construct(
         private readonly string $id,
         private readonly string $title,
-        private readonly \DateTimeImmutable $createdAt = new \DateTimeImmutable(),
-    ) {}
+        private readonly DateTimeImmutable $createdAt = new DateTimeImmutable(),
+    ) {
+    }
 
     public function id(): string
     {
@@ -31,7 +34,7 @@ final class Series
         return $this->title;
     }
 
-    public function createdAt(): \DateTimeImmutable
+    public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
     }
@@ -50,9 +53,7 @@ final class Series
     public function addEpisode(string $seasonId, Episode $episode): void
     {
         if (!isset($this->seasons[$seasonId])) {
-            throw new \DomainException(
-                sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id)
-            );
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
         }
 
         $this->seasons[$seasonId]->addEpisode($episode);
@@ -61,14 +62,12 @@ final class Series
     public function rateEpisode(string $seasonId, string $episodeId, Rating $rating): void
     {
         if (!isset($this->seasons[$seasonId])) {
-            throw new \DomainException(sprintf('Season "%s" not found.', $seasonId));
+            throw new DomainException(sprintf('Season "%s" not found.', $seasonId));
         }
 
         $episode = $this->seasons[$seasonId]->findEpisode($episodeId);
-        if ($episode === null) {
-            throw new \DomainException(
-                sprintf('Episode "%s" not found in season "%s".', $episodeId, $seasonId)
-            );
+        if (null === $episode) {
+            throw new DomainException(sprintf('Episode "%s" not found in season "%s".', $episodeId, $seasonId));
         }
 
         $episode->rate($rating);

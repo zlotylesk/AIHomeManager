@@ -9,9 +9,12 @@ use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
 use App\Module\Tasks\Infrastructure\Google\GoogleCalendarService;
 use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
+use DateTime;
+use DateTimeImmutable;
 use Google\Client;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 
 final class GoogleCalendarServiceTest extends TestCase
 {
@@ -57,7 +60,7 @@ final class GoogleCalendarServiceTest extends TestCase
     {
         $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok', 'refresh_token' => 'ref']);
         $this->client->method('setAccessToken')->willReturn(null);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new \RuntimeException('API error'));
+        $this->client->method('isAccessTokenExpired')->willThrowException(new RuntimeException('API error'));
 
         $result = $this->service->createEvent($this->makeTask());
 
@@ -77,7 +80,7 @@ final class GoogleCalendarServiceTest extends TestCase
     public function testUpdateEventDoesNotThrowOnException(): void
     {
         $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new \RuntimeException('API error'));
+        $this->client->method('isAccessTokenExpired')->willThrowException(new RuntimeException('API error'));
         $task = $this->makeTask(googleEventId: 'event-123');
 
         $this->service->updateEvent($task);
@@ -106,7 +109,7 @@ final class GoogleCalendarServiceTest extends TestCase
     public function testDeleteEventDoesNotThrowOnException(): void
     {
         $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new \RuntimeException('API error'));
+        $this->client->method('isAccessTokenExpired')->willThrowException(new RuntimeException('API error'));
 
         $this->service->deleteEvent('event-123');
 
@@ -125,29 +128,29 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testBuildEventMapsTimeSlot(): void
     {
-        $start = new \DateTimeImmutable('2024-06-15 10:00:00');
-        $end = new \DateTimeImmutable('2024-06-15 11:00:00');
+        $start = new DateTimeImmutable('2024-06-15 10:00:00');
+        $end = new DateTimeImmutable('2024-06-15 11:00:00');
         $task = $this->makeTask(start: $start, end: $end);
 
         $event = $this->service->buildEvent($task);
 
         self::assertSame(
-            $start->format(\DateTime::RFC3339),
+            $start->format(DateTime::RFC3339),
             $event->getStart()->getDateTime()
         );
         self::assertSame(
-            $end->format(\DateTime::RFC3339),
+            $end->format(DateTime::RFC3339),
             $event->getEnd()->getDateTime()
         );
     }
 
     private function makeTask(
         ?string $googleEventId = null,
-        ?\DateTimeImmutable $start = null,
-        ?\DateTimeImmutable $end = null,
+        ?DateTimeImmutable $start = null,
+        ?DateTimeImmutable $end = null,
     ): Task {
-        $start ??= new \DateTimeImmutable('+1 hour');
-        $end ??= new \DateTimeImmutable('+2 hours');
+        $start ??= new DateTimeImmutable('+1 hour');
+        $end ??= new DateTimeImmutable('+2 hours');
 
         return new Task(
             id: 'task-test-uuid',

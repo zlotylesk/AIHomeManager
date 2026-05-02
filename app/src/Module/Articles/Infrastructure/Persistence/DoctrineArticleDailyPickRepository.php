@@ -6,11 +6,14 @@ namespace App\Module\Articles\Infrastructure\Persistence;
 
 use App\Module\Articles\Domain\Entity\ArticleDailyPick;
 use App\Module\Articles\Domain\Repository\ArticleDailyPickRepositoryInterface;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class DoctrineArticleDailyPickRepository implements ArticleDailyPickRepositoryInterface
+final readonly class DoctrineArticleDailyPickRepository implements ArticleDailyPickRepositoryInterface
 {
-    public function __construct(private readonly EntityManagerInterface $em) {}
+    public function __construct(private EntityManagerInterface $em)
+    {
+    }
 
     public function save(ArticleDailyPick $pick): void
     {
@@ -20,7 +23,7 @@ final class DoctrineArticleDailyPickRepository implements ArticleDailyPickReposi
 
     public function findRecentlyPickedIds(int $days): array
     {
-        $cutoff = (new \DateTimeImmutable("-{$days} days"))->format('Y-m-d H:i:s');
+        $cutoff = new DateTimeImmutable("-{$days} days")->format('Y-m-d H:i:s');
 
         $rows = $this->em->getConnection()->fetchAllAssociative(
             'SELECT article_id FROM article_daily_picks WHERE picked_at >= :cutoff',

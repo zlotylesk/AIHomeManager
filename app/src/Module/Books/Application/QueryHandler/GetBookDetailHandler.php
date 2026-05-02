@@ -12,7 +12,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler(bus: 'query.bus')]
 final readonly class GetBookDetailHandler
 {
-    public function __construct(private Connection $connection) {}
+    public function __construct(private Connection $connection)
+    {
+    }
 
     public function __invoke(GetBookDetail $query): ?BookDTO
     {
@@ -22,7 +24,7 @@ final readonly class GetBookDetailHandler
             ['id' => $query->id]
         );
 
-        if ($row === false) {
+        if (false === $row) {
             return null;
         }
 

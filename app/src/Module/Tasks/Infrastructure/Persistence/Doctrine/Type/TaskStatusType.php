@@ -7,10 +7,11 @@ namespace App\Module\Tasks\Infrastructure\Persistence\Doctrine\Type;
 use App\Module\Tasks\Domain\Enum\TaskStatus;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Types\Type;
+use Override;
 
 final class TaskStatusType extends Type
 {
-    public const NAME = 'task_status';
+    public const string NAME = 'task_status';
 
     public function getName(): string
     {
@@ -24,18 +25,20 @@ final class TaskStatusType extends Type
         return $platform->getStringTypeDeclarationSQL($column);
     }
 
+    #[Override]
     public function convertToPHPValue(mixed $value, AbstractPlatform $platform): ?TaskStatus
     {
-        if ($value === null) {
+        if (null === $value) {
             return null;
         }
 
         return TaskStatus::from((string) $value);
     }
 
+    #[Override]
     public function convertToDatabaseValue(mixed $value, AbstractPlatform $platform): ?string
     {
-        if ($value === null) {
+        if (null === $value) {
             return null;
         }
 

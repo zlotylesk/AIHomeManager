@@ -12,7 +12,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler(bus: 'query.bus')]
 final readonly class GetAllBooksHandler
 {
-    public function __construct(private Connection $connection) {}
+    public function __construct(private Connection $connection)
+    {
+    }
 
     /** @return BookDTO[] */
     public function __invoke(GetAllBooks $query): array
@@ -22,7 +24,7 @@ final readonly class GetAllBooksHandler
 
         $params = [];
 
-        if ($query->status !== null) {
+        if (null !== $query->status) {
             $sql .= ' WHERE status = :status';
             $params['status'] = $query->status;
         }
