@@ -13,7 +13,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final readonly class LastFmApiClient implements MusicListeningHistoryInterface
 {
-    private const string API_URL = 'http://ws.audioscrobbler.com/2.0/';
+    private const string API_URL = 'https://ws.audioscrobbler.com/2.0/';
     private const int CACHE_TTL = 3600;
     private const array PREFERRED_IMAGE_SIZES = ['extralarge', 'large', 'medium', 'small'];
 
