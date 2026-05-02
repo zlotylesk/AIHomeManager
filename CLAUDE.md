@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), plaintext OAuth tokens, HTTP w Last.fm, `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), plaintext OAuth tokens (~~Discogs~~ HMAI-46, 2026-05-02; Google nadal), HTTP w Last.fm, `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -114,6 +114,13 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | `make phpstan-baseline` | Regeneruj baseline (po naprawie błędów) |
 | `make cs-check` / `cs-fix` | CS Fixer dry-run / apply |
 | `make rector-dry` / `rector` | Rector dry-run / apply |
+
+## Encryption — OAuth tokens (HMAI-46)
+
+- Discogs OAuth1 tokens szyfrowane at-rest przez `App\Module\Music\Infrastructure\Security\TokenCipher` (libsodium `secretbox`, format: base64(nonce ‖ ciphertext))
+- Klucz: `DISCOGS_TOKEN_KEY` w `.env.local` (32 bajty base64). Generate: `php -r "echo base64_encode(sodium_crypto_secretbox_keygen());"`
+- Migracja `Version20260502000001` truncuje `discogs_oauth_tokens` przy upgrade — wymaga re-auth przez `/auth/discogs`
+- `GoogleOAuthTokenRepository` (Tasks) wciąż plaintext — osobne zadanie
 
 ## MCP servers (`.mcp.json`)
 
