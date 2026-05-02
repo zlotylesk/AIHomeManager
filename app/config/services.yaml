@@ -71,6 +71,10 @@ services:
     App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface:
         alias: App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository
 
+    App\Module\Music\Infrastructure\Security\TokenCipher:
+        arguments:
+            $key: '%env(base64:DISCOGS_TOKEN_KEY)%'
+
     App\Controller\DiscogsAuthController:
         arguments:
             $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
