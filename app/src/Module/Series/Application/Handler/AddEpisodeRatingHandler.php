@@ -7,6 +7,7 @@ namespace App\Module\Series\Application\Handler;
 use App\Module\Series\Application\Command\AddEpisodeRating;
 use App\Module\Series\Domain\Repository\SeriesRepositoryInterface;
 use App\Module\Series\Domain\ValueObject\Rating;
+use DomainException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -17,15 +18,18 @@ final readonly class AddEpisodeRatingHandler
 {
     public function __construct(
         private SeriesRepositoryInterface $repository,
-        #[Target('event.bus')] private MessageBusInterface $eventBus,
-        #[Target('series')] private LoggerInterface $logger,
-    ) {}
+        #[Target('event.bus')]
+        private MessageBusInterface $eventBus,
+        #[Target('series')]
+        private LoggerInterface $logger,
+    ) {
+    }
 
     public function __invoke(AddEpisodeRating $command): void
     {
         $series = $this->repository->findById($command->seriesId);
-        if ($series === null) {
-            throw new \DomainException(sprintf('Series "%s" not found.', $command->seriesId));
+        if (null === $series) {
+            throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
         $series->rateEpisode(

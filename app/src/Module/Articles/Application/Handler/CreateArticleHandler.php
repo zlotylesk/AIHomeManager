@@ -8,13 +8,16 @@ use App\Module\Articles\Application\Command\CreateArticle;
 use App\Module\Articles\Domain\Entity\Article;
 use App\Module\Articles\Domain\Repository\ArticleRepositoryInterface;
 use App\Module\Articles\Domain\ValueObject\ArticleUrl;
+use DateTimeImmutable;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Symfony\Component\Uid\Uuid;
 
 #[AsMessageHandler(bus: 'command.bus')]
 final readonly class CreateArticleHandler
 {
-    public function __construct(private ArticleRepositoryInterface $repository) {}
+    public function __construct(private ArticleRepositoryInterface $repository)
+    {
+    }
 
     public function __invoke(CreateArticle $command): string
     {
@@ -26,7 +29,7 @@ final readonly class CreateArticleHandler
             url: new ArticleUrl($command->url),
             category: $command->category,
             estimatedReadTime: $command->estimatedReadTime,
-            addedAt: new \DateTimeImmutable(),
+            addedAt: new DateTimeImmutable(),
             readAt: null,
             isRead: false,
         ));

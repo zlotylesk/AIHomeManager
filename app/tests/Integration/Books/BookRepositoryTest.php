@@ -8,6 +8,7 @@ use App\Module\Books\Domain\Entity\Book;
 use App\Module\Books\Domain\Enum\BookStatus;
 use App\Module\Books\Domain\ValueObject\ISBN;
 use App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -81,7 +82,7 @@ class BookRepositoryTest extends KernelTestCase
         $loaded->addReadingSession(new \App\Module\Books\Domain\Entity\ReadingSession(
             id: 'sess-0001-0000-0000-000000000001',
             bookId: $loaded->id(),
-            date: new \DateTimeImmutable(),
+            date: new DateTimeImmutable(),
             pagesRead: 50,
         ));
         $this->repository->save($loaded);

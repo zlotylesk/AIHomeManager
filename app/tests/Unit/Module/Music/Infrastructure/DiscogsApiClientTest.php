@@ -8,18 +8,20 @@ use App\Module\Music\Infrastructure\External\DiscogsApiClient;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use PHPUnit\Framework\TestCase;
+use Redis;
+use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class DiscogsApiClientTest extends TestCase
 {
-    private \Redis $redis;
+    private Redis $redis;
     private DiscogsTokenRepositoryInterface $tokenRepo;
     private DiscogsOAuth1Signer $signer;
 
     protected function setUp(): void
     {
-        $this->redis = $this->createStub(\Redis::class);
+        $this->redis = $this->createStub(Redis::class);
         $this->redis->method('get')->willReturn(false);
         $this->redis->method('setex')->willReturn(true);
 
@@ -77,11 +79,13 @@ final class DiscogsApiClientTest extends TestCase
     {
         $page1 = $this->makeReleasePage(
             [$this->makeRelease('Artist A', 'Album A', 2000, 'Vinyl', 1)],
-            1, 2
+            1,
+            2
         );
         $page2 = $this->makeReleasePage(
             [$this->makeRelease('Artist B', 'Album B', 2001, 'CD', 2)],
-            2, 2
+            2,
+            2
         );
 
         $httpClient = new MockHttpClient([new MockResponse($page1), new MockResponse($page2)]);
@@ -112,7 +116,7 @@ final class DiscogsApiClientTest extends TestCase
 
         $client = new DiscogsApiClient(new MockHttpClient(), $this->redis, $tokenRepo, $this->signer, 'key', 'secret');
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Discogs not authorized');
 
         $client->getUserCollection('testuser');
@@ -122,7 +126,7 @@ final class DiscogsApiClientTest extends TestCase
     {
         $dto = new \App\Module\Music\Application\DTO\VinylRecordDTO('Artist', 'Album', 2000, 'Vinyl', 1);
 
-        $redis = $this->createMock(\Redis::class);
+        $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn(serialize([$dto]));
         $redis->expects(self::never())->method('setex');
 

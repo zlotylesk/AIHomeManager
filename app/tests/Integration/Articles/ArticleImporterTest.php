@@ -25,8 +25,8 @@ class ArticleImporterTest extends KernelTestCase
     public function testImportsPocketCsvRows(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
-            "GNU make,https://www.gnu.org/software/make/manual/make.html,1641750653,,unread\n" .
+            "title,url,time_added,tags,status\n".
+            "GNU make,https://www.gnu.org/software/make/manual/make.html,1641750653,,unread\n".
             "Pearl Jam,https://pl.wikipedia.org/wiki/Pearl_Jam,1611961999,,unread\n"
         );
 
@@ -39,7 +39,7 @@ class ArticleImporterTest extends KernelTestCase
 
     public function testSkipsDuplicatesByUrl(): void
     {
-        $csv = "title,url,time_added,tags,status\n" .
+        $csv = "title,url,time_added,tags,status\n".
                "GNU make,https://www.gnu.org/software/make/manual/make.html,1641750653,,unread\n";
         $file = $this->createCsvFile($csv);
 
@@ -57,7 +57,7 @@ class ArticleImporterTest extends KernelTestCase
     public function testArchiveStatusSetsIsReadAndReadAt(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
+            "title,url,time_added,tags,status\n".
             "Old Article,https://example.com/old,1393833523,,archive\n"
         );
 
@@ -73,7 +73,7 @@ class ArticleImporterTest extends KernelTestCase
     public function testUnreadStatusSetsIsReadFalse(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
+            "title,url,time_added,tags,status\n".
             "New Article,https://example.com/new,1641750653,,unread\n"
         );
 
@@ -88,8 +88,8 @@ class ArticleImporterTest extends KernelTestCase
     public function testSkipsRowWithInvalidUrl(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
-            "Valid,https://example.com,1641750653,,unread\n" .
+            "title,url,time_added,tags,status\n".
+            "Valid,https://example.com,1641750653,,unread\n".
             "Bad URL,not-a-url,1641750653,,unread\n"
         );
 
@@ -103,7 +103,7 @@ class ArticleImporterTest extends KernelTestCase
     public function testSkipsRowWithMissingTitle(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
+            "title,url,time_added,tags,status\n".
             ",https://example.com/no-title,1641750653,,unread\n"
         );
 
@@ -116,7 +116,7 @@ class ArticleImporterTest extends KernelTestCase
     public function testTitleAsUrlIsImported(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
+            "title,url,time_added,tags,status\n".
             "http://kunststube.net/isset/,http://kunststube.net/isset/,1568813038,,unread\n"
         );
 
@@ -130,7 +130,7 @@ class ArticleImporterTest extends KernelTestCase
     {
         $line = iconv('UTF-8', 'ISO-8859-2', "Ząbek czosnku,https://example.com/czosnek,1641750653,,unread\n");
         $header = "title,url,time_added,tags,status\n";
-        $file = $this->createRawFile($header . $line);
+        $file = $this->createRawFile($header.$line);
 
         $result = $this->importer->import($file);
 
@@ -143,18 +143,18 @@ class ArticleImporterTest extends KernelTestCase
     public function testReturnsCorrectSummaryForMixedRows(): void
     {
         $file = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
-            "Good,https://example.com/good,1641750653,,unread\n" .
-            "Good 2,https://example.com/good2,1641750653,,unread\n" .
+            "title,url,time_added,tags,status\n".
+            "Good,https://example.com/good,1641750653,,unread\n".
+            "Good 2,https://example.com/good2,1641750653,,unread\n".
             "Bad URL,not-a-url,1641750653,,unread\n"
         );
 
         $this->importer->import($file);
 
         $file2 = $this->createCsvFile(
-            "title,url,time_added,tags,status\n" .
-            "Good,https://example.com/good,1641750653,,unread\n" .
-            "New,https://example.com/new,1641750653,,unread\n" .
+            "title,url,time_added,tags,status\n".
+            "Good,https://example.com/good,1641750653,,unread\n".
+            "New,https://example.com/new,1641750653,,unread\n".
             ",https://example.com/no-title,1641750653,,unread\n"
         );
 

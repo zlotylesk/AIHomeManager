@@ -9,6 +9,7 @@ use App\Module\Books\Domain\Entity\Book;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
 use App\Module\Books\Domain\ValueObject\ISBN;
+use InvalidArgumentException;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Symfony\Component\Uid\Uuid;
 
@@ -18,7 +19,8 @@ final readonly class AddBookHandler
     public function __construct(
         private BookRepositoryInterface $bookRepository,
         private BookMetadataProviderInterface $metadataProvider,
-    ) {}
+    ) {
+    }
 
     public function __invoke(AddBook $command): string
     {
@@ -29,18 +31,18 @@ final readonly class AddBookHandler
         $coverUrl = $command->coverUrl;
         $totalPages = $command->totalPages;
 
-        if ($title === null) {
+        if (null === $title) {
             $metadata = $this->metadataProvider->getByIsbn($command->isbn);
             $title = $metadata->title;
-            $author = $author ?? $metadata->author;
-            $publisher = $publisher ?? $metadata->publisher;
-            $year = $year ?? $metadata->year;
-            $coverUrl = $coverUrl ?? $metadata->coverUrl;
-            $totalPages = $totalPages ?? $metadata->totalPages;
+            $author ??= $metadata->author;
+            $publisher ??= $metadata->publisher;
+            $year ??= $metadata->year;
+            $coverUrl ??= $metadata->coverUrl;
+            $totalPages ??= $metadata->totalPages;
         }
 
-        if ($totalPages === null || $totalPages <= 0) {
-            throw new \InvalidArgumentException('Field "total_pages" is required and could not be retrieved from the National Library API.');
+        if (null === $totalPages || $totalPages <= 0) {
+            throw new InvalidArgumentException('Field "total_pages" is required and could not be retrieved from the National Library API.');
         }
 
         $book = new Book(

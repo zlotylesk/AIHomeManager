@@ -12,5 +12,6 @@ final readonly class VinylRecordDTO
         public ?int $year,
         public string $format,
         public int $discogsId,
-    ) {}
+    ) {
+    }
 }

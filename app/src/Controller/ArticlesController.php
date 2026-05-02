@@ -12,6 +12,8 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Articles\Application\Query\GetAllArticles;
 use App\Module\Articles\Application\Query\GetArticleById;
 use App\Module\Articles\Application\Query\GetArticleOfTheDay;
+use DomainException;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,8 +29,10 @@ final class ArticlesController extends AbstractController
 {
     public function __construct(
         private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')] private readonly MessageBusInterface $queryBus,
-    ) {}
+        #[Target('query.bus')]
+        private readonly MessageBusInterface $queryBus,
+    ) {
+    }
 
     #[Route('', methods: ['GET'])]
     public function list(): JsonResponse
@@ -45,7 +49,7 @@ final class ArticlesController extends AbstractController
         /** @var ArticleDTO|null $dto */
         $dto = $this->queryBus->dispatch(new GetArticleOfTheDay())->last(HandledStamp::class)->getResult();
 
-        if ($dto === null) {
+        if (null === $dto) {
             return new JsonResponse(null, Response::HTTP_NO_CONTENT);
         }
 
@@ -58,7 +62,7 @@ final class ArticlesController extends AbstractController
         /** @var ArticleDTO|null $dto */
         $dto = $this->queryBus->dispatch(new GetArticleById($id))->last(HandledStamp::class)->getResult();
 
-        if ($dto === null) {
+        if (null === $dto) {
             return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
         }
 
@@ -72,7 +76,7 @@ final class ArticlesController extends AbstractController
         $title = trim($data['title'] ?? '');
         $url = trim($data['url'] ?? '');
 
-        if ($title === '' || $url === '') {
+        if ('' === $title || '' === $url) {
             return new JsonResponse(['error' => 'Title and url are required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -84,7 +88,7 @@ final class ArticlesController extends AbstractController
                 estimatedReadTime: isset($data['estimated_read_time']) ? (int) $data['estimated_read_time'] : null,
             ))->last(HandledStamp::class)->getResult();
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \InvalidArgumentException) {
+            if ($e->getPrevious() instanceof InvalidArgumentException) {
                 return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             throw $e;
@@ -99,7 +103,7 @@ final class ArticlesController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         $title = trim($data['title'] ?? '');
 
-        if ($title === '') {
+        if ('' === $title) {
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -111,7 +115,7 @@ final class ArticlesController extends AbstractController
                 estimatedReadTime: isset($data['estimated_read_time']) ? (int) $data['estimated_read_time'] : null,
             ));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \DomainException) {
+            if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -126,7 +130,7 @@ final class ArticlesController extends AbstractController
         try {
             $this->commandBus->dispatch(new DeleteArticle($id));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \DomainException) {
+            if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -141,7 +145,7 @@ final class ArticlesController extends AbstractController
         try {
             $this->commandBus->dispatch(new MarkArticleAsRead($id));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof \DomainException) {
+            if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;

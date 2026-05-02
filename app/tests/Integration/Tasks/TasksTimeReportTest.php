@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Tasks;
 
 use App\Tests\Support\AuthenticatedApiTrait;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -27,12 +28,12 @@ class TasksTimeReportTest extends WebTestCase
     {
         $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
 
-        for ($i = 1; $i <= 3; $i++) {
-            $start = new \DateTimeImmutable("2025-01-15 0{$i}:00:00");
+        for ($i = 1; $i <= 3; ++$i) {
+            $start = new DateTimeImmutable("2025-01-15 0{$i}:00:00");
             $end = $start->modify('+30 minutes');
             $conn->insert('tasks', [
                 'id' => sprintf('task-%d000-0000-0000-000000000000', $i),
-                'title' => 'Task ' . $i,
+                'title' => 'Task '.$i,
                 'status' => 'completed',
                 'time_start' => $start->format('Y-m-d H:i:s'),
                 'time_end' => $end->format('Y-m-d H:i:s'),

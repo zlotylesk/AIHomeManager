@@ -16,13 +16,13 @@ use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPasspor
 
 final class ApiKeyAuthenticator extends AbstractAuthenticator
 {
-    public const HEADER = 'X-API-Key';
+    public const string HEADER = 'X-API-Key';
 
     public function __construct(private readonly string $expectedApiKey)
     {
     }
 
-    public function supports(Request $request): ?bool
+    public function supports(Request $request): bool
     {
         return true;
     }
@@ -50,7 +50,7 @@ final class ApiKeyAuthenticator extends AbstractAuthenticator
         return null;
     }
 
-    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
+    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): Response
     {
         return new JsonResponse(
             ['error' => $exception->getMessageKey()],

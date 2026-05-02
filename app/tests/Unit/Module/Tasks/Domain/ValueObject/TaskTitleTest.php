@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Tasks\Domain\ValueObject;
 
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class TaskTitleTest extends TestCase
@@ -18,21 +19,21 @@ final class TaskTitleTest extends TestCase
 
     public function testThrowsWhenValueIsEmpty(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new TaskTitle('');
     }
 
     public function testThrowsWhenValueIsOnlyWhitespace(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new TaskTitle('   ');
     }
 
     public function testThrowsWhenValueExceeds255Characters(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new TaskTitle(str_repeat('a', 256));
     }

@@ -7,25 +7,28 @@ namespace App\Module\Tasks\Infrastructure\Google;
 use App\Module\Tasks\Domain\Entity\Task;
 use App\Module\Tasks\Domain\Port\CalendarServiceInterface;
 use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
+use DateTime;
 use Google\Client;
 use Google\Service\Calendar;
 use Google\Service\Calendar\Event;
 use Google\Service\Calendar\EventDateTime;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
-final class GoogleCalendarService implements CalendarServiceInterface
+final readonly class GoogleCalendarService implements CalendarServiceInterface
 {
     public function __construct(
-        private readonly Client $client,
-        private readonly GoogleTokenRepositoryInterface $tokenRepository,
-        private readonly LoggerInterface $logger,
-    ) {}
+        private Client $client,
+        private GoogleTokenRepositoryInterface $tokenRepository,
+        private LoggerInterface $logger,
+    ) {
+    }
 
     public function createEvent(Task $task): string
     {
         try {
             $calendarService = $this->prepareAuthenticatedClient();
-            if ($calendarService === null) {
+            if (null === $calendarService) {
                 return '';
             }
 
@@ -33,7 +36,7 @@ final class GoogleCalendarService implements CalendarServiceInterface
             $created = $calendarService->events->insert('primary', $event);
 
             return (string) $created->getId();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->warning('Google Calendar createEvent failed', [
                 'taskId' => $task->id(),
                 'error' => $e->getMessage(),
@@ -45,19 +48,19 @@ final class GoogleCalendarService implements CalendarServiceInterface
 
     public function updateEvent(Task $task): void
     {
-        if ($task->googleEventId() === null) {
+        if (null === $task->googleEventId()) {
             return;
         }
 
         try {
             $calendarService = $this->prepareAuthenticatedClient();
-            if ($calendarService === null) {
+            if (null === $calendarService) {
                 return;
             }
 
             $event = $this->buildEvent($task);
             $calendarService->events->update('primary', $task->googleEventId(), $event);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->warning('Google Calendar updateEvent failed', [
                 'taskId' => $task->id(),
                 'googleEventId' => $task->googleEventId(),
@@ -70,12 +73,12 @@ final class GoogleCalendarService implements CalendarServiceInterface
     {
         try {
             $calendarService = $this->prepareAuthenticatedClient();
-            if ($calendarService === null) {
+            if (null === $calendarService) {
                 return;
             }
 
             $calendarService->events->delete('primary', $googleEventId);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->warning('Google Calendar deleteEvent failed', [
                 'googleEventId' => $googleEventId,
                 'error' => $e->getMessage(),
@@ -90,11 +93,11 @@ final class GoogleCalendarService implements CalendarServiceInterface
         $event->setDescription($task->id());
 
         $start = new EventDateTime();
-        $start->setDateTime($task->timeSlot()->startDateTime()->format(\DateTime::RFC3339));
+        $start->setDateTime($task->timeSlot()->startDateTime()->format(DateTime::RFC3339));
         $event->setStart($start);
 
         $end = new EventDateTime();
-        $end->setDateTime($task->timeSlot()->endDateTime()->format(\DateTime::RFC3339));
+        $end->setDateTime($task->timeSlot()->endDateTime()->format(DateTime::RFC3339));
         $event->setEnd($end);
 
         return $event;
@@ -104,7 +107,7 @@ final class GoogleCalendarService implements CalendarServiceInterface
     {
         $tokenData = $this->tokenRepository->get();
 
-        if ($tokenData === null) {
+        if (null === $tokenData) {
             $this->logger->warning('Google Calendar: no OAuth token configured, skipping calendar sync');
 
             return null;
@@ -114,7 +117,7 @@ final class GoogleCalendarService implements CalendarServiceInterface
 
         if ($this->client->isAccessTokenExpired()) {
             $refreshToken = $this->client->getRefreshToken();
-            if ($refreshToken === null) {
+            if (null === $refreshToken) {
                 $this->logger->warning('Google Calendar: refresh token missing, re-authentication required');
 
                 return null;

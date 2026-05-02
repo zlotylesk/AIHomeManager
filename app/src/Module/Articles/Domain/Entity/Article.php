@@ -5,30 +5,12 @@ declare(strict_types=1);
 namespace App\Module\Articles\Domain\Entity;
 
 use App\Module\Articles\Domain\ValueObject\ArticleUrl;
+use DateTimeImmutable;
 
 final class Article
 {
-    private string $title;
-    private ?string $category;
-    private ?int $estimatedReadTime;
-    private bool $isRead;
-    private ?\DateTimeImmutable $readAt;
-
-    public function __construct(
-        private readonly string $id,
-        string $title,
-        private readonly ArticleUrl $url,
-        ?string $category,
-        ?int $estimatedReadTime,
-        private readonly \DateTimeImmutable $addedAt,
-        ?\DateTimeImmutable $readAt,
-        bool $isRead,
-    ) {
-        $this->title = $title;
-        $this->category = $category;
-        $this->estimatedReadTime = $estimatedReadTime;
-        $this->readAt = $readAt;
-        $this->isRead = $isRead;
+    public function __construct(private readonly string $id, private string $title, private readonly ArticleUrl $url, private ?string $category, private ?int $estimatedReadTime, private readonly DateTimeImmutable $addedAt, private ?DateTimeImmutable $readAt, private bool $isRead)
+    {
     }
 
     public function id(): string
@@ -56,12 +38,12 @@ final class Article
         return $this->estimatedReadTime;
     }
 
-    public function addedAt(): \DateTimeImmutable
+    public function addedAt(): DateTimeImmutable
     {
         return $this->addedAt;
     }
 
-    public function readAt(): ?\DateTimeImmutable
+    public function readAt(): ?DateTimeImmutable
     {
         return $this->readAt;
     }
@@ -71,7 +53,7 @@ final class Article
         return $this->isRead;
     }
 
-    public function markAsRead(\DateTimeImmutable $at): void
+    public function markAsRead(DateTimeImmutable $at): void
     {
         $this->isRead = true;
         $this->readAt = $at;

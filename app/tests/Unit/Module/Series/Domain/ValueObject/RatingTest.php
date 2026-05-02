@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Series\Domain\ValueObject;
 
 use App\Module\Series\Domain\ValueObject\Rating;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class RatingTest extends TestCase
@@ -18,14 +19,14 @@ final class RatingTest extends TestCase
 
     public function testThrowsOnTooLowValue(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new Rating(0);
     }
 
     public function testThrowsOnTooHighValue(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new Rating(11);
     }

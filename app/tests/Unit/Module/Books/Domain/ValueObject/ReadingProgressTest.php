@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Books\Domain\ValueObject;
 
 use App\Module\Books\Domain\ValueObject\ReadingProgress;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class ReadingProgressTest extends TestCase
@@ -56,28 +57,28 @@ final class ReadingProgressTest extends TestCase
 
     public function testThrowsWhenCurrentPageExceedsTotalPages(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ReadingProgress(201, 200);
     }
 
     public function testThrowsWhenTotalPagesIsZero(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ReadingProgress(0, 0);
     }
 
     public function testThrowsWhenTotalPagesIsNegative(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ReadingProgress(0, -1);
     }
 
     public function testThrowsWhenCurrentPageIsNegative(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ReadingProgress(-1, 200);
     }

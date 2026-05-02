@@ -7,24 +7,27 @@ namespace App\Module\Music\Infrastructure\External;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
+use Redis;
+use RuntimeException;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class DiscogsApiClient implements VinylCollectionInterface
+final readonly class DiscogsApiClient implements VinylCollectionInterface
 {
-    private const COLLECTION_URL = 'https://api.discogs.com/users/%s/collection/folders/0/releases';
-    private const CACHE_TTL = 21600;
-    private const PER_PAGE = 100;
-    private const USER_AGENT = 'AIHomeManager/1.0 +https://github.com/zlotylesk/AIHomeManager';
+    private const string COLLECTION_URL = 'https://api.discogs.com/users/%s/collection/folders/0/releases';
+    private const int CACHE_TTL = 21600;
+    private const int PER_PAGE = 100;
+    private const string USER_AGENT = 'AIHomeManager/1.0 +https://github.com/zlotylesk/AIHomeManager';
 
     public function __construct(
-        private readonly HttpClientInterface $httpClient,
-        private readonly \Redis $redis,
-        private readonly DiscogsTokenRepositoryInterface $tokenRepository,
-        private readonly DiscogsOAuth1Signer $signer,
-        private readonly string $consumerKey,
-        private readonly string $consumerSecret,
-    ) {}
+        private HttpClientInterface $httpClient,
+        private Redis $redis,
+        private DiscogsTokenRepositoryInterface $tokenRepository,
+        private DiscogsOAuth1Signer $signer,
+        private string $consumerKey,
+        private string $consumerSecret,
+    ) {
+    }
 
     /** @return VinylRecordDTO[] */
     public function getUserCollection(string $username): array
@@ -32,13 +35,13 @@ final class DiscogsApiClient implements VinylCollectionInterface
         $cacheKey = sprintf('discogs:collection:%s', $username);
 
         $cached = $this->redis->get($cacheKey);
-        if ($cached !== false) {
+        if (false !== $cached) {
             return unserialize($cached);
         }
 
         $token = $this->tokenRepository->get();
-        if ($token === null) {
-            throw new \RuntimeException('Discogs not authorized. Visit /auth/discogs to connect.');
+        if (null === $token) {
+            throw new RuntimeException('Discogs not authorized. Visit /auth/discogs to connect.');
         }
 
         $records = $this->fetchAllPages($username, $token['oauth_token'], $token['oauth_token_secret']);
@@ -79,7 +82,7 @@ final class DiscogsApiClient implements VinylCollectionInterface
 
                 $data = $response->toArray();
             } catch (TransportExceptionInterface $e) {
-                throw new \RuntimeException('Discogs API unavailable.', 0, $e);
+                throw new RuntimeException('Discogs API unavailable.', 0, $e);
             }
 
             foreach ($data['releases'] ?? [] as $item) {
@@ -92,7 +95,7 @@ final class DiscogsApiClient implements VinylCollectionInterface
                 sleep(1);
             }
 
-            $page++;
+            ++$page;
         } while ($page <= $totalPages);
 
         return $records;
@@ -103,7 +106,7 @@ final class DiscogsApiClient implements VinylCollectionInterface
         $info = $item['basic_information'] ?? [];
 
         $artist = implode(', ', array_map(
-            fn($a) => trim(preg_replace('/\s*\(\d+\)$/', '', $a['name'] ?? '')),
+            fn ($a) => trim(preg_replace('/\s*\(\d+\)$/', '', $a['name'] ?? '')),
             $info['artists'] ?? []
         ));
 

@@ -18,8 +18,8 @@ final class Task
 
     public function __construct(
         private readonly string $id,
-        private TaskTitle $title,
-        private TimeSlot $timeSlot,
+        private readonly TaskTitle $title,
+        private readonly TimeSlot $timeSlot,
         private ?string $googleEventId = null,
     ) {
         $this->status = TaskStatus::PENDING;

@@ -13,7 +13,8 @@ final class Season
         private readonly string $id,
         private readonly string $seriesId,
         private readonly int $number,
-    ) {}
+    ) {
+    }
 
     public function id(): string
     {

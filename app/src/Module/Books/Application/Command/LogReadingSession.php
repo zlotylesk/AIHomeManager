@@ -11,5 +11,6 @@ final readonly class LogReadingSession
         public int $pagesRead,
         public string $date,
         public ?string $notes = null,
-    ) {}
+    ) {
+    }
 }

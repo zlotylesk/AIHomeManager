@@ -13,5 +13,6 @@ final readonly class UpdateBook
         public string $publisher,
         public int $year,
         public ?string $coverUrl,
-    ) {}
+    ) {
+    }
 }

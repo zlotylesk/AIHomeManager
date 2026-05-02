@@ -6,5 +6,7 @@ namespace App\Module\Books\Application\Query;
 
 final readonly class GetAllBooks
 {
-    public function __construct(public ?string $status = null) {}
+    public function __construct(public ?string $status = null)
+    {
+    }
 }

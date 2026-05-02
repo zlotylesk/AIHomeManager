@@ -6,13 +6,14 @@ namespace App\Tests\Unit\Module\Articles\Domain\Entity;
 
 use App\Module\Articles\Domain\Entity\Article;
 use App\Module\Articles\Domain\ValueObject\ArticleUrl;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 
 final class ArticleTest extends TestCase
 {
     public function testGetters(): void
     {
-        $addedAt = new \DateTimeImmutable('2022-01-01 12:00:00');
+        $addedAt = new DateTimeImmutable('2022-01-01 12:00:00');
         $url = new ArticleUrl('https://example.com');
 
         $article = new Article(
@@ -38,8 +39,8 @@ final class ArticleTest extends TestCase
 
     public function testReadArticleHasReadAt(): void
     {
-        $addedAt = new \DateTimeImmutable('2022-01-01');
-        $readAt = new \DateTimeImmutable('2022-01-15');
+        $addedAt = new DateTimeImmutable('2022-01-01');
+        $readAt = new DateTimeImmutable('2022-01-15');
 
         $article = new Article(
             id: 'test-id',
@@ -64,12 +65,12 @@ final class ArticleTest extends TestCase
             url: new ArticleUrl('https://example.com'),
             category: null,
             estimatedReadTime: null,
-            addedAt: new \DateTimeImmutable(),
+            addedAt: new DateTimeImmutable(),
             readAt: null,
             isRead: false,
         );
 
-        $readAt = new \DateTimeImmutable('2024-06-01 10:00:00');
+        $readAt = new DateTimeImmutable('2024-06-01 10:00:00');
         $article->markAsRead($readAt);
 
         self::assertTrue($article->isRead());
@@ -84,7 +85,7 @@ final class ArticleTest extends TestCase
             url: new ArticleUrl('https://example.com'),
             category: 'tech',
             estimatedReadTime: 5,
-            addedAt: new \DateTimeImmutable(),
+            addedAt: new DateTimeImmutable(),
             readAt: null,
             isRead: false,
         );
@@ -104,7 +105,7 @@ final class ArticleTest extends TestCase
             url: new ArticleUrl('https://example.com'),
             category: 'tech',
             estimatedReadTime: 5,
-            addedAt: new \DateTimeImmutable(),
+            addedAt: new DateTimeImmutable(),
             readAt: null,
             isRead: false,
         );

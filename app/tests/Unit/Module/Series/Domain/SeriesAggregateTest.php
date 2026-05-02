@@ -9,13 +9,14 @@ use App\Module\Series\Domain\Entity\Season;
 use App\Module\Series\Domain\Entity\Series;
 use App\Module\Series\Domain\Event\EpisodeRated;
 use App\Module\Series\Domain\ValueObject\Rating;
+use DomainException;
 use PHPUnit\Framework\TestCase;
 
 final class SeriesAggregateTest extends TestCase
 {
-    private const SERIES_ID = 'series-1';
-    private const SEASON_ID = 'season-1';
-    private const EPISODE_ID = 'episode-1';
+    private const string SERIES_ID = 'series-1';
+    private const string SEASON_ID = 'season-1';
+    private const string EPISODE_ID = 'episode-1';
 
     public function testAddSeasonAddsSeason(): void
     {
@@ -80,7 +81,7 @@ final class SeriesAggregateTest extends TestCase
     {
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
 
-        $this->expectException(\DomainException::class);
+        $this->expectException(DomainException::class);
         $series->addEpisode('unknown-season', new Episode(self::EPISODE_ID, 'unknown-season', 'Pilot'));
     }
 
@@ -88,7 +89,7 @@ final class SeriesAggregateTest extends TestCase
     {
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
 
-        $this->expectException(\DomainException::class);
+        $this->expectException(DomainException::class);
         $series->rateEpisode('unknown-season', self::EPISODE_ID, new Rating(5));
     }
 
@@ -96,7 +97,7 @@ final class SeriesAggregateTest extends TestCase
     {
         $series = $this->seriesWithSeason();
 
-        $this->expectException(\DomainException::class);
+        $this->expectException(DomainException::class);
         $series->rateEpisode(self::SEASON_ID, 'unknown-episode', new Rating(5));
     }
 

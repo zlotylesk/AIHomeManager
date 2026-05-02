@@ -8,5 +8,6 @@ final readonly class GetSeriesDetail
 {
     public function __construct(
         public string $seriesId,
-    ) {}
+    ) {
+    }
 }

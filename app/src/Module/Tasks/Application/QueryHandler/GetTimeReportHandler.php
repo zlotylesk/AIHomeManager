@@ -13,7 +13,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler(bus: 'query.bus')]
 final readonly class GetTimeReportHandler
 {
-    public function __construct(private Connection $connection) {}
+    public function __construct(private Connection $connection)
+    {
+    }
 
     public function __invoke(GetTimeReport $query): TimeReportDTO
     {
@@ -27,9 +29,9 @@ final readonly class GetTimeReportHandler
                 FROM tasks
                 WHERE status = :status AND time_start BETWEEN :from AND :to';
 
-        if ($query->taskTitle !== null) {
+        if (null !== $query->taskTitle) {
             $sql .= ' AND title LIKE :title';
-            $params['title'] = '%' . $query->taskTitle . '%';
+            $params['title'] = '%'.$query->taskTitle.'%';
         }
 
         $sql .= ' ORDER BY time_start ASC';

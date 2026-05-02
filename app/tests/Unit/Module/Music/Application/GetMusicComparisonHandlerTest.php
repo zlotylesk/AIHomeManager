@@ -12,16 +12,17 @@ use App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use PHPUnit\Framework\TestCase;
+use Redis;
 
 final class GetMusicComparisonHandlerTest extends TestCase
 {
-    private \Redis $redis;
+    private Redis $redis;
     private MusicListeningHistoryInterface $lastfm;
     private VinylCollectionInterface $discogs;
 
     protected function setUp(): void
     {
-        $this->redis = $this->createStub(\Redis::class);
+        $this->redis = $this->createStub(Redis::class);
         $this->redis->method('get')->willReturn(false);
         $this->redis->method('setex')->willReturn(true);
 
@@ -43,12 +44,13 @@ final class GetMusicComparisonHandlerTest extends TestCase
     public function testSplitsAlbumsIntoOwnedAndWantList(): void
     {
         $this->lastfm->method('getTopAlbums')->willReturnCallback(function (string $user, string $period, int $limit) {
-            if ($limit === 2) {
+            if (2 === $limit) {
                 return [
                     new AlbumDTO('Pink Floyd', 'The Wall', 200, null),
                     new AlbumDTO('Radiohead', 'OK Computer', 150, null),
                 ];
             }
+
             return [
                 new AlbumDTO('Pink Floyd', 'The Wall', 200, null),
             ];
@@ -69,8 +71,8 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testCalculatesMatchScore(): void
     {
-        $this->lastfm->method('getTopAlbums')->willReturnCallback(fn($u, $p, $limit) =>
-            $limit === 4 ? [
+        $this->lastfm->method('getTopAlbums')->willReturnCallback(
+            fn ($u, $p, $limit) => 4 === $limit ? [
                 new AlbumDTO('Artist A', 'Album A', 100, null),
                 new AlbumDTO('Artist B', 'Album B', 90, null),
                 new AlbumDTO('Artist C', 'Album C', 80, null),
@@ -90,8 +92,8 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testIdentifiesDustyShelf(): void
     {
-        $this->lastfm->method('getTopAlbums')->willReturnCallback(fn($u, $p, $limit) =>
-            $limit === 500 ? [new AlbumDTO('Artist A', 'Album A', 100, null)] : []
+        $this->lastfm->method('getTopAlbums')->willReturnCallback(
+            fn ($u, $p, $limit) => 500 === $limit ? [new AlbumDTO('Artist A', 'Album A', 100, null)] : []
         );
 
         $this->discogs->method('getUserCollection')->willReturn([
@@ -107,8 +109,8 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testMatchingIgnoresParenthesesFormatDifferences(): void
     {
-        $this->lastfm->method('getTopAlbums')->willReturnCallback(fn($u, $p, $limit) =>
-            $limit === 1 ? [new AlbumDTO('Radiohead', 'OK Computer (Remastered 2009)', 100, null)] : []
+        $this->lastfm->method('getTopAlbums')->willReturnCallback(
+            fn ($u, $p, $limit) => 1 === $limit ? [new AlbumDTO('Radiohead', 'OK Computer (Remastered 2009)', 100, null)] : []
         );
 
         $this->discogs->method('getUserCollection')->willReturn([
@@ -125,12 +127,16 @@ final class GetMusicComparisonHandlerTest extends TestCase
     {
         $cached = new MusicComparisonDTO([], [], [], 0.0);
 
-        $redis = $this->createMock(\Redis::class);
+        $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn(serialize($cached));
         $redis->expects(self::never())->method('setex');
 
         $handler = new GetMusicComparisonHandler(
-            $this->lastfm, $this->discogs, $redis, 'user', 'user'
+            $this->lastfm,
+            $this->discogs,
+            $redis,
+            'user',
+            'user'
         );
 
         $result = $handler(new GetMusicComparison());

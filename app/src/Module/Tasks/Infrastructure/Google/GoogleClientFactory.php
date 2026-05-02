@@ -7,13 +7,14 @@ namespace App\Module\Tasks\Infrastructure\Google;
 use Google\Client;
 use Google\Service\Calendar;
 
-final class GoogleClientFactory
+final readonly class GoogleClientFactory
 {
     public function __construct(
-        private readonly string $clientId,
-        private readonly string $clientSecret,
-        private readonly string $redirectUri,
-    ) {}
+        private string $clientId,
+        private string $clientSecret,
+        private string $redirectUri,
+    ) {
+    }
 
     public function create(): Client
     {
