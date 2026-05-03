@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Module\Music\Infrastructure\Security;
+namespace App\Security;
 
 use RuntimeException;
 use SodiumException;
