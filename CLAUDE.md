@@ -128,8 +128,12 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - `github` (npx — wymaga `GITHUB_PERSONAL_ACCESS_TOKEN`; aktualnie zwraca "Bad credentials" przy próbach create_pull_request — odnowić PAT lub używać `gh` CLI / Web UI)
 - `context7` (npx — docs Symfony/Doctrine/PHP)
 - `filesystem` (npx — root: AIHM)
+- `mysql` (npx — `@benborla29/mcp-server-mysql`, `127.0.0.1:3306`, read-only: INSERT/UPDATE/DELETE wyłączone)
+- `playwright` (npx — `@playwright/mcp@latest`, browser automation/E2E)
+- `redis` (npx — `@modelcontextprotocol/server-redis`, `redis://127.0.0.1:6379`)
+- `docker` (uvx — `mcp-server-docker`, wymaga `uv` na hoście: `pipx install uv` lub `winget install astral-sh.uv`)
 - Atlassian Rovo: konfigurowane przez claude.ai (NIE `.mcp.json`)
-- Wymóg: Node.js v18+ (zainstalowane v24.x LTS)
+- Wymóg: Node.js v18+ (zainstalowane v24.x LTS); Docker MCP dodatkowo wymaga `uv`
 
 ## Skills przydatne dla projektu
 
