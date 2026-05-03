@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Infrastructure\Persistence;
 
-use App\Module\Music\Infrastructure\Security\TokenCipher;
+use App\Security\TokenCipher;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 

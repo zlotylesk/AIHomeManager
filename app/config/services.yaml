@@ -71,9 +71,27 @@ services:
     App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface:
         alias: App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository
 
-    App\Module\Music\Infrastructure\Security\TokenCipher:
+    # Per-provider key isolates blast radius — use named instances, not the typehint.
+    App\Security\TokenCipher:
+        abstract: true
+
+    app.discogs_token_cipher:
+        class: App\Security\TokenCipher
         arguments:
             $key: '%env(base64:DISCOGS_TOKEN_KEY)%'
+
+    app.google_token_cipher:
+        class: App\Security\TokenCipher
+        arguments:
+            $key: '%env(base64:GOOGLE_TOKEN_KEY)%'
+
+    App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
+        arguments:
+            $cipher: '@app.discogs_token_cipher'
+
+    App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
+        arguments:
+            $cipher: '@app.google_token_cipher'
 
     App\Controller\DiscogsAuthController:
         arguments:

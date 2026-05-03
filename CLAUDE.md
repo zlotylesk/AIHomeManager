@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), plaintext OAuth tokens (~~Discogs~~ HMAI-46, 2026-05-02; Google nadal), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), ~~plaintext OAuth tokens~~ (Discogs HMAI-46 / Google HMAI-47, 2026-05-02—03), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -115,12 +115,14 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | `make cs-check` / `cs-fix` | CS Fixer dry-run / apply |
 | `make rector-dry` / `rector` | Rector dry-run / apply |
 
-## Encryption — OAuth tokens (HMAI-46)
+## Encryption — OAuth tokens (HMAI-46, HMAI-47)
 
-- Discogs OAuth1 tokens szyfrowane at-rest przez `App\Module\Music\Infrastructure\Security\TokenCipher` (libsodium `secretbox`, format: base64(nonce ‖ ciphertext))
-- Klucz: `DISCOGS_TOKEN_KEY` w `.env.local` (32 bajty base64). Generate: `php -r "echo base64_encode(sodium_crypto_secretbox_keygen());"`
-- Migracja `Version20260502000001` truncuje `discogs_oauth_tokens` przy upgrade — wymaga re-auth przez `/auth/discogs`
-- `GoogleOAuthTokenRepository` (Tasks) wciąż plaintext — osobne zadanie
+- `App\Security\TokenCipher` (libsodium `secretbox`, format: base64(nonce ‖ ciphertext)) — wspólne narzędzie dla wszystkich OAuth providerów
+- Dwie instancje w `services.yaml`: `app.discogs_token_cipher` (klucz `DISCOGS_TOKEN_KEY`) i `app.google_token_cipher` (`GOOGLE_TOKEN_KEY`) — osobne klucze rozdzielają blast radius
+- Klucze 32B base64 w `.env.local`. Generate: `php -r "echo base64_encode(sodium_crypto_secretbox_keygen());"`
+- Discogs OAuth1: `DiscogsTokenRepository` (Music) — pole-per-pole encryption (`oauth_token`, `oauth_token_secret`)
+- Google OAuth2: `GoogleOAuthTokenRepository` (Tasks) — szyfruje cały `token_json` (access+refresh+expires)
+- Migracje TRUNCATE: `Version20260502000001` (Discogs) i `Version20260503000001` (Google) — wymagają re-auth przez `/auth/discogs` i `/auth/google`
 
 ## MCP servers (`.mcp.json`)
 
