@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit\Module\Music\Infrastructure;
+namespace App\Tests\Unit\Security;
 
-use App\Module\Music\Infrastructure\Security\TokenCipher;
+use App\Security\TokenCipher;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
