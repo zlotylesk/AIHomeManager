@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Books\Application\Command;
 
+use App\Module\Books\Domain\ValueObject\CoverUrl;
+
 final readonly class AddBook
 {
     public function __construct(
@@ -12,7 +14,7 @@ final readonly class AddBook
         public ?string $author = null,
         public ?string $publisher = null,
         public ?int $year = null,
-        public ?string $coverUrl = null,
+        public ?CoverUrl $coverUrl = null,
         public ?int $totalPages = null,
     ) {
     }

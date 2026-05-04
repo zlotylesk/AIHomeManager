@@ -29,7 +29,7 @@ final readonly class UpdateBookHandler
             author: $command->author,
             publisher: $command->publisher,
             year: $command->year,
-            coverUrl: $command->coverUrl,
+            coverUrl: $command->coverUrl?->value(),
         );
 
         $this->bookRepository->save($book);

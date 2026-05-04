@@ -279,13 +279,13 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
 			identifier: argument.type
-			count: 7
+			count: 9
 			path: tests/Integration/Books/BooksApiTest.php
 
 		-
 			message: '#^Parameter \$content of method Symfony\\Component\\BrowserKit\\AbstractBrowser\<Symfony\\Component\\HttpFoundation\\Request,Symfony\\Component\\HttpFoundation\\Response\>\:\:request\(\) expects string\|null, string\|false given\.$#'
 			identifier: argument.type
-			count: 10
+			count: 13
 			path: tests/Integration/Books/BooksApiTest.php
 
 		-
