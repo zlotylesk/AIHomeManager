@@ -22,7 +22,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | Element | Wzorzec | Lokalizacja |
 |---|---|---|
 | Aggregate Root | `Series`, `Task`, `Book`, `Article` | `Domain/Entity/` |
-| Value Object (immutable, `final readonly`) | `Rating`, `ISBN`, `TimeSlot`, `ReadingProgress` | `Domain/ValueObject/` |
+| Value Object (immutable, `final readonly`) | `Rating`, `ISBN`, `CoverUrl`, `TimeSlot`, `ReadingProgress` | `Domain/ValueObject/` |
 | Command | `CreateSeries`, `LogReadingSession` | `Application/Command/` |
 | Command Handler | `*Handler` | `Application/Handler/` |
 | Query | `GetAllSeries`, `GetSeriesDetail` | `Application/Query/` |
