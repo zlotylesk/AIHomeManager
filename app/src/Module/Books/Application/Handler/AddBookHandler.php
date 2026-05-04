@@ -28,7 +28,7 @@ final readonly class AddBookHandler
         $author = $command->author;
         $publisher = $command->publisher;
         $year = $command->year;
-        $coverUrl = $command->coverUrl;
+        $coverUrl = $command->coverUrl?->value();
         $totalPages = $command->totalPages;
 
         if (null === $title) {

@@ -13,6 +13,7 @@ use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
+use App\Module\Books\Domain\ValueObject\CoverUrl;
 use DomainException;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -76,13 +77,19 @@ final class BooksController extends AbstractController
         }
 
         try {
+            $coverUrl = $this->parseCoverUrl($data['cover_url'] ?? null);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
             $id = $this->commandBus->dispatch(new AddBook(
                 isbn: trim((string) $data['isbn']),
                 title: isset($data['title']) ? trim((string) $data['title']) : null,
                 author: isset($data['author']) ? trim((string) $data['author']) : null,
                 publisher: isset($data['publisher']) ? trim((string) $data['publisher']) : null,
                 year: isset($data['year']) ? (int) $data['year'] : null,
-                coverUrl: isset($data['cover_url']) ? trim((string) $data['cover_url']) : null,
+                coverUrl: $coverUrl,
                 totalPages: isset($data['total_pages']) ? (int) $data['total_pages'] : null,
             ))->last(HandledStamp::class)->getResult();
         } catch (HandlerFailedException $e) {
@@ -122,13 +129,19 @@ final class BooksController extends AbstractController
         }
 
         try {
+            $coverUrl = $this->parseCoverUrl($data['cover_url'] ?? null);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
             $this->commandBus->dispatch(new UpdateBook(
                 id: $id,
                 title: trim((string) $data['title']),
                 author: trim((string) $data['author']),
                 publisher: trim((string) $data['publisher']),
                 year: (int) $data['year'],
-                coverUrl: isset($data['cover_url']) ? trim((string) $data['cover_url']) : null,
+                coverUrl: $coverUrl,
             ));
         } catch (HandlerFailedException $e) {
             if ($e->getPrevious() instanceof DomainException) {
@@ -138,6 +151,17 @@ final class BooksController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    private function parseCoverUrl(mixed $raw): ?CoverUrl
+    {
+        if (null === $raw) {
+            return null;
+        }
+
+        $trimmed = trim((string) $raw);
+
+        return '' === $trimmed ? null : new CoverUrl($trimmed);
     }
 
     #[Route('/{id}', methods: ['DELETE'], requirements: ['id' => '[0-9a-f\-]{36}'])]

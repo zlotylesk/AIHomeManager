@@ -80,6 +80,68 @@ class BooksApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testCreateBookRejectsJavascriptCoverUrlAs422(): void
+    {
+        $this->client->request('POST', '/api/books', content: json_encode([
+            'isbn' => '9780306406157',
+            'title' => 'XSS Attempt',
+            'author' => 'A',
+            'publisher' => 'P',
+            'year' => 2020,
+            'total_pages' => 100,
+            'cover_url' => 'javascript:alert(1)',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateBookRejectsDataSchemeCoverUrlAs422(): void
+    {
+        $this->client->request('POST', '/api/books', content: json_encode([
+            'isbn' => '9780306406157',
+            'title' => 'SVG XSS',
+            'author' => 'A',
+            'publisher' => 'P',
+            'year' => 2020,
+            'total_pages' => 100,
+            'cover_url' => 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateBookAcceptsValidHttpsCoverUrl(): void
+    {
+        $data = $this->createBook(['cover_url' => 'https://example.com/cover.jpg']);
+
+        $this->client->request('GET', '/api/books/'.$data['id']);
+        $detail = json_decode($this->client->getResponse()->getContent(), true);
+
+        self::assertSame('https://example.com/cover.jpg', $detail['coverUrl']);
+    }
+
+    public function testCreateBookAcceptsEmptyCoverUrlAsNull(): void
+    {
+        $data = $this->createBook(['cover_url' => '']);
+
+        $this->client->request('GET', '/api/books/'.$data['id']);
+        $detail = json_decode($this->client->getResponse()->getContent(), true);
+
+        self::assertNull($detail['coverUrl']);
+    }
+
+    public function testUpdateBookRejectsJavascriptCoverUrlAs422(): void
+    {
+        $id = $this->createBook()['id'];
+
+        $this->client->request('PUT', '/api/books/'.$id, content: json_encode([
+            'title' => 'T', 'author' => 'A', 'publisher' => 'P', 'year' => 2020,
+            'cover_url' => 'javascript:alert(1)',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
     public function testGetBookDetailReturnsPercentage(): void
     {
         $created = $this->createBook(['total_pages' => 200]);
