@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), ~~plaintext OAuth tokens~~ (Discogs HMAI-46 / Google HMAI-47, 2026-05-02—03), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), `unserialize()` z Redis, dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), ~~plaintext OAuth tokens~~ (Discogs HMAI-46 / Google HMAI-47, 2026-05-02—03), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), ~~`unserialize()` z Redis~~ (HMAI-49, 2026-05-04), dual-write w `LogReadingSessionHandler`. Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
 ## Architektura — ZASADY NIENARUSZALNE
 

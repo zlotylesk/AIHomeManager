@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Music\Application;
 
 use App\Module\Music\Application\DTO\AlbumDTO;
-use App\Module\Music\Application\DTO\MusicComparisonDTO;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler;
@@ -125,10 +124,15 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testReturnsCachedResult(): void
     {
-        $cached = new MusicComparisonDTO([], [], [], 0.0);
+        $payload = json_encode([
+            'ownedAndListened' => [],
+            'wantList' => [],
+            'dustyShelf' => [],
+            'matchScore' => 42.5,
+        ]);
 
         $redis = $this->createMock(Redis::class);
-        $redis->method('get')->willReturn(serialize($cached));
+        $redis->method('get')->willReturn($payload);
         $redis->expects(self::never())->method('setex');
 
         $handler = new GetMusicComparisonHandler(
@@ -139,6 +143,89 @@ final class GetMusicComparisonHandlerTest extends TestCase
             'user'
         );
 
+        $result = $handler(new GetMusicComparison());
+
+        self::assertSame(42.5, $result->matchScore);
+    }
+
+    public function testCachedResultRoundtripPreservesAllFields(): void
+    {
+        $payload = json_encode([
+            'ownedAndListened' => [
+                ['artist' => 'Pink Floyd', 'title' => 'The Wall', 'playCount' => 200, 'imageUrl' => 'https://img.example/wall.jpg'],
+            ],
+            'wantList' => [
+                ['artist' => 'Radiohead', 'title' => 'OK Computer', 'playCount' => 150, 'imageUrl' => null],
+            ],
+            'dustyShelf' => [
+                ['artist' => 'Forgotten', 'title' => 'Old Album', 'year' => 1975, 'format' => 'Vinyl', 'discogsId' => 99],
+                ['artist' => 'Unknown', 'title' => 'No Year', 'year' => null, 'format' => 'CD', 'discogsId' => 100],
+            ],
+            'matchScore' => 50.0,
+        ]);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn($payload);
+
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $result = $handler(new GetMusicComparison());
+
+        self::assertCount(1, $result->ownedAndListened);
+        self::assertSame('Pink Floyd', $result->ownedAndListened[0]->artist);
+        self::assertSame('https://img.example/wall.jpg', $result->ownedAndListened[0]->imageUrl);
+        self::assertCount(1, $result->wantList);
+        self::assertNull($result->wantList[0]->imageUrl);
+        self::assertCount(2, $result->dustyShelf);
+        self::assertSame(1975, $result->dustyShelf[0]->year);
+        self::assertNull($result->dustyShelf[1]->year);
+        self::assertSame(50.0, $result->matchScore);
+    }
+
+    public function testIgnoresMalformedJsonAndRecomputes(): void
+    {
+        $this->lastfm->method('getTopAlbums')->willReturn([new AlbumDTO('A', 'B', 1, null)]);
+        $this->discogs->method('getUserCollection')->willReturn([]);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn('{not valid json');
+        $redis->expects(self::once())->method('setex');
+
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $result = $handler(new GetMusicComparison(limit: 1));
+
+        self::assertCount(1, $result->wantList);
+    }
+
+    public function testIgnoresWrongStructureAndRecomputes(): void
+    {
+        $this->lastfm->method('getTopAlbums')->willReturn([new AlbumDTO('A', 'B', 1, null)]);
+        $this->discogs->method('getUserCollection')->willReturn([]);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn(json_encode(['ownedAndListened' => 'not-an-array']));
+        $redis->expects(self::once())->method('setex');
+
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $result = $handler(new GetMusicComparison(limit: 1));
+
+        self::assertCount(1, $result->wantList);
+    }
+
+    public function testIgnoresInvalidAlbumItemAndRecomputes(): void
+    {
+        $this->lastfm->method('getTopAlbums')->willReturn([]);
+        $this->discogs->method('getUserCollection')->willReturn([]);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn(json_encode([
+            'ownedAndListened' => [['artist' => 'A', 'title' => 'B', 'playCount' => 'not-int', 'imageUrl' => null]],
+            'wantList' => [],
+            'dustyShelf' => [],
+            'matchScore' => 0.0,
+        ]));
+        $redis->expects(self::once())->method('setex');
+
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
         $result = $handler(new GetMusicComparison());
 
         self::assertSame(0.0, $result->matchScore);

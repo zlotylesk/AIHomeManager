@@ -145,6 +145,30 @@ parameters:
 			path: src/Module/Books/Infrastructure/External/NationalLibraryApiClient.php
 
 		-
+			message: '#^Offset ''imageUrl'' on non\-empty\-array\<mixed\> on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Module/Music/Application/QueryHandler/GetMusicComparisonHandler.php
+
+		-
+			message: '#^Offset ''year'' on non\-empty\-array\<mixed\> on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Module/Music/Application/QueryHandler/GetMusicComparisonHandler.php
+
+		-
+			message: '#^Parameter \#1 \$items of static method App\\Module\\Music\\Application\\QueryHandler\\GetMusicComparisonHandler\:\:mapAlbums\(\) expects list\<mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Module/Music/Application/QueryHandler/GetMusicComparisonHandler.php
+
+		-
+			message: '#^Parameter \#1 \$items of static method App\\Module\\Music\\Application\\QueryHandler\\GetMusicComparisonHandler\:\:mapVinyls\(\) expects list\<mixed\>, array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Module/Music/Application/QueryHandler/GetMusicComparisonHandler.php
+
+		-
 			message: '#^Method App\\Module\\Music\\Infrastructure\\External\\DiscogsApiClient\:\:parseRelease\(\) has parameter \$item with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -339,13 +363,13 @@ parameters:
 		-
 			message: '#^Call to an undefined method App\\Module\\Music\\Domain\\Port\\MusicListeningHistoryInterface\:\:method\(\)\.$#'
 			identifier: method.notFound
-			count: 4
+			count: 7
 			path: tests/Unit/Module/Music/Application/GetMusicComparisonHandlerTest.php
 
 		-
 			message: '#^Call to an undefined method App\\Module\\Music\\Domain\\Port\\VinylCollectionInterface\:\:method\(\)\.$#'
 			identifier: method.notFound
-			count: 4
+			count: 7
 			path: tests/Unit/Module/Music/Application/GetMusicComparisonHandlerTest.php
 
 		-
