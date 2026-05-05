@@ -60,6 +60,36 @@ class ArticlesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testCreateArticleRejectsJavascriptUrlAs422(): void
+    {
+        $this->client->request('POST', '/api/articles', content: json_encode([
+            'title' => 'XSS Attempt',
+            'url' => 'javascript:alert(1)',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateArticleRejectsJavascriptUrlWithCommentAs422(): void
+    {
+        $this->client->request('POST', '/api/articles', content: json_encode([
+            'title' => 'XSS via comment',
+            'url' => 'javascript://example.com/%0Aalert(1)',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateArticleRejectsDataSchemeUrlAs422(): void
+    {
+        $this->client->request('POST', '/api/articles', content: json_encode([
+            'title' => 'Data scheme',
+            'url' => 'data:text/html,<script>alert(1)</script>',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
     public function testGetArticleDetailReturnsCorrectData(): void
     {
         $this->client->request('POST', '/api/articles', content: json_encode([
