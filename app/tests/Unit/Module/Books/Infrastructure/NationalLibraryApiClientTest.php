@@ -102,17 +102,17 @@ final class NationalLibraryApiClientTest extends TestCase
 
     public function testReturnsCachedResultWithoutHttpCall(): void
     {
-        $dto = new \App\Module\Books\Application\DTO\BookMetadataDTO(
-            title: 'Cached Book',
-            author: 'Author',
-            publisher: 'Publisher',
-            year: 2020,
-            totalPages: 100,
-            coverUrl: null,
-        );
+        $cachePayload = json_encode([
+            'title' => 'Cached Book',
+            'author' => 'Author',
+            'publisher' => 'Publisher',
+            'year' => 2020,
+            'totalPages' => 100,
+            'coverUrl' => null,
+        ], JSON_THROW_ON_ERROR);
 
         $redis = $this->createMock(Redis::class);
-        $redis->method('get')->willReturn(serialize($dto));
+        $redis->method('get')->willReturn($cachePayload);
         $redis->expects(self::never())->method('setex');
 
         $httpClient = new MockHttpClient();
@@ -121,5 +121,25 @@ final class NationalLibraryApiClientTest extends TestCase
         $result = $client->getByIsbn('9780306406157');
 
         self::assertSame('Cached Book', $result->title);
+        self::assertSame('Author', $result->author);
+        self::assertSame('Publisher', $result->publisher);
+        self::assertSame(2020, $result->year);
+        self::assertSame(100, $result->totalPages);
+        self::assertNull($result->coverUrl);
+    }
+
+    public function testCorruptedCacheFallsBackToApiFetch(): void
+    {
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn('not-valid-json');
+        $redis->expects(self::once())->method('setex')->willReturn(true);
+
+        $xml = $this->makeXml(['title' => 'Refetched Book']);
+        $httpClient = new MockHttpClient(new MockResponse($xml));
+        $client = new NationalLibraryApiClient($httpClient, $redis);
+
+        $result = $client->getByIsbn('9780306406157');
+
+        self::assertSame('Refetched Book', $result->title);
     }
 }

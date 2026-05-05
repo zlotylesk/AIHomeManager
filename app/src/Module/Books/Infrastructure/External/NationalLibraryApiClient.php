@@ -9,6 +9,7 @@ use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
 use Exception;
+use JsonException;
 use Redis;
 use RuntimeException;
 use SimpleXMLElement;
@@ -33,7 +34,11 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
 
         $cached = $this->redis->get($cacheKey);
         if (false !== $cached) {
-            return unserialize($cached);
+            try {
+                return $this->decodeMetadataFromCache($cached);
+            } catch (JsonException) {
+                // Stale or corrupted cache entry — fall through to refetch.
+            }
         }
 
         try {
@@ -62,9 +67,35 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
 
         $dto = $this->parseBib($bibNodes[0]);
 
-        $this->redis->setex($cacheKey, self::CACHE_TTL, serialize($dto));
+        $this->redis->setex($cacheKey, self::CACHE_TTL, $this->encodeMetadataForCache($dto));
 
         return $dto;
+    }
+
+    private function encodeMetadataForCache(BookMetadataDTO $dto): string
+    {
+        return json_encode([
+            'title' => $dto->title,
+            'author' => $dto->author,
+            'publisher' => $dto->publisher,
+            'year' => $dto->year,
+            'totalPages' => $dto->totalPages,
+            'coverUrl' => $dto->coverUrl,
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    private function decodeMetadataFromCache(string $json): BookMetadataDTO
+    {
+        $row = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+        return new BookMetadataDTO(
+            title: (string) ($row['title'] ?? ''),
+            author: isset($row['author']) ? (string) $row['author'] : null,
+            publisher: isset($row['publisher']) ? (string) $row['publisher'] : null,
+            year: isset($row['year']) ? (int) $row['year'] : null,
+            totalPages: isset($row['totalPages']) ? (int) $row['totalPages'] : null,
+            coverUrl: isset($row['coverUrl']) ? (string) $row['coverUrl'] : null,
+        );
     }
 
     private function parseBib(SimpleXMLElement $bib): BookMetadataDTO

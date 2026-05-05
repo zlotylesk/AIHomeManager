@@ -110,10 +110,15 @@ final class LastFmApiClientTest extends TestCase
 
     public function testReturnsCachedResultWithoutHttpCall(): void
     {
-        $dto = new \App\Module\Music\Application\DTO\AlbumDTO('Artist', 'Album', 99, null);
+        $cachePayload = json_encode([[
+            'artist' => 'Artist',
+            'title' => 'Album',
+            'playCount' => 99,
+            'imageUrl' => null,
+        ]], JSON_THROW_ON_ERROR);
 
         $redis = $this->createMock(Redis::class);
-        $redis->method('get')->willReturn(serialize([$dto]));
+        $redis->method('get')->willReturn($cachePayload);
         $redis->expects(self::never())->method('setex');
 
         $httpClient = new MockHttpClient();
@@ -122,6 +127,27 @@ final class LastFmApiClientTest extends TestCase
         $result = $client->getTopAlbums('testuser', '1month', 10);
 
         self::assertCount(1, $result);
+        self::assertSame('Artist', $result[0]->artist);
         self::assertSame('Album', $result[0]->title);
+        self::assertSame(99, $result[0]->playCount);
+        self::assertNull($result[0]->imageUrl);
+    }
+
+    public function testCorruptedCacheFallsBackToApiFetch(): void
+    {
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn('not-valid-json');
+        $redis->expects(self::once())->method('setex')->willReturn(true);
+
+        $json = $this->makeApiResponse([
+            $this->makeAlbum('Radiohead', 'OK Computer', 150, ''),
+        ]);
+        $httpClient = new MockHttpClient(new MockResponse($json));
+        $client = new LastFmApiClient($httpClient, $redis, 'test-api-key');
+
+        $albums = $client->getTopAlbums('testuser', '1month', 10);
+
+        self::assertCount(1, $albums);
+        self::assertSame('Radiohead', $albums[0]->artist);
     }
 }
