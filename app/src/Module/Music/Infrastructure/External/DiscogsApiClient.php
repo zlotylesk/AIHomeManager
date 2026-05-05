@@ -7,6 +7,7 @@ namespace App\Module\Music\Infrastructure\External;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
+use JsonException;
 use Redis;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -36,7 +37,11 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface
 
         $cached = $this->redis->get($cacheKey);
         if (false !== $cached) {
-            return unserialize($cached);
+            try {
+                return $this->decodeRecordsFromCache($cached);
+            } catch (JsonException) {
+                // Stale or corrupted cache entry — fall through to refetch.
+            }
         }
 
         $token = $this->tokenRepository->get();
@@ -46,9 +51,44 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface
 
         $records = $this->fetchAllPages($username, $token['oauth_token'], $token['oauth_token_secret']);
 
-        $this->redis->setex($cacheKey, self::CACHE_TTL, serialize($records));
+        $this->redis->setex($cacheKey, self::CACHE_TTL, $this->encodeRecordsForCache($records));
 
         return $records;
+    }
+
+    /** @param VinylRecordDTO[] $records */
+    private function encodeRecordsForCache(array $records): string
+    {
+        return json_encode(
+            array_map(
+                static fn (VinylRecordDTO $record) => [
+                    'artist' => $record->artist,
+                    'title' => $record->title,
+                    'year' => $record->year,
+                    'format' => $record->format,
+                    'discogsId' => $record->discogsId,
+                ],
+                $records,
+            ),
+            JSON_THROW_ON_ERROR,
+        );
+    }
+
+    /** @return VinylRecordDTO[] */
+    private function decodeRecordsFromCache(string $json): array
+    {
+        $rows = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+        return array_map(
+            static fn (array $row) => new VinylRecordDTO(
+                artist: (string) ($row['artist'] ?? ''),
+                title: (string) ($row['title'] ?? ''),
+                year: isset($row['year']) ? (int) $row['year'] : null,
+                format: (string) ($row['format'] ?? ''),
+                discogsId: (int) ($row['discogsId'] ?? 0),
+            ),
+            $rows,
+        );
     }
 
     /** @return VinylRecordDTO[] */

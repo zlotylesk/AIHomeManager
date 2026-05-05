@@ -124,10 +124,16 @@ final class DiscogsApiClientTest extends TestCase
 
     public function testReturnsCachedResultWithoutHttpCall(): void
     {
-        $dto = new \App\Module\Music\Application\DTO\VinylRecordDTO('Artist', 'Album', 2000, 'Vinyl', 1);
+        $cachePayload = json_encode([[
+            'artist' => 'Artist',
+            'title' => 'Album',
+            'year' => 2000,
+            'format' => 'Vinyl',
+            'discogsId' => 1,
+        ]], JSON_THROW_ON_ERROR);
 
         $redis = $this->createMock(Redis::class);
-        $redis->method('get')->willReturn(serialize([$dto]));
+        $redis->method('get')->willReturn($cachePayload);
         $redis->expects(self::never())->method('setex');
 
         $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, 'key', 'secret');
@@ -135,6 +141,28 @@ final class DiscogsApiClientTest extends TestCase
         $records = $client->getUserCollection('testuser');
 
         self::assertCount(1, $records);
+        self::assertSame('Artist', $records[0]->artist);
         self::assertSame('Album', $records[0]->title);
+        self::assertSame(2000, $records[0]->year);
+        self::assertSame('Vinyl', $records[0]->format);
+        self::assertSame(1, $records[0]->discogsId);
+    }
+
+    public function testCorruptedCacheFallsBackToApiFetch(): void
+    {
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn('not-valid-json');
+        $redis->expects(self::once())->method('setex')->willReturn(true);
+
+        $json = $this->makeReleasePage([
+            $this->makeRelease('Pink Floyd', 'The Wall', 1979, 'Vinyl', 12345),
+        ]);
+        $httpClient = new MockHttpClient(new MockResponse($json));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, 'key', 'secret');
+
+        $records = $client->getUserCollection('testuser');
+
+        self::assertCount(1, $records);
+        self::assertSame('Pink Floyd', $records[0]->artist);
     }
 }

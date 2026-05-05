@@ -6,6 +6,7 @@ namespace App\Module\Music\Infrastructure\External;
 
 use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
+use JsonException;
 use Redis;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -35,7 +36,11 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
 
         $cached = $this->redis->get($cacheKey);
         if (false !== $cached) {
-            return unserialize($cached);
+            try {
+                return $this->decodeAlbumsFromCache($cached);
+            } catch (JsonException) {
+                // Stale or corrupted cache entry — fall through to refetch.
+            }
         }
 
         try {
@@ -57,9 +62,42 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
 
         $albums = $this->parseAlbums($data);
 
-        $this->redis->setex($cacheKey, self::CACHE_TTL, serialize($albums));
+        $this->redis->setex($cacheKey, self::CACHE_TTL, $this->encodeAlbumsForCache($albums));
 
         return $albums;
+    }
+
+    /** @param AlbumDTO[] $albums */
+    private function encodeAlbumsForCache(array $albums): string
+    {
+        return json_encode(
+            array_map(
+                static fn (AlbumDTO $album) => [
+                    'artist' => $album->artist,
+                    'title' => $album->title,
+                    'playCount' => $album->playCount,
+                    'imageUrl' => $album->imageUrl,
+                ],
+                $albums,
+            ),
+            JSON_THROW_ON_ERROR,
+        );
+    }
+
+    /** @return AlbumDTO[] */
+    private function decodeAlbumsFromCache(string $json): array
+    {
+        $rows = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+        return array_map(
+            static fn (array $row) => new AlbumDTO(
+                artist: (string) ($row['artist'] ?? ''),
+                title: (string) ($row['title'] ?? ''),
+                playCount: (int) ($row['playCount'] ?? 0),
+                imageUrl: isset($row['imageUrl']) ? (string) $row['imageUrl'] : null,
+            ),
+            $rows,
+        );
     }
 
     /** @return AlbumDTO[] */
