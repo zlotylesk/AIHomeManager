@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), ~~plaintext OAuth tokens~~ (Discogs HMAI-46 / Google HMAI-47, 2026-05-02—03), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), ~~`unserialize()` z Redis~~ (HMAI-49 MusicComparison, HMAI-50 LastFm/Discogs/NationalLibrary, 2026-05-04—05), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55, 2026-05-05), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51, 2026-05-06), ~~brak walidacji `state` w OAuth callback~~ (Google HMAI-52 / Discogs HMAI-53, 2026-05-06). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), ~~plaintext OAuth tokens~~ (Discogs HMAI-46 / Google HMAI-47, 2026-05-02—03), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), ~~`unserialize()` z Redis~~ (HMAI-49 MusicComparison, HMAI-50 LastFm/Discogs/NationalLibrary, 2026-05-04—05), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55, 2026-05-05), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51, 2026-05-06), ~~brak walidacji `state` w OAuth callback~~ (Google HMAI-52 / Discogs HMAI-53, 2026-05-06), ~~`sleep(1)` blokuje request w `DiscogsApiClient`~~ (HMAI-56, 2026-05-06). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -50,6 +50,8 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | NIE w `make up` — `make monitoring-up`. Kanał Monolog `series` |
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
+
+Async messages routowane do `async` transportu: `Series\Domain\Event\EpisodeRated`, `Music\Application\Command\RefreshDiscogsCollection` (HMAI-56 — fetch kolekcji Discogs offloaded z requestu, endpoint `/api/music/collection` zwraca cache + dispatcha refresh przy miss).
 
 `NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic`.
 

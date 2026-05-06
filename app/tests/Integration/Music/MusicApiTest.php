@@ -51,13 +51,22 @@ class MusicApiTest extends WebTestCase
         self::assertArrayHasKey('error', $data);
     }
 
-    public function testCollectionWithoutDiscogsAuthReturns503(): void
+    public function testCollectionWhenCacheEmptyReturns503AndSchedulesRefresh(): void
     {
         $this->client->request('GET', '/api/music/collection');
 
         self::assertResponseStatusCodeSame(503);
         $data = json_decode($this->client->getResponse()->getContent(), true);
-        self::assertStringContainsString('not authorized', strtolower((string) $data['error']));
+        self::assertStringContainsString('being refreshed', strtolower((string) $data['error']));
+    }
+
+    public function testComparisonWhenDiscogsCacheEmptyReturns503(): void
+    {
+        $this->client->request('GET', '/api/music/comparison?period=1month&limit=5');
+
+        self::assertResponseStatusCodeSame(503);
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        self::assertArrayHasKey('error', $data);
     }
 
     public function testTopAlbumsDefaultPeriodIsAccepted(): void
