@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Infrastructure\External;
 
+use App\Module\Music\Application\Command\RefreshDiscogsCollection;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use App\Module\Music\Domain\Port\VinylCollectionLoaderInterface;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use JsonException;
 use Redis;
 use RuntimeException;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final readonly class DiscogsApiClient implements VinylCollectionInterface
+final readonly class DiscogsApiClient implements VinylCollectionInterface, VinylCollectionLoaderInterface
 {
     private const string COLLECTION_URL = 'https://api.discogs.com/users/%s/collection/folders/0/releases';
     private const int CACHE_TTL = 21600;
@@ -25,25 +28,38 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface
         private Redis $redis,
         private DiscogsTokenRepositoryInterface $tokenRepository,
         private DiscogsOAuth1Signer $signer,
+        private MessageBusInterface $commandBus,
         private string $consumerKey,
         private string $consumerSecret,
     ) {
     }
 
-    /** @return VinylRecordDTO[] */
+    /**
+     * Read-only path: returns cached collection or schedules an async refresh and signals "not ready" to caller.
+     *
+     * @return VinylRecordDTO[]
+     */
     public function getUserCollection(string $username): array
     {
-        $cacheKey = sprintf('discogs:collection:%s', $username);
-
-        $cached = $this->redis->get($cacheKey);
-        if (false !== $cached) {
+        $cached = $this->redis->get($this->cacheKey($username));
+        if (is_string($cached)) {
             try {
                 return $this->decodeRecordsFromCache($cached);
             } catch (JsonException) {
-                // Stale or corrupted cache entry — fall through to refetch.
+                // Stale or corrupted cache entry — treat as miss.
             }
         }
 
+        $this->commandBus->dispatch(new RefreshDiscogsCollection($username));
+
+        throw new RuntimeException('Discogs collection is being refreshed. Try again in a minute.');
+    }
+
+    /**
+     * Worker path: blocking fetch with rate-limit sleep, writes cache. Never call from a request handler.
+     */
+    public function fetchAndCacheCollection(string $username): void
+    {
         $token = $this->tokenRepository->get();
         if (null === $token) {
             throw new RuntimeException('Discogs not authorized. Visit /auth/discogs to connect.');
@@ -51,9 +67,16 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface
 
         $records = $this->fetchAllPages($username, $token['oauth_token'], $token['oauth_token_secret']);
 
-        $this->redis->setex($cacheKey, self::CACHE_TTL, $this->encodeRecordsForCache($records));
+        $this->redis->setex(
+            $this->cacheKey($username),
+            self::CACHE_TTL,
+            $this->encodeRecordsForCache($records),
+        );
+    }
 
-        return $records;
+    private function cacheKey(string $username): string
+    {
+        return sprintf('discogs:collection:%s', $username);
     }
 
     /** @param VinylRecordDTO[] $records */

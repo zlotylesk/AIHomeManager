@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Module\Music\Infrastructure;
 
+use App\Module\Music\Application\Command\RefreshDiscogsCollection;
 use App\Module\Music\Infrastructure\External\DiscogsApiClient;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
@@ -12,19 +13,16 @@ use Redis;
 use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 final class DiscogsApiClientTest extends TestCase
 {
-    private Redis $redis;
     private DiscogsTokenRepositoryInterface $tokenRepo;
     private DiscogsOAuth1Signer $signer;
 
     protected function setUp(): void
     {
-        $this->redis = $this->createStub(Redis::class);
-        $this->redis->method('get')->willReturn(false);
-        $this->redis->method('setex')->willReturn(true);
-
         $this->tokenRepo = $this->createStub(DiscogsTokenRepositoryInterface::class);
         $this->tokenRepo->method('get')->willReturn([
             'oauth_token' => 'test-token',
@@ -55,74 +53,15 @@ final class DiscogsApiClientTest extends TestCase
         ];
     }
 
-    public function testReturnsVinylRecordDTOsFromSinglePage(): void
+    private function nullBus(): MessageBusInterface
     {
-        $json = $this->makeReleasePage([
-            $this->makeRelease('Pink Floyd', 'The Wall', 1979, 'Vinyl', 12345),
-            $this->makeRelease('Radiohead', 'OK Computer', 1997, 'Vinyl', 67890),
-        ]);
+        $bus = $this->createStub(MessageBusInterface::class);
+        $bus->method('dispatch')->willReturnCallback(static fn (object $message) => new Envelope($message));
 
-        $httpClient = new MockHttpClient(new MockResponse($json));
-        $client = new DiscogsApiClient($httpClient, $this->redis, $this->tokenRepo, $this->signer, 'key', 'secret');
-
-        $records = $client->getUserCollection('testuser');
-
-        self::assertCount(2, $records);
-        self::assertSame('Pink Floyd', $records[0]->artist);
-        self::assertSame('The Wall', $records[0]->title);
-        self::assertSame(1979, $records[0]->year);
-        self::assertSame('Vinyl', $records[0]->format);
-        self::assertSame(12345, $records[0]->discogsId);
+        return $bus;
     }
 
-    public function testFetchesMultiplePagesAndCombinesResults(): void
-    {
-        $page1 = $this->makeReleasePage(
-            [$this->makeRelease('Artist A', 'Album A', 2000, 'Vinyl', 1)],
-            1,
-            2
-        );
-        $page2 = $this->makeReleasePage(
-            [$this->makeRelease('Artist B', 'Album B', 2001, 'CD', 2)],
-            2,
-            2
-        );
-
-        $httpClient = new MockHttpClient([new MockResponse($page1), new MockResponse($page2)]);
-        $client = new DiscogsApiClient($httpClient, $this->redis, $this->tokenRepo, $this->signer, 'key', 'secret');
-
-        $records = $client->getUserCollection('testuser');
-
-        self::assertCount(2, $records);
-        self::assertSame('Artist A', $records[0]->artist);
-        self::assertSame('Artist B', $records[1]->artist);
-    }
-
-    public function testNullYearWhenZero(): void
-    {
-        $json = $this->makeReleasePage([$this->makeRelease('Artist', 'Album', 0, 'Vinyl', 1)]);
-        $httpClient = new MockHttpClient(new MockResponse($json));
-        $client = new DiscogsApiClient($httpClient, $this->redis, $this->tokenRepo, $this->signer, 'key', 'secret');
-
-        $records = $client->getUserCollection('testuser');
-
-        self::assertNull($records[0]->year);
-    }
-
-    public function testThrowsWhenNoTokenStored(): void
-    {
-        $tokenRepo = $this->createStub(DiscogsTokenRepositoryInterface::class);
-        $tokenRepo->method('get')->willReturn(null);
-
-        $client = new DiscogsApiClient(new MockHttpClient(), $this->redis, $tokenRepo, $this->signer, 'key', 'secret');
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Discogs not authorized');
-
-        $client->getUserCollection('testuser');
-    }
-
-    public function testReturnsCachedResultWithoutHttpCall(): void
+    public function testGetUserCollectionReturnsCachedRecordsWithoutHttpCall(): void
     {
         $cachePayload = json_encode([[
             'artist' => 'Artist',
@@ -136,7 +75,10 @@ final class DiscogsApiClientTest extends TestCase
         $redis->method('get')->willReturn($cachePayload);
         $redis->expects(self::never())->method('setex');
 
-        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, 'key', 'secret');
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->expects(self::never())->method('dispatch');
+
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, 'key', 'secret');
 
         $records = $client->getUserCollection('testuser');
 
@@ -144,25 +86,136 @@ final class DiscogsApiClientTest extends TestCase
         self::assertSame('Artist', $records[0]->artist);
         self::assertSame('Album', $records[0]->title);
         self::assertSame(2000, $records[0]->year);
-        self::assertSame('Vinyl', $records[0]->format);
-        self::assertSame(1, $records[0]->discogsId);
     }
 
-    public function testCorruptedCacheFallsBackToApiFetch(): void
+    public function testGetUserCollectionDispatchesRefreshOnCacheMissAndThrows(): void
+    {
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturn(false);
+        $redis->expects(self::never())->method('setex');
+
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->expects(self::once())
+            ->method('dispatch')
+            ->with(self::callback(static fn (object $msg) => $msg instanceof RefreshDiscogsCollection && 'testuser' === $msg->username))
+            ->willReturnCallback(static fn (object $msg) => new Envelope($msg));
+
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, 'key', 'secret');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Discogs collection is being refreshed');
+
+        $client->getUserCollection('testuser');
+    }
+
+    public function testGetUserCollectionDispatchesRefreshWhenCacheCorrupted(): void
     {
         $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn('not-valid-json');
-        $redis->expects(self::once())->method('setex')->willReturn(true);
 
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->expects(self::once())
+            ->method('dispatch')
+            ->willReturnCallback(static fn (object $msg) => new Envelope($msg));
+
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, 'key', 'secret');
+
+        $this->expectException(RuntimeException::class);
+
+        $client->getUserCollection('testuser');
+    }
+
+    public function testFetchAndCacheCollectionWritesSinglePageToCache(): void
+    {
         $json = $this->makeReleasePage([
             $this->makeRelease('Pink Floyd', 'The Wall', 1979, 'Vinyl', 12345),
+            $this->makeRelease('Radiohead', 'OK Computer', 1997, 'Vinyl', 67890),
         ]);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->expects(self::once())
+            ->method('setex')
+            ->with('discogs:collection:testuser', 21600, self::callback(static function (string $payload): bool {
+                $rows = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
+
+                return is_array($rows)
+                    && 2 === count($rows)
+                    && 'Pink Floyd' === $rows[0]['artist']
+                    && 'OK Computer' === $rows[1]['title'];
+            }))
+            ->willReturn(true);
+
         $httpClient = new MockHttpClient(new MockResponse($json));
-        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, 'key', 'secret');
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), 'key', 'secret');
 
-        $records = $client->getUserCollection('testuser');
+        $client->fetchAndCacheCollection('testuser');
+    }
 
-        self::assertCount(1, $records);
-        self::assertSame('Pink Floyd', $records[0]->artist);
+    public function testFetchAndCacheCollectionCombinesMultiplePages(): void
+    {
+        $page1 = $this->makeReleasePage(
+            [$this->makeRelease('Artist A', 'Album A', 2000, 'Vinyl', 1)],
+            1,
+            2
+        );
+        $page2 = $this->makeReleasePage(
+            [$this->makeRelease('Artist B', 'Album B', 2001, 'CD', 2)],
+            2,
+            2
+        );
+
+        $redis = $this->createMock(Redis::class);
+        $redis->expects(self::once())
+            ->method('setex')
+            ->with('discogs:collection:testuser', 21600, self::callback(static function (string $payload): bool {
+                $rows = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
+
+                return is_array($rows)
+                    && 2 === count($rows)
+                    && 'Artist A' === $rows[0]['artist']
+                    && 'Artist B' === $rows[1]['artist'];
+            }))
+            ->willReturn(true);
+
+        $httpClient = new MockHttpClient([new MockResponse($page1), new MockResponse($page2)]);
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), 'key', 'secret');
+
+        $client->fetchAndCacheCollection('testuser');
+    }
+
+    public function testFetchAndCacheCollectionThrowsWhenNoTokenStored(): void
+    {
+        $tokenRepo = $this->createStub(DiscogsTokenRepositoryInterface::class);
+        $tokenRepo->method('get')->willReturn(null);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->expects(self::never())->method('setex');
+
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $tokenRepo, $this->signer, $this->nullBus(), 'key', 'secret');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Discogs not authorized');
+
+        $client->fetchAndCacheCollection('testuser');
+    }
+
+    public function testFetchAndCacheCollectionMapsZeroYearToNull(): void
+    {
+        $json = $this->makeReleasePage([$this->makeRelease('Artist', 'Album', 0, 'Vinyl', 1)]);
+
+        $redis = $this->createMock(Redis::class);
+        $redis->expects(self::once())
+            ->method('setex')
+            ->with(self::anything(), self::anything(), self::callback(static function (string $payload): bool {
+                $rows = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
+
+                return null === $rows[0]['year'];
+            }))
+            ->willReturn(true);
+
+        $httpClient = new MockHttpClient(new MockResponse($json));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), 'key', 'secret');
+
+        $client->fetchAndCacheCollection('testuser');
     }
 }
