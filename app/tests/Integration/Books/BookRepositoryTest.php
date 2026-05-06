@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Books;
 
 use App\Module\Books\Domain\Entity\Book;
+use App\Module\Books\Domain\Entity\ReadingSession;
 use App\Module\Books\Domain\Enum\BookStatus;
 use App\Module\Books\Domain\ValueObject\ISBN;
 use App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository;
@@ -79,7 +80,7 @@ class BookRepositoryTest extends KernelTestCase
         $this->em->clear();
 
         $loaded = $this->repository->findById('c0000003-0000-0000-0000-000000000001');
-        $loaded->addReadingSession(new \App\Module\Books\Domain\Entity\ReadingSession(
+        $loaded->addReadingSession(new ReadingSession(
             id: 'sess-0001-0000-0000-000000000001',
             bookId: $loaded->id(),
             date: new DateTimeImmutable(),
@@ -101,6 +102,34 @@ class BookRepositoryTest extends KernelTestCase
 
         $completedBooks = $this->repository->findByStatus(BookStatus::COMPLETED);
         self::assertCount(0, $completedBooks);
+    }
+
+    public function testSavePersistsReadingSessionsRecordedOnAggregate(): void
+    {
+        $book = $this->makeBook('c0000005-0000-0000-0000-000000000001', '9780306406157', 200);
+        $this->repository->save($book);
+        $this->em->clear();
+
+        $loaded = $this->repository->findById('c0000005-0000-0000-0000-000000000001');
+        $loaded->addReadingSession(new ReadingSession(
+            id: 'sess-0005-0000-0000-000000000001',
+            bookId: $loaded->id(),
+            date: new DateTimeImmutable('2025-02-01'),
+            pagesRead: 75,
+            notes: 'first chunk',
+        ));
+        $this->repository->save($loaded);
+        $this->em->clear();
+
+        $rows = $this->em->getConnection()->fetchAllAssociative(
+            'SELECT id, book_id, pages_read, notes FROM book_reading_sessions WHERE book_id = ?',
+            [$loaded->id()]
+        );
+
+        self::assertCount(1, $rows);
+        self::assertSame('sess-0005-0000-0000-000000000001', $rows[0]['id']);
+        self::assertSame(75, (int) $rows[0]['pages_read']);
+        self::assertSame('first chunk', $rows[0]['notes']);
     }
 
     public function testRemoveDeletesBook(): void
