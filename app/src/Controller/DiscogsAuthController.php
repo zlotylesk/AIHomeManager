@@ -19,6 +19,7 @@ final class DiscogsAuthController extends AbstractController
     private const string ACCESS_TOKEN_URL = 'https://api.discogs.com/oauth/access_token';
     private const string AUTHORIZE_URL = 'https://www.discogs.com/oauth/authorize';
     private const string USER_AGENT = 'AIHomeManager/1.0 +https://github.com/zlotylesk/AIHomeManager';
+    private const string SESSION_STATE_KEY = 'discogs_oauth_state';
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -31,8 +32,12 @@ final class DiscogsAuthController extends AbstractController
     }
 
     #[Route('/auth/discogs', methods: ['GET'])]
-    public function authorize(): RedirectResponse
+    public function authorize(Request $request): RedirectResponse
     {
+        $state = bin2hex(random_bytes(32));
+        $request->getSession()->set(self::SESSION_STATE_KEY, $state);
+        $callbackWithState = $this->callbackUrl.'?state='.urlencode($state);
+
         $authHeader = $this->signer->buildAuthorizationHeader(
             'POST',
             self::REQUEST_TOKEN_URL,
@@ -40,7 +45,7 @@ final class DiscogsAuthController extends AbstractController
             $this->consumerSecret,
             '',
             '',
-            ['oauth_callback' => $this->callbackUrl],
+            ['oauth_callback' => $callbackWithState],
         );
 
         $response = $this->httpClient->request('POST', self::REQUEST_TOKEN_URL, [
@@ -60,6 +65,17 @@ final class DiscogsAuthController extends AbstractController
     #[Route('/auth/discogs/callback', methods: ['GET'])]
     public function callback(Request $request): Response
     {
+        $session = $request->getSession();
+        $expectedState = $session->get(self::SESSION_STATE_KEY);
+        $session->remove(self::SESSION_STATE_KEY);
+        $receivedState = $request->query->get('state');
+
+        if (!is_string($expectedState) || '' === $expectedState
+            || !is_string($receivedState) || '' === $receivedState
+            || !hash_equals($expectedState, $receivedState)) {
+            return new Response('Invalid or missing OAuth state.', Response::HTTP_BAD_REQUEST);
+        }
+
         $oauthToken = $request->query->get('oauth_token', '');
         $oauthVerifier = $request->query->get('oauth_verifier', '');
 
@@ -94,6 +110,7 @@ final class DiscogsAuthController extends AbstractController
         }
 
         $this->tokenRepository->save($accessToken, $accessTokenSecret);
+        $session->migrate(true);
 
         return new Response('Discogs connected successfully. You can now use GET /api/music/collection.', Response::HTTP_OK);
     }
