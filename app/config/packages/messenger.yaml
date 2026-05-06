@@ -36,6 +36,7 @@ framework:
 
         routing:
             App\Module\Series\Domain\Event\EpisodeRated: async
+            App\Module\Music\Application\Command\RefreshDiscogsCollection: async
 
 when@test:
     framework:
