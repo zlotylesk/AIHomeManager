@@ -18,6 +18,11 @@ final readonly class DoctrineBookRepository implements BookRepositoryInterface
     public function save(Book $book): void
     {
         $this->entityManager->persist($book);
+
+        foreach ($book->sessions() as $session) {
+            $this->entityManager->persist($session);
+        }
+
         $this->entityManager->flush();
     }
 

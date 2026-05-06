@@ -84,6 +84,19 @@ final class Book
         return $this->status;
     }
 
+    /**
+     * Returns reading sessions added to this aggregate instance in memory.
+     * Repository does NOT hydrate historical sessions on findById, so this list
+     * only contains sessions appended via addReadingSession() during the current
+     * request lifecycle.
+     *
+     * @return ReadingSession[]
+     */
+    public function sessions(): array
+    {
+        return $this->sessions;
+    }
+
     public function updateMetadata(string $title, string $author, string $publisher, int $year, ?string $coverUrl): void
     {
         $this->title = $title;

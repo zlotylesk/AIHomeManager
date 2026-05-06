@@ -133,12 +133,6 @@ parameters:
 			path: src/Module/Books/Application/QueryHandler/GetAllBooksHandler.php
 
 		-
-			message: '#^Property App\\Module\\Books\\Domain\\Entity\\Book\:\:\$sessions is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: src/Module/Books/Domain/Entity/Book.php
-
-		-
 			message: '#^Parameter \#1 \$bib of method App\\Module\\Books\\Infrastructure\\External\\NationalLibraryApiClient\:\:parseBib\(\) expects SimpleXMLElement, SimpleXMLElement\|null given\.$#'
 			identifier: argument.type
 			count: 1
@@ -267,13 +261,13 @@ parameters:
 		-
 			message: '#^Cannot call method addReadingSession\(\) on App\\Module\\Books\\Domain\\Entity\\Book\|null\.$#'
 			identifier: method.nonObject
-			count: 1
+			count: 2
 			path: tests/Integration/Books/BookRepositoryTest.php
 
 		-
 			message: '#^Cannot call method id\(\) on App\\Module\\Books\\Domain\\Entity\\Book\|null\.$#'
 			identifier: method.nonObject
-			count: 1
+			count: 3
 			path: tests/Integration/Books/BookRepositoryTest.php
 
 		-
@@ -285,7 +279,7 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$book of method App\\Module\\Books\\Infrastructure\\Persistence\\DoctrineBookRepository\:\:save\(\) expects App\\Module\\Books\\Domain\\Entity\\Book, App\\Module\\Books\\Domain\\Entity\\Book\|null given\.$#'
 			identifier: argument.type
-			count: 1
+			count: 2
 			path: tests/Integration/Books/BookRepositoryTest.php
 
 		-
@@ -309,7 +303,7 @@ parameters:
 		-
 			message: '#^Parameter \$content of method Symfony\\Component\\BrowserKit\\AbstractBrowser\<Symfony\\Component\\HttpFoundation\\Request,Symfony\\Component\\HttpFoundation\\Response\>\:\:request\(\) expects string\|null, string\|false given\.$#'
 			identifier: argument.type
-			count: 13
+			count: 14
 			path: tests/Integration/Books/BooksApiTest.php
 
 		-

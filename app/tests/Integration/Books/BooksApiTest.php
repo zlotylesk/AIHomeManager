@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Books;
 
 use App\Tests\Support\AuthenticatedApiTrait;
+use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -14,16 +15,17 @@ class BooksApiTest extends WebTestCase
     use AuthenticatedApiTrait;
 
     private KernelBrowser $client;
+    private Connection $connection;
 
     protected function setUp(): void
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
-        $conn->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        $conn->executeStatement('TRUNCATE TABLE book_reading_sessions');
-        $conn->executeStatement('TRUNCATE TABLE books');
-        $conn->executeStatement('SET FOREIGN_KEY_CHECKS=1');
+        $this->connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
+        $this->connection->executeStatement('TRUNCATE TABLE book_reading_sessions');
+        $this->connection->executeStatement('TRUNCATE TABLE books');
+        $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
     }
 
     private function createBook(array $overrides = []): array
@@ -249,6 +251,24 @@ class BooksApiTest extends WebTestCase
         self::assertSame(100, $data['currentPage']);
         self::assertEquals(50.0, $data['percentage']);
         self::assertSame('reading', $data['status']);
+    }
+
+    public function testLogReadingSessionPersistsSessionRow(): void
+    {
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
+            'pages_read' => 100,
+            'date' => '2025-01-15',
+        ]));
+
+        self::assertResponseStatusCodeSame(201);
+
+        $count = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM book_reading_sessions WHERE book_id = ?',
+            [$id]
+        );
+        self::assertSame(1, $count);
     }
 
     public function testLogReadingSessionCompletesBook(): void
