@@ -107,4 +107,23 @@ final class BookAggregateTest extends TestCase
 
         self::assertEmpty($book->releaseEvents());
     }
+
+    public function testSessionsIsEmptyForFreshlyConstructedBook(): void
+    {
+        $book = $this->makeBook();
+
+        self::assertSame([], $book->sessions());
+    }
+
+    public function testSessionsExposesRecordedReadingSessions(): void
+    {
+        $book = $this->makeBook(300);
+        $first = $this->makeSession($book->id(), 50);
+        $second = new ReadingSession('s2', $book->id(), new DateTimeImmutable('2025-01-16'), 50);
+
+        $book->addReadingSession($first);
+        $book->addReadingSession($second);
+
+        self::assertSame([$first, $second], $book->sessions());
+    }
 }
