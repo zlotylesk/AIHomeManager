@@ -105,7 +105,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 - Integration: `tests/Integration/`
 - Framework: PHPUnit 13
-- Stan: 225/225 passing (HMAI-34)
+- Stan: 299/299 passing (po HMAI-56 / epic review HMAI-123)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 
 ## Security — API Key
