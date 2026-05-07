@@ -4,7 +4,22 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: Twig + vanilla JS w `templates/` i `public/`.
 
-**Status code review (HMAI-44, 2026-05-01):** 78 follow-up tasków w Jira (HMAI-45—HMAI-122, label `ai_code_review`, priority Highest). P0 blockers przed prod: ~~brak `security.yaml`~~ (HMAI-34, 2026-05-01), ~~plaintext OAuth tokens~~ (Discogs HMAI-46 / Google HMAI-47, 2026-05-02—03), ~~HTTP w Last.fm~~ (HMAI-48, 2026-05-02), ~~`unserialize()` z Redis~~ (HMAI-49 MusicComparison, HMAI-50 LastFm/Discogs/NationalLibrary, 2026-05-04—05), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55, 2026-05-05), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51, 2026-05-06), ~~brak walidacji `state` w OAuth callback~~ (Google HMAI-52 / Discogs HMAI-53, 2026-05-06). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+**Status code review (HMAI-44, 2026-05-01; restruktura epików 2026-05-07):** 74 otwartych + 1 zamknięte z follow-upów (label `ai_code_review`). Wszystkie P0 blockers przed prod zamknięte: ~~brak `security.yaml`~~ (HMAI-34), ~~plaintext OAuth tokens~~ (HMAI-46/47), ~~HTTP w Last.fm~~ (HMAI-48), ~~`unserialize()` z Redis~~ (HMAI-49/50), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51), ~~brak walidacji `state` w OAuth callback~~ (HMAI-52/53), ~~blokujący `sleep(1)` w Discogs collection fetch~~ (HMAI-56). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
+
+**Epiki follow-upów (po restrukturze 2026-05-07):**
+
+| Epik | Tytuł | Otwarte |
+|---|---|---:|
+| [HMAI-123](https://honemanager.atlassian.net/browse/HMAI-123) | Critical findings (C1–C12) — większość zamknięta | — |
+| [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — DBAL, ORM, indexes, transactions | 9 |
+| [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — unit, integration, E2E gaps | 12 |
+| [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — health, scheduler, fixtures, audit logs, metrics | 6 |
+| [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh | 14 |
+| [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — JS quality, CSP/SRI, build pipeline | 12 |
+| [HMAI-129](https://honemanager.atlassian.net/browse/HMAI-129) | API hardening — input validation, error contracts, CSRF | 8 |
+| [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) | Rate limiting & throttling | 1 |
+| [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — invariants, equals(), event emission | 11 |
+| [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — exports (CSV/PDF) and missing endpoints | 1 |
 
 ## Architektura — ZASADY NIENARUSZALNE
 
