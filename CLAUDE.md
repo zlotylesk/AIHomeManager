@@ -66,6 +66,8 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
 
+Async messages routowane do `async` transportu: `Series\Domain\Event\EpisodeRated`, `Music\Application\Command\RefreshDiscogsCollection` (HMAI-56 — fetch kolekcji Discogs offloaded z requestu, endpoint `/api/music/collection` zwraca cache + dispatcha refresh przy miss).
+
 `NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic`.
 
 GELF UDP input w Graylog: konfigurować ręcznie po pierwszym `make monitoring-up` (System → Inputs → GELF UDP → Launch).

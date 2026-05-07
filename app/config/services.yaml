@@ -62,6 +62,9 @@ services:
     App\Module\Music\Domain\Port\VinylCollectionInterface:
         alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
 
+    App\Module\Music\Domain\Port\VinylCollectionLoaderInterface:
+        alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
+
     App\Module\Music\Infrastructure\External\DiscogsApiClient:
         arguments:
             $redis: '@app.redis'
