@@ -67,6 +67,7 @@ services:
 
     App\Module\Music\Infrastructure\External\DiscogsApiClient:
         arguments:
+            $httpClient: '@app.discogs_http_client'
             $redis: '@app.redis'
             $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
             $consumerSecret: '%env(DISCOGS_CONSUMER_SECRET)%'
@@ -112,6 +113,7 @@ services:
 
     App\Module\Music\Infrastructure\External\LastFmApiClient:
         arguments:
+            $httpClient: '@app.lastfm_http_client'
             $redis: '@app.redis'
             $apiKey: '%env(LASTFM_API_KEY)%'
 
@@ -120,6 +122,7 @@ services:
 
     App\Module\Books\Infrastructure\External\NationalLibraryApiClient:
         arguments:
+            $httpClient: '@app.national_library_http_client'
             $redis: '@app.redis'
 
     App\Module\Tasks\Domain\Port\CalendarServiceInterface:
@@ -168,3 +171,32 @@ services:
     App\Security\ApiKeyAuthenticator:
         arguments:
             $expectedApiKey: '%env(API_KEY)%'
+
+    # Rate limiting: per-IP throttle for /api/* endpoints (HMAI-38)
+    App\EventListener\ApiRateLimitListener:
+        arguments:
+            $apiPerIpLimiter: '@limiter.api_per_ip'
+
+    App\Http\RateLimitedHttpClient:
+        abstract: true
+
+    app.discogs_http_client:
+        class: App\Http\RateLimitedHttpClient
+        arguments:
+            $inner: '@http_client'
+            $limiterFactory: '@limiter.discogs_api'
+            $limiterName: 'discogs_api'
+
+    app.lastfm_http_client:
+        class: App\Http\RateLimitedHttpClient
+        arguments:
+            $inner: '@http_client'
+            $limiterFactory: '@limiter.lastfm_api'
+            $limiterName: 'lastfm_api'
+
+    app.national_library_http_client:
+        class: App\Http\RateLimitedHttpClient
+        arguments:
+            $inner: '@http_client'
+            $limiterFactory: '@limiter.national_library_api'
+            $limiterName: 'national_library_api'

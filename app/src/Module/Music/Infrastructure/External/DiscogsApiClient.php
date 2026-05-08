@@ -153,11 +153,6 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
             }
 
             $totalPages = (int) ($data['pagination']['pages'] ?? 1);
-
-            if ($page < $totalPages) {
-                sleep(1);
-            }
-
             ++$page;
         } while ($page <= $totalPages);
 
