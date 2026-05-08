@@ -17,7 +17,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh | 14 |
 | [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — JS quality, CSP/SRI, build pipeline | 12 |
 | [HMAI-129](https://honemanager.atlassian.net/browse/HMAI-129) | API hardening — input validation, error contracts, CSRF | 8 |
-| [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) | Rate limiting & throttling | 1 |
+| [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) | Rate limiting & throttling — HMAI-38 zamknięte | — |
 | [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — invariants, equals(), event emission | 11 |
 | [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — exports (CSV/PDF) and missing endpoints | 1 |
 
@@ -105,7 +105,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 - Integration: `tests/Integration/`
 - Framework: PHPUnit 13
-- Stan: 299/299 passing (po HMAI-56 / epic review HMAI-123)
+- Stan: 305/305 passing (po HMAI-38 — rate limiting)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 
 ## Security — API Key
@@ -131,6 +131,16 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | `make phpstan-baseline` | Regeneruj baseline (po naprawie błędów) |
 | `make cs-check` / `cs-fix` | CS Fixer dry-run / apply |
 | `make rector-dry` / `rector` | Rector dry-run / apply |
+
+## Rate limiting — own API + external APIs (HMAI-38)
+
+- `App\EventListener\ApiRateLimitListener` — `kernel.request` (priority 100, przed routerem/firewall'em). Per-IP throttle dla `^/api/*` (limiter `api_per_ip`, sliding_window 60/min). Bypass: `/api/health` i `/auth/*`. 429 zwraca `Retry-After`, `X-RateLimit-Remaining`, `X-RateLimit-Limit`. Loguje `rate_limit_triggered=true` (warning).
+- `App\Http\RateLimitedHttpClient` — dekorator `HttpClientInterface` proaktywnie blokuje request przed wywołaniem zewnętrznego API (`reservation->wait()`). Trzy instancje w `services.yaml`: `app.discogs_http_client`, `app.lastfm_http_client`, `app.national_library_http_client` — wstrzykiwane do odpowiednich klientów Music/Books.
+- Limitery (`app/config/packages/rate_limiter.yaml`): `api_per_ip` (sliding_window, 60/min), `discogs_api` (token_bucket, 60/min), `lastfm_api` (token_bucket, 5/s), `national_library_api` (token_bucket, 60/min)
+- Storage: pool `cache.rate_limiter` (Redis) w prod/dev. W testach `Symfony\Component\RateLimiter\Storage\InMemoryStorage` — nietagged `kernel.reset`, więc stan przeżywa request → request gdy `KernelBrowser::disableReboot()`. External limiters w teście policy `no_limit`
+- Distributed lock: `LOCK_DSN=redis://redis:6379` (`.env`) — koordynacja web ↔ worker
+- `DiscogsApiClient::fetchAllPages` — `sleep(1)` usunięte, throttling teraz robi `RateLimitedHttpClient`
+- Wyjątki/granice: `/auth/*` poza `^/api/*` więc listener nie dotyka; `/api/health` jawnie wykluczone (route nie istnieje, ale przygotowane na przyszłość); Google Calendar SDK używa własnego klienta HTTP (nie Symfony) i NIE jest objęty dekoratorem — limit 1M/dobę zostawia spory margines
 
 ## Encryption — OAuth tokens (HMAI-46, HMAI-47)
 

@@ -65,7 +65,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/comparison?period=1month&limit=5');
 
         self::assertResponseStatusCodeSame(503);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertArrayHasKey('error', $data);
     }
 
