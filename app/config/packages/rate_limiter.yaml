@@ -1,0 +1,53 @@
+framework:
+    rate_limiter:
+        # Per-IP throttle for /api/* (excluding /api/health and /auth/*).
+        api_per_ip:
+            policy: 'sliding_window'
+            limit: 60
+            interval: '1 minute'
+            cache_pool: 'cache.rate_limiter'
+
+        # Discogs: 60 req/min per docs (https://www.discogs.com/developers#page:home).
+        discogs_api:
+            policy: 'token_bucket'
+            limit: 60
+            rate: { interval: '1 minute', amount: 60 }
+            cache_pool: 'cache.rate_limiter'
+
+        # Last.fm: 5 req/s per docs (https://www.last.fm/api/tos).
+        lastfm_api:
+            policy: 'token_bucket'
+            limit: 5
+            rate: { interval: '1 second', amount: 5 }
+            cache_pool: 'cache.rate_limiter'
+
+        # National Library: no published limit. Conservative cap of 1 req/s sustained
+        # with a 10-req burst — generous enough for typical ISBN lookups, won't hammer.
+        national_library_api:
+            policy: 'token_bucket'
+            limit: 10
+            rate: { interval: '1 second', amount: 1 }
+            cache_pool: 'cache.rate_limiter'
+
+when@test:
+    services:
+        # InMemoryStorage isn't tagged kernel.reset, so state survives across requests
+        # within one test (KernelBrowser::disableReboot keeps the kernel alive).
+        rate_limiter.test_storage:
+            class: Symfony\Component\RateLimiter\Storage\InMemoryStorage
+
+    framework:
+        rate_limiter:
+            api_per_ip:
+                policy: 'sliding_window'
+                limit: 60
+                interval: '1 minute'
+                storage_service: 'rate_limiter.test_storage'
+
+            # External limiters lifted in test — tests that need throttling assertions use MockClock.
+            discogs_api:
+                policy: 'no_limit'
+            lastfm_api:
+                policy: 'no_limit'
+            national_library_api:
+                policy: 'no_limit'
