@@ -5,6 +5,11 @@ framework:
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
+    # Trust the nginx container so Request::getClientIp() returns the real caller — required
+    # for per-IP rate limiting to work behind the docker reverse proxy.
+    trusted_proxies: '127.0.0.1,REMOTE_ADDR'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-port', 'x-forwarded-host']
+
     #esi: true
     #fragments: true
 
