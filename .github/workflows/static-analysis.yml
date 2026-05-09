@@ -47,8 +47,14 @@ jobs:
           API_KEY: 'ci-api-key'
         run: bin/console cache:warmup --env=dev
 
+      - name: PHP Rector
+        run: vendor/bin/rector process --dry-run
+
       - name: PHP CS Fixer
         run: vendor/bin/php-cs-fixer fix --dry-run --diff
 
       - name: PHPStan
         run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+      - name: PHPUnit
+        run: php vendor/bin/phpunit
