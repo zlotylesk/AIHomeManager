@@ -200,3 +200,19 @@ services:
             $inner: '@http_client'
             $limiterFactory: '@limiter.national_library_api'
             $limiterName: 'national_library_api'
+
+when@test:
+    services:
+        # Spy logger lets ApiRateLimitTest assert the listener emits the expected
+        # warning + rate_limit_triggered=true context (Graylog AC).
+        App\Tests\Support\SpyLogger:
+            public: true
+
+        # Override must keep autoconfigure: true so the #[AsEventListener] attribute
+        # still wires the listener into kernel.event_listener — without it the listener
+        # is never invoked and rate limiting silently disables in tests.
+        App\EventListener\ApiRateLimitListener:
+            autoconfigure: true
+            arguments:
+                $apiPerIpLimiter: '@limiter.api_per_ip'
+                $logger: '@App\Tests\Support\SpyLogger'
