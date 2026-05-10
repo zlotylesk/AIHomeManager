@@ -435,13 +435,13 @@ parameters:
 		-
 			message: '#^Call to an undefined method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleTokenRepositoryInterface\:\:method\(\)\.$#'
 			identifier: method.notFound
-			count: 7
+			count: 10
 			path: tests/Unit/Module/Tasks/Infrastructure/GoogleCalendarServiceTest.php
 
 		-
 			message: '#^Call to an undefined method Google\\Client\:\:method\(\)\.$#'
 			identifier: method.notFound
-			count: 4
+			count: 8
 			path: tests/Unit/Module/Tasks/Infrastructure/GoogleCalendarServiceTest.php
 
 		-

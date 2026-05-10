@@ -12,8 +12,10 @@ use Google\Client;
 use Google\Service\Calendar;
 use Google\Service\Calendar\Event;
 use Google\Service\Calendar\EventDateTime;
+use Google\Service\Exception as GoogleServiceException;
+use GuzzleHttp\Exception\GuzzleException;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use Throwable;
 
 final readonly class GoogleCalendarService implements CalendarServiceInterface
 {
@@ -36,7 +38,7 @@ final readonly class GoogleCalendarService implements CalendarServiceInterface
             $created = $calendarService->events->insert('primary', $event);
 
             return (string) $created->getId();
-        } catch (Throwable $e) {
+        } catch (GoogleServiceException|GuzzleException|InvalidArgumentException $e) {
             $this->logger->warning('Google Calendar createEvent failed', [
                 'taskId' => $task->id(),
                 'error' => $e->getMessage(),
@@ -60,7 +62,7 @@ final readonly class GoogleCalendarService implements CalendarServiceInterface
 
             $event = $this->buildEvent($task);
             $calendarService->events->update('primary', $task->googleEventId(), $event);
-        } catch (Throwable $e) {
+        } catch (GoogleServiceException|GuzzleException|InvalidArgumentException $e) {
             $this->logger->warning('Google Calendar updateEvent failed', [
                 'taskId' => $task->id(),
                 'googleEventId' => $task->googleEventId(),
@@ -78,7 +80,7 @@ final readonly class GoogleCalendarService implements CalendarServiceInterface
             }
 
             $calendarService->events->delete('primary', $googleEventId);
-        } catch (Throwable $e) {
+        } catch (GoogleServiceException|GuzzleException|InvalidArgumentException $e) {
             $this->logger->warning('Google Calendar deleteEvent failed', [
                 'googleEventId' => $googleEventId,
                 'error' => $e->getMessage(),
