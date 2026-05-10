@@ -6,6 +6,11 @@ namespace App\Module\Music\Infrastructure\External;
 
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
+use App\Module\Music\Application\Exception\DiscogsApiException;
+use App\Module\Music\Application\Exception\DiscogsAuthException;
+use App\Module\Music\Application\Exception\DiscogsNotFoundException;
+use App\Module\Music\Application\Exception\DiscogsRateLimitException;
+use App\Module\Music\Application\Exception\DiscogsUnavailableException;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Domain\Port\VinylCollectionLoaderInterface;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
@@ -13,6 +18,8 @@ use JsonException;
 use Redis;
 use RuntimeException;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -62,7 +69,7 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
     {
         $token = $this->tokenRepository->get();
         if (null === $token) {
-            throw new RuntimeException('Discogs not authorized. Visit /auth/discogs to connect.');
+            throw new DiscogsAuthException('Discogs not authorized. Visit /auth/discogs to connect.');
         }
 
         $records = $this->fetchAllPages($username, $token['oauth_token'], $token['oauth_token_secret']);
@@ -144,8 +151,15 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
                 ]);
 
                 $data = $response->toArray();
-            } catch (TransportExceptionInterface $e) {
-                throw new RuntimeException('Discogs API unavailable.', 0, $e);
+            } catch (ClientExceptionInterface $e) {
+                throw match ($e->getResponse()->getStatusCode()) {
+                    401, 403 => new DiscogsAuthException('Discogs authorization failed — re-authorize at /auth/discogs.', 0, $e),
+                    404 => new DiscogsNotFoundException(sprintf('Discogs user "%s" or collection not found.', $username), 0, $e),
+                    429 => new DiscogsRateLimitException('Discogs rate limit exceeded — try again shortly.', 0, $e),
+                    default => new DiscogsApiException('Discogs client error.', 0, $e),
+                };
+            } catch (ServerExceptionInterface|TransportExceptionInterface $e) {
+                throw new DiscogsUnavailableException('Discogs API unavailable.', 0, $e);
             }
 
             foreach ($data['releases'] ?? [] as $item) {
