@@ -9,6 +9,7 @@ use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Infrastructure\External\NationalLibraryApiClient;
 use PHPUnit\Framework\TestCase;
 use Redis;
+use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -88,6 +89,17 @@ final class NationalLibraryApiClientTest extends TestCase
         $this->expectException(BookMetadataNotFoundException::class);
 
         $client->getByIsbn('0000000001');
+    }
+
+    public function testThrowsRuntimeExceptionOnMalformedXmlResponse(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('<<not-valid-xml'));
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to parse National Library API response.');
+
+        $client->getByIsbn('9780306406157');
     }
 
     public function testThrowsUnavailableOnTransportException(): void
