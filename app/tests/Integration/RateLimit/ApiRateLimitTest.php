@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\RateLimit;
 
 use App\Tests\Support\AuthenticatedApiTrait;
+use App\Tests\Support\SpyLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -87,5 +88,44 @@ class ApiRateLimitTest extends WebTestCase
                 sprintf('Request #%d to /api/health returned 429', $i),
             );
         }
+    }
+
+    public function testDifferentIpsHaveSeparateBuckets(): void
+    {
+        // Burn IP-A's bucket entirely.
+        for ($i = 1; $i <= 60; ++$i) {
+            $this->client->request('GET', '/api/series', [], [], ['HTTP_X_FORWARDED_FOR' => '10.0.0.1']);
+        }
+
+        // 61st request from IP-A is throttled.
+        $this->client->request('GET', '/api/series', [], [], ['HTTP_X_FORWARDED_FOR' => '10.0.0.1']);
+        self::assertResponseStatusCodeSame(Response::HTTP_TOO_MANY_REQUESTS);
+
+        // First request from IP-B must still succeed — proves the limiter isolates buckets per IP
+        // and that trusted_proxies + X-Forwarded-For wiring works end-to-end.
+        $this->client->request('GET', '/api/series', [], [], ['HTTP_X_FORWARDED_FOR' => '10.0.0.2']);
+        self::assertResponseIsSuccessful('Different IP must have its own bucket');
+    }
+
+    public function testRateLimitTriggersWarningLogWithExpectedContext(): void
+    {
+        // SpyLogger is only registered in the test environment via services.yaml when@test.
+        /** @phpstan-ignore symfonyContainer.serviceNotFound */
+        $logger = static::getContainer()->get(SpyLogger::class);
+        self::assertInstanceOf(SpyLogger::class, $logger);
+        $logger->reset();
+
+        for ($i = 1; $i <= 61; ++$i) {
+            $this->client->request('GET', '/api/series');
+        }
+
+        self::assertResponseStatusCodeSame(Response::HTTP_TOO_MANY_REQUESTS);
+
+        $record = $logger->findByMessage('API rate limit triggered');
+        self::assertNotNull($record, 'Expected rate-limit warning was not logged');
+        self::assertSame('warning', $record['level']);
+        self::assertTrue($record['context']['rate_limit_triggered'] ?? null, 'Graylog AC: rate_limit_triggered=true must be present');
+        self::assertSame('api_per_ip', $record['context']['limiter'] ?? null);
+        self::assertGreaterThan(0, $record['context']['retry_after'] ?? 0);
     }
 }
