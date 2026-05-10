@@ -17,7 +17,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh | 14 |
 | [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — JS quality, CSP/SRI, build pipeline | 12 |
 | [HMAI-129](https://honemanager.atlassian.net/browse/HMAI-129) | API hardening — input validation, error contracts, CSRF | 8 |
-| [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) | Rate limiting & throttling — HMAI-38 zamknięte | — |
+| [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) | Rate limiting & throttling — epik zamknięty po przeglądzie 2026-05-10 (HMAI-38 + dopełniające testy per-IP isolation, logger spy, DI wiring) | — |
 | [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — invariants, equals(), event emission | 11 |
 | [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — exports (CSV/PDF) and missing endpoints | 1 |
 
