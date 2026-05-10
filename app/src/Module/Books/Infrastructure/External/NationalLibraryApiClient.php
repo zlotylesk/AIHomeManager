@@ -8,7 +8,6 @@ use App\Module\Books\Application\DTO\BookMetadataDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
-use Exception;
 use JsonException;
 use Redis;
 use RuntimeException;
@@ -52,10 +51,19 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             throw new BookMetadataUnavailableException('National Library API is unavailable.', 0, $e);
         }
 
+        // Use simplexml_load_string + libxml internal errors instead of `new SimpleXMLElement`
+        // so a malformed payload returns false (handled below) instead of throwing a base
+        // \Exception that a broad catch would also swallow programmer errors with.
+        $previousErrors = libxml_use_internal_errors(true);
         try {
-            $xml = new SimpleXMLElement($content);
-        } catch (Exception $e) {
-            throw new RuntimeException('Failed to parse National Library API response.', 0, $e);
+            $xml = simplexml_load_string($content);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+
+        if (false === $xml) {
+            throw new RuntimeException('Failed to parse National Library API response.');
         }
 
         $bibs = $xml->bibs ?? $xml;
