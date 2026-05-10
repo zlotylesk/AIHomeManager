@@ -12,9 +12,10 @@ use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
 use DateTime;
 use DateTimeImmutable;
 use Google\Client;
+use Google\Service\Exception as GoogleServiceException;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
+use TypeError;
 
 final class GoogleCalendarServiceTest extends TestCase
 {
@@ -56,15 +57,25 @@ final class GoogleCalendarServiceTest extends TestCase
         $service->createEvent($this->makeTask());
     }
 
-    public function testCreateEventReturnsEmptyStringOnException(): void
+    public function testCreateEventReturnsEmptyStringOnGoogleApiException(): void
     {
         $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok', 'refresh_token' => 'ref']);
         $this->client->method('setAccessToken')->willReturn(null);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new RuntimeException('API error'));
+        $this->client->method('isAccessTokenExpired')->willThrowException(new GoogleServiceException('API error'));
 
         $result = $this->service->createEvent($this->makeTask());
 
         self::assertSame('', $result);
+    }
+
+    public function testCreateEventPropagatesProgrammerErrors(): void
+    {
+        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
+        $this->client->method('setAccessToken')->willReturn(null);
+        $this->client->method('isAccessTokenExpired')->willThrowException(new TypeError('bug'));
+
+        $this->expectException(TypeError::class);
+        $this->service->createEvent($this->makeTask());
     }
 
     public function testUpdateEventDoesNotThrowWhenNoToken(): void
@@ -77,15 +88,25 @@ final class GoogleCalendarServiceTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testUpdateEventDoesNotThrowOnException(): void
+    public function testUpdateEventDoesNotThrowOnGoogleApiException(): void
     {
         $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new RuntimeException('API error'));
+        $this->client->method('isAccessTokenExpired')->willThrowException(new GoogleServiceException('API error'));
         $task = $this->makeTask(googleEventId: 'event-123');
 
         $this->service->updateEvent($task);
 
         $this->addToAssertionCount(1);
+    }
+
+    public function testUpdateEventPropagatesProgrammerErrors(): void
+    {
+        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
+        $this->client->method('isAccessTokenExpired')->willThrowException(new TypeError('bug'));
+        $task = $this->makeTask(googleEventId: 'event-123');
+
+        $this->expectException(TypeError::class);
+        $this->service->updateEvent($task);
     }
 
     public function testUpdateEventSkipsWhenNoGoogleEventId(): void
@@ -106,14 +127,23 @@ final class GoogleCalendarServiceTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testDeleteEventDoesNotThrowOnException(): void
+    public function testDeleteEventDoesNotThrowOnGoogleApiException(): void
     {
         $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new RuntimeException('API error'));
+        $this->client->method('isAccessTokenExpired')->willThrowException(new GoogleServiceException('API error'));
 
         $this->service->deleteEvent('event-123');
 
         $this->addToAssertionCount(1);
+    }
+
+    public function testDeleteEventPropagatesProgrammerErrors(): void
+    {
+        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
+        $this->client->method('isAccessTokenExpired')->willThrowException(new TypeError('bug'));
+
+        $this->expectException(TypeError::class);
+        $this->service->deleteEvent('event-123');
     }
 
     public function testBuildEventMapsTitleAndId(): void
