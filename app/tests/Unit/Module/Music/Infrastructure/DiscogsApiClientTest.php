@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Music\Infrastructure;
 
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
+use App\Module\Music\Application\Exception\DiscogsAuthException;
+use App\Module\Music\Application\Exception\DiscogsNotFoundException;
+use App\Module\Music\Application\Exception\DiscogsRateLimitException;
+use App\Module\Music\Application\Exception\DiscogsUnavailableException;
 use App\Module\Music\Infrastructure\External\DiscogsApiClient;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
@@ -15,6 +19,7 @@ use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Throwable;
 
 final class DiscogsApiClientTest extends TestCase
 {
@@ -59,6 +64,25 @@ final class DiscogsApiClientTest extends TestCase
         $bus->method('dispatch')->willReturnCallback(static fn (object $message) => new Envelope($message));
 
         return $bus;
+    }
+
+    /**
+     * @param class-string<Throwable> $expectedException
+     */
+    private function assertHttpErrorTranslatesTo(int $httpStatus, string $expectedException, string $expectedMessageFragment): void
+    {
+        $redis = $this->createMock(Redis::class);
+        // setex must NOT be called when the upstream request fails — guards against
+        // silently caching empty results from an error response.
+        $redis->expects(self::never())->method('setex');
+
+        $httpClient = new MockHttpClient(new MockResponse('{"error":"upstream"}', ['http_code' => $httpStatus]));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), 'key', 'secret');
+
+        $this->expectException($expectedException);
+        $this->expectExceptionMessageMatches('/'.preg_quote($expectedMessageFragment, '/').'/i');
+
+        $client->fetchAndCacheCollection('testuser');
     }
 
     public function testGetUserCollectionReturnsCachedRecordsWithoutHttpCall(): void
@@ -197,6 +221,31 @@ final class DiscogsApiClientTest extends TestCase
         $this->expectExceptionMessage('Discogs not authorized');
 
         $client->fetchAndCacheCollection('testuser');
+    }
+
+    public function testFetchAndCacheCollectionTranslates401ToDiscogsAuthException(): void
+    {
+        $this->assertHttpErrorTranslatesTo(401, DiscogsAuthException::class, 'authorization failed');
+    }
+
+    public function testFetchAndCacheCollectionTranslates403ToDiscogsAuthException(): void
+    {
+        $this->assertHttpErrorTranslatesTo(403, DiscogsAuthException::class, 'authorization failed');
+    }
+
+    public function testFetchAndCacheCollectionTranslates404ToDiscogsNotFoundException(): void
+    {
+        $this->assertHttpErrorTranslatesTo(404, DiscogsNotFoundException::class, 'not found');
+    }
+
+    public function testFetchAndCacheCollectionTranslates429ToDiscogsRateLimitException(): void
+    {
+        $this->assertHttpErrorTranslatesTo(429, DiscogsRateLimitException::class, 'rate limit');
+    }
+
+    public function testFetchAndCacheCollectionTranslates500ToDiscogsUnavailableException(): void
+    {
+        $this->assertHttpErrorTranslatesTo(500, DiscogsUnavailableException::class, 'unavailable');
     }
 
     public function testFetchAndCacheCollectionMapsZeroYearToNull(): void

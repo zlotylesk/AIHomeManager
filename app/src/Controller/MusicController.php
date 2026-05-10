@@ -7,6 +7,8 @@ namespace App\Controller;
 use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Application\DTO\MusicComparisonDTO;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
+use App\Module\Music\Application\Exception\DiscogsAuthException;
+use App\Module\Music\Application\Exception\DiscogsRateLimitException;
 use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
@@ -81,6 +83,10 @@ final class MusicController extends AbstractController
         try {
             /** @var MusicComparisonDTO $result */
             $result = $this->queryBus->dispatch(new GetMusicComparison($period, $limit))->last(HandledStamp::class)->getResult();
+        } catch (DiscogsAuthException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNAUTHORIZED);
+        } catch (DiscogsRateLimitException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_TOO_MANY_REQUESTS);
         } catch (RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
@@ -98,6 +104,10 @@ final class MusicController extends AbstractController
     {
         try {
             $records = $this->vinylCollection->getUserCollection($this->discogsUsername);
+        } catch (DiscogsAuthException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNAUTHORIZED);
+        } catch (DiscogsRateLimitException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_TOO_MANY_REQUESTS);
         } catch (RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
