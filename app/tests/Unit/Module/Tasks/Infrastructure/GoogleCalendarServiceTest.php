@@ -146,6 +146,45 @@ final class GoogleCalendarServiceTest extends TestCase
         $this->service->deleteEvent('event-123');
     }
 
+    public function testCreateEventReturnsEmptyStringWhenTokenRefreshFails(): void
+    {
+        $service = new GoogleCalendarService(
+            $this->clientWithFailedRefresh(),
+            $this->tokenRepoWithExpiredToken(),
+            $this->logger,
+        );
+
+        $result = $service->createEvent($this->makeTask());
+
+        self::assertSame('', $result);
+    }
+
+    public function testCreateEventDoesNotSaveCorruptedTokenWhenRefreshFails(): void
+    {
+        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
+        $tokenRepo->method('get')->willReturn(['access_token' => 'expired', 'refresh_token' => 'revoked-refresh']);
+        $tokenRepo->expects(self::never())->method('save');
+
+        $service = new GoogleCalendarService($this->clientWithFailedRefresh(), $tokenRepo, $this->logger);
+        $service->createEvent($this->makeTask());
+    }
+
+    public function testCreateEventLogsWarningWhenTokenRefreshFails(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning')->with(
+            'Google Calendar: token refresh failed, re-authentication required',
+            self::callback(static fn (array $ctx) => 'invalid_grant' === $ctx['error'])
+        );
+
+        $service = new GoogleCalendarService(
+            $this->clientWithFailedRefresh(),
+            $this->tokenRepoWithExpiredToken(),
+            $logger,
+        );
+        $service->createEvent($this->makeTask());
+    }
+
     public function testBuildEventMapsTitleAndId(): void
     {
         $task = $this->makeTask();
@@ -172,6 +211,32 @@ final class GoogleCalendarServiceTest extends TestCase
             $end->format(DateTime::RFC3339),
             $event->getEnd()->getDateTime()
         );
+    }
+
+    /**
+     * Pre-configured Google Client stub for the "refresh-token-revoked" scenario:
+     * token is reported expired and fetchAccessTokenWithRefreshToken returns
+     * Google's standard error-shaped response instead of a fresh token.
+     */
+    private function clientWithFailedRefresh(): Client
+    {
+        $client = $this->createStub(Client::class);
+        $client->method('isAccessTokenExpired')->willReturn(true);
+        $client->method('getRefreshToken')->willReturn('revoked-refresh');
+        $client->method('fetchAccessTokenWithRefreshToken')->willReturn([
+            'error' => 'invalid_grant',
+            'error_description' => 'Token has been expired or revoked.',
+        ]);
+
+        return $client;
+    }
+
+    private function tokenRepoWithExpiredToken(): GoogleTokenRepositoryInterface
+    {
+        $tokenRepo = $this->createStub(GoogleTokenRepositoryInterface::class);
+        $tokenRepo->method('get')->willReturn(['access_token' => 'expired', 'refresh_token' => 'revoked-refresh']);
+
+        return $tokenRepo;
     }
 
     private function makeTask(
