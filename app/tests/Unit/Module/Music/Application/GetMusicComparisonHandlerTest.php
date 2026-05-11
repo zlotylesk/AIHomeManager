@@ -8,9 +8,11 @@ use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler;
+use App\Module\Music\Application\Service\AlbumNormalizer;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 use Redis;
 
 final class GetMusicComparisonHandlerTest extends TestCase
@@ -34,6 +36,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         return new GetMusicComparisonHandler(
             $this->lastfm,
             $this->discogs,
+            new AlbumNormalizer(new NullLogger()),
             $this->redis,
             'lastfm_user',
             'discogs_user',
@@ -138,6 +141,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $handler = new GetMusicComparisonHandler(
             $this->lastfm,
             $this->discogs,
+            new AlbumNormalizer(new NullLogger()),
             $redis,
             'user',
             'user'
@@ -167,7 +171,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn($payload);
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
         $result = $handler(new GetMusicComparison());
 
         self::assertCount(1, $result->ownedAndListened);
@@ -190,7 +194,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $redis->method('get')->willReturn('{not valid json');
         $redis->expects(self::once())->method('setex');
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
         $result = $handler(new GetMusicComparison(limit: 1));
 
         self::assertCount(1, $result->wantList);
@@ -205,7 +209,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $redis->method('get')->willReturn(json_encode(['ownedAndListened' => 'not-an-array']));
         $redis->expects(self::once())->method('setex');
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
         $result = $handler(new GetMusicComparison(limit: 1));
 
         self::assertCount(1, $result->wantList);
@@ -225,7 +229,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         ]));
         $redis->expects(self::once())->method('setex');
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
         $result = $handler(new GetMusicComparison());
 
         self::assertSame(0.0, $result->matchScore);
