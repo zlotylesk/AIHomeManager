@@ -97,7 +97,13 @@ jobs:
       APP_DEBUG: '1'
       # Mirrors app/.env.test (API_KEY, token cipher keys) and overrides .env defaults
       # for service hosts so they resolve to the GitHub-provided service containers.
-      DATABASE_URL: 'mysql://homemanager:homemanager@127.0.0.1:3306/homemanager_test?serverVersion=8.0&charset=utf8mb4'
+      #
+      # IMPORTANT: dbname is the BASE name "homemanager" — doctrine.yaml has
+      # `when@test: dbname_suffix: '_test'` (Symfony default), so Doctrine
+      # connects to "homemanager_test" at runtime. The MySQL service below
+      # creates exactly that database. If you put "homemanager_test" here,
+      # Doctrine appends *another* `_test` and looks for "homemanager_test_test".
+      DATABASE_URL: 'mysql://homemanager:homemanager@127.0.0.1:3306/homemanager?serverVersion=8.0&charset=utf8mb4'
       REDIS_URL: 'redis://127.0.0.1:6379'
       LOCK_DSN: 'redis://127.0.0.1:6379'
       MESSENGER_TRANSPORT_DSN: 'in-memory://'
