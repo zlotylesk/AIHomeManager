@@ -125,7 +125,19 @@ final readonly class GoogleCalendarService implements CalendarServiceInterface
                 return null;
             }
 
+            // Google SDK returns an array with 'error' key on refresh failure (e.g. revoked
+            // refresh token) instead of throwing — without this guard the error response
+            // gets persisted as the next "token" and breaks all subsequent calls.
             $newToken = $this->client->fetchAccessTokenWithRefreshToken($refreshToken);
+            if (isset($newToken['error'])) {
+                $this->logger->warning('Google Calendar: token refresh failed, re-authentication required', [
+                    'error' => $newToken['error'],
+                    'error_description' => $newToken['error_description'] ?? '',
+                ]);
+
+                return null;
+            }
+
             $this->tokenRepository->save($newToken);
             $this->client->setAccessToken($newToken);
         }
