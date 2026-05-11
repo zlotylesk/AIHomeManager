@@ -25,6 +25,7 @@ final readonly class GetMusicComparisonHandler
     public function __construct(
         private MusicListeningHistoryInterface $listeningHistory,
         private VinylCollectionInterface $vinylCollection,
+        private AlbumNormalizer $normalizer,
         private Redis $redis,
         private string $lastfmUsername,
         private string $discogsUsername,
@@ -55,13 +56,13 @@ final readonly class GetMusicComparisonHandler
 
         $discogsKeys = [];
         foreach ($collection as $record) {
-            $key = AlbumNormalizer::normalize($record->artist, $record->title);
+            $key = $this->normalizer->normalize($record->artist, $record->title);
             $discogsKeys[$key] = true;
         }
 
         $lastfmTopKeys = [];
         foreach ($topAlbumsForDustyShelf as $album) {
-            $key = AlbumNormalizer::normalize($album->artist, $album->title);
+            $key = $this->normalizer->normalize($album->artist, $album->title);
             $lastfmTopKeys[$key] = true;
         }
 
@@ -69,7 +70,7 @@ final readonly class GetMusicComparisonHandler
         $wantList = [];
 
         foreach ($topAlbums as $album) {
-            $key = AlbumNormalizer::normalize($album->artist, $album->title);
+            $key = $this->normalizer->normalize($album->artist, $album->title);
             if (isset($discogsKeys[$key])) {
                 $ownedAndListened[] = $album;
             } else {
@@ -79,7 +80,7 @@ final readonly class GetMusicComparisonHandler
 
         $dustyShelf = [];
         foreach ($collection as $record) {
-            $key = AlbumNormalizer::normalize($record->artist, $record->title);
+            $key = $this->normalizer->normalize($record->artist, $record->title);
             if (!isset($lastfmTopKeys[$key])) {
                 $dustyShelf[] = $record;
             }
