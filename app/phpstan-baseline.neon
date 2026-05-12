@@ -115,12 +115,6 @@ parameters:
 			path: src/Module/Articles/Application/Service/ArticleImporter.php
 
 		-
-			message: '#^Parameter \#1 \$string of function mb_detect_encoding expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Module/Articles/Application/Service/ArticleImporter.php
-
-		-
 			message: '#^Variable \$title on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.variable
 			count: 1
