@@ -20,7 +20,7 @@ final readonly class GetMusicComparisonHandler
 {
     private const int DUSTY_SHELF_LIMIT = 500;
     private const int CACHE_TTL = 3600;
-    private const string CACHE_VERSION = 'v2';
+    private const string CACHE_VERSION = 'v3';
 
     public function __construct(
         private MusicListeningHistoryInterface $listeningHistory,
@@ -34,10 +34,14 @@ final readonly class GetMusicComparisonHandler
 
     public function __invoke(GetMusicComparison $query): MusicComparisonDTO
     {
+        // discogsUsername MUST be in the key — without it, switching the configured
+        // Discogs account would serve stale data computed against the previous
+        // collection (HMAI-85). lastfmUsername is in the key for the same reason.
         $cacheKey = sprintf(
-            'music:comparison:%s:%s:%s:%d',
+            'music:comparison:%s:%s:%s:%s:%d',
             self::CACHE_VERSION,
             $this->lastfmUsername,
+            $this->discogsUsername,
             $query->period,
             $query->limit,
         );
