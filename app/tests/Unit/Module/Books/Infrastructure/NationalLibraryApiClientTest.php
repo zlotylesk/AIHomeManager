@@ -102,6 +102,42 @@ final class NationalLibraryApiClientTest extends TestCase
         $client->getByIsbn('9780306406157');
     }
 
+    public function testRejectsXxePayloadWithDoctype(): void
+    {
+        // Regression for HMAI-96: a classic XXE attempt — external SYSTEM entity
+        // pointing at /etc/passwd. Even if BN.org were compromised or MitM'd,
+        // the DOCTYPE pre-check must reject the response outright, so the
+        // attacker's entity never reaches libxml.
+        $xxe = <<<'XML'
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+            <bibs><bib><title>&xxe;</title></bib></bibs>
+            XML;
+
+        $httpClient = new MockHttpClient(new MockResponse($xxe));
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to parse National Library API response.');
+
+        $client->getByIsbn('9780306406157');
+    }
+
+    public function testRejectsDoctypeRegardlessOfCase(): void
+    {
+        // Belt-and-suspenders: stripos() ensures lowercase "<!doctype" and
+        // whitespace-padded variants are caught — a naive substr() match could
+        // be bypassed by such trivial obfuscation.
+        $payload = '<?xml version="1.0"?><!doctype bibs><bibs><bib><title>Innocent</title></bib></bibs>';
+        $httpClient = new MockHttpClient(new MockResponse($payload));
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to parse National Library API response.');
+
+        $client->getByIsbn('9780306406157');
+    }
+
     public function testThrowsUnavailableOnTransportException(): void
     {
         $httpClient = new MockHttpClient(new MockResponse('', ['error' => 'Connection timeout']));
