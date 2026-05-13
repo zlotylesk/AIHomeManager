@@ -6,8 +6,8 @@ namespace App\Controller;
 
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -25,6 +25,7 @@ final class DiscogsAuthController extends AbstractController
         private readonly HttpClientInterface $httpClient,
         private readonly DiscogsTokenRepositoryInterface $tokenRepository,
         private readonly DiscogsOAuth1Signer $signer,
+        private readonly LoggerInterface $logger,
         private readonly string $consumerKey,
         private readonly string $consumerSecret,
         private readonly string $callbackUrl,
@@ -32,7 +33,7 @@ final class DiscogsAuthController extends AbstractController
     }
 
     #[Route('/auth/discogs', methods: ['GET'])]
-    public function authorize(Request $request): RedirectResponse
+    public function authorize(Request $request): Response
     {
         $state = bin2hex(random_bytes(32));
         $request->getSession()->set(self::SESSION_STATE_KEY, $state);
@@ -56,10 +57,23 @@ final class DiscogsAuthController extends AbstractController
             ],
         ]);
 
+        // HMAI-105: explicit status check so a 401/500 from Discogs surfaces as a
+        // user-facing 502 with a log entry, instead of letting getContent() bubble
+        // a HttpExceptionInterface into the kernel's generic 500 handler. Sample
+        // the body so the operator can see Discogs' error message in the log.
+        if (200 !== $response->getStatusCode()) {
+            $this->logger->warning('Discogs request_token returned non-200', [
+                'status' => $response->getStatusCode(),
+                'body_sample' => substr($response->getContent(false), 0, 500),
+            ]);
+
+            return new Response(sprintf('Failed to obtain Discogs request token. HTTP %d', $response->getStatusCode()), Response::HTTP_BAD_GATEWAY);
+        }
+
         parse_str($response->getContent(), $params);
         $requestToken = $params['oauth_token'] ?? '';
 
-        return new RedirectResponse(self::AUTHORIZE_URL.'?oauth_token='.urlencode($requestToken));
+        return $this->redirect(self::AUTHORIZE_URL.'?oauth_token='.urlencode($requestToken));
     }
 
     #[Route('/auth/discogs/callback', methods: ['GET'])]
@@ -100,6 +114,16 @@ final class DiscogsAuthController extends AbstractController
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ],
         ]);
+
+        // HMAI-105: see authorize() — same fail-friendly path for access_token.
+        if (200 !== $response->getStatusCode()) {
+            $this->logger->warning('Discogs access_token returned non-200', [
+                'status' => $response->getStatusCode(),
+                'body_sample' => substr($response->getContent(false), 0, 500),
+            ]);
+
+            return new Response(sprintf('Failed to obtain Discogs access token. HTTP %d', $response->getStatusCode()), Response::HTTP_BAD_GATEWAY);
+        }
 
         parse_str($response->getContent(), $params);
         $accessToken = $params['oauth_token'] ?? '';
