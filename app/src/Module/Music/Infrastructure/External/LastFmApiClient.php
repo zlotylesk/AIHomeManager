@@ -28,7 +28,9 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
     /** @return AlbumDTO[] */
     public function getTopAlbums(string $username, string $period, int $limit): array
     {
-        if ('' === $this->apiKey) {
+        // trim() also catches whitespace-only keys (e.g. LASTFM_API_KEY=" " from a
+        // copy-paste mishap) — typed string already rules out null. HMAI-84.
+        if ('' === trim($this->apiKey)) {
             throw new RuntimeException('Last.fm API key not configured');
         }
 
