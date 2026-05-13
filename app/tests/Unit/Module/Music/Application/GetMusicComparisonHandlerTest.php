@@ -215,6 +215,40 @@ final class GetMusicComparisonHandlerTest extends TestCase
         self::assertCount(1, $result->wantList);
     }
 
+    public function testCacheKeyIncludesDiscogsUsername(): void
+    {
+        // Regression for HMAI-85: switching the configured discogsUsername must
+        // produce a different cache key, otherwise the second user's request
+        // would be served the first user's comparison (collection mismatch).
+        $this->lastfm->method('getTopAlbums')->willReturn([]);
+        $this->discogs->method('getUserCollection')->willReturn([]);
+
+        $observedKeys = [];
+        $redis = $this->createMock(Redis::class);
+        $redis->method('get')->willReturnCallback(function (string $key) use (&$observedKeys) {
+            $observedKeys[] = $key;
+
+            return false;
+        });
+
+        $makeHandler = fn (string $discogsUsername) => new GetMusicComparisonHandler(
+            $this->lastfm,
+            $this->discogs,
+            new AlbumNormalizer(new NullLogger()),
+            $redis,
+            'same_lastfm_user',
+            $discogsUsername,
+        );
+
+        $makeHandler('alice_discogs')(new GetMusicComparison(period: '1month', limit: 10));
+        $makeHandler('bob_discogs')(new GetMusicComparison(period: '1month', limit: 10));
+
+        self::assertCount(2, $observedKeys);
+        self::assertNotSame($observedKeys[0], $observedKeys[1], 'Cache key must differ when discogsUsername changes');
+        self::assertStringContainsString('alice_discogs', $observedKeys[0]);
+        self::assertStringContainsString('bob_discogs', $observedKeys[1]);
+    }
+
     public function testIgnoresInvalidAlbumItemAndRecomputes(): void
     {
         $this->lastfm->method('getTopAlbums')->willReturn([]);

@@ -357,13 +357,13 @@ parameters:
 		-
 			message: '#^Call to an undefined method App\\Module\\Music\\Domain\\Port\\MusicListeningHistoryInterface\:\:method\(\)\.$#'
 			identifier: method.notFound
-			count: 7
+			count: 8
 			path: tests/Unit/Module/Music/Application/GetMusicComparisonHandlerTest.php
 
 		-
 			message: '#^Call to an undefined method App\\Module\\Music\\Domain\\Port\\VinylCollectionInterface\:\:method\(\)\.$#'
 			identifier: method.notFound
-			count: 7
+			count: 8
 			path: tests/Unit/Module/Music/Application/GetMusicComparisonHandlerTest.php
 
 		-
