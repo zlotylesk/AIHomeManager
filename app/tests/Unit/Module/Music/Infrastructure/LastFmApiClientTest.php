@@ -108,6 +108,20 @@ final class LastFmApiClientTest extends TestCase
         $client->getTopAlbums('testuser', '1month', 10);
     }
 
+    public function testThrowsWhenApiKeyIsWhitespace(): void
+    {
+        // Regression for HMAI-84: a whitespace-only key (typical copy-paste
+        // misconfig like `LASTFM_API_KEY=" "` in .env.local) must be treated as
+        // "not configured", not silently passed to Last.fm as a malformed query.
+        $httpClient = new MockHttpClient();
+        $client = new LastFmApiClient($httpClient, $this->redis, "  \t\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Last.fm API key not configured');
+
+        $client->getTopAlbums('testuser', '1month', 10);
+    }
+
     public function testReturnsCachedResultWithoutHttpCall(): void
     {
         $cachePayload = json_encode([[
