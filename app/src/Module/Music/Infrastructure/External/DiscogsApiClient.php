@@ -37,6 +37,7 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         private DiscogsOAuth1Signer $signer,
         private MessageBusInterface $commandBus,
         private DiscogsCredentials $credentials,
+        private DiscogsClockDriftDetector $driftDetector,
     ) {
     }
 
@@ -149,8 +150,11 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
                     ],
                 ]);
 
+                $this->driftDetector->inspect($response);
                 $data = $response->toArray();
             } catch (ClientExceptionInterface $e) {
+                $this->driftDetector->inspect($e->getResponse());
+
                 throw match ($e->getResponse()->getStatusCode()) {
                     401, 403 => new DiscogsAuthException('Discogs authorization failed — re-authorize at /auth/discogs.', 0, $e),
                     404 => new DiscogsNotFoundException(sprintf('Discogs user "%s" or collection not found.', $username), 0, $e),

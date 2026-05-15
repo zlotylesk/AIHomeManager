@@ -10,10 +10,12 @@ use App\Module\Music\Application\Exception\DiscogsNotFoundException;
 use App\Module\Music\Application\Exception\DiscogsRateLimitException;
 use App\Module\Music\Application\Exception\DiscogsUnavailableException;
 use App\Module\Music\Infrastructure\External\DiscogsApiClient;
+use App\Module\Music\Infrastructure\External\DiscogsClockDriftDetector;
 use App\Module\Music\Infrastructure\External\DiscogsCredentials;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 use Redis;
 use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -78,7 +80,7 @@ final class DiscogsApiClientTest extends TestCase
         $redis->expects(self::never())->method('setex');
 
         $httpClient = new MockHttpClient(new MockResponse('{"error":"upstream"}', ['http_code' => $httpStatus]));
-        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $this->expectException($expectedException);
         $this->expectExceptionMessageMatches('/'.preg_quote($expectedMessageFragment, '/').'/i');
@@ -103,7 +105,7 @@ final class DiscogsApiClientTest extends TestCase
         $bus = $this->createMock(MessageBusInterface::class);
         $bus->expects(self::never())->method('dispatch');
 
-        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $records = $client->getUserCollection('testuser');
 
@@ -125,7 +127,7 @@ final class DiscogsApiClientTest extends TestCase
             ->with(self::callback(static fn (object $msg) => $msg instanceof RefreshDiscogsCollection && 'testuser' === $msg->username))
             ->willReturnCallback(static fn (object $msg) => new Envelope($msg));
 
-        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Discogs collection is being refreshed');
@@ -143,7 +145,7 @@ final class DiscogsApiClientTest extends TestCase
             ->method('dispatch')
             ->willReturnCallback(static fn (object $msg) => new Envelope($msg));
 
-        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $this->tokenRepo, $this->signer, $bus, new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $this->expectException(RuntimeException::class);
 
@@ -171,7 +173,7 @@ final class DiscogsApiClientTest extends TestCase
             ->willReturn(true);
 
         $httpClient = new MockHttpClient(new MockResponse($json));
-        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $client->fetchAndCacheCollection('testuser');
     }
@@ -203,7 +205,7 @@ final class DiscogsApiClientTest extends TestCase
             ->willReturn(true);
 
         $httpClient = new MockHttpClient([new MockResponse($page1), new MockResponse($page2)]);
-        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $client->fetchAndCacheCollection('testuser');
     }
@@ -216,7 +218,7 @@ final class DiscogsApiClientTest extends TestCase
         $redis = $this->createMock(Redis::class);
         $redis->expects(self::never())->method('setex');
 
-        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient(new MockHttpClient(), $redis, $tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Discogs not authorized');
@@ -264,7 +266,7 @@ final class DiscogsApiClientTest extends TestCase
             ->willReturn(true);
 
         $httpClient = new MockHttpClient(new MockResponse($json));
-        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'));
+        $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
 
         $client->fetchAndCacheCollection('testuser');
     }
