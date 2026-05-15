@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Controller;
 
 use App\Controller\DiscogsAuthController;
+use App\Module\Music\Infrastructure\External\DiscogsClockDriftDetector;
 use App\Module\Music\Infrastructure\External\DiscogsCredentials;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
@@ -27,12 +28,18 @@ final class DiscogsAuthControllerTest extends TestCase
         // DiscogsOAuth1Signer is final and stateless — instantiate directly
         // rather than fight PHPUnit's no-doubling-final restriction. The
         // returned Authorization header is opaque to the controller under test.
+        // Detector and controller share the same logger so tests that pin
+        // expects(self::once()) on the controller's HMAI-105 warning also
+        // catch an unintended drift warning leaking from MockResponse changes.
+        $sharedLogger = $logger ?? new NullLogger();
+
         return new DiscogsAuthController(
             httpClient: $httpClient,
             tokenRepository: $this->createStub(DiscogsTokenRepositoryInterface::class),
             signer: new DiscogsOAuth1Signer(),
-            logger: $logger ?? new NullLogger(),
+            logger: $sharedLogger,
             credentials: new DiscogsCredentials('test-key', 'test-secret'),
+            driftDetector: new DiscogsClockDriftDetector($sharedLogger),
             callbackUrl: 'http://localhost:8080/auth/discogs/callback',
         );
     }

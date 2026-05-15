@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Module\Music\Infrastructure\External\DiscogsClockDriftDetector;
 use App\Module\Music\Infrastructure\External\DiscogsCredentials;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
@@ -28,6 +29,7 @@ final class DiscogsAuthController extends AbstractController
         private readonly DiscogsOAuth1Signer $signer,
         private readonly LoggerInterface $logger,
         private readonly DiscogsCredentials $credentials,
+        private readonly DiscogsClockDriftDetector $driftDetector,
         private readonly string $callbackUrl,
     ) {
     }
@@ -56,6 +58,8 @@ final class DiscogsAuthController extends AbstractController
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ],
         ]);
+
+        $this->driftDetector->inspect($response);
 
         // HMAI-105: explicit status check so a 401/500 from Discogs surfaces as a
         // user-facing 502 with a log entry, instead of letting getContent() bubble
@@ -114,6 +118,8 @@ final class DiscogsAuthController extends AbstractController
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ],
         ]);
+
+        $this->driftDetector->inspect($response);
 
         // HMAI-105: see authorize() — same fail-friendly path for access_token.
         if (200 !== $response->getStatusCode()) {
