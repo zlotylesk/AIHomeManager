@@ -65,12 +65,17 @@ services:
     App\Module\Music\Domain\Port\VinylCollectionLoaderInterface:
         alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
 
+    # HMAI-113: ctor takes a single VO so DI debug output (debug:container
+    # --show-arguments) and stack traces redact the consumer secret.
+    App\Module\Music\Infrastructure\External\DiscogsCredentials:
+        arguments:
+            $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
+            $consumerSecret: '%env(DISCOGS_CONSUMER_SECRET)%'
+
     App\Module\Music\Infrastructure\External\DiscogsApiClient:
         arguments:
             $httpClient: '@app.discogs_http_client'
             $redis: '@app.redis'
-            $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
-            $consumerSecret: '%env(DISCOGS_CONSUMER_SECRET)%'
 
     App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface:
         alias: App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository
@@ -99,8 +104,6 @@ services:
 
     App\Controller\DiscogsAuthController:
         arguments:
-            $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
-            $consumerSecret: '%env(DISCOGS_CONSUMER_SECRET)%'
             $callbackUrl: '%env(DISCOGS_CALLBACK_URL)%'
 
     App\Controller\MusicController:
