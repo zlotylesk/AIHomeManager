@@ -36,8 +36,7 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         private DiscogsTokenRepositoryInterface $tokenRepository,
         private DiscogsOAuth1Signer $signer,
         private MessageBusInterface $commandBus,
-        private string $consumerKey,
-        private string $consumerSecret,
+        private DiscogsCredentials $credentials,
     ) {
     }
 
@@ -134,8 +133,8 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
             $authHeader = $this->signer->buildAuthorizationHeader(
                 'GET',
                 $url,
-                $this->consumerKey,
-                $this->consumerSecret,
+                $this->credentials->consumerKey,
+                $this->credentials->consumerSecret,
                 $oauthTokenSecret,
                 $oauthToken,
                 $queryParams,
