@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Controller;
 
 use App\Controller\DiscogsAuthController;
+use App\Module\Music\Infrastructure\External\DiscogsCredentials;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use PHPUnit\Framework\TestCase;
@@ -31,8 +32,7 @@ final class DiscogsAuthControllerTest extends TestCase
             tokenRepository: $this->createStub(DiscogsTokenRepositoryInterface::class),
             signer: new DiscogsOAuth1Signer(),
             logger: $logger ?? new NullLogger(),
-            consumerKey: 'test-key',
-            consumerSecret: 'test-secret',
+            credentials: new DiscogsCredentials('test-key', 'test-secret'),
             callbackUrl: 'http://localhost:8080/auth/discogs/callback',
         );
     }

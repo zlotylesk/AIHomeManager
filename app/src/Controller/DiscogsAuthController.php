@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Module\Music\Infrastructure\External\DiscogsCredentials;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use Psr\Log\LoggerInterface;
@@ -26,8 +27,7 @@ final class DiscogsAuthController extends AbstractController
         private readonly DiscogsTokenRepositoryInterface $tokenRepository,
         private readonly DiscogsOAuth1Signer $signer,
         private readonly LoggerInterface $logger,
-        private readonly string $consumerKey,
-        private readonly string $consumerSecret,
+        private readonly DiscogsCredentials $credentials,
         private readonly string $callbackUrl,
     ) {
     }
@@ -42,8 +42,8 @@ final class DiscogsAuthController extends AbstractController
         $authHeader = $this->signer->buildAuthorizationHeader(
             'POST',
             self::REQUEST_TOKEN_URL,
-            $this->consumerKey,
-            $this->consumerSecret,
+            $this->credentials->consumerKey,
+            $this->credentials->consumerSecret,
             '',
             '',
             ['oauth_callback' => $callbackWithState],
@@ -100,8 +100,8 @@ final class DiscogsAuthController extends AbstractController
         $authHeader = $this->signer->buildAuthorizationHeader(
             'POST',
             self::ACCESS_TOKEN_URL,
-            $this->consumerKey,
-            $this->consumerSecret,
+            $this->credentials->consumerKey,
+            $this->credentials->consumerSecret,
             '',
             $oauthToken,
             ['oauth_verifier' => $oauthVerifier],
