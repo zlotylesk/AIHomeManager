@@ -62,12 +62,12 @@ final class Series
     public function rateEpisode(string $seasonId, string $episodeId, Rating $rating): void
     {
         if (!isset($this->seasons[$seasonId])) {
-            throw new DomainException(sprintf('Season "%s" not found.', $seasonId));
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
         }
 
         $episode = $this->seasons[$seasonId]->findEpisode($episodeId);
         if (null === $episode) {
-            throw new DomainException(sprintf('Episode "%s" not found in season "%s".', $episodeId, $seasonId));
+            throw new DomainException(sprintf('Episode "%s" not found in season "%s" of series "%s".', $episodeId, $seasonId, $this->id));
         }
 
         $episode->rate($rating);
