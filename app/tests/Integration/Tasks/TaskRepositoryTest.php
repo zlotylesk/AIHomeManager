@@ -117,4 +117,65 @@ class TaskRepositoryTest extends KernelTestCase
 
         self::assertSame([], $results);
     }
+
+    public function testFindByDateRangeIncludesTaskAtLowerBoundary(): void
+    {
+        // BETWEEN is inclusive on both sides. Pin that contract via the embedded
+        // VO column path (`t.timeSlot.startDateTime`) — a mapping regression on
+        // the embeddable would either drop boundary matches or fail outright.
+        $boundary = new DateTimeImmutable('2025-07-01 00:00:00');
+        $this->repository->save(new Task(
+            id: 'b0000004-0000-0000-0000-000000000001',
+            title: new TaskTitle('Starts at lower boundary'),
+            timeSlot: new TimeSlot($boundary, $boundary->modify('+1 hour')),
+        ));
+        $this->em->clear();
+
+        $results = $this->repository->findByDateRange(
+            $boundary,
+            new DateTimeImmutable('2025-07-31 23:59:59'),
+        );
+
+        self::assertCount(1, $results);
+        self::assertSame('Starts at lower boundary', $results[0]->title()->value());
+    }
+
+    public function testFindByDateRangeIncludesTaskAtUpperBoundary(): void
+    {
+        $boundary = new DateTimeImmutable('2025-07-31 23:59:59');
+        $this->repository->save(new Task(
+            id: 'b0000004-0000-0000-0000-000000000002',
+            title: new TaskTitle('Starts at upper boundary'),
+            timeSlot: new TimeSlot($boundary, $boundary->modify('+1 hour')),
+        ));
+        $this->em->clear();
+
+        $results = $this->repository->findByDateRange(
+            new DateTimeImmutable('2025-07-01 00:00:00'),
+            $boundary,
+        );
+
+        self::assertCount(1, $results);
+        self::assertSame('Starts at upper boundary', $results[0]->title()->value());
+    }
+
+    public function testFindByDateRangeExcludesTaskStartingOneSecondPastUpperBoundary(): void
+    {
+        // Negative boundary: one second past the upper bound must be excluded.
+        // Catches off-by-one regressions if the query ever switches to '<=' + custom comparison.
+        $upper = new DateTimeImmutable('2025-07-31 23:59:59');
+        $this->repository->save(new Task(
+            id: 'b0000004-0000-0000-0000-000000000003',
+            title: new TaskTitle('One second past upper'),
+            timeSlot: new TimeSlot($upper->modify('+1 second'), $upper->modify('+2 seconds')),
+        ));
+        $this->em->clear();
+
+        $results = $this->repository->findByDateRange(
+            new DateTimeImmutable('2025-07-01 00:00:00'),
+            $upper,
+        );
+
+        self::assertSame([], $results);
+    }
 }
