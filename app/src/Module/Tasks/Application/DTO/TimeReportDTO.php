@@ -9,7 +9,7 @@ final readonly class TimeReportDTO
     public function __construct(
         public int $totalMinutes,
         public float $totalHours,
-        /** @var TaskTimeDTO[] */
+        /** @var list<TaskTimeDTO> */
         public array $breakdown,
     ) {
     }

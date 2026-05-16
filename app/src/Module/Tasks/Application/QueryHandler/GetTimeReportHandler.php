@@ -36,9 +36,11 @@ final readonly class GetTimeReportHandler
 
         $sql .= ' ORDER BY time_start ASC';
 
+        /** @var list<array{id: string, title: string, minutes: int|string|null}> $rows */
         $rows = $this->connection->fetchAllAssociative($sql, $params);
 
         $totalMinutes = 0;
+        /** @var list<TaskTimeDTO> $breakdown */
         $breakdown = [];
 
         foreach ($rows as $row) {
