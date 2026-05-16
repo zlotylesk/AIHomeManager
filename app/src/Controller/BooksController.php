@@ -11,6 +11,7 @@ use App\Module\Books\Application\Command\UpdateBook;
 use App\Module\Books\Application\DTO\BookDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
+use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
 use App\Module\Books\Domain\ValueObject\CoverUrl;
@@ -144,7 +145,7 @@ final class BooksController extends AbstractController
                 coverUrl: $coverUrl,
             ));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof DomainException) {
+            if ($e->getPrevious() instanceof BookNotFoundException) {
                 return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -170,7 +171,7 @@ final class BooksController extends AbstractController
         try {
             $this->commandBus->dispatch(new RemoveBook($id));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof DomainException) {
+            if ($e->getPrevious() instanceof BookNotFoundException) {
                 return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
@@ -199,11 +200,11 @@ final class BooksController extends AbstractController
             ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
+            if ($prev instanceof BookNotFoundException) {
+                return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
+            }
             if ($prev instanceof DomainException) {
-                $message = str_contains($prev->getMessage(), 'not found') ? 'Book not found.' : $prev->getMessage();
-                $status = str_contains($prev->getMessage(), 'not found') ? Response::HTTP_NOT_FOUND : Response::HTTP_UNPROCESSABLE_ENTITY;
-
-                return new JsonResponse(['error' => $message], $status);
+                return new JsonResponse(['error' => $prev->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             throw $e;
         }

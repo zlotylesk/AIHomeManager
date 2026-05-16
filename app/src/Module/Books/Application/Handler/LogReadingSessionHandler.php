@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Module\Books\Application\Handler;
 
 use App\Module\Books\Application\Command\LogReadingSession;
+use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Domain\Entity\ReadingSession;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
 use DateTimeImmutable;
-use DomainException;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Symfony\Component\Uid\Uuid;
 
@@ -25,7 +25,7 @@ final readonly class LogReadingSessionHandler
         $book = $this->bookRepository->findById($command->bookId);
 
         if (null === $book) {
-            throw new DomainException('Book not found.');
+            throw new BookNotFoundException('Book not found.');
         }
 
         $session = new ReadingSession(
