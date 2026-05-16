@@ -97,6 +97,19 @@ final class AddBookHandlerTest extends TestCase
         $handler(new AddBook(isbn: '9780306406157'));
     }
 
+    public function testThrowsWhenUserSuppliesWhitespaceTitle(): void
+    {
+        $provider = $this->createMock(BookMetadataProviderInterface::class);
+        $provider->expects(self::never())->method('getByIsbn');
+
+        $handler = new AddBookHandler($this->repository, $provider);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Field "title" is required');
+
+        $handler(new AddBook(isbn: '9780306406157', title: '   ', totalPages: 100));
+    }
+
     public function testPropagatesBookMetadataNotFoundException(): void
     {
         $this->metadataProvider->method('getByIsbn')
