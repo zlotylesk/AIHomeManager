@@ -12,21 +12,21 @@ final readonly class ISBN
 
     public function __construct(string $value)
     {
-        $normalized = strtoupper(str_replace(['-', ' '], '', $value));
+        $normalizedValue = strtoupper(str_replace(['-', ' '], '', $value));
 
-        if (10 === strlen($normalized)) {
-            if (!$this->isValidIsbn10($normalized)) {
+        if (10 === strlen($normalizedValue)) {
+            if (!$this->isValidIsbn10($normalizedValue)) {
                 throw new InvalidArgumentException(sprintf('Invalid ISBN-10: "%s".', $value));
             }
-        } elseif (13 === strlen($normalized)) {
-            if (!$this->isValidIsbn13($normalized)) {
+        } elseif (13 === strlen($normalizedValue)) {
+            if (!$this->isValidIsbn13($normalizedValue)) {
                 throw new InvalidArgumentException(sprintf('Invalid ISBN-13: "%s".', $value));
             }
         } else {
             throw new InvalidArgumentException(sprintf('Invalid ISBN length for "%s": must be 10 or 13 characters.', $value));
         }
 
-        $this->normalized = $normalized;
+        $this->normalized = $normalizedValue;
     }
 
     public function value(): string
