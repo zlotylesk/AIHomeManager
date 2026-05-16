@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Books\Application\Handler;
 
 use App\Module\Books\Application\Command\RemoveBook;
+use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
-use DomainException;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'command.bus')]
@@ -21,7 +21,7 @@ final readonly class RemoveBookHandler
         $book = $this->bookRepository->findById($command->id);
 
         if (null === $book) {
-            throw new DomainException('Book not found.');
+            throw new BookNotFoundException('Book not found.');
         }
 
         $this->bookRepository->remove($book);
