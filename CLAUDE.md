@@ -6,24 +6,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Status code review (HMAI-44, 2026-05-01; restruktura epików 2026-05-07; refresh 2026-05-16):** 59 otwartych follow-upów (label `ai_code_review`). Wszystkie P0 blockers przed prod zamknięte: ~~brak `security.yaml`~~ (HMAI-34), ~~plaintext OAuth tokens~~ (HMAI-46/47), ~~HTTP w Last.fm~~ (HMAI-48), ~~`unserialize()` z Redis~~ (HMAI-49/50), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51), ~~brak walidacji `state` w OAuth callback~~ (HMAI-52/53), ~~blokujący `sleep(1)` w Discogs collection fetch~~ (HMAI-56). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
-**Wydania:** ostatni tag `1.3.0` (2026-05-16, commit `bf529dc`). Od release: 0 commitów na develop, ale **10 PR-ów (#71–80) otwartych do developa** w batchu HMAI-125 (test coverage) — czeka na merge. Po scaleniu: +~40 testów (369–375/375 expected). CHANGELOG od 1.3.0, Confluence release page id 59572226.
-
-**Otwarte PR (sesja 2026-05-16, do zweryfikowania na starcie następnej sesji):**
-
-| Jira | PR | Branch | Scope |
-|---|---|---|---|
-| HMAI-82 | [#71](https://github.com/zlotylesk/AIHomeManager/pull/71) | `HMAI-82-google-calendar-refresh-token-tests` | +3 unit (GoogleCalendarService refresh) |
-| HMAI-73 | [#72](https://github.com/zlotylesk/AIHomeManager/pull/72) | `HMAI-73-google-auth-controller-integration-tests` | +8 integration (Auth/GoogleAuthController) |
-| HMAI-74 | [#73](https://github.com/zlotylesk/AIHomeManager/pull/73) | `HMAI-74-discogs-auth-controller-integration-tests` | +8 integration (Auth/DiscogsAuthController) |
-| HMAI-94 | [#74](https://github.com/zlotylesk/AIHomeManager/pull/74) | `HMAI-94-article-daily-pick-entity-test` | +1 unit (ArticleDailyPick) |
-| HMAI-95 | [#75](https://github.com/zlotylesk/AIHomeManager/pull/75) | `HMAI-95-google-client-factory-tests-completion` | +3 unit (GoogleClientFactory) |
-| HMAI-99 | [#76](https://github.com/zlotylesk/AIHomeManager/pull/76) | `HMAI-99-music-magic-numbers-refactor` | refactor (named constants) |
-| HMAI-93 | [#77](https://github.com/zlotylesk/AIHomeManager/pull/77) | `HMAI-93-series-season-episode-entity-tests` | +9 unit (Season + Episode) |
-| HMAI-97 | [#78](https://github.com/zlotylesk/AIHomeManager/pull/78) | `HMAI-97-discogs-token-repository-tamper-timestamps` | +2 integration (tamper + ts) |
-| HMAI-116 | [#79](https://github.com/zlotylesk/AIHomeManager/pull/79) | `HMAI-116-task-repository-date-range-boundaries` | +3 integration (findByDateRange boundaries) |
-| HMAI-76 | [#80](https://github.com/zlotylesk/AIHomeManager/pull/80) | `HMAI-76-music-api-happy-path-tests` | +3 integration (MusicApi happy path) |
-
-**Akcja na start następnej sesji:** dla każdego PR z tabeli sprawdź status (merged/closed/open) np. `mcp__github__get_pull_request` lub `gh pr view`. Po mergu — usuń wpis z tabeli, zaktualizuj liczniki testów i epików (HMAI-125 obecnie 12 otwartych; po mergu wszystkich 10 PR-ów spadnie do 2: HMAI-33, HMAI-42).
+**Wydania:** ostatni tag `1.3.0` (2026-05-16, commit `bf529dc`). Develop wyprzedza tag o 10 commitów (HMAI-125 batch zmergowany 2026-05-16: PR-y #71–80 — HMAI-82, 73, 74, 94, 95, 99, 93, 97, 116, 76). CHANGELOG od 1.3.0, Confluence release page id 59572226.
 
 **Epiki follow-upów (counts: 2026-05-16):**
 
@@ -31,7 +14,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 |---|---|---:|
 | [HMAI-123](https://honemanager.atlassian.net/browse/HMAI-123) | Critical findings (C1–C12) — epik zamknięty | — |
 | [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — DBAL, ORM, indexes, transactions | 9 |
-| [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — unit, integration, E2E gaps (wszystkie 12 zadań podpięte do fixVersion 1.4.0) | 12 |
+| [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — po batchu 2026-05-16 zostały 2 otwarte: HMAI-33, HMAI-42 | 2 |
 | [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — health, scheduler, fixtures, audit logs, metrics | 6 |
 | [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh — epik zamknięty po przeglądzie 2026-05-16 (14/14 podzadań, hub patterns Confluence id 59441164) | — |
 | [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — JS quality, CSP/SRI, build pipeline | 12 |
@@ -40,7 +23,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — invariants, equals(), event emission | 11 |
 | [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — exports (CSV/PDF) and missing endpoints | 1 |
 
-**Ostatnio zamknięte (2026-05-08 → 2026-05-16):** HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures.
+**Ostatnio zamknięte (2026-05-08 → 2026-05-16):** HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures, HMAI-125 batch (test coverage, 10/12 zadań — HMAI-73, 74, 76, 82, 93, 94, 95, 97, 99, 116).
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -126,7 +109,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 - Integration: `tests/Integration/`
 - Framework: PHPUnit 13
-- Stan: 366/366 passing (po release 1.3.0, 2026-05-16; +67 vs 1.2.0)
+- Stan: 406/406 passing (po batchu HMAI-125, 2026-05-16; +40 vs 1.3.0)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 
 ## Security — API Key
