@@ -17,6 +17,17 @@ use Redis;
 
 final class GetMusicComparisonHandlerTest extends TestCase
 {
+    // 2 of the 4 lastfm top albums are present in the vinyl collection → 50% overlap.
+    // Extracted so the assertion reads as the rule it encodes, not a bare literal.
+    private const float HALF_MATCH_SCORE = 50.0;
+
+    // Marker value round-tripped through the cache — not derived from inputs,
+    // just a distinct float we can detect on the way out.
+    private const float CACHED_MATCH_SCORE_MARKER = 42.5;
+
+    // Empty discogs collection ⇒ no albums can match ⇒ 0% overlap, regardless of lastfm.
+    private const float NO_MATCH_SCORE = 0.0;
+
     private Redis $redis;
     private MusicListeningHistoryInterface $lastfm;
     private VinylCollectionInterface $discogs;
@@ -89,7 +100,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
         $result = $this->makeHandler()(new GetMusicComparison(period: '1month', limit: 4));
 
-        self::assertSame(50.0, $result->matchScore);
+        self::assertSame(self::HALF_MATCH_SCORE, $result->matchScore);
     }
 
     public function testIdentifiesDustyShelf(): void
@@ -131,7 +142,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
             'ownedAndListened' => [],
             'wantList' => [],
             'dustyShelf' => [],
-            'matchScore' => 42.5,
+            'matchScore' => self::CACHED_MATCH_SCORE_MARKER,
         ]);
 
         $redis = $this->createMock(Redis::class);
@@ -149,7 +160,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
         $result = $handler(new GetMusicComparison());
 
-        self::assertSame(42.5, $result->matchScore);
+        self::assertSame(self::CACHED_MATCH_SCORE_MARKER, $result->matchScore);
     }
 
     public function testCachedResultRoundtripPreservesAllFields(): void
@@ -165,7 +176,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
                 ['artist' => 'Forgotten', 'title' => 'Old Album', 'year' => 1975, 'format' => 'Vinyl', 'discogsId' => 99],
                 ['artist' => 'Unknown', 'title' => 'No Year', 'year' => null, 'format' => 'CD', 'discogsId' => 100],
             ],
-            'matchScore' => 50.0,
+            'matchScore' => self::HALF_MATCH_SCORE,
         ]);
 
         $redis = $this->createMock(Redis::class);
@@ -182,7 +193,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         self::assertCount(2, $result->dustyShelf);
         self::assertSame(1975, $result->dustyShelf[0]->year);
         self::assertNull($result->dustyShelf[1]->year);
-        self::assertSame(50.0, $result->matchScore);
+        self::assertSame(self::HALF_MATCH_SCORE, $result->matchScore);
     }
 
     public function testIgnoresMalformedJsonAndRecomputes(): void
@@ -259,13 +270,13 @@ final class GetMusicComparisonHandlerTest extends TestCase
             'ownedAndListened' => [['artist' => 'A', 'title' => 'B', 'playCount' => 'not-int', 'imageUrl' => null]],
             'wantList' => [],
             'dustyShelf' => [],
-            'matchScore' => 0.0,
+            'matchScore' => self::NO_MATCH_SCORE,
         ]));
         $redis->expects(self::once())->method('setex');
 
         $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
         $result = $handler(new GetMusicComparison());
 
-        self::assertSame(0.0, $result->matchScore);
+        self::assertSame(self::NO_MATCH_SCORE, $result->matchScore);
     }
 }
