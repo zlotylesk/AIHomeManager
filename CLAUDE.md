@@ -6,7 +6,24 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Status code review (HMAI-44, 2026-05-01; restruktura epików 2026-05-07; refresh 2026-05-16):** 59 otwartych follow-upów (label `ai_code_review`). Wszystkie P0 blockers przed prod zamknięte: ~~brak `security.yaml`~~ (HMAI-34), ~~plaintext OAuth tokens~~ (HMAI-46/47), ~~HTTP w Last.fm~~ (HMAI-48), ~~`unserialize()` z Redis~~ (HMAI-49/50), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51), ~~brak walidacji `state` w OAuth callback~~ (HMAI-52/53), ~~blokujący `sleep(1)` w Discogs collection fetch~~ (HMAI-56). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
-**Wydania:** ostatni tag `1.3.0` (2026-05-16, commit `bf529dc`). Od release: 0 commitów na develop. CHANGELOG od 1.3.0, Confluence release page id 59572226.
+**Wydania:** ostatni tag `1.3.0` (2026-05-16, commit `bf529dc`). Od release: 0 commitów na develop, ale **10 PR-ów (#71–80) otwartych do developa** w batchu HMAI-125 (test coverage) — czeka na merge. Po scaleniu: +~40 testów (369–375/375 expected). CHANGELOG od 1.3.0, Confluence release page id 59572226.
+
+**Otwarte PR (sesja 2026-05-16, do zweryfikowania na starcie następnej sesji):**
+
+| Jira | PR | Branch | Scope |
+|---|---|---|---|
+| HMAI-82 | [#71](https://github.com/zlotylesk/AIHomeManager/pull/71) | `HMAI-82-google-calendar-refresh-token-tests` | +3 unit (GoogleCalendarService refresh) |
+| HMAI-73 | [#72](https://github.com/zlotylesk/AIHomeManager/pull/72) | `HMAI-73-google-auth-controller-integration-tests` | +8 integration (Auth/GoogleAuthController) |
+| HMAI-74 | [#73](https://github.com/zlotylesk/AIHomeManager/pull/73) | `HMAI-74-discogs-auth-controller-integration-tests` | +8 integration (Auth/DiscogsAuthController) |
+| HMAI-94 | [#74](https://github.com/zlotylesk/AIHomeManager/pull/74) | `HMAI-94-article-daily-pick-entity-test` | +1 unit (ArticleDailyPick) |
+| HMAI-95 | [#75](https://github.com/zlotylesk/AIHomeManager/pull/75) | `HMAI-95-google-client-factory-tests-completion` | +3 unit (GoogleClientFactory) |
+| HMAI-99 | [#76](https://github.com/zlotylesk/AIHomeManager/pull/76) | `HMAI-99-music-magic-numbers-refactor` | refactor (named constants) |
+| HMAI-93 | [#77](https://github.com/zlotylesk/AIHomeManager/pull/77) | `HMAI-93-series-season-episode-entity-tests` | +9 unit (Season + Episode) |
+| HMAI-97 | [#78](https://github.com/zlotylesk/AIHomeManager/pull/78) | `HMAI-97-discogs-token-repository-tamper-timestamps` | +2 integration (tamper + ts) |
+| HMAI-116 | [#79](https://github.com/zlotylesk/AIHomeManager/pull/79) | `HMAI-116-task-repository-date-range-boundaries` | +3 integration (findByDateRange boundaries) |
+| HMAI-76 | [#80](https://github.com/zlotylesk/AIHomeManager/pull/80) | `HMAI-76-music-api-happy-path-tests` | +3 integration (MusicApi happy path) |
+
+**Akcja na start następnej sesji:** dla każdego PR z tabeli sprawdź status (merged/closed/open) np. `mcp__github__get_pull_request` lub `gh pr view`. Po mergu — usuń wpis z tabeli, zaktualizuj liczniki testów i epików (HMAI-125 obecnie 12 otwartych; po mergu wszystkich 10 PR-ów spadnie do 2: HMAI-33, HMAI-42).
 
 **Epiki follow-upów (counts: 2026-05-16):**
 
