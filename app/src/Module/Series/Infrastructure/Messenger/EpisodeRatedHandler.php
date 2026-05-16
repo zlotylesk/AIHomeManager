@@ -20,27 +20,31 @@ final readonly class EpisodeRatedHandler
 
     public function __invoke(EpisodeRated $event): void
     {
-        $seasonAvg = $this->connection->fetchOne(
-            'SELECT AVG(rating_value) FROM series_episodes WHERE season_id = :seasonId AND rating_value IS NOT NULL',
-            ['seasonId' => $event->seasonId]
-        );
-
-        $seriesAvg = $this->connection->fetchOne(
-            'SELECT AVG(e.rating_value)
+        $row = $this->connection->fetchAssociative(
+            'SELECT
+                AVG(CASE WHEN e.season_id = :seasonId THEN e.rating_value END) AS season_avg,
+                AVG(e.rating_value) AS series_avg
              FROM series_episodes e
              JOIN series_seasons s ON e.season_id = s.id
-             WHERE s.series_id = :seriesId AND e.rating_value IS NOT NULL',
-            ['seriesId' => $event->seriesId]
+             WHERE s.series_id = :seriesId',
+            [
+                'seriesId' => $event->seriesId,
+                'seasonId' => $event->seasonId,
+            ]
         );
+
+        if (false === $row) {
+            return;
+        }
 
         $ttl = 3600;
 
-        if (false !== $seasonAvg && null !== $seasonAvg) {
-            $this->redis->setex("season:avg:{$event->seasonId}", $ttl, (string) round((float) $seasonAvg, 2));
+        if (null !== $row['season_avg']) {
+            $this->redis->setex("season:avg:{$event->seasonId}", $ttl, (string) round((float) $row['season_avg'], 2));
         }
 
-        if (false !== $seriesAvg && null !== $seriesAvg) {
-            $this->redis->setex("series:avg:{$event->seriesId}", $ttl, (string) round((float) $seriesAvg, 2));
+        if (null !== $row['series_avg']) {
+            $this->redis->setex("series:avg:{$event->seriesId}", $ttl, (string) round((float) $row['series_avg'], 2));
         }
     }
 }
