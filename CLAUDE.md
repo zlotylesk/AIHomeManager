@@ -6,7 +6,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Status code review (HMAI-44, 2026-05-01; restruktura epików 2026-05-07; refresh 2026-05-16):** 50 otwartych follow-upów (label `ai_code_review`). Wszystkie P0 blockers przed prod zamknięte: ~~brak `security.yaml`~~ (HMAI-34), ~~plaintext OAuth tokens~~ (HMAI-46/47), ~~HTTP w Last.fm~~ (HMAI-48), ~~`unserialize()` z Redis~~ (HMAI-49/50), ~~XSS via `javascript:` w ArticleUrl~~ (HMAI-55), ~~dual-write w `LogReadingSessionHandler`~~ (HMAI-51), ~~brak walidacji `state` w OAuth callback~~ (HMAI-52/53), ~~blokujący `sleep(1)` w Discogs collection fetch~~ (HMAI-56). Pełny raport: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177.
 
-**Wydania:** ostatni tag `1.2.0` (2026-05-07). Od release: 16 commitów na develop gotowych do potencjalnego cut 1.3.0.
+**Wydania:** ostatni tag `1.3.0` (2026-05-16, commit `bf529dc`). Od release: 0 commitów na develop. CHANGELOG od 1.3.0, Confluence release page id 59572226.
 
 **Epiki follow-upów (counts: 2026-05-16):**
 
