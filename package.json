@@ -1,0 +1,13 @@
+{
+  "name": "aihomemanager-e2e",
+  "private": true,
+  "description": "Playwright E2E tests for AIHomeManager. PHP application uses no Node.js at runtime; this package exists only for browser-driven test scenarios that WebTestCase cannot cover.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

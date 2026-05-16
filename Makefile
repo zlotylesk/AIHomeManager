@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse
+.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse
 
 up:
 	docker compose up -d
@@ -26,6 +26,14 @@ test-unit:
 
 test-integration:
 	docker compose exec php vendor/bin/phpunit --testsuite=integration
+
+test-e2e-install:
+	npm install
+	npx playwright install chromium
+
+test-e2e:
+	docker compose exec -T mysql mysql -uhomemanager -phomemanager homemanager -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE TABLE series_episodes; TRUNCATE TABLE series_seasons; TRUNCATE TABLE series; SET FOREIGN_KEY_CHECKS=1;"
+	npx playwright test
 
 shell:
 	docker compose exec php bash

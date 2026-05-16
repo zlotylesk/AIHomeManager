@@ -9,3 +9,7 @@ app/.phpunit.cache/
 *.swp
 docker/mysql/data/
 .env.local
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/

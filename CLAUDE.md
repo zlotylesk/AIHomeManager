@@ -14,7 +14,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 |---|---|---:|
 | [HMAI-123](https://honemanager.atlassian.net/browse/HMAI-123) | Critical findings (C1–C12) — epik zamknięty | — |
 | [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — DBAL, ORM, indexes, transactions | 9 |
-| [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — po batchu 2026-05-16 zostały 2 otwarte: HMAI-33, HMAI-42 | 2 |
+| [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — pozostało 1: HMAI-33 (broad manual+Postman E2E). HMAI-42 zamknięte (Playwright Series E2E) | 1 |
 | [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — health, scheduler, fixtures, audit logs, metrics | 6 |
 | [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh — epik zamknięty po przeglądzie 2026-05-16 (14/14 podzadań, hub patterns Confluence id 59441164) | — |
 | [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — JS quality, CSP/SRI, build pipeline | 12 |
@@ -23,7 +23,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — invariants, equals(), event emission | 11 |
 | [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — exports (CSV/PDF) and missing endpoints | 1 |
 
-**Ostatnio zamknięte (2026-05-08 → 2026-05-16):** HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures, HMAI-125 batch (test coverage, 10/12 zadań — HMAI-73, 74, 76, 82, 93, 94, 95, 97, 99, 116).
+**Ostatnio zamknięte (2026-05-08 → 2026-05-16):** HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures, HMAI-125 batch (test coverage, 10/12 zadań — HMAI-73, 74, 76, 82, 93, 94, 95, 97, 99, 116), HMAI-42 Playwright Series E2E.
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -103,14 +103,17 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Kontenery | `make services` |
 | Status workera | `make messenger-status` |
 | Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
+| E2E (Playwright) install/run | `make test-e2e-install` / `make test-e2e` |
 
 ## Testy
 
 - Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 - Integration: `tests/Integration/`
-- Framework: PHPUnit 13
-- Stan: 406/406 passing (po batchu HMAI-125, 2026-05-16; +40 vs 1.3.0)
+- E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport) per project config w `playwright.config.ts`
+- Framework: PHPUnit 13 + @playwright/test 1.49
+- Stan: 406/406 PHP passing + 5/5 E2E (HMAI-42 Series UI, 2026-05-16)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
+- E2E pre-req: `API_KEY=e2e-test-key` w `app/.env.local` (gdy default `E2E_API_KEY` z `playwright.config.ts`). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series`
 
 ## Security — API Key
 
