@@ -63,7 +63,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | Serwis | Kontener / Port | Notatki |
 |---|---|---|
 | MySQL 8 | `mysql:3306` | DB `homemanager` |
-| Redis 7 | `redis:6379` | Pool `series.ratings.cache` (TTL 3600); klucze `series:avg:{id}`, `season:avg:{id}` ustawiane przez `EpisodeRatedHandler` |
+| Redis 7 | `redis:6379` | Klucze `series:avg:{id}`, `season:avg:{id}` (TTL 3600) ustawiane bezpośrednio przez `\Redis` w `EpisodeRatedHandler` (nie przez Symfony cache pool — handler iniektuje `\Redis`, nie `CacheItemPoolInterface`). Pool `cache.rate_limiter` używany przez RateLimiter |
 | RabbitMQ 3.12 | `rabbitmq:5672` (AMQP), `:15672` UI (guest/guest) | Transport `async`, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ `failed` |
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
 | Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | NIE w `make up` — `make monitoring-up`. Kanał Monolog `series` |
