@@ -45,10 +45,14 @@ final readonly class AddBookHandler
             throw new InvalidArgumentException('Field "total_pages" is required and could not be retrieved from the National Library API.');
         }
 
+        if ('' === trim($title)) {
+            throw new InvalidArgumentException('Field "title" is required and could not be retrieved from the National Library API.');
+        }
+
         $book = new Book(
             id: Uuid::v4()->toRfc4122(),
             isbn: new ISBN($command->isbn),
-            title: $title ?? '',
+            title: $title,
             author: $author ?? '',
             publisher: $publisher ?? '',
             year: $year ?? 0,
