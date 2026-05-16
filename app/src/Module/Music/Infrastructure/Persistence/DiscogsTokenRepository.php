@@ -32,13 +32,15 @@ final readonly class DiscogsTokenRepository implements DiscogsTokenRepositoryInt
 
     public function save(string $oauthToken, string $oauthTokenSecret): void
     {
-        $this->connection->executeStatement('DELETE FROM discogs_oauth_tokens');
+        $this->connection->transactional(function (Connection $conn) use ($oauthToken, $oauthTokenSecret): void {
+            $conn->executeStatement('DELETE FROM discogs_oauth_tokens');
 
-        $this->connection->insert('discogs_oauth_tokens', [
-            'oauth_token' => $this->cipher->encrypt($oauthToken),
-            'oauth_token_secret' => $this->cipher->encrypt($oauthTokenSecret),
-            'created_at' => new DateTimeImmutable()->format('Y-m-d H:i:s'),
-            'updated_at' => new DateTimeImmutable()->format('Y-m-d H:i:s'),
-        ]);
+            $conn->insert('discogs_oauth_tokens', [
+                'oauth_token' => $this->cipher->encrypt($oauthToken),
+                'oauth_token_secret' => $this->cipher->encrypt($oauthTokenSecret),
+                'created_at' => new DateTimeImmutable()->format('Y-m-d H:i:s'),
+                'updated_at' => new DateTimeImmutable()->format('Y-m-d H:i:s'),
+            ]);
+        });
     }
 }
