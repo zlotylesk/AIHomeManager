@@ -1,8 +1,8 @@
 'use strict';
 
 const API = {
-    series: () => fetch('/api/series').then(r => r.json()),
-    seriesDetail: (id) => fetch(`/api/series/${id}`).then(r => r.json()),
+    series: () => window.apiCall('/api/series'),
+    seriesDetail: (id) => window.apiCall(`/api/series/${id}`),
     createSeries: (title) => fetch('/api/series', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
