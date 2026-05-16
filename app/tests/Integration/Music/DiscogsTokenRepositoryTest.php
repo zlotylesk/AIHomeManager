@@ -7,6 +7,7 @@ namespace App\Tests\Integration\Music;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
+use Exception;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 final class DiscogsTokenRepositoryTest extends KernelTestCase
@@ -80,5 +81,33 @@ final class DiscogsTokenRepositoryTest extends KernelTestCase
         self::assertNotFalse($first);
         self::assertNotFalse($second);
         self::assertNotSame($first['oauth_token'], $second['oauth_token']);
+    }
+
+    public function testGetPropagatesFailureWhenStoredCiphertextIsTampered(): void
+    {
+        // If the ciphertext column is mutated outside the repository (manual SQL,
+        // backup restore, DB tampering), get() must surface an exception rather
+        // than silently returning a corrupted token that would then be sent to
+        // Discogs as a forged credential.
+        $this->repository->save('valid_token', 'valid_secret');
+        $this->connection->executeStatement(
+            "UPDATE discogs_oauth_tokens SET oauth_token = 'not-a-valid-ciphertext'"
+        );
+
+        $this->expectException(Exception::class);
+        $this->repository->get();
+    }
+
+    public function testSavePopulatesCreatedAndUpdatedTimestamps(): void
+    {
+        $this->repository->save('access_token', 'access_secret');
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT created_at, updated_at FROM discogs_oauth_tokens LIMIT 1'
+        );
+
+        self::assertNotFalse($row);
+        self::assertNotEmpty($row['created_at']);
+        self::assertNotEmpty($row['updated_at']);
     }
 }
