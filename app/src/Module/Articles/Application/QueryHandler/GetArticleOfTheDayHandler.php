@@ -9,6 +9,7 @@ use App\Module\Articles\Application\Query\GetArticleOfTheDay;
 use App\Module\Articles\Domain\Entity\ArticleDailyPick;
 use App\Module\Articles\Domain\Repository\ArticleDailyPickRepositoryInterface;
 use DateTimeImmutable;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Redis;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -61,20 +62,22 @@ final readonly class GetArticleOfTheDayHandler
     {
         $excludeClause = '';
         $params = [];
+        $types = [];
 
         if (!empty($excludeIds)) {
-            $placeholders = implode(',', array_fill(0, count($excludeIds), '?'));
-            $excludeClause = "AND id NOT IN ({$placeholders})";
-            $params = $excludeIds;
+            $excludeClause = 'AND id NOT IN (:excludeIds)';
+            $params['excludeIds'] = $excludeIds;
+            $types['excludeIds'] = ArrayParameterType::STRING;
         }
 
         if (null !== $preferredCategory && '' !== $preferredCategory) {
             $row = $this->connection->fetchAssociative(
                 "SELECT id, title, url, category, estimated_read_time, added_at, read_at, is_read
                  FROM articles
-                 WHERE is_read = 0 {$excludeClause} AND category = ?
+                 WHERE is_read = 0 {$excludeClause} AND category = :category
                  ORDER BY RAND() LIMIT 1",
-                [...$params, $preferredCategory]
+                [...$params, 'category' => $preferredCategory],
+                $types
             );
             if (false !== $row) {
                 return $row;
@@ -86,7 +89,8 @@ final readonly class GetArticleOfTheDayHandler
              FROM articles
              WHERE is_read = 0 {$excludeClause}
              ORDER BY RAND() LIMIT 1",
-            $params
+            $params,
+            $types
         );
 
         return false !== $row ? $row : null;
