@@ -15,6 +15,7 @@ use Google\Client;
 use Google\Service\Exception as GoogleServiceException;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use TypeError;
 
 final class GoogleCalendarServiceTest extends TestCase
@@ -157,6 +158,63 @@ final class GoogleCalendarServiceTest extends TestCase
         $result = $service->createEvent($this->makeTask());
 
         self::assertSame('', $result);
+    }
+
+    public function testCreateEventRefreshesExpiredTokenAndPersistsNewToken(): void
+    {
+        $newToken = ['access_token' => 'new-tok', 'expires_in' => 3600];
+
+        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
+        $tokenRepo->method('get')->willReturn(['access_token' => 'expired', 'refresh_token' => 'old-refresh']);
+        $tokenRepo->expects(self::once())->method('save')->with($newToken);
+
+        $client = $this->createMock(Client::class);
+        $client->method('isAccessTokenExpired')->willReturn(true);
+        $client->method('getRefreshToken')->willReturn('old-refresh');
+        $client->expects(self::once())
+            ->method('fetchAccessTokenWithRefreshToken')
+            ->with('old-refresh')
+            ->willReturn($newToken);
+        // Google SDK Resource layer calls Client::getLogger() before issuing the request.
+        $client->method('getLogger')->willReturn(new NullLogger());
+        // Throws on subsequent API call to avoid hitting the real Google Calendar HTTP.
+        $client->method('execute')->willThrowException(new GoogleServiceException('no-network'));
+
+        $service = new GoogleCalendarService($client, $tokenRepo, $this->logger);
+        $service->createEvent($this->makeTask());
+    }
+
+    public function testCreateEventReturnsEmptyStringWhenRefreshTokenMissing(): void
+    {
+        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
+        $tokenRepo->method('get')->willReturn(['access_token' => 'expired']);
+        $tokenRepo->expects(self::never())->method('save');
+
+        $client = $this->createStub(Client::class);
+        $client->method('isAccessTokenExpired')->willReturn(true);
+        $client->method('getRefreshToken')->willReturn(null);
+
+        $service = new GoogleCalendarService($client, $tokenRepo, $this->logger);
+
+        self::assertSame('', $service->createEvent($this->makeTask()));
+    }
+
+    public function testCreateEventLogsWarningWhenRefreshTokenMissing(): void
+    {
+        $client = $this->createStub(Client::class);
+        $client->method('isAccessTokenExpired')->willReturn(true);
+        $client->method('getRefreshToken')->willReturn(null);
+
+        $tokenRepo = $this->createStub(GoogleTokenRepositoryInterface::class);
+        $tokenRepo->method('get')->willReturn(['access_token' => 'expired']);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning')->with(
+            self::stringContains('refresh token missing')
+        );
+
+        $service = new GoogleCalendarService($client, $tokenRepo, $logger);
+        $service->createEvent($this->makeTask());
     }
 
     public function testCreateEventDoesNotSaveCorruptedTokenWhenRefreshFails(): void
