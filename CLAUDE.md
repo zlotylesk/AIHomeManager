@@ -13,7 +13,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | Epik | Tytuł | Otwarte |
 |---|---|---:|
 | [HMAI-123](https://honemanager.atlassian.net/browse/HMAI-123) | Critical findings (C1–C12) — epik zamknięty | — |
-| [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — DBAL, ORM, indexes, transactions | 8 |
+| [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — epik zamknięty po przeglądzie 2026-05-17 (9/9 podzadań, Confluence patterns id 49119233 v3) | — |
 | [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — epik zamknięty po przeglądzie 2026-05-16 (12/12 podzadań + ReadingSession unit test domknął lukę po BookAggregateTest) | — |
 | [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — health, scheduler, fixtures, audit logs, metrics | 6 |
 | [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh — epik zamknięty po przeglądzie 2026-05-16 (14/14 podzadań, hub patterns Confluence id 59441164) | — |
@@ -23,7 +23,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — invariants, equals(), event emission | 11 |
 | [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — exports (CSV/PDF) and missing endpoints | 1 |
 
-**Ostatnio zamknięte (2026-05-08 → 2026-05-16):** HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures, HMAI-125 batch (test coverage, 10/12 zadań — HMAI-73, 74, 76, 82, 93, 94, 95, 97, 99, 116), HMAI-42 Playwright Series E2E, HMAI-33 Newman/Postman collection (12/12), HMAI-125 epic closure (review + ReadingSession unit test).
+**Ostatnio zamknięte (2026-05-08 → 2026-05-17):** HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures, HMAI-125 batch (test coverage, 10/12 zadań — HMAI-73, 74, 76, 82, 93, 94, 95, 97, 99, 116), HMAI-42 Playwright Series E2E, HMAI-33 Newman/Postman collection (12/12), HMAI-125 epic closure (review + ReadingSession unit test), HMAI-124 epic closure (persistence 9/9 — HMAI-60, 61, 75 dup, 86, 88, 92, 102, 103, 122 + GetArticleOfTheDayHandlerTest + Confluence v3).
 
 ## Architektura — ZASADY NIENARUSZALNE
 
