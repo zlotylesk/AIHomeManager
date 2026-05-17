@@ -1,0 +1,11 @@
+url,title,category,estimated_read_time
+https://example.com/sample-articles/1,Async PHP with Symfony Messenger,programming,15
+https://example.com/sample-articles/2,Hexagonal Architecture in 200 Lines,programming,10
+https://example.com/sample-articles/3,CQRS Patterns for the Single-User App,programming,12
+https://example.com/sample-articles/4,Reading the Linux Kernel for Fun,curiosity,25
+https://example.com/sample-articles/5,A Field Guide to PHP 8.4 Features,programming,8
+https://example.com/sample-articles/6,Why I Switched From Postman to Newman,productivity,7
+https://example.com/sample-articles/7,Doctrine ORM 3 Migration Notes,programming,18
+https://example.com/sample-articles/8,Vinyl Records: Material Culture in 2026,music,9
+https://example.com/sample-articles/9,Building Healthy Sleep Routines,wellbeing,11
+https://example.com/sample-articles/10,A Brief History of Spreadsheets,history,14

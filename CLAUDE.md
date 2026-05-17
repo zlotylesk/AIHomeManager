@@ -118,11 +118,13 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
 | E2E (Playwright) install/run | `make test-e2e-install` / `make test-e2e` |
 | Newman (Postman REST collection) | `make test-newman-install` / `make test-newman` |
+| Załaduj fixtures (dev) | `make fixtures` |
 
 ## Testy
 
 - Unit: `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php`
 - Integration: `tests/Integration/`
+- Fixtures: `tests/Integration/DataFixtures/FixturesLoadTest.php` — sprawdza, że `make fixtures` daje stałą strukturę danych (HMAI-39)
 - E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport) per project config w `playwright.config.ts`
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json` (HMAI-33 — 28 req / 42 assertions / 100% green). Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`); details w `tests-e2e/postman/README.md`
 - Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x

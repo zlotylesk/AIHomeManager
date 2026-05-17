@@ -37,7 +37,7 @@
         "symfony/yaml": "8.0.*"
     },
     "require-dev": {
-        "doctrine/doctrine-fixtures-bundle": ">=4.3.1",
+        "doctrine/doctrine-fixtures-bundle": "^4.3",
         "friendsofphp/php-cs-fixer": "^3.95",
         "phpstan/extension-installer": "*",
         "phpstan/phpstan": "*",
