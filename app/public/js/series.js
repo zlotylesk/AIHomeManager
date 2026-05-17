@@ -29,7 +29,7 @@ function showError(msg) {
     const banner = $('error-banner');
     banner.textContent = msg;
     show(banner);
-    setTimeout(() => hide(banner), 5000);
+    setTimeout(() => hide(banner), window.TOAST_TIMEOUT_MS);
 }
 
 function hideError() {

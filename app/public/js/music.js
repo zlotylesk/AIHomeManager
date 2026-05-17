@@ -6,7 +6,7 @@ function showError(msg) {
     const b = $('error-banner');
     b.textContent = msg;
     b.classList.remove('hidden');
-    setTimeout(() => b.classList.add('hidden'), 8000);
+    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
 }
 
 function escHtml(str) {
