@@ -35,10 +35,12 @@ async function loadMusic(period) {
     loading.classList.remove('hidden');
 
     try {
+        const topParams = new URLSearchParams({period, limit: '20'});
+        const cmpParams = new URLSearchParams({period, limit: '50'});
         const [topRes, collRes, cmpRes] = await Promise.all([
-            fetch(`/api/music/top-albums?period=${period}&limit=20`),
+            fetch(`/api/music/top-albums?${topParams}`),
             fetch('/api/music/collection'),
-            fetch(`/api/music/comparison?period=${period}&limit=50`),
+            fetch(`/api/music/comparison?${cmpParams}`),
         ]);
 
         loading.classList.add('hidden');

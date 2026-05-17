@@ -27,7 +27,8 @@ async function loadReport(from, to) {
     result.classList.add('hidden');
     empty.classList.add('hidden');
 
-    const res = await fetch(`/api/tasks/time-report?from=${from}&to=${to}`);
+    const params = new URLSearchParams({from, to});
+    const res = await fetch(`/api/tasks/time-report?${params}`);
     if (!res.ok) {
         const err = await res.json();
         showError(err.error || 'Failed to load report.');
