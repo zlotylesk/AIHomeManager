@@ -66,9 +66,6 @@ async function loadBooks(status) {
             return;
         }
         grid.innerHTML = books.map(renderBook).join('');
-        grid.querySelectorAll('.btn-log-session').forEach(btn => {
-            btn.addEventListener('click', () => openSessionModal(btn.dataset.id, btn.dataset.title));
-        });
     } catch {
         showError('Failed to load books.');
         grid.innerHTML = '';
@@ -89,6 +86,16 @@ document.addEventListener('DOMContentLoaded', () => {
     loadBooks('');
 
     $('filter-status').addEventListener('change', e => loadBooks(e.target.value));
+
+    // Single delegated listener — survives every loadBooks() innerHTML reset
+    // so freshly-rendered .btn-log-session buttons keep working without
+    // re-binding inside the render path.
+    document.body.addEventListener('click', e => {
+        const btn = e.target.closest('.btn-log-session');
+        if (btn) {
+            openSessionModal(btn.dataset.id, btn.dataset.title);
+        }
+    });
 
     $('btn-add-book').addEventListener('click', () => {
         $('input-isbn').value = '';
