@@ -4,6 +4,65 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.5.0] — 2026-05-17
+
+Domknięcie epica **HMAI-124** (Persistence & DB integrity) — kompletny przegląd warstwy persystencji: N+1 queries, brakujące indeksy FK, race conditions, transakcyjność wielokrokowych zapisów, DBAL parameter hygiene, fragile row→DTO mapping. Wszystkie 9 podzadań zamknięte (HMAI-60, 61, 75, 86, 88, 92, 102, 103, 122). Dodatkowo siedem mniejszych fixów `ai_code_review` z parent epików HMAI-131 (DDD purity) i HMAI-128 (Frontend hardening) trafiło tutaj okolicznościowo (HMAI-89, 91, 101, 108, 111, 117, 118). 421/421 PHP tests + 5/5 Playwright + 28/28 Newman — wszystkie zielone. PHPStan level 8 baseline zregenerowany (-24 stale entries z naprawionych PR-ów).
+
+### Added
+
+- **Bulk IN-query w `DoctrineSeriesRepository`** — `attachSeasonsAndEpisodes()` ładuje seasons i episodes po dwóch batchowanych `WHERE …Id IN (…)` zapytaniach zamiast pętli per agregat. `findById` i `findAll` używają stałej liczby 3 zapytań niezależnie od liczby seriali/sezonów (było `1 + N + N*M`). ORM-managed state zachowany — `save()` działa bez zmian. [HMAI-60]
+- **Lookup indexes w XML mapping** — `<indexes>` blok w `Episode.orm.xml` (`idx_episode_season_id`), `Series.orm.xml` (`idx_series_created_at`), `Article.orm.xml` (`idx_article_added_at`). Migracja `Version20260517000001`. Eliminuje full scan na rosnących tabelach w hot-path JOIN/ORDER BY. [HMAI-61]
+- **`SeriesRowHydrator` service** — wspólny mapping rows → `SeriesDetailDTO` dla `GetAllSeriesHandler` i `GetSeriesDetailHandler`. Test `SeriesRowHydratorTest` (3 cases: empty, LEFT JOIN null seasons, multi-series grouping). [HMAI-103]
+- **`ArticleDTO::fromRow` PHPDoc shape + `requireString()`** — `@param array{...}` deklaracja struktury wiersza + walidacja required columns (`id`, `title`, `url`, `added_at`) z `RuntimeException` zamiast cichych nulli. Test `ArticleDTOTest` (3 cases: full mapping, nullable omission, missing required). [HMAI-102]
+- **`BookNotFoundException`** — typed domain exception zamiast `str_contains($e->getMessage(), 'not found')` w `BooksController`. Rzucany przez `LogReadingSessionHandler`, `RemoveBookHandler`, `UpdateBookHandler`. [HMAI-108]
+- **`window.apiCall(url, options)` helper w `public/js/util.js`** — wrapper nad `fetch` rzucający typed Error z `.status` i `.body` zamiast cryptic JSON.parse error przy 500 z HTML response. Wpięte w `series.js` GET fetches; `templates/series/index.html.twig` ładuje `util.js`. [HMAI-118]
+- **`GetArticleOfTheDayHandlerTest`** — 5 integration cases pokrywających `ArrayParameterType::STRING` named binding (regression guard HMAI-88), preferred-category branch, cache hit short-circuit, fallback i empty state. Domyka jedyną lukę test coverage HMAI-124 odkrytą w epic review. [HMAI-124 epic review]
+- **Confluence section 9 w "Doctrine ORM i XML Mapping"** (page id 49119233 → v3) — 9 patternów persistence: bulk IN-query, transactional save, ArrayParameterType, FK indexes, single-query conditional aggregate, row hydrator service, `DTO::fromRow` walidacja, cache pool hygiene, query DoD. [HMAI-124 epic review]
+
+### Changed
+
+- **`DiscogsTokenRepository::save` jest transakcyjny** — `Connection::transactional(fn (Connection $c) => …)` wokół `DELETE` + `INSERT`. Wyklucza okno race w którym między DELETE a INSERT inny request widział pustą tabelę i traktował usera jako wylogowanego. [HMAI-92]
+- **`EpisodeRatedHandler` single AVG query** — sezon + serial-wide avg liczone jednym SELECTem z `AVG(CASE WHEN …)` zamiast dwóch osobnych zapytań. [HMAI-86]
+- **`GetArticleOfTheDayHandler` używa `ArrayParameterType::STRING`** dla `excludeIds` z named binding (`:excludeIds`) zamiast mieszać positional `?` z named. Bez tego dwa array params w jednym query nie wiążą się poprawnie. [HMAI-88]
+- **`GetAllSeriesHandler` i `GetSeriesDetailHandler`** delegują mapping do `SeriesRowHydrator` — query handlery zostają cienkie (SELECT + delegate). [HMAI-103]
+- **`AddBookHandler` fail-fast na pustym tytule** — `$title ?? ''` fallback zastąpiony przez `if ('' === trim($title)) throw new InvalidArgumentException(...)`. Książka z pustym tytułem nie wejdzie do bazy. [HMAI-91]
+- **`Series::rateEpisode` exception message ma id series** — dotąd `'Season "%s" not found.'`, teraz `'Season "%s" not found in series "%s".'` jak `addEpisode`. Spójność w logach. [HMAI-89]
+- **`ISBN` constructor — local var rename** — `$normalized` → `$normalizedValue` (parameter shadowed property o tej samej nazwie). Brak zmiany semantycznej, czytelność. [HMAI-111]
+- **`GetTimeReportHandler` PHPDoc** zwężone do `list<TaskTimeDTO>` z `@var list<array{...}>` shape annotation na fetchowane wiersze — PHPStan teraz typecheckuje rezultat. [HMAI-117]
+- **Hot-reload `<script>` gated `{% if app.environment == 'dev' %}`** w `templates/base.html.twig` — `idiomorph` i `frankenphp-hot-reload` z CDN nie idą do prod responses (eliminuje wektor wstrzyknięcia przez kompromitację CDN). [HMAI-101]
+- **`cache.yaml`: pool `series.ratings.cache` usunięty** — pool był deklarowany ale `EpisodeRatedHandler` iniektuje raw `\Redis` (nie `CacheItemPoolInterface`). Dead config czyszczony. CLAUDE.md infrastructure note zaktualizowane: rating keys (`series:avg:{id}`, `season:avg:{id}`) ustawiane bezpośrednio przez `\Redis::setex` z TTL 3600. [HMAI-122]
+- **`phpstan-baseline.neon` zregenerowane** — usuniętych 24 stale entries z PR-ów HMAI-91/102/103 które już naprawiły kod. Net 213 entries baseline (poprzednio 237 z dryftem).
+- **`ArticleDTO::fromRow` nullable fields** — `isset() ? (string) … : null` → `… ?? null` (Rector RecastingRemovalRector + TernaryToNullCoalescingRector; PHPDoc shape już deklaruje `string|null`).
+
+### Upgrade notes (manual steps)
+
+1. **Migracje DB:** uruchom `make migrate` (oraz `make migrate-test`). Migracja `Version20260517000001` dodaje 3 indeksy (`idx_episode_season_id`, `idx_series_created_at`, `idx_article_added_at`) — operacja `CREATE INDEX` na dotychczas małych tabelach, sub-second.
+
+2. **Brak nowych env vars i zależności composera** — release jest czysto kodowo-konfiguracyjny.
+
+3. **Frontend:** żadne zmiany schemy template'ów ani route'ów. `public/js/util.js` jest nowym plikiem statycznym ładowanym z `templates/series/index.html.twig`; pozostałe moduły JS bez zmian (przeniesienie na helper to follow-up dla książek/articles/tasks/music — patrz Not in this release).
+
+### Coverage
+
+- **Testy PHP:** 421/421 zielono (vs 408/408 przy 1.4.0). +13 nowych: `ArticleDTOTest` (3), `SeriesRowHydratorTest` (3), `SeriesRepositoryTest::testFindAllLoadsSeasonsAndEpisodes` (1), `EpisodeRatedHandlerTest` rewrite (3 nadal), `GetArticleOfTheDayHandlerTest` (5), drobne adjusty istniejących.
+- **Playwright (Series UI):** 5/5 zielono (bez zmian od 1.4.0).
+- **Newman (Postman REST):** 28 requestów / 42 assertions / 100% zielono (bez zmian od 1.4.0).
+- **PHPStan:** level 8 czysty, baseline 213 errors (regenerowany — drop 24 stale entries).
+- **PHP-CS-Fixer:** wszystkie pliki w diff zgodne z `@Symfony` + `@PHP84Migration` + `global_namespace_import`.
+- **Rector:** dry-run czysty po refactorze `ArticleDTO::fromRow`.
+
+### Closed Jira epics
+
+- [HMAI-124] Persistence & DB integrity — DBAL, ORM, indexes, transactions (9/9 podzadań)
+
+### Not in this release
+
+Wciąż otwarte pod label `ai_code_review`: HMAI-126 (operability, 6), HMAI-128 (frontend — pozostały bez HMAI-101/118, ~10), HMAI-129 (API hardening / CSRF, 8), HMAI-131 (DDD purity — pozostały bez HMAI-89/91/108/111/117, ~6), HMAI-132 (exports / missing endpoints, 1). `apiCall` helper wpięty tylko w `series.js` — books/articles/tasks/music to follow-up w epiku HMAI-128.
+
+### Contributors
+
+- Leszek Koziatek
+
 ## [1.4.0] — 2026-05-16
 
 Domknięcie epica **HMAI-125** (Test coverage) — pełen audit luk w pokryciu testowym i ich uzupełnienie. Dwie nowe warstwy testowe wychodzą poza dotychczasowy zakres PHPUnit: **Playwright** (browser-driven Series UI) i **Newman/Postman** (smoke całej REST powierzchni). Wszystkie 12 podzadań batcha zamknięte (HMAI-33, 42, 73, 74, 76, 82, 93, 94, 95, 97, 99, 116) + audit-driven ReadingSession test. 408/408 PHP tests + 5/5 Playwright + 28 Newman requests (42 assertions) — wszystkie zielone.
