@@ -15,6 +15,7 @@ use App\Module\Music\Infrastructure\External\DiscogsCredentials;
 use App\Module\Music\Infrastructure\External\DiscogsOAuth1Signer;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Redis;
 use RuntimeException;
@@ -267,6 +268,79 @@ final class DiscogsApiClientTest extends TestCase
 
         $httpClient = new MockHttpClient(new MockResponse($json));
         $client = new DiscogsApiClient($httpClient, $redis, $this->tokenRepo, $this->signer, $this->nullBus(), new DiscogsCredentials('key', 'secret'), new DiscogsClockDriftDetector(new NullLogger()));
+
+        $client->fetchAndCacheCollection('testuser');
+    }
+
+    public function testRecordsDurationOnSuccessfulCollectionFetch(): void
+    {
+        // HMAI-112: every Discogs API call must produce a timing metric on the
+        // music channel — one per page. Single-page fetch must emit exactly
+        // one info entry with provider=discogs, the endpoint slug, status 200,
+        // and a non-negative duration_ms.
+        $json = $this->makeReleasePage([$this->makeRelease('A', 'B', 2000, 'Vinyl', 1)]);
+        $httpClient = new MockHttpClient(new MockResponse($json, ['http_code' => 200]));
+
+        $redis = $this->createMock(Redis::class);
+        $redis->method('setex')->willReturn(true);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('External API call', self::callback(
+                static fn (array $ctx): bool => 'discogs' === $ctx['provider']
+                    && 'users.collection.releases' === $ctx['endpoint']
+                    && 200 === $ctx['status']
+                    && is_int($ctx['duration_ms'])
+                    && $ctx['duration_ms'] >= 0
+                    && !isset($ctx['error']),
+            ));
+
+        $client = new DiscogsApiClient(
+            $httpClient,
+            $redis,
+            $this->tokenRepo,
+            $this->signer,
+            $this->nullBus(),
+            new DiscogsCredentials('key', 'secret'),
+            new DiscogsClockDriftDetector(new NullLogger()),
+            $logger,
+        );
+
+        $client->fetchAndCacheCollection('testuser');
+    }
+
+    public function testRecordsDurationWithErrorTagWhenUpstreamReturns429(): void
+    {
+        // Rate-limit failure must still leave a metric so a 429 spike is
+        // distinguishable from a transport outage. Distinguishing 4xx vs 5xx
+        // is downstream of `error=client_error` + status=429 in the payload.
+        $httpClient = new MockHttpClient(new MockResponse('{"message":"limited"}', ['http_code' => 429]));
+
+        $redis = $this->createMock(Redis::class);
+        $redis->expects(self::never())->method('setex');
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('External API call', self::callback(
+                static fn (array $ctx): bool => 'discogs' === $ctx['provider']
+                    && 429 === $ctx['status']
+                    && 'client_error' === $ctx['error'],
+            ));
+
+        $client = new DiscogsApiClient(
+            $httpClient,
+            $redis,
+            $this->tokenRepo,
+            $this->signer,
+            $this->nullBus(),
+            new DiscogsCredentials('key', 'secret'),
+            new DiscogsClockDriftDetector(new NullLogger()),
+            $logger,
+        );
+
+        $this->expectException(DiscogsRateLimitException::class);
 
         $client->fetchAndCacheCollection('testuser');
     }
