@@ -3,6 +3,7 @@ monolog:
         - deprecation # Deprecations are logged in the dedicated "deprecation" channel when it exists
         - series
         - music
+        - auth # HMAI-107: OAuth audit log (authorize, callback success/failure)
 
 when@dev:
     monolog:
@@ -27,6 +28,12 @@ when@dev:
                 id: App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler
                 level: debug
                 channels: [series]
+            auth_gelf:
+                type: gelf
+                publisher:
+                    id: gelf.publisher
+                level: info
+                channels: [auth]
 
 when@test:
     monolog:
@@ -44,6 +51,9 @@ when@test:
             series_null:
                 type: null
                 channels: [series]
+            auth_null:
+                type: null
+                channels: [auth]
 
 when@prod:
     monolog:
@@ -80,3 +90,15 @@ when@prod:
                 id: App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler
                 level: warning
                 channels: [series]
+            auth_gelf:
+                type: gelf
+                publisher:
+                    id: gelf.publisher
+                level: info
+                channels: [auth]
+            auth_stream:
+                type: stream
+                path: php://stderr
+                level: info
+                formatter: monolog.formatter.json
+                channels: [auth]
