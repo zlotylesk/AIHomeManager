@@ -88,4 +88,116 @@ final class GoogleAuthControllerTest extends TestCase
         self::assertSame(302, $response->getStatusCode());
         self::assertSame('/tasks?error=oauth_unavailable', $response->getTargetUrl());
     }
+
+    public function testAuthorizeEmitsAuditInfoOnHappyPath(): void
+    {
+        // HMAI-107: every authorize attempt must leave a trail on the `auth`
+        // channel so we can correlate a downstream callback to its initiator
+        // even when the token-exchange path is clean. The payload carries the
+        // provider so Graylog filters can split Google vs Discogs.
+        $client = $this->createStub(Client::class);
+        $client->method('createAuthUrl')->willReturn('https://accounts.google.com/o/oauth2/v2/auth');
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('OAuth authorize initiated', ['provider' => 'google']);
+
+        $this->makeController($client, $logger)->authorize($this->makeRequest());
+    }
+
+    public function testCallbackLogsInvalidStateAsAuditWarning(): void
+    {
+        // HMAI-107: a forged or replayed state must produce a structured
+        // `reason=invalid_state` warning, not just an HTTP 400. The warning
+        // is the only signal we have that someone is poking at the callback.
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with('OAuth callback failed', ['provider' => 'google', 'reason' => 'invalid_state']);
+
+        $controller = $this->makeController($this->createStub(Client::class), $logger);
+
+        $response = $controller->callback($this->makeRequest());
+
+        self::assertSame(400, $response->getStatusCode());
+    }
+
+    public function testCallbackLogsMissingCodeAsAuditWarning(): void
+    {
+        // The state passes but Google sent no `code` — typically a botched
+        // consent screen. Distinguished from invalid_state by reason key.
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with('OAuth callback failed', ['provider' => 'google', 'reason' => 'missing_code']);
+
+        $request = $this->makeRequest();
+        $request->getSession()->set('google_oauth_state', 'fixed-state');
+        $request->query->set('state', 'fixed-state');
+
+        $controller = $this->makeController($this->createStub(Client::class), $logger);
+
+        $response = $controller->callback($request);
+
+        self::assertSame(400, $response->getStatusCode());
+    }
+
+    public function testCallbackLogsTokenExchangeFailureAsAuditWarning(): void
+    {
+        // Google returns 200 + {error: ...} when the auth code is bogus
+        // (replayed, expired, wrong client). Surface the upstream error string
+        // in the audit log so we can spot patterns.
+        $client = $this->createStub(Client::class);
+        $client->method('fetchAccessTokenWithAuthCode')->willReturn(['error' => 'invalid_grant']);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with('OAuth callback failed', [
+                'provider' => 'google',
+                'reason' => 'token_exchange',
+                'error' => 'invalid_grant',
+            ]);
+
+        $request = $this->makeRequest();
+        $request->getSession()->set('google_oauth_state', 'fixed-state');
+        $request->query->set('state', 'fixed-state');
+        $request->query->set('code', 'bad-code');
+
+        $controller = $this->makeController($client, $logger);
+
+        $response = $controller->callback($request);
+
+        self::assertSame(400, $response->getStatusCode());
+    }
+
+    public function testCallbackLogsSuccessAsAuditInfo(): void
+    {
+        // The success path is the most important audit event: a token landed
+        // in the repository. Verifies it fires AFTER the repository save so a
+        // mid-flight exception wouldn't claim a token was issued.
+        $client = $this->createStub(Client::class);
+        $client->method('fetchAccessTokenWithAuthCode')->willReturn([
+            'access_token' => 'tok',
+            'refresh_token' => 'ref',
+            'expires_in' => 3600,
+        ]);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('OAuth callback success', ['provider' => 'google']);
+
+        $request = $this->makeRequest();
+        $request->getSession()->set('google_oauth_state', 'fixed-state');
+        $request->query->set('state', 'fixed-state');
+        $request->query->set('code', 'good-code');
+
+        $controller = $this->makeController($client, $logger);
+
+        $response = $controller->callback($request);
+
+        self::assertSame(200, $response->getStatusCode());
+    }
 }

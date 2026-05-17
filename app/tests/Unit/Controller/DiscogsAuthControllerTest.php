@@ -134,4 +134,105 @@ final class DiscogsAuthControllerTest extends TestCase
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('connected successfully', (string) $response->getContent());
     }
+
+    public function testAuthorizeEmitsAuditInfoOnHappyPath(): void
+    {
+        // HMAI-107: same audit contract as Google — every authorize attempt
+        // must produce a `provider=discogs` info entry on the auth channel,
+        // even when the request_token call succeeds.
+        $httpClient = new MockHttpClient(new MockResponse(
+            'oauth_token=req-token&oauth_token_secret=req-secret&oauth_callback_confirmed=true',
+            ['http_code' => 200],
+        ));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('OAuth authorize initiated', ['provider' => 'discogs']);
+
+        $this->makeController($httpClient, $logger)->authorize($this->makeRequest());
+    }
+
+    public function testCallbackLogsInvalidStateAsAuditWarning(): void
+    {
+        // HMAI-107: forged state on Discogs callback must hit the audit log
+        // with reason=invalid_state, not just return a plain 400.
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 200]));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with('OAuth callback failed', ['provider' => 'discogs', 'reason' => 'invalid_state']);
+
+        $response = $this->makeController($httpClient, $logger)->callback($this->makeRequest());
+
+        self::assertSame(Response::HTTP_BAD_REQUEST, $response->getStatusCode());
+    }
+
+    public function testCallbackLogsMissingParamsAsAuditWarning(): void
+    {
+        // State passes, but Discogs omitted oauth_token / oauth_verifier.
+        // Distinct reason key so log filters can split this from invalid_state.
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 200]));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with('OAuth callback failed', ['provider' => 'discogs', 'reason' => 'missing_params']);
+
+        $request = $this->makeRequest();
+        $request->getSession()->set(self::SESSION_STATE_KEY, 'matching-state');
+        $request->query->set('state', 'matching-state');
+        // oauth_token / oauth_verifier intentionally missing
+
+        $response = $this->makeController($httpClient, $logger)->callback($request);
+
+        self::assertSame(Response::HTTP_BAD_REQUEST, $response->getStatusCode());
+    }
+
+    public function testCallbackLogsEmptyTokenAsAuditWarning(): void
+    {
+        // Access_token endpoint returned 200 but with empty oauth_token —
+        // either a bug in Discogs or a man-in-the-middle altering the body.
+        // We don't store anything but we leave an audit trail.
+        $httpClient = new MockHttpClient(new MockResponse(
+            'oauth_token=&oauth_token_secret=',
+            ['http_code' => 200],
+        ));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with('OAuth callback failed', ['provider' => 'discogs', 'reason' => 'empty_token']);
+
+        $request = $this->makeRequest();
+        $request->getSession()->set(self::SESSION_STATE_KEY, 'matching-state');
+        $request->query->set('state', 'matching-state');
+        $request->query->set('oauth_token', 'req-token');
+        $request->query->set('oauth_verifier', 'verifier');
+
+        $response = $this->makeController($httpClient, $logger)->callback($request);
+
+        self::assertSame(Response::HTTP_BAD_GATEWAY, $response->getStatusCode());
+    }
+
+    public function testCallbackLogsSuccessAsAuditInfo(): void
+    {
+        // Success audit event must fire AFTER tokenRepository->save, so a save
+        // exception cannot leave behind a false "connected" record.
+        $httpClient = new MockHttpClient(new MockResponse(
+            'oauth_token=access&oauth_token_secret=secret',
+            ['http_code' => 200],
+        ));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('OAuth callback success', ['provider' => 'discogs']);
+
+        $request = $this->makeRequest();
+        $request->getSession()->set(self::SESSION_STATE_KEY, 'matching-state');
+        $request->query->set('state', 'matching-state');
+        $request->query->set('oauth_token', 'req-token');
+        $request->query->set('oauth_verifier', 'verifier');
+
+        $response = $this->makeController($httpClient, $logger)->callback($request);
+
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+    }
 }
