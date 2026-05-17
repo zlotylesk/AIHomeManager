@@ -22,6 +22,15 @@ services:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - php
+    healthcheck:
+      # HMAI-37: end-to-end probe — nginx → php-fpm → /api/health checks MySQL,
+      # Redis, RabbitMQ. wget is preinstalled in nginx:alpine; --spider exits 0
+      # on 2xx and non-zero on 5xx, matching docker's expected semantics.
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   mysql:
     image: mysql:8

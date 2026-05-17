@@ -133,11 +133,20 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 ## Security — API Key
 
 - `^/api/*` chronione firewall'em `api` w `app/config/packages/security.yaml` (stateless, custom authenticator)
-- Authenticator: `App\Security\ApiKeyAuthenticator` — czyta header `X-API-Key`, porównuje przez `hash_equals` z `%env(API_KEY)%`
+- Authenticator: `App\Security\ApiKeyAuthenticator` — czyta header `X-API-Key`, porównuje przez `hash_equals` z `%env(API_KEY)%`. `supports()` zwraca `false` dla `/api/health` (HMAI-37) — publiczny readiness probe dla orchestratorów.
 - 401 JSON `{"error": "..."}` przy braku/błędnym kluczu
 - Klucz produkcyjny w `app/.env.local` (gitignored). `app/.env` ma tylko placeholder
 - `/auth/google*`, `/auth/discogs*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
 - Test env: `API_KEY=test-api-key` w `app/.env.test`
+
+## Health endpoint (HMAI-37)
+
+- `GET /api/health` — publiczny readiness probe (bez `X-API-Key`)
+- Probe'y: MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP do hosta z `MESSENGER_TRANSPORT_DSN`, timeout 1s)
+- 200 `{"status":"healthy", "components":{"mysql":"up", "redis":"up", "rabbitmq":"up"}, "timestamp":"..."}` gdy wszystko up
+- 503 `"status":"unhealthy"` + komponent `"down"` gdy któryś probe pada — orchestratorzy nie kierują traffic do degraded instancji
+- Docker healthcheck na `nginx`: `wget --spider http://localhost/api/health` (interval 30s, retries 3, start_period 30s) — end-to-end stack probe
+- `HealthChecker` (`src/Health/HealthChecker.php`) — `readonly` (NIE `final` żeby PHPUnit `createStub` działał w teście kontrolera)
 
 ## Static Analysis (HMAI-40)
 

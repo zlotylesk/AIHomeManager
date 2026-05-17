@@ -24,7 +24,12 @@ final class ApiKeyAuthenticator extends AbstractAuthenticator
 
     public function supports(Request $request): bool
     {
-        return true;
+        // HMAI-37: /api/health must work without authentication so external
+        // orchestrators (docker healthcheck, UptimeRobot, Kubernetes probes)
+        // can poll component status without provisioning an API key. Bypass is
+        // anchored to the exact path so we don't accidentally expose siblings
+        // like /api/health/admin.
+        return '/api/health' !== $request->getPathInfo();
     }
 
     public function authenticate(Request $request): Passport
