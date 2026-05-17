@@ -1,5 +1,7 @@
 'use strict';
 
+window.TOAST_TIMEOUT_MS = 5000;
+
 window.apiCall = async function apiCall(url, options = {}) {
     const res = await fetch(url, options);
 
