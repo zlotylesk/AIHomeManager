@@ -60,9 +60,6 @@ function renderList(filterCat) {
         return;
     }
     list.innerHTML = filtered.map(a => renderArticle(a)).join('');
-    list.querySelectorAll('.btn-mark-read').forEach(btn => {
-        btn.addEventListener('click', () => markAsRead(btn.dataset.id, btn));
-    });
 }
 
 function populateCategoryFilter() {
@@ -130,9 +127,6 @@ async function loadArticles() {
             if (todayArticle) {
                 $('today-section').classList.remove('hidden');
                 $('today-article').innerHTML = renderArticle(todayArticle);
-                $('today-article').querySelectorAll('.btn-mark-read').forEach(btn => {
-                    btn.addEventListener('click', () => markAsRead(btn.dataset.id, btn));
-                });
             }
         } catch {
             // partial failure on optional panel — list still renders
@@ -146,4 +140,13 @@ async function loadArticles() {
 document.addEventListener('DOMContentLoaded', () => {
     loadArticles();
     $('filter-category').addEventListener('change', e => renderList(e.target.value));
+
+    // Single delegated listener — survives every renderList() innerHTML reset
+    // and covers both #articles-list and #today-article without re-binding.
+    document.body.addEventListener('click', e => {
+        const btn = e.target.closest('.btn-mark-read');
+        if (btn) {
+            markAsRead(btn.dataset.id, btn);
+        }
+    });
 });
