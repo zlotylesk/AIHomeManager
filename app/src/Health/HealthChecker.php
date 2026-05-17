@@ -67,11 +67,7 @@ readonly class HealthChecker
 
     private function pingRedis(): void
     {
-        try {
-            $result = $this->redis->ping();
-        } catch (RedisException $e) {
-            throw $e;
-        }
+        $result = $this->redis->ping();
 
         // `PING` returns string '+PONG' or bool true depending on phpredis mode.
         // Anything falsy means the connection round-trip did not complete.
@@ -87,8 +83,8 @@ readonly class HealthChecker
             throw new RuntimeException(sprintf('Cannot parse host from MESSENGER_TRANSPORT_DSN: %s', $this->messengerDsn));
         }
 
-        $host = (string) $parts['host'];
-        $port = isset($parts['port']) ? (int) $parts['port'] : 5672;
+        $host = $parts['host'];
+        $port = $parts['port'] ?? 5672;
 
         $socket = @fsockopen($host, $port, $errno, $errstr, $this->rabbitMqTimeoutSeconds);
         if (false === $socket) {

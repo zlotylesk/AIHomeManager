@@ -36,7 +36,7 @@ final class SeriesFixtures extends Fixture
 
         $ratings = [6, 7, 8, 9, 8];
 
-        foreach ($catalog as $seriesIndex => $entry) {
+        foreach ($catalog as $entry) {
             $series = new Series(id: $entry['id'], title: $entry['title']);
 
             foreach ([1, 2] as $seasonNumber) {

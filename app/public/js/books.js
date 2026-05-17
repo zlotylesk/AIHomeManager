@@ -54,7 +54,9 @@ async function loadBooks(status) {
     const grid = $('books-grid');
     grid.innerHTML = '<div class="loading">Loading…</div>';
 
-    const url = status ? `/api/books?status=${status}` : '/api/books';
+    const url = status
+        ? `/api/books?${new URLSearchParams({status})}`
+        : '/api/books';
     try {
         const res = await fetch(url);
         const books = await res.json();
