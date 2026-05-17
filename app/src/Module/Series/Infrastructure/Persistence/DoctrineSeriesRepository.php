@@ -39,7 +39,7 @@ final readonly class DoctrineSeriesRepository implements SeriesRepositoryInterfa
             return null;
         }
 
-        $this->loadSeasons($series);
+        $this->attachSeasonsAndEpisodes([$series]);
 
         return $series;
     }
@@ -47,41 +47,70 @@ final readonly class DoctrineSeriesRepository implements SeriesRepositoryInterfa
     /** @return Series[] */
     public function findAll(): array
     {
+        /** @var Series[] $allSeries */
         $allSeries = $this->entityManager->createQuery(
             'SELECT s FROM '.Series::class.' s'
         )->getResult();
 
-        foreach ($allSeries as $series) {
-            $this->loadSeasons($series);
-        }
+        $this->attachSeasonsAndEpisodes($allSeries);
 
         return $allSeries;
     }
 
-    private function loadSeasons(Series $series): void
+    /**
+     * Bulk-loads seasons (one query) and episodes (one query) for the given series and
+     * attaches them in PHP. Replaces the previous per-series + per-season fetches that
+     * produced 1 + N + N*M queries for a list of N series with M seasons each.
+     *
+     * @param Series[] $seriesList
+     */
+    private function attachSeasonsAndEpisodes(array $seriesList): void
     {
-        $seasons = $this->entityManager->createQuery(
-            'SELECT s FROM '.Season::class.' s WHERE s.seriesId = :seriesId'
-        )
-            ->setParameter('seriesId', $series->id())
-            ->getResult();
-
-        foreach ($seasons as $season) {
-            $this->loadEpisodes($season);
-            $series->addSeason($season);
+        if ([] === $seriesList) {
+            return;
         }
-    }
 
-    private function loadEpisodes(Season $season): void
-    {
-        $episodes = $this->entityManager->createQuery(
-            'SELECT e FROM '.Episode::class.' e WHERE e.seasonId = :seasonId'
+        $seriesIds = array_map(static fn (Series $s): string => $s->id(), $seriesList);
+
+        /** @var Season[] $seasons */
+        $seasons = $this->entityManager->createQuery(
+            'SELECT s FROM '.Season::class.' s WHERE s.seriesId IN (:seriesIds)'
         )
-            ->setParameter('seasonId', $season->id())
+            ->setParameter('seriesIds', $seriesIds)
             ->getResult();
 
+        if ([] === $seasons) {
+            return;
+        }
+
+        $seasonIds = array_map(static fn (Season $s): string => $s->id(), $seasons);
+
+        /** @var Episode[] $episodes */
+        $episodes = $this->entityManager->createQuery(
+            'SELECT e FROM '.Episode::class.' e WHERE e.seasonId IN (:seasonIds)'
+        )
+            ->setParameter('seasonIds', $seasonIds)
+            ->getResult();
+
+        /** @var array<string, Episode[]> $episodesBySeasonId */
+        $episodesBySeasonId = [];
         foreach ($episodes as $episode) {
-            $season->addEpisode($episode);
+            $episodesBySeasonId[$episode->seasonId()][] = $episode;
+        }
+
+        /** @var array<string, Season[]> $seasonsBySeriesId */
+        $seasonsBySeriesId = [];
+        foreach ($seasons as $season) {
+            foreach ($episodesBySeasonId[$season->id()] ?? [] as $episode) {
+                $season->addEpisode($episode);
+            }
+            $seasonsBySeriesId[$season->seriesId()][] = $season;
+        }
+
+        foreach ($seriesList as $series) {
+            foreach ($seasonsBySeriesId[$series->id()] ?? [] as $season) {
+                $series->addSeason($season);
+            }
         }
     }
 }

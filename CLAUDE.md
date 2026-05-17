@@ -13,7 +13,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | Epik | Tytuł | Otwarte |
 |---|---|---:|
 | [HMAI-123](https://honemanager.atlassian.net/browse/HMAI-123) | Critical findings (C1–C12) — epik zamknięty | — |
-| [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — DBAL, ORM, indexes, transactions | 9 |
+| [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — DBAL, ORM, indexes, transactions | 8 |
 | [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — epik zamknięty po przeglądzie 2026-05-16 (12/12 podzadań + ReadingSession unit test domknął lukę po BookAggregateTest) | — |
 | [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — health, scheduler, fixtures, audit logs, metrics | 6 |
 | [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh — epik zamknięty po przeglądzie 2026-05-16 (14/14 podzadań, hub patterns Confluence id 59441164) | — |
