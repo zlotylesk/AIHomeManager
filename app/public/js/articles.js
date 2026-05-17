@@ -31,10 +31,12 @@ function renderArticle(article, compact = false) {
         ? `<span class="read-badge">✓ Read ${formatDate(article.readAt)}</span>`
         : `<button class="btn btn-secondary btn-sm btn-mark-read" data-id="${article.id}">Mark as Read</button>`;
 
+    const safeHref = window.safeUrl(article.url) ?? '#';
+
     return `
         <div class="article-row${today && !compact ? ' article-today' : ''}" data-id="${article.id}">
             <div class="article-main">
-                <a class="article-title" href="${escHtml(article.url)}" target="_blank" rel="noopener">
+                <a class="article-title" href="${escHtml(safeHref)}" target="_blank" rel="noopener">
                     ${escHtml(article.title)}${today ? ' <span class="badge-today">Dziś</span>' : ''}
                 </a>
                 <div class="article-meta">
