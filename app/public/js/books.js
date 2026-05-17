@@ -20,8 +20,9 @@ const STATUS_COLORS = {to_read: '#6b7280', reading: '#2563eb', completed: '#16a3
 
 function renderBook(book) {
     const pct = book.percentage ?? 0;
-    const cover = book.coverUrl
-        ? `<img class="book-cover" src="${escHtml(book.coverUrl)}" alt="cover" loading="lazy">`
+    const safeCover = window.safeUrl(book.coverUrl);
+    const cover = safeCover
+        ? `<img class="book-cover" src="${escHtml(safeCover)}" alt="cover" loading="lazy">`
         : `<div class="book-cover book-cover--placeholder">📖</div>`;
 
     return `

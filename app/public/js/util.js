@@ -2,6 +2,18 @@
 
 window.TOAST_TIMEOUT_MS = 5000;
 
+window.safeUrl = function safeUrl(url) {
+    if (typeof url !== 'string' || url === '') {
+        return null;
+    }
+    try {
+        const parsed = new URL(url, document.baseURI);
+        return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? url : null;
+    } catch {
+        return null;
+    }
+};
+
 window.apiCall = async function apiCall(url, options = {}) {
     const res = await fetch(url, options);
 
