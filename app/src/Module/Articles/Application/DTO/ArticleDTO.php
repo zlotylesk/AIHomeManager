@@ -38,10 +38,10 @@ final readonly class ArticleDTO
             id: self::requireString($row, 'id'),
             title: self::requireString($row, 'title'),
             url: self::requireString($row, 'url'),
-            category: isset($row['category']) ? (string) $row['category'] : null,
+            category: $row['category'] ?? null,
             estimatedReadTime: isset($row['estimated_read_time']) ? (int) $row['estimated_read_time'] : null,
             addedAt: self::requireString($row, 'added_at'),
-            readAt: isset($row['read_at']) ? (string) $row['read_at'] : null,
+            readAt: $row['read_at'] ?? null,
             isRead: (bool) ($row['is_read'] ?? false),
         );
     }
