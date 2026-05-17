@@ -4,6 +4,61 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.6.0] — 2026-05-17
+
+Domknięcie epica **HMAI-126** (Operability & observability). Sześć zadań pokrywających operowanie systemem w produkcji: healthcheck, harmonogram zadań cyklicznych, fixtures dla łatwego startu, audit log OAuth, metryki latencji external API, weryfikacja `messenger_worker`. Wszystkie 6 podzadań zamknięte (HMAI-133, 107, 112, 37, 39, 35). 451/451 PHP + 5/5 Playwright + 28/28 Newman — wszystkie zielone. PHPStan level 8 clean (bez nowych entries w baseline).
+
+### Added
+
+- **`GET /api/health`** — publiczny readiness probe (bypass firewall w `ApiKeyAuthenticator::supports`), trzy probe'y: MySQL `SELECT 1`, Redis `PING`, RabbitMQ TCP socket do hosta z `MESSENGER_TRANSPORT_DSN`. 200 + `{"status":"healthy", "components":{...}, "timestamp":...}` lub 503 + `"unhealthy"`. Docker healthcheck na `nginx` (`wget --spider`) jako end-to-end stack probe. Tests: 5 unit `HealthChecker` + 2 unit `HealthController` + 1 integration without API key. [HMAI-37]
+- **`auth` Monolog channel + OAuth audit log** — `GoogleAuthController` i `DiscogsAuthController` używają `monolog.logger.auth` przez `#[Autowire]`. `info('OAuth authorize initiated' | 'OAuth callback success')` + `warning('OAuth callback failed', ['reason' => 'invalid_state' | 'missing_code' | 'missing_params' | 'token_exchange' | 'empty_token'])`. Dev/prod: `auth_gelf` handler (info, Graylog); prod również `auth_stream` (stderr JSON); test: `auth_null`. Tests: 10 unit (5 per provider). [HMAI-107]
+- **API duration metrics** — `LastFmApiClient` i `DiscogsApiClient` emitują `info('External API call', ['provider', 'endpoint', 'duration_ms', 'status', 'error?'])` na kanale `music` dla każdego HTTP callu (success + failure tagged `error=transport_error | client_error | transport_or_server_error`). Logger via `#[Autowire(service: 'monolog.logger.music')]` z `NullLogger` default dla backward compat z testami. Tests: 4 unit. [HMAI-112]
+- **Doctrine Fixtures bundle (dev+test)** — `doctrine/doctrine-fixtures-bundle` + 4 klasy: `SeriesFixtures` (3 × 2 sezony × 5 ocenianych odcinków), `BookFixtures` (5 książek pokrywających każdy `BookStatus`), `ArticleFixtures` (10 artykułów / 4 kategorie / 3 read), `TaskFixtures` (4 taski today+yesterday). Routed przez domain repositories — invariants agregatów respektowane. `make fixtures` target + `app/fixtures/sample-articles.csv` dla CSV import path. Tests: 4 integration. [HMAI-39]
+- **Symfony Scheduler + cron-expression** — `src/Schedule.php` (`#[AsSchedule]`) z 3 zadaniami:
+    - `0 0 * * *` — `ResetDailyArticleCache` (Articles): `DEL articles:today` Redis + `DELETE article_daily_picks WHERE picked_date < CURDATE() - INTERVAL 7 DAY`.
+    - `0 8 * * 1` — `GenerateWeeklyActivityReport` (App\Application\Scheduled): DBAL counts z ostatnich 7 dni (`read_articles`, `pages_read`, `completed_tasks`) + `rated_episodes_total` → log `scheduled_task=weekly_report`.
+    - `0 */6 * * *` — `RefreshDiscogsCollection` (Music) per `DISCOGS_USERNAME`: pre-warm cache przed 6h TTL.
+
+    Nowy serwis docker `scheduler_worker` (`messenger:consume scheduler_default`). Stateful na `cache.app` (filesystem, host mount), `processOnlyLastMissedRun(true)` — restart workera odpala max 1 zaległe okno. Tests: 4 unit (2 per handler). [HMAI-35]
+
+### Changed
+
+- **CLAUDE.md**: nowa sekcja "Health endpoint (HMAI-37)", "Symfony Scheduler (HMAI-35)", `scheduler_worker` row w tabeli Infrastruktura, `make fixtures` w Komendach, `ApiKeyAuthenticator::supports` skip `/api/health` notatka, FixturesLoadTest w sekcji Testy.
+- **`ApiKeyAuthenticator::supports()`** zwraca `false` dla dokładnie `/api/health` — bez tej zmiany firewall `^/api/*` blokowałby healthcheck na 401. [HMAI-37]
+
+### Verified (no code change)
+
+- **HMAI-133** — `symfony/amqp-messenger:8.0.*` już w `composer.json/lock` od `f52e33dd` (HMAI-42 Playwright Series E2E, 2026-05-16). `docker compose ps` pokazuje `messenger_worker` Up; `[OK] Consuming messages from transport "async".` Ticket zamknięty bez nowego commitu — fix już w produkcji.
+
+### Upgrade notes (manual steps)
+
+1. **`composer install`** — nowe paczki: `symfony/scheduler`, `dragonmantank/cron-expression`, `doctrine/doctrine-fixtures-bundle` (dev).
+2. **`docker compose up -d`** — pełny rebuild zwiększa stos o `scheduler_worker` (ten sam image co `messenger_worker`).
+3. **Graylog wiring** — jeśli profil monitoring działa, kanały `auth` i `music` (już istnieje) zaczną emitować nowe info-level events. Filtry/saved searches do utworzenia:
+   - `scheduled_task:*` — widok cyklicznych zadań.
+   - `provider:lastfm OR provider:discogs` — latency dashboard (`duration_ms` field).
+   - `provider:google OR provider:discogs AND reason:*` — failed OAuth callbacks.
+4. **Live healthcheck:** `curl http://localhost:8080/api/health` powinien zwrócić 200 z `"status":"healthy"`. Docker `nginx` zacznie reportować healthy po `start_period=30s`.
+5. **Scheduler walidacja:** `make shell` → `php bin/console debug:scheduler` powinno pokazać 3 triggers.
+
+### Coverage
+
+- 451 PHP testy (z 421 baseline → +30: HMAI-37 (+8), HMAI-39 (+4), HMAI-35 (+4), HMAI-107 (+10), HMAI-112 (+4)).
+- 5 Playwright E2E + 28 Newman REST.
+- PHPStan level 8 clean, CS Fixer + Rector clean.
+
+### Closed Jira
+
+| Klucz | Tytuł | PR |
+|---|---|---|
+| [HMAI-133](https://honemanager.atlassian.net/browse/HMAI-133) | messenger_worker crashloop — brak symfony/amqp-messenger | — (już w `f52e33dd`) |
+| [HMAI-107](https://honemanager.atlassian.net/browse/HMAI-107) | OAuth audit log | #100 |
+| [HMAI-112](https://honemanager.atlassian.net/browse/HMAI-112) | API duration metrics | #101 |
+| [HMAI-37](https://honemanager.atlassian.net/browse/HMAI-37) | /api/health endpoint | #102 |
+| [HMAI-39](https://honemanager.atlassian.net/browse/HMAI-39) | Doctrine Fixtures | #103 |
+| [HMAI-35](https://honemanager.atlassian.net/browse/HMAI-35) | Symfony Scheduler | #104 |
+| [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — **epic zamknięty** | (this commit) |
+
 ## [1.5.0] — 2026-05-17
 
 Domknięcie epica **HMAI-124** (Persistence & DB integrity) — kompletny przegląd warstwy persystencji: N+1 queries, brakujące indeksy FK, race conditions, transakcyjność wielokrokowych zapisów, DBAL parameter hygiene, fragile row→DTO mapping. Wszystkie 9 podzadań zamknięte (HMAI-60, 61, 75, 86, 88, 92, 102, 103, 122). Dodatkowo siedem mniejszych fixów `ai_code_review` z parent epików HMAI-131 (DDD purity) i HMAI-128 (Frontend hardening) trafiło tutaj okolicznościowo (HMAI-89, 91, 101, 108, 111, 117, 118). 421/421 PHP tests + 5/5 Playwright + 28/28 Newman — wszystkie zielone. PHPStan level 8 baseline zregenerowany (-24 stale entries z naprawionych PR-ów).
