@@ -1,0 +1,63 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Unit\Application\Scheduled;
+
+use App\Application\Scheduled\GenerateWeeklyActivityReport;
+use App\Application\Scheduled\GenerateWeeklyActivityReportHandler;
+use Doctrine\DBAL\Connection;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+
+final class GenerateWeeklyActivityReportHandlerTest extends TestCase
+{
+    public function testLogsAggregatedCountsToScheduledTaskChannel(): void
+    {
+        // HMAI-35: the report must produce a single info entry tagged with
+        // `scheduled_task=weekly_report` and the four metrics as discrete
+        // fields — that's what Graylog filters / saved searches will key on.
+        $connection = $this->createMock(Connection::class);
+        $connection->method('fetchOne')->willReturnOnConsecutiveCalls(
+            5,      // read_articles
+            420,    // pages_read
+            12,     // completed_tasks
+            73,     // rated_episodes_total
+        );
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('Scheduled task completed', self::callback(
+                static fn (array $ctx): bool => 'weekly_report' === $ctx['scheduled_task']
+                    && 5 === $ctx['read_articles']
+                    && 420 === $ctx['pages_read']
+                    && 12 === $ctx['completed_tasks']
+                    && 73 === $ctx['rated_episodes_total']
+                    && isset($ctx['window_start']),
+            ));
+
+        $handler = new GenerateWeeklyActivityReportHandler($connection, $logger);
+        $handler(new GenerateWeeklyActivityReport());
+    }
+
+    public function testReportsZeroWhenNoActivity(): void
+    {
+        // A quiet week must still produce the log entry — silence on this
+        // channel would mean a missed schedule, not "nothing happened".
+        $connection = $this->createMock(Connection::class);
+        $connection->method('fetchOne')->willReturn(0);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('Scheduled task completed', self::callback(
+                static fn (array $ctx): bool => 0 === $ctx['read_articles']
+                    && 0 === $ctx['pages_read']
+                    && 0 === $ctx['completed_tasks'],
+            ));
+
+        $handler = new GenerateWeeklyActivityReportHandler($connection, $logger);
+        $handler(new GenerateWeeklyActivityReport());
+    }
+}

@@ -66,6 +66,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | Redis 7 | `redis:6379` | Klucze `series:avg:{id}`, `season:avg:{id}` (TTL 3600) ustawiane bezpośrednio przez `\Redis` w `EpisodeRatedHandler` (nie przez Symfony cache pool — handler iniektuje `\Redis`, nie `CacheItemPoolInterface`). Pool `cache.rate_limiter` używany przez RateLimiter |
 | RabbitMQ 3.12 | `rabbitmq:5672` (AMQP), `:15672` UI (guest/guest) | Transport `async`, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ `failed` |
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
+| Worker Scheduler | `scheduler_worker` | `messenger:consume scheduler_default --time-limit=3600 -vv` (HMAI-35) |
 | Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | NIE w `make up` — `make monitoring-up`. Kanał Monolog `series` |
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
@@ -75,6 +76,18 @@ Async messages routowane do `async` transportu: `Series\Domain\Event\EpisodeRate
 `NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic`.
 
 GELF UDP input w Graylog: konfigurować ręcznie po pierwszym `make monitoring-up` (System → Inputs → GELF UDP → Launch).
+
+## Symfony Scheduler (HMAI-35)
+
+`src/Schedule.php` rejestruje 3 zadania cykliczne (via `dragonmantank/cron-expression`):
+
+| Cron | Wiadomość | Efekt |
+|---|---|---|
+| `0 0 * * *` | `Articles\...\ResetDailyArticleCache` | Usuwa Redis `articles:today`, kasuje `article_daily_picks` > 7 dni |
+| `0 8 * * 1` | `App\Application\Scheduled\GenerateWeeklyActivityReport` | Loguje `scheduled_task=weekly_report` do default channel (read_articles, pages_read, completed_tasks, rated_episodes_total) |
+| `0 */6 * * *` | `Music\...\RefreshDiscogsCollection` | Pre-warm cache kolekcji przed wygaśnięciem 6h TTL |
+
+Worker: `bin/console debug:scheduler` pokazuje stan; `docker compose up -d scheduler_worker` konsumuje transport `scheduler_default`. Stateful via `cache.app` (filesystem, mount na hoście) — restart workera odpala max 1 zaległe okno (`processOnlyLastMissedRun(true)`).
 
 ### .env — kluczowe
 
