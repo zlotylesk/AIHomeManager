@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Module\Music\Infrastructure;
 
 use App\Module\Music\Infrastructure\External\LastFmApiClient;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Redis;
 use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -163,5 +164,56 @@ final class LastFmApiClientTest extends TestCase
 
         self::assertCount(1, $albums);
         self::assertSame('Radiohead', $albums[0]->artist);
+    }
+
+    public function testRecordsDurationOnSuccessfulCall(): void
+    {
+        // HMAI-112: every external HTTP call must produce a structured timing
+        // entry on the music channel so Graylog can chart p50/p95/p99 latency.
+        // Verifies provider, endpoint, status, and a non-negative duration_ms
+        // — the duration value itself is wall-clock so we only assert shape.
+        $json = $this->makeApiResponse([$this->makeAlbum('Artist', 'Album', 1)]);
+        $httpClient = new MockHttpClient(new MockResponse($json, ['http_code' => 200]));
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('External API call', self::callback(
+                static fn (array $ctx): bool => 'lastfm' === $ctx['provider']
+                    && 'user.gettopalbums' === $ctx['endpoint']
+                    && 200 === $ctx['status']
+                    && is_int($ctx['duration_ms'])
+                    && $ctx['duration_ms'] >= 0
+                    && !isset($ctx['error']),
+            ));
+
+        $client = new LastFmApiClient($httpClient, $this->redis, 'test-api-key', $logger);
+        $client->getTopAlbums('testuser', '1month', 10);
+    }
+
+    public function testRecordsDurationWithErrorTagOnTransportFailure(): void
+    {
+        // On transport failure the call still produces a metric so a spike in
+        // `error=transport_error` is visible alongside the success rate.
+        $httpClient = new MockHttpClient(new MockResponse('', ['error' => 'Connection refused']));
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('info')
+            ->with('External API call', self::callback(
+                static fn (array $ctx): bool => 'lastfm' === $ctx['provider']
+                    && 'user.gettopalbums' === $ctx['endpoint']
+                    && 'transport_error' === $ctx['error']
+                    && !isset($ctx['status']),
+            ));
+
+        $client = new LastFmApiClient($httpClient, $this->redis, 'test-api-key', $logger);
+
+        try {
+            $client->getTopAlbums('testuser', '1month', 10);
+            self::fail('Expected RuntimeException');
+        } catch (RuntimeException) {
+            // expected — metric must fire before the throw
+        }
     }
 }

@@ -7,14 +7,18 @@ namespace App\Module\Music\Infrastructure\External;
 use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use JsonException;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Redis;
 use RuntimeException;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final readonly class LastFmApiClient implements MusicListeningHistoryInterface
 {
     private const string API_URL = 'https://ws.audioscrobbler.com/2.0/';
+    private const string PROVIDER = 'lastfm';
     private const int CACHE_TTL = 3600;
     private const array PREFERRED_IMAGE_SIZES = ['extralarge', 'large', 'medium', 'small'];
 
@@ -22,6 +26,8 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         private HttpClientInterface $httpClient,
         private Redis $redis,
         private string $apiKey,
+        #[Autowire(service: 'monolog.logger.music')]
+        private LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -45,6 +51,9 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
             }
         }
 
+        $start = microtime(true);
+        $status = null;
+
         try {
             $response = $this->httpClient->request('GET', self::API_URL, [
                 'query' => [
@@ -57,10 +66,15 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
                 ],
             ]);
 
+            $status = $response->getStatusCode();
             $data = $response->toArray();
         } catch (TransportExceptionInterface $e) {
+            $this->recordCall('user.gettopalbums', $start, null, 'transport_error');
+
             throw new RuntimeException('Last.fm API unavailable.', 0, $e);
         }
+
+        $this->recordCall('user.gettopalbums', $start, $status);
 
         $albums = $this->parseAlbums($data);
 
@@ -117,6 +131,25 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         }
 
         return $albums;
+    }
+
+    private function recordCall(string $endpoint, float $startMicrotime, ?int $statusCode, ?string $error = null): void
+    {
+        $context = [
+            'provider' => self::PROVIDER,
+            'endpoint' => $endpoint,
+            'duration_ms' => (int) round((microtime(true) - $startMicrotime) * 1000),
+        ];
+
+        if (null !== $statusCode) {
+            $context['status'] = $statusCode;
+        }
+
+        if (null !== $error) {
+            $context['error'] = $error;
+        }
+
+        $this->logger->info('External API call', $context);
     }
 
     private function extractImageUrl(array $images): ?string

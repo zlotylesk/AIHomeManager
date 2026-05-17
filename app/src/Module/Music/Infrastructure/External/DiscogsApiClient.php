@@ -15,8 +15,11 @@ use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Domain\Port\VinylCollectionLoaderInterface;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use JsonException;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Redis;
 use RuntimeException;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
@@ -26,6 +29,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final readonly class DiscogsApiClient implements VinylCollectionInterface, VinylCollectionLoaderInterface
 {
     private const string COLLECTION_URL = 'https://api.discogs.com/users/%s/collection/folders/0/releases';
+    private const string PROVIDER = 'discogs';
     private const int CACHE_TTL = 21600;
     private const int PER_PAGE = 100;
     private const string USER_AGENT = 'AIHomeManager/1.0 +https://github.com/zlotylesk/AIHomeManager';
@@ -38,6 +42,8 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         private MessageBusInterface $commandBus,
         private DiscogsCredentials $credentials,
         private DiscogsClockDriftDetector $driftDetector,
+        #[Autowire(service: 'monolog.logger.music')]
+        private LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -141,6 +147,8 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
                 $queryParams,
             );
 
+            $start = microtime(true);
+
             try {
                 $response = $this->httpClient->request('GET', $url, [
                     'query' => $queryParams,
@@ -152,8 +160,10 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
 
                 $this->driftDetector->inspect($response);
                 $data = $response->toArray();
+                $this->recordCall('users.collection.releases', $start, $response->getStatusCode());
             } catch (ClientExceptionInterface $e) {
                 $this->driftDetector->inspect($e->getResponse());
+                $this->recordCall('users.collection.releases', $start, $e->getResponse()->getStatusCode(), 'client_error');
 
                 throw match ($e->getResponse()->getStatusCode()) {
                     401, 403 => new DiscogsAuthException('Discogs authorization failed — re-authorize at /auth/discogs.', 0, $e),
@@ -162,6 +172,8 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
                     default => new DiscogsApiException('Discogs client error.', 0, $e),
                 };
             } catch (ServerExceptionInterface|TransportExceptionInterface $e) {
+                $this->recordCall('users.collection.releases', $start, null, 'transport_or_server_error');
+
                 throw new DiscogsUnavailableException('Discogs API unavailable.', 0, $e);
             }
 
@@ -174,6 +186,25 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         } while ($page <= $totalPages);
 
         return $records;
+    }
+
+    private function recordCall(string $endpoint, float $startMicrotime, ?int $statusCode, ?string $error = null): void
+    {
+        $context = [
+            'provider' => self::PROVIDER,
+            'endpoint' => $endpoint,
+            'duration_ms' => (int) round((microtime(true) - $startMicrotime) * 1000),
+        ];
+
+        if (null !== $statusCode) {
+            $context['status'] = $statusCode;
+        }
+
+        if (null !== $error) {
+            $context['error'] = $error;
+        }
+
+        $this->logger->info('External API call', $context);
     }
 
     private function parseRelease(array $item): VinylRecordDTO
