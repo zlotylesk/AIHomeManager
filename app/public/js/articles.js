@@ -100,15 +100,31 @@ async function markAsRead(id, btn) {
 
 async function loadArticles() {
     $('articles-list').innerHTML = '<div class="loading">Loading…</div>';
-    try {
-        const [listRes, todayRes] = await Promise.all([
-            fetch('/api/articles'),
-            fetch('/api/articles/today'),
-        ]);
-        allArticles = await listRes.json();
 
-        if (todayRes.status === 200) {
-            const todayArticle = await todayRes.json();
+    const [listResult, todayResult] = await Promise.allSettled([
+        fetch('/api/articles'),
+        fetch('/api/articles/today'),
+    ]);
+
+    // List is mandatory — without it there's nothing to render.
+    if (listResult.status !== 'fulfilled' || !listResult.value.ok) {
+        showError('Failed to load articles.');
+        $('articles-list').innerHTML = '';
+        return;
+    }
+    try {
+        allArticles = await listResult.value.json();
+    } catch {
+        showError('Failed to load articles.');
+        $('articles-list').innerHTML = '';
+        return;
+    }
+
+    // Today is optional — a transient 500 on /api/articles/today must not
+    // block the main list. Silently skip the "today" panel on any failure.
+    if (todayResult.status === 'fulfilled' && todayResult.value.status === 200) {
+        try {
+            const todayArticle = await todayResult.value.json();
             if (todayArticle) {
                 $('today-section').classList.remove('hidden');
                 $('today-article').innerHTML = renderArticle(todayArticle);
@@ -116,14 +132,13 @@ async function loadArticles() {
                     btn.addEventListener('click', () => markAsRead(btn.dataset.id, btn));
                 });
             }
+        } catch {
+            // partial failure on optional panel — list still renders
         }
-
-        populateCategoryFilter();
-        renderList('');
-    } catch {
-        showError('Failed to load articles.');
-        $('articles-list').innerHTML = '';
     }
+
+    populateCategoryFilter();
+    renderList('');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
