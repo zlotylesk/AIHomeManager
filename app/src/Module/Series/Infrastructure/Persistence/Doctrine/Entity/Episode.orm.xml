@@ -5,6 +5,9 @@
                                       https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
 
     <entity name="App\Module\Series\Domain\Entity\Episode" table="series_episodes">
+        <indexes>
+            <index name="idx_episode_season_id" columns="season_id"/>
+        </indexes>
         <id name="id" type="string" column="id" length="36"/>
         <field name="seasonId" type="string" column="season_id" length="36" nullable="false"/>
         <field name="title" type="string" column="title" length="255" nullable="false"/>

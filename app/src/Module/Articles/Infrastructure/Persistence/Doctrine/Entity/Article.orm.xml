@@ -5,6 +5,9 @@
                                       https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
 
     <entity name="App\Module\Articles\Domain\Entity\Article" table="articles">
+        <indexes>
+            <index name="idx_article_added_at" columns="added_at"/>
+        </indexes>
         <unique-constraints>
             <unique-constraint columns="url" name="uniq_articles_url"/>
         </unique-constraints>
