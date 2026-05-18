@@ -4,6 +4,58 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.7.0] — 2026-05-18
+
+Pierwsza partia epica **HMAI-128** (Frontend hardening — JS quality). Dziewięć zadań pokrywających minor/major findings w warstwie JS: shared `util.js` (timeout + `safeUrl` + `apiCall`), CSP meta tag, `URLSearchParams`, walidacja protokołu URL przed renderowaniem (XSS), `Promise.allSettled` zamiast `Promise.all`, event delegation zamiast per-element bindowania. Wszystkie 9 podzadań zamknięte (HMAI-69, 70, 71, 72, 77, 78, 98, 100, 115). 451/451 PHP + 5/5 Playwright + 28/28 Newman — bez zmian liczby testów (czysto frontendowa zmiana). PHPStan level 8 clean (bez nowych entries w baseline). Pozostałe podzadania HMAI-128 (HMAI-41 Webpack Encore + Stimulus, oraz sam epic review) przesunięte do **1.7.1**.
+
+### Added
+
+- **`app/public/js/util.js`** — wspólny helper ładowany przez wszystkie szablony modułów (`articles/books/music/tasks/index.html.twig`):
+    - `window.TOAST_TIMEOUT_MS = 5000` — globalna stała zastępująca rozjazd `6000ms` (tasks.js) / `5000ms` (series.js).
+    - `window.safeUrl(url)` — sprawdza `new URL(url, document.baseURI).protocol` przeciw `http:`/`https:` i zwraca `null` dla `javascript:`, `data:`, `vbscript:`, itp. XSS guard przed renderowaniem `<a href>` / `<img src>`.
+    - `window.apiCall(url, options)` — wrapper na `fetch` z normalizacją błędów (`error.status`/`error.body` z payload `{error: "..."}`) i obsługą 204. [HMAI-98]
+- **Content-Security-Policy meta tag** w `base.html.twig` — `default-src 'self'`, `script-src 'self'` (+ `https://cdn.jsdelivr.net` tylko w dev), `style-src 'self' 'unsafe-inline'`, `img-src 'self' data: https:`, `connect-src 'self'`, `font-src 'self'`, `base-uri 'self'`, `object-src 'none'`. XSS injection nie wyleci do dowolnej domeny, eval zablokowany. [HMAI-100]
+
+### Changed
+
+- **`articles.js`**: `<a href>` przechodzi przez `window.safeUrl()` (HMAI-71, XSS guard przed `javascript:`). `Promise.allSettled([list, today])` zamiast `Promise.all` — częściowe 500 z `/api/articles/today` nie zabija renderowania listy (HMAI-69). Event delegation `document.body` matching `.btn-mark-read` zamiast per-element binding w `renderList` (HMAI-77).
+- **`books.js`**: `coverUrl` przez `window.safeUrl()` (HMAI-72, XSS guard analogiczny do articles). Event delegation `.btn-log-session` (HMAI-78).
+- **`music.js`**: `Promise.allSettled([topAlbums, collection, comparison])` zamiast `Promise.all` — awaria Last.fm nie blokuje panelu Discogs collection i odwrotnie. Per-section `readSection()` helper raportuje błędy granularnie. (HMAI-70)
+- **`tasks.js`**: `URLSearchParams({from, to})` zamiast string concatenation `?from=${from}&to=${to}` — escapowanie znaków specjalnych. (HMAI-115)
+- **`music.js`**: `URLSearchParams({period, limit})` dla `/top-albums` i `/comparison` (HMAI-115).
+- **`books.js`**: `URLSearchParams({status})` dla `/api/books?status=...` (HMAI-115).
+- Magic timeouts w `tasks.js`/`series.js` → `window.TOAST_TIMEOUT_MS`. (HMAI-98)
+- **CLAUDE.md**: brak zmian konwencji architektonicznych — wszystkie zmiany w warstwie JS bez nowych wzorców backendowych.
+
+### Coverage
+
+- 451/451 PHP (bez zmian — czysto frontendowy release; istniejące unit/integration nie miały być modyfikowane).
+- 5 Playwright E2E + 28 Newman REST — bez zmian (selektory testów nie były dotknięte).
+- PHPStan level 8 clean, baseline bez nowych entries.
+
+### Closed Jira
+
+| Klucz | Tytuł | PR |
+|---|---|---|
+| [HMAI-98](https://honemanager.atlassian.net/browse/HMAI-98) | Niespójne magic timeouts w JS — extract `TOAST_TIMEOUT_MS` | #106 |
+| [HMAI-115](https://honemanager.atlassian.net/browse/HMAI-115) | `URLSearchParams` w `tasks.js`/`music.js`/`books.js` | #107 |
+| [HMAI-100](https://honemanager.atlassian.net/browse/HMAI-100) | CSP meta tag w `base.html.twig` | #108 |
+| [HMAI-72](https://honemanager.atlassian.net/browse/HMAI-72) | `books.js` walidacja protokołu `coverUrl` | #109 |
+| [HMAI-71](https://honemanager.atlassian.net/browse/HMAI-71) | `articles.js` walidacja protokołu URL przed `href` | #110 |
+| [HMAI-69](https://honemanager.atlassian.net/browse/HMAI-69) | `articles.js` `Promise.allSettled` | #111 |
+| [HMAI-70](https://honemanager.atlassian.net/browse/HMAI-70) | `music.js` `Promise.allSettled` | #112 |
+| [HMAI-77](https://honemanager.atlassian.net/browse/HMAI-77) | `articles.js` event delegation | #113 |
+| [HMAI-78](https://honemanager.atlassian.net/browse/HMAI-78) | `books.js` event delegation | #114 |
+
+### Migration
+
+Brak. Czysto frontendowy release — żadnych nowych ENV, żadnych migracji DB, żadnej re-auth.
+
+### Carried forward to 1.7.1
+
+- [HMAI-41](https://honemanager.atlassian.net/browse/HMAI-41) — Webpack Encore + Stimulus (build pipeline; szersza zmiana ergonomiki frontu).
+- [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) — epic review (dopełnienie po landowaniu HMAI-41).
+
 ## [1.6.0] — 2026-05-17
 
 Domknięcie epica **HMAI-126** (Operability & observability). Sześć zadań pokrywających operowanie systemem w produkcji: healthcheck, harmonogram zadań cyklicznych, fixtures dla łatwego startu, audit log OAuth, metryki latencji external API, weryfikacja `messenger_worker`. Wszystkie 6 podzadań zamknięte (HMAI-133, 107, 112, 37, 39, 35). 451/451 PHP + 5/5 Playwright + 28/28 Newman — wszystkie zielone. PHPStan level 8 clean (bez nowych entries w baseline).
