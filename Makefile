@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures
+.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures node-install assets assets-watch assets-prod
 
 up:
 	docker compose up -d
@@ -95,3 +95,16 @@ rector:
 	docker compose exec php vendor/bin/rector process
 
 analyse: cs-check phpstan
+
+# HMAI-41: Webpack Encore build targets — run inside aihm-node-1 (node:24-alpine).
+node-install:
+	docker compose exec node npm install
+
+assets:
+	docker compose exec node npm run dev
+
+assets-watch:
+	docker compose exec node npm run watch
+
+assets-prod:
+	docker compose exec node npm run build

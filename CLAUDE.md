@@ -52,11 +52,27 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 ## Frontend
 
-- Twig + vanilla JS, **bez Webpack/Node.js**
+- **Series UI:** Webpack Encore + Stimulus (HMAI-41, od 1.7.1). `assets/controllers/series_controller.js` jako Stimulus controller, mountowany przez `data-controller="series"` na `app/templates/series/index.html.twig`. Build: `make assets-prod` → `public/build/*.{js,css}` + `entrypoints.json` manifest. `base.html.twig` używa `{{ encore_entry_link_tags('app') }}` + `{{ encore_entry_script_tags('app') }}`.
+- **Pozostałe moduły** (Tasks/Books/Articles/Music): Twig + vanilla JS w `public/js/*.js`, global helpers `window.TOAST_TIMEOUT_MS` / `window.safeUrl` / `window.apiCall` z `public/js/util.js`. Migracja do Encore odroczona (osobne tickety w HMAI-128 follow-up).
 - Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`
 - Selektor ocen Series: 10 przycisków (NIE `<input type=number>`)
 - Tasks UI = tylko `/api/tasks/time-report` (brak create/list endpointów)
-- Brakujący zakres frontu (Jira): HMAI-41 (Webpack Encore + Stimulus), HMAI-42 (E2E), HMAI-43 (PATCH rating endpoint)
+- Brakujący zakres frontu (Jira): HMAI-43 (PATCH rating endpoint)
+
+### Webpack Encore (HMAI-41)
+
+| Plik | Rola |
+|---|---|
+| `app/webpack.config.js` | Encore config — entry `app`, splitEntryChunks, Stimulus bridge, versioning prod-only |
+| `app/assets/app.js` | Główny entry — importuje `bootstrap.js` (Stimulus) + `styles/app.css` |
+| `app/assets/bootstrap.js` | `startStimulusApp` auto-discovery z `controllers/` |
+| `app/assets/util.js` | ES module export: `TOAST_TIMEOUT_MS`, `safeUrl`, `apiCall`, `escHtml` (źródło dla Encore-side; vanilla side wciąż używa `public/js/util.js`) |
+| `app/assets/controllers/series_controller.js` | Stimulus controller dla Series UI |
+| `app/assets/styles/app.css` | Globalny stylesheet (jedyne źródło prawdy od 1.7.1; `public/css/app.css` jeszcze zostaje dla vanilla pages — usunąć po migracji wszystkich modułów) |
+
+Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production). Node service: `aihm-node-1` (`node:24-alpine`, mount na `./app`). `make node-install` reinstaluje `npm install` po zmianie `package.json`.
+
+`public/build/` + `node_modules/` w `.gitignore`. CI buduje assets oddzielnie (osobny step do dodania w `.github/workflows/`).
 
 ## Infrastruktura
 
@@ -67,6 +83,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | RabbitMQ 3.12 | `rabbitmq:5672` (AMQP), `:15672` UI (guest/guest) | Transport `async`, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ `failed` |
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
 | Worker Scheduler | `scheduler_worker` | `messenger:consume scheduler_default --time-limit=3600 -vv` (HMAI-35) |
+| Node (Encore build) | `node:24-alpine`, container `aihm-node-1` | Long-running `tail -f /dev/null`. `docker compose exec node npm ...` (HMAI-41) |
 | Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | NIE w `make up` — `make monitoring-up`. Kanał Monolog `series` |
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
@@ -119,6 +136,8 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | E2E (Playwright) install/run | `make test-e2e-install` / `make test-e2e` |
 | Newman (Postman REST collection) | `make test-newman-install` / `make test-newman` |
 | Załaduj fixtures (dev) | `make fixtures` |
+| Webpack Encore dev/watch/prod | `make assets` / `make assets-watch` / `make assets-prod` |
+| Npm install (po `package.json` change) | `make node-install` |
 
 ## Testy
 

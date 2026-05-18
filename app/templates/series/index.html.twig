@@ -2,12 +2,8 @@
 
 {% block title %}Series — AIHomeManager{% endblock %}
 
-{% block stylesheets %}
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
-{% endblock %}
-
 {% block body %}
-<div class="app">
+<div class="app" data-controller="series">
     <header class="app-header">
         <h1 class="app-title">Series</h1>
         <button class="btn btn-primary" id="btn-add-series">+ Add Series</button>
@@ -40,7 +36,4 @@
         </section>
     </main>
 </div>
-
-<script src="{{ asset('js/util.js') }}"></script>
-<script src="{{ asset('js/series.js') }}"></script>
 {% endblock %}
