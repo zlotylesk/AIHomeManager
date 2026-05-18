@@ -151,5 +151,22 @@ jobs:
       - name: Run database migrations
         run: bin/console doctrine:migrations:migrate --no-interaction
 
+      # HMAI-41: FrontendControllerTest hits Twig templates that call
+      # encore_entry_link_tags('app') / encore_entry_script_tags('app'),
+      # which require public/build/entrypoints.json from a real Encore build.
+      # Without this build step the templates throw and all Frontend page
+      # smoke tests return 500 → 7 false failures.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Webpack Encore assets
+        run: npm run build
+
       - name: PHPUnit
         run: vendor/bin/phpunit
