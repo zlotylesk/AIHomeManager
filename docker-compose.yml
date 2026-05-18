@@ -92,6 +92,18 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  node:
+    # HMAI-41: Webpack Encore build container. Stays on a sleep loop so
+    # `make assets` / `make assets-watch` can shell into a long-lived
+    # node:24-alpine without rebuilding the image each run. Mounts the same
+    # ./app tree as php so public/build/ written here is served by nginx.
+    image: node:24-alpine
+    working_dir: /var/www/html
+    volumes:
+      - ./app:/var/www/html
+    command: ["sh", "-c", "tail -f /dev/null"]
+    restart: unless-stopped
+
   scheduler_worker:
     # HMAI-35: Runs Symfony Scheduler recurring messages — midnight cache reset,
     # weekly activity report, 6h Discogs cache warmup. Same image as the
