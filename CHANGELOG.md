@@ -4,6 +4,64 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.7.1] — 2026-05-19
+
+Domknięcie epica **HMAI-128** (Frontend hardening — JS quality, CSP/SRI, build pipeline) — 12/12 podzadań. Druga partia po batchu 1.7.0: HMAI-41 (Webpack Encore + Stimulus pilot dla Series UI) + epic review (wpięcie `window.apiCall` w pozostałe 4 moduły, regression tests dla CSP/Encore manifest, full rewrite Confluence patterns id 52297730 v2). 453/453 PHP (+2 vs 1.7.0 — regression guards) + 5/5 Playwright + 28/28 Newman. PHPStan level 8 clean (zero new baseline entries).
+
+### Added
+
+- **Webpack Encore + Stimulus** dla Series UI (HMAI-41):
+    - `app/webpack.config.js` — Encore config z entry `app`, splitEntryChunks, Stimulus bridge, versioning prod-only.
+    - `app/assets/app.js` (główny entry), `bootstrap.js` (Stimulus auto-discovery), `util.js` (ES module port), `controllers/series_controller.js` (Stimulus controller — port z `public/js/series.js`), `styles/app.css`.
+    - `aihm-node-1` (`node:24-alpine`) jako long-running sidecar (`tail -f /dev/null`) dla `make assets*` shell exec.
+    - Twig: `{{ encore_entry_link_tags('app') }}` + `{{ encore_entry_script_tags('app') }}` zamiast manual `<link>`/`<script>`.
+    - CI: `actions/setup-node@v4` + `npm ci` + `npm run build` przed PHPUnit (entry tags wymagają `public/build/entrypoints.json`).
+    - Makefile: `make assets` (dev), `make assets-watch`, `make assets-prod`, `make node-install`.
+- **2 regression tests** w `FrontendControllerTest` (HMAI-128 epic review):
+    - `testBaseLayoutContainsCSPMetaTag` — guards na meta CSP (HMAI-100 DoD).
+    - `testBaseLayoutLoadsEncoreEntryAssets` — guards na `<script src="/build/...">` + `<link href="/build/...">` (HMAI-41 DoD).
+
+### Changed
+
+- **`window.apiCall` wpięty w 4 modułach** (HMAI-128 epic review, DoD: "zostają wpięcia w books/articles/tasks/music"):
+    - `articles.js`: `loadArticles` (2× via `Promise.allSettled`), `markAsRead` (surfaces `err.message` z payload).
+    - `books.js`: `loadBooks`, add-book submit, reading-session submit.
+    - `music.js`: `loadMusic` (3× via `Promise.allSettled`, `readSection` zsynchronizowany).
+    - `tasks.js`: `loadReport`.
+    - Boilerplate `if (!res.ok) { const err = await res.json(); showError(err.error || ...); }` zastąpiony przez `try/catch` z `err.message` z helpera. Net -18 LOC w 4 plikach JS.
+- **`base.html.twig`**: pre-existing manualne `<link>`/`<script>` zastąpione przez `encore_entry_*` helpery (HMAI-41).
+- **`templates/series/index.html.twig`**: `data-controller="series"` na root + usunięcie `<script src="/js/series.js">` — kontrola przez Stimulus auto-discovery (HMAI-41).
+- **CLAUDE.md**: sekcja "Frontend" — dual track (Encore+Stimulus dla Series; vanilla JS dla pozostałych). Nowa sekcja "Webpack Encore (HMAI-41)" z opisem plików + komend Makefile. Status epica HMAI-128 → epik zamknięty (12/12).
+- **`docker-compose.yml`**: dodany serwis `node` (long-running, mount `./app`).
+- **`.gitignore`**: `public/build/` + `node_modules/`.
+
+### Coverage
+
+- **453 PHP tests** passing (vs 451 at 1.7.0) — +2 regression guards w FrontendControllerTest.
+- **5 Playwright** (Series desktop + mobile — bez zmian).
+- **28 Newman** requests / 42 assertions (bez zmian).
+
+### Documentation
+
+- **Confluence id 52297730** "Frontend Web — architektura i decyzje techniczne" — full rewrite v2 po zamknięciu epica HMAI-128. Dual-track architektura, sekcja "Frontend hardening patterns" (CSP, safeUrl, Promise.allSettled, event delegation, util.js helpers, URLSearchParams), Webpack Encore docs, aktualizacja sekcji Testy, historia zmian.
+- **CHANGELOG.md**: ta sekcja.
+- **CLAUDE.md**: epik HMAI-128 → zamknięty 2026-05-19; "Wydania" → 1.7.1.
+
+### Migration
+
+Brak. Build assets w CI ustawione w 1.7.1 — deploy wymaga `npm ci && npm run build` przed PHPUnit (już skonfigurowane w `.github/workflows/ci.yml`).
+
+### Closed Jira
+
+| ID | Tytuł | PR |
+|---|---|---|
+| [HMAI-41](https://honemanager.atlassian.net/browse/HMAI-41) | Webpack Encore + Stimulus dla Series UI | [#116](https://github.com/zlotylesk/AIHomeManager/pull/116) |
+| [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — JS quality, CSP/SRI, build pipeline (epic close) | [#117](https://github.com/zlotylesk/AIHomeManager/pull/117) |
+
+### Carried forward
+
+Brak — fixVersion 1.7.1 100% Done.
+
 ## [1.7.0] — 2026-05-18
 
 Pierwsza partia epica **HMAI-128** (Frontend hardening — JS quality). Dziewięć zadań pokrywających minor/major findings w warstwie JS: shared `util.js` (timeout + `safeUrl` + `apiCall`), CSP meta tag, `URLSearchParams`, walidacja protokołu URL przed renderowaniem (XSS), `Promise.allSettled` zamiast `Promise.all`, event delegation zamiast per-element bindowania. Wszystkie 9 podzadań zamknięte (HMAI-69, 70, 71, 72, 77, 78, 98, 100, 115). 451/451 PHP + 5/5 Playwright + 28/28 Newman — bez zmian liczby testów (czysto frontendowa zmiana). PHPStan level 8 clean (bez nowych entries w baseline). Pozostałe podzadania HMAI-128 (HMAI-41 Webpack Encore + Stimulus, oraz sam epic review) przesunięte do **1.7.1**.
