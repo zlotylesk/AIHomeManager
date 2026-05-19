@@ -373,4 +373,84 @@ class BooksApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
     }
+
+    public function testLogReadingSessionRejectsInvalidDateStringAs422(): void
+    {
+        // HMAI-68: "not-a-date" used to reach DateTimeImmutable in the handler
+        // and propagate as a 500 with a full stack trace. Now the controller
+        // rejects it upfront.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 50,
+            'date' => 'not-a-date',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsMonthOverflowAs422(): void
+    {
+        // createFromFormat('Y-m-d', '2026-13-01') silently produces '2027-01-01'
+        // without strict checking. The round-trip equality guard catches this.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 50,
+            'date' => '2026-13-01',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsDateWithoutZeroPaddingAs422(): void
+    {
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 50,
+            'date' => '2026-1-5',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsIsoDateTimeAs422(): void
+    {
+        // ISO 8601 datetime (with time component) is not the contract — Y-m-d only.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 50,
+            'date' => '2026-01-15T10:30:00Z',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionUsesTodayWhenDateMissing(): void
+    {
+        // Missing date is allowed — controller defaults to today.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 25,
+        ]));
+
+        self::assertResponseStatusCodeSame(201);
+    }
+
+    public function testLogReadingSessionRejectsExplicitNullDateAs422(): void
+    {
+        // Explicit null in the payload is rejected for symmetry with
+        // pages_read — only an absent key triggers the today default.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 25,
+            'date' => null,
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
 }
