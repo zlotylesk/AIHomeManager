@@ -28,13 +28,13 @@ async function loadReport(from, to) {
     empty.classList.add('hidden');
 
     const params = new URLSearchParams({from, to});
-    const res = await fetch(`/api/tasks/time-report?${params}`);
-    if (!res.ok) {
-        const err = await res.json();
-        showError(err.error || 'Failed to load report.');
+    let data;
+    try {
+        data = await window.apiCall(`/api/tasks/time-report?${params}`);
+    } catch (err) {
+        showError(err.message || 'Failed to load report.');
         return;
     }
-    const data = await res.json();
 
     if (data.breakdown.length === 0) {
         empty.classList.remove('hidden');

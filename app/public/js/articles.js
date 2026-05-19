@@ -77,21 +77,15 @@ async function markAsRead(id, btn) {
     btn.disabled = true;
     btn.textContent = 'Saving…';
     try {
-        const res = await fetch(`/api/articles/${id}/read`, {method: 'POST'});
-        if (!res.ok) {
-            showError('Failed to mark as read.');
-            btn.disabled = false;
-            btn.textContent = 'Mark as Read';
-            return;
-        }
+        await window.apiCall(`/api/articles/${id}/read`, {method: 'POST'});
         const article = allArticles.find(a => a.id === id);
         if (article) {
             article.isRead = true;
             article.readAt = new Date().toISOString();
         }
         renderList($('filter-category').value);
-    } catch {
-        showError('Network error. Please try again.');
+    } catch (err) {
+        showError(err.message || 'Failed to mark as read.');
         btn.disabled = false;
         btn.textContent = 'Mark as Read';
     }
@@ -101,36 +95,26 @@ async function loadArticles() {
     $('articles-list').innerHTML = '<div class="loading">Loading…</div>';
 
     const [listResult, todayResult] = await Promise.allSettled([
-        fetch('/api/articles'),
-        fetch('/api/articles/today'),
+        window.apiCall('/api/articles'),
+        window.apiCall('/api/articles/today'),
     ]);
 
-    // List is mandatory — without it there's nothing to render.
-    if (listResult.status !== 'fulfilled' || !listResult.value.ok) {
+    // List is mandatory — without it there's nothing to render. apiCall
+    // rejects on !res.ok, so a rejected listResult means either network or
+    // 4xx/5xx — both fatal for this view.
+    if (listResult.status !== 'fulfilled') {
         showError('Failed to load articles.');
         $('articles-list').innerHTML = '';
         return;
     }
-    try {
-        allArticles = await listResult.value.json();
-    } catch {
-        showError('Failed to load articles.');
-        $('articles-list').innerHTML = '';
-        return;
-    }
+    allArticles = listResult.value;
 
     // Today is optional — a transient 500 on /api/articles/today must not
-    // block the main list. Silently skip the "today" panel on any failure.
-    if (todayResult.status === 'fulfilled' && todayResult.value.status === 200) {
-        try {
-            const todayArticle = await todayResult.value.json();
-            if (todayArticle) {
-                $('today-section').classList.remove('hidden');
-                $('today-article').innerHTML = renderArticle(todayArticle);
-            }
-        } catch {
-            // partial failure on optional panel — list still renders
-        }
+    // block the main list. apiCall rejects on failure and resolves to null
+    // on 204; either way we skip the panel.
+    if (todayResult.status === 'fulfilled' && todayResult.value) {
+        $('today-section').classList.remove('hidden');
+        $('today-article').innerHTML = renderArticle(todayResult.value);
     }
 
     populateCategoryFilter();

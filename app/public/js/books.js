@@ -59,8 +59,7 @@ async function loadBooks(status) {
         ? `/api/books?${new URLSearchParams({status})}`
         : '/api/books';
     try {
-        const res = await fetch(url);
-        const books = await res.json();
+        const books = await window.apiCall(url);
         if (!books.length) {
             grid.innerHTML = '<div class="empty-state">No books found.</div>';
             return;
@@ -115,20 +114,15 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
         btn.textContent = 'Adding…';
         try {
-            const res = await fetch('/api/books', {
+            await window.apiCall('/api/books', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({isbn}),
             });
-            if (!res.ok) {
-                const err = await res.json();
-                showError(err.error || 'Failed to add book.');
-            } else {
-                $('modal-add-book').classList.add('hidden');
-                await loadBooks($('filter-status').value);
-            }
-        } catch {
-            showError('Network error. Please try again.');
+            $('modal-add-book').classList.add('hidden');
+            await loadBooks($('filter-status').value);
+        } catch (err) {
+            showError(err.message || 'Failed to add book.');
         }
         btn.disabled = false;
         btn.textContent = 'Add Book';
@@ -150,20 +144,15 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const res = await fetch(`/api/books/${bookId}/reading-sessions`, {
+            await window.apiCall(`/api/books/${bookId}/reading-sessions`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({pages_read: pages, date, notes}),
             });
-            if (!res.ok) {
-                const err = await res.json();
-                showError(err.error || 'Failed to log session.');
-            } else {
-                $('modal-reading-session').classList.add('hidden');
-                await loadBooks($('filter-status').value);
-            }
-        } catch {
-            showError('Network error. Please try again.');
+            $('modal-reading-session').classList.add('hidden');
+            await loadBooks($('filter-status').value);
+        } catch (err) {
+            showError(err.message || 'Failed to log session.');
         }
         btn.disabled = false;
         btn.textContent = 'Save Session';

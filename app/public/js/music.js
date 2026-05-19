@@ -38,44 +38,30 @@ async function loadMusic(period) {
         const topParams = new URLSearchParams({period, limit: '20'});
         const cmpParams = new URLSearchParams({period, limit: '50'});
         const [topResult, collResult, cmpResult] = await Promise.allSettled([
-            fetch(`/api/music/top-albums?${topParams}`),
-            fetch('/api/music/collection'),
-            fetch(`/api/music/comparison?${cmpParams}`),
+            window.apiCall(`/api/music/top-albums?${topParams}`),
+            window.apiCall('/api/music/collection'),
+            window.apiCall(`/api/music/comparison?${cmpParams}`),
         ]);
 
         loading.classList.add('hidden');
 
         const errors = [];
-        let topAlbums = [], collection = [], comparison = null;
 
         // Promise.allSettled isolates each fetch — a Last.fm 5xx no longer
-        // wipes out the Discogs collection panel and vice versa.
-        async function readSection(result, label) {
+        // wipes out the Discogs collection panel and vice versa. apiCall
+        // unwraps JSON and rejects on !res.ok, so a rejected result is the
+        // single signal for "this section failed".
+        function readSection(result, label) {
             if (result.status === 'rejected') {
-                errors.push(`${label}: network error`);
+                errors.push(`${label}: ${result.reason.message ?? 'network error'}`);
                 return null;
             }
-            const res = result.value;
-            if (!res.ok) {
-                try {
-                    const e = await res.json();
-                    errors.push(`${label}: ${e.error ?? res.statusText}`);
-                } catch {
-                    errors.push(`${label}: ${res.statusText}`);
-                }
-                return null;
-            }
-            try {
-                return await res.json();
-            } catch {
-                errors.push(`${label}: invalid response`);
-                return null;
-            }
+            return result.value;
         }
 
-        topAlbums = (await readSection(topResult, 'Top albums')) ?? [];
-        collection = (await readSection(collResult, 'Collection')) ?? [];
-        comparison = await readSection(cmpResult, 'Comparison');
+        const topAlbums = readSection(topResult, 'Top albums') ?? [];
+        const collection = readSection(collResult, 'Collection') ?? [];
+        const comparison = readSection(cmpResult, 'Comparison');
 
         if (errors.length) {
             errDiv.innerHTML = errors.map(e => `<div class="error-banner" style="margin-bottom:.5rem">${escHtml(e)}</div>`).join('');
