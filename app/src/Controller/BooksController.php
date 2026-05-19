@@ -185,7 +185,12 @@ final class BooksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        if (empty($data['pages_read']) || !is_numeric($data['pages_read'])) {
+        // is_int rejects floats (1.5), strings ("5"), and missing keys (null).
+        // is_numeric used to pass 1.5 — the (int) cast silently truncated it
+        // to 1, recording fewer pages than the user typed.
+        $pagesRead = $data['pages_read'] ?? null;
+
+        if (!is_int($pagesRead) || $pagesRead <= 0) {
             return new JsonResponse(['error' => 'Field "pages_read" is required and must be a positive integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -194,7 +199,7 @@ final class BooksController extends AbstractController
         try {
             $this->commandBus->dispatch(new LogReadingSession(
                 bookId: $id,
-                pagesRead: (int) $data['pages_read'],
+                pagesRead: $pagesRead,
                 date: $date,
                 notes: $data['notes'] ?? null,
             ));
