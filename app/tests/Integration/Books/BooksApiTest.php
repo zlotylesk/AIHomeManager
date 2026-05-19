@@ -307,4 +307,70 @@ class BooksApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
     }
+
+    public function testLogReadingSessionRejectsFloatPagesReadAs422(): void
+    {
+        // HMAI-67: is_numeric used to pass 1.5; the (int) cast silently
+        // truncated it to 1. Now the controller must reject floats outright.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 1.5,
+            'date' => '2025-01-15',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsNegativePagesReadAs422(): void
+    {
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => -5,
+            'date' => '2025-01-15',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsZeroPagesReadAs422(): void
+    {
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 0,
+            'date' => '2025-01-15',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsStringPagesReadAs422(): void
+    {
+        // JSON numeric strings ("5") used to pass is_numeric. The contract
+        // documents "positive integer" — strings are rejected.
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => '5',
+            'date' => '2025-01-15',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testLogReadingSessionRejectsMissingPagesReadAs422(): void
+    {
+        // Missing key takes the `$data['pages_read'] ?? null` path — guards
+        // against a future refactor swapping `?? null` for `?? 0` (where
+        // 0 <= 0 still 422s, but via a different branch we want explicit).
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'date' => '2025-01-15',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
 }
