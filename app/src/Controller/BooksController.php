@@ -15,6 +15,7 @@ use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
 use App\Module\Books\Domain\ValueObject\CoverUrl;
+use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -194,7 +195,23 @@ final class BooksController extends AbstractController
             return new JsonResponse(['error' => 'Field "pages_read" is required and must be a positive integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $date = $data['date'] ?? date('Y-m-d');
+        // array_key_exists differentiates a missing field (default to today)
+        // from an explicit `null` in the payload (treat as invalid, matching
+        // the pages_read contract). createFromFormat('!Y-m-d', ...) parses
+        // strictly with time reset to 00:00:00; the round-trip check rejects
+        // overflow values like "2026-13-01" (which PHP silently rolls to
+        // "2027-01-01"), values without zero-padding like "2026-1-1", and
+        // ISO datetime strings.
+        if (array_key_exists('date', $data)) {
+            $dateInput = $data['date'];
+            $parsed = is_string($dateInput) ? DateTimeImmutable::createFromFormat('!Y-m-d', $dateInput) : false;
+            if (false === $parsed || $parsed->format('Y-m-d') !== $dateInput) {
+                return new JsonResponse(['error' => 'Field "date" must be a valid date in Y-m-d format.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            $date = $dateInput;
+        } else {
+            $date = date('Y-m-d');
+        }
 
         try {
             $this->commandBus->dispatch(new LogReadingSession(
