@@ -159,6 +159,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Klucz produkcyjny w `app/.env.local` (gitignored). `app/.env` ma tylko placeholder
 - `/auth/google*`, `/auth/discogs*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
 - Test env: `API_KEY=test-api-key` w `app/.env.test`
+- **CSRF (HMAI-57):** świadomie **nie używamy** `#[IsCsrfTokenValid]` na `^/api/*`. Firewall jest `stateless: true`, autoryzacja przez header `X-API-Key` (nie cookie) — przeglądarka nie ustawia custom headerów cross-origin, więc CSRF nie ma drogi. OAuth init (`/auth/*`) używa parametru `state` (HMAI-52/53). Rationale + plan migracji w `docs/HMAI-57.md`; regresja w `tests/Integration/Security/ApiKeyAuthCsrfTest.php`.
 
 ## Health endpoint (HMAI-37)
 
