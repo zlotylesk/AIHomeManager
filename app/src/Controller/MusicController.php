@@ -26,6 +26,9 @@ use Symfony\Component\Routing\Attribute\Route;
 final class MusicController extends AbstractController
 {
     private const array VALID_PERIODS = ['7day', '1month', '3month', '6month', '12month', 'overall'];
+    private const int MAX_TOP_ALBUMS_LIMIT = 1000;
+    private const int MAX_COMPARISON_LIMIT = 200;
+    private const int DEFAULT_LIMIT = 50;
 
     public function __construct(
         private readonly MusicListeningHistoryInterface $listeningHistory,
@@ -41,7 +44,14 @@ final class MusicController extends AbstractController
     public function topAlbums(Request $request): JsonResponse
     {
         $period = $request->query->get('period', '1month');
-        $limit = max(1, min(1000, (int) $request->query->get('limit', 50)));
+        $limit = $this->parseLimit($request->query->get('limit'), self::MAX_TOP_ALBUMS_LIMIT);
+
+        if (null === $limit) {
+            return new JsonResponse(
+                ['error' => sprintf('Field "limit" must be a positive integer between 1 and %d.', self::MAX_TOP_ALBUMS_LIMIT)],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
 
         if (!in_array($period, self::VALID_PERIODS, true)) {
             return new JsonResponse(
@@ -71,7 +81,14 @@ final class MusicController extends AbstractController
     public function comparison(Request $request): JsonResponse
     {
         $period = $request->query->get('period', '1month');
-        $limit = max(1, min(200, (int) $request->query->get('limit', 50)));
+        $limit = $this->parseLimit($request->query->get('limit'), self::MAX_COMPARISON_LIMIT);
+
+        if (null === $limit) {
+            return new JsonResponse(
+                ['error' => sprintf('Field "limit" must be a positive integer between 1 and %d.', self::MAX_COMPARISON_LIMIT)],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
 
         if (!in_array($period, self::VALID_PERIODS, true)) {
             return new JsonResponse(
@@ -113,6 +130,28 @@ final class MusicController extends AbstractController
         }
 
         return new JsonResponse(array_map($this->serializeRecord(...), $records));
+    }
+
+    /**
+     * Validates `?limit=` query strings strictly. ctype_digit rejects negatives,
+     * decimals ("1.5"), scientific notation ("1e3"), and non-numeric strings —
+     * is_numeric would accept those and the subsequent (int) cast would silently
+     * floor or coerce them, recording smaller values than the caller intended.
+     * Null raw → default. Out-of-range or non-digit → null (caller returns 422).
+     */
+    private function parseLimit(?string $raw, int $max): ?int
+    {
+        if (null === $raw) {
+            return self::DEFAULT_LIMIT;
+        }
+
+        if (!ctype_digit($raw)) {
+            return null;
+        }
+
+        $value = (int) $raw;
+
+        return ($value >= 1 && $value <= $max) ? $value : null;
     }
 
     private function serializeAlbum(AlbumDTO $a): array
