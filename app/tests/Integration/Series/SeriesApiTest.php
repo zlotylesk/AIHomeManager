@@ -62,6 +62,27 @@ class SeriesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testCreateSeriesWithTitleOver255CharactersReturns422(): void
+    {
+        // HMAI-66: VARCHAR(255) would silently truncate (or throw) — explicit 422
+        // is the contract. 256-char title (str_repeat) trips the new bound; 255
+        // exactly is still accepted in the next test.
+        $longTitle = str_repeat('a', 256);
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => $longTitle]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Title must be at most 255 characters.', $data['error']);
+    }
+
+    public function testCreateSeriesWithTitleExactly255CharactersAccepted(): void
+    {
+        $title = str_repeat('b', 255);
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => $title]));
+
+        self::assertResponseStatusCodeSame(201);
+    }
+
     public function testGetSeriesDetailReturnsCorrectData(): void
     {
         $this->client->request('POST', '/api/series', content: json_encode(['title' => 'Breaking Bad']));
@@ -152,6 +173,22 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode([]));
 
         self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testAddEpisodeWithTitleOver255CharactersReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $longTitle = str_repeat('e', 256);
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => $longTitle]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Title must be at most 255 characters.', $data['error']);
     }
 
     public function testAddEpisodeForUnknownSeriesReturns404(): void
