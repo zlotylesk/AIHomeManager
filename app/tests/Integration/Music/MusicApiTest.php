@@ -10,6 +10,7 @@ use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use Redis;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -165,6 +166,59 @@ class MusicApiTest extends WebTestCase
         self::assertSame(1979, $data[0]['year']);
         self::assertSame(12345, $data[0]['discogsId']);
         self::assertNull($data[1]['year']);
+    }
+
+    /**
+     * @return iterable<string, array{0: string}>
+     */
+    public static function invalidLimitProvider(): iterable
+    {
+        // HMAI-65: ctype_digit must reject each of these. The old
+        // `max(1, min(MAX, (int) $raw))` silently clamped them to 1 — recording
+        // a result the caller did not request. Now they 422 early.
+        yield 'negative' => ['-1'];
+        yield 'zero' => ['0'];
+        yield 'non-numeric' => ['abc'];
+        yield 'decimal' => ['1.5'];
+        yield 'scientific notation' => ['1e3'];
+    }
+
+    #[DataProvider('invalidLimitProvider')]
+    public function testTopAlbumsRejectsInvalidLimit(string $limit): void
+    {
+        $this->client->request('GET', '/api/music/top-albums?period=1month&limit='.urlencode($limit));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "limit" must be a positive integer between 1 and 1000.', $data['error']);
+    }
+
+    public function testTopAlbumsRejectsLimitOverMax(): void
+    {
+        $this->client->request('GET', '/api/music/top-albums?period=1month&limit=1001');
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "limit" must be a positive integer between 1 and 1000.', $data['error']);
+    }
+
+    #[DataProvider('invalidLimitProvider')]
+    public function testComparisonRejectsInvalidLimit(string $limit): void
+    {
+        $this->client->request('GET', '/api/music/comparison?period=1month&limit='.urlencode($limit));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "limit" must be a positive integer between 1 and 200.', $data['error']);
+    }
+
+    public function testComparisonRejectsLimitOverMax(): void
+    {
+        $this->client->request('GET', '/api/music/comparison?period=1month&limit=201');
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "limit" must be a positive integer between 1 and 200.', $data['error']);
     }
 
     public function testComparisonWithOwnedAndListenedReturnsCorrectStructure(): void
