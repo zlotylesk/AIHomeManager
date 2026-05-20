@@ -160,6 +160,14 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - `/auth/google*`, `/auth/discogs*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
 - Test env: `API_KEY=test-api-key` w `app/.env.test`
 
+## API exception listener (HMAI-79)
+
+- `App\EventListener\ApiExceptionListener` — `kernel.exception` (priority 64, przed framework `ErrorListener` na -64). Konwertuje uncaught throwables na `^/api/*` na `JsonResponse`.
+- `HttpExceptionInterface` (4xx) zachowuje status i message; pozostałe (`RuntimeException`, `DomainException` poza catch w kontrolerze, itp.) → 500 z generycznym `Internal server error.` (oryginalny message tylko w logu, nie w odpowiedzi).
+- `HandlerFailedException` (Messenger wrap) jest rozpakowywany — listener używa previous exception do type-checków, więc HTTP exceptions z handlerów łapią się tak samo jak rzucone bezpośrednio.
+- Non-API paths (np. `/series`, `/typo`) przechodzą bez zmian — Twig frontend zachowuje swoje renderowane strony błędu.
+- Pełny exception context (path, method, status, exception) loguje się na poziomie `error` przez default channel.
+
 ## Health endpoint (HMAI-37)
 
 - `GET /api/health` — publiczny readiness probe (bez `X-API-Key`)
