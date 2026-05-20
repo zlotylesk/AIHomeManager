@@ -26,6 +26,8 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/series')]
 final class SeriesController extends AbstractController
 {
+    private const int MAX_TITLE_LENGTH = 255;
+
     public function __construct(
         private readonly MessageBusInterface $commandBus,
         #[Target('query.bus')]
@@ -73,6 +75,16 @@ final class SeriesController extends AbstractController
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        // mb_strlen counts characters, not bytes — a 255-char emoji title fits
+        // VARCHAR(255) in utf8mb4 (which reserves 4 bytes per char). Plain strlen
+        // would over-count multibyte input and reject legitimate titles.
+        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
+            return new JsonResponse(
+                ['error' => sprintf('Title must be at most %d characters.', self::MAX_TITLE_LENGTH)],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
         $id = $this->commandBus->dispatch(new CreateSeries($title))->last(HandledStamp::class)->getResult();
 
         $this->logger->info('Series created', ['id' => $id, 'title' => $title]);
@@ -111,6 +123,13 @@ final class SeriesController extends AbstractController
 
         if ('' === $title) {
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
+            return new JsonResponse(
+                ['error' => sprintf('Title must be at most %d characters.', self::MAX_TITLE_LENGTH)],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
         }
 
         try {
