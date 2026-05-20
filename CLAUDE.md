@@ -161,6 +161,14 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Test env: `API_KEY=test-api-key` w `app/.env.test`
 - **CSRF (HMAI-57):** świadomie **nie używamy** `#[IsCsrfTokenValid]` na `^/api/*`. Firewall jest `stateless: true`, autoryzacja przez header `X-API-Key` (nie cookie) — przeglądarka nie ustawia custom headerów cross-origin, więc CSRF nie ma drogi. OAuth init (`/auth/*`) używa parametru `state` (HMAI-52/53). Rationale + plan migracji w `docs/HMAI-57.md`; regresja w `tests/Integration/Security/ApiKeyAuthCsrfTest.php`.
 
+## API exception listener (HMAI-79)
+
+- `App\EventListener\ApiExceptionListener` — `kernel.exception` (priority 64, przed framework `ErrorListener` na -64). Konwertuje uncaught throwables na `^/api/*` na `JsonResponse`.
+- `HttpExceptionInterface` (4xx) zachowuje status i message; pozostałe (`RuntimeException`, `DomainException` poza catch w kontrolerze, itp.) → 500 z generycznym `Internal server error.` (oryginalny message tylko w logu, nie w odpowiedzi).
+- `HandlerFailedException` (Messenger wrap) jest rozpakowywany — listener używa previous exception do type-checków, więc HTTP exceptions z handlerów łapią się tak samo jak rzucone bezpośrednio.
+- Non-API paths (np. `/series`, `/typo`) przechodzą bez zmian — Twig frontend zachowuje swoje renderowane strony błędu.
+- Pełny exception context (path, method, status, exception) loguje się na poziomie `error` przez default channel.
+
 ## Health endpoint (HMAI-37)
 
 - `GET /api/health` — publiczny readiness probe (bez `X-API-Key`)
