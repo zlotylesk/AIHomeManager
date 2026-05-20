@@ -90,6 +90,26 @@ class ArticlesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testCreateArticleWithInvalidUrlReturnsGenericErrorMessage(): void
+    {
+        // HMAI-109: domain exception messages must not leak into the API
+        // response — the controller now logs the original and returns a
+        // generic "Invalid article data." This regression test pins both
+        // sides: the generic message is present, and the domain-specific
+        // text (mentioning the scheme that failed) is absent.
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'XSS Attempt',
+            'url' => 'javascript:alert(1)',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $body = (string) $this->client->getResponse()->getContent();
+        $data = json_decode($body, true);
+        self::assertSame('Invalid article data.', $data['error']);
+        self::assertStringNotContainsString('scheme', strtolower($body));
+        self::assertStringNotContainsString('javascript', strtolower($body));
+    }
+
     public function testGetArticleDetailReturnsCorrectData(): void
     {
         $this->client->request('POST', '/api/articles', content: json_encode([
