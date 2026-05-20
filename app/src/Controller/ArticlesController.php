@@ -14,6 +14,7 @@ use App\Module\Articles\Application\Query\GetArticleById;
 use App\Module\Articles\Application\Query\GetArticleOfTheDay;
 use DomainException;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,6 +32,7 @@ final class ArticlesController extends AbstractController
         private readonly MessageBusInterface $commandBus,
         #[Target('query.bus')]
         private readonly MessageBusInterface $queryBus,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -88,8 +90,18 @@ final class ArticlesController extends AbstractController
                 estimatedReadTime: isset($data['estimated_read_time']) ? (int) $data['estimated_read_time'] : null,
             ))->last(HandledStamp::class)->getResult();
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof InvalidArgumentException) {
-                return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            $original = $e->getPrevious();
+            if ($original instanceof InvalidArgumentException) {
+                // Domain VO messages (ArticleUrl scheme checks, etc.) get logged
+                // server-side with the full exception context, but the client
+                // sees a generic error — prevents leaking implementation paths,
+                // SQL fragments, or future error-message drift back to callers.
+                $this->logger->warning('POST /api/articles validation failed', [
+                    'message' => $original->getMessage(),
+                    'exception' => $original,
+                ]);
+
+                return new JsonResponse(['error' => 'Invalid article data.'], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             throw $e;
         }
