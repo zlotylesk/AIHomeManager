@@ -57,7 +57,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 - Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`
 - Selektor ocen Series: 10 przycisków (NIE `<input type=number>`)
 - Tasks UI = tylko `/api/tasks/time-report` (brak create/list endpointów)
-- Brakujący zakres frontu (Jira): HMAI-43 (PATCH rating endpoint)
+- Brakujący zakres frontu (Jira): HMAI-43 (UI dla nowego PATCH episode rating endpointu — backend kompletny)
 
 ### Webpack Encore (HMAI-41)
 

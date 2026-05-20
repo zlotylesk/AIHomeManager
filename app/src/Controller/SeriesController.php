@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Module\Series\Application\Command\AddEpisode;
+use App\Module\Series\Application\Command\AddEpisodeRating;
 use App\Module\Series\Application\Command\AddSeason;
 use App\Module\Series\Application\Command\CreateSeries;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
@@ -148,6 +149,43 @@ final class SeriesController extends AbstractController
         }
 
         return new JsonResponse(['id' => $id], Response::HTTP_CREATED);
+    }
+
+    #[Route('/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/rating', methods: ['PATCH'])]
+    public function rateEpisode(string $seriesId, string $seasonId, string $episodeId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $rating = $data['rating'] ?? null;
+
+        // is_int + range check matches HMAI-67's pages_read contract — pre-empts
+        // the Rating VO's InvalidArgumentException so we return a clean 422
+        // without HandlerFailedException unwrap noise on the happy invalid path.
+        if (!is_int($rating) || $rating < 1 || $rating > 10) {
+            return new JsonResponse(
+                ['error' => 'Field "rating" must be an integer between 1 and 10.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        try {
+            $this->commandBus->dispatch(new AddEpisodeRating(
+                seriesId: $seriesId,
+                seasonId: $seasonId,
+                episodeId: $episodeId,
+                rating: $rating,
+            ));
+        } catch (HandlerFailedException $e) {
+            $original = $e->getPrevious();
+            if ($original instanceof DomainException) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
+            }
+            if ($original instanceof InvalidArgumentException) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            throw $e;
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
     private function serializeDTO(SeriesDetailDTO $dto): array
