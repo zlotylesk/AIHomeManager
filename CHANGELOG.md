@@ -4,6 +4,63 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.8.0] — 2026-05-21
+
+Domknięcie epica **HMAI-129** (API hardening — input validation, error contracts, exception handling) — 8/8 podzadań (HMAI-43, 57, 65, 66, 67, 68, 79, 109). Najszerszy zakres: nowy globalny `ApiExceptionListener` (HMAI-79) konwertujący uncaught throwables na `^/api/*` na JSON z generycznym 500, nowy PATCH endpoint `/api/series/.../rating` (HMAI-43), spójna walidacja per moduł (Music limit, Series/Episode title length, Books pages_read/date), CSRF decision doc dla stateless+API key (HMAI-57). 495/495 PHP (+42 vs 1.7.1) + 5/5 Playwright + 28/28 Newman. PHPStan level 8 clean (zero new baseline entries).
+
+### Added
+
+- **`App\EventListener\ApiExceptionListener`** (HMAI-79) — `kernel.exception` priority 64, scoped do `^/api/*`. Unwrap `HandlerFailedException` (Messenger), preserve `HttpExceptionInterface` status/message, dla pozostałych throwables 500 z generycznym `Internal server error.` (oryginalny message tylko w logu). Non-API paths przechodzą bez zmian — Twig frontend zachowuje swoje strony błędu. 5 unit + 2 integration testów.
+- **PATCH `/api/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/rating`** (HMAI-43) — `SeriesController::rateEpisode()` dispatchuje `AddEpisodeRating` command. Pre-validation `is_int($rating) && 1..10` zwraca 422 przed wywołaniem aggregate (omija `HandlerFailedException` unwrap noise). 204 No Content przy sukcesie. 4 integration testy (happy path + 422 invalid rating + 404 series/episode not found).
+- **`docs/HMAI-57.md`** — CSRF decision dokument: dlaczego `^/api/*` świadomie nie używa `#[IsCsrfTokenValid]` (firewall `stateless: true` + autoryzacja przez `X-API-Key` header — przeglądarka nie ustawia custom headerów cross-origin). Plan migracji jeśli wprowadzimy stateful session/cookie auth.
+- **`tests/Integration/Security/ApiKeyAuthCsrfTest.php`** (HMAI-57) — 4 regression tests: POST/PUT/DELETE z `PHPSESSID` cookie ale bez `X-API-Key` → 401, plus stateless invariant (no `Set-Cookie` w response).
+- **`Articles\Domain\Exception\InvalidArticleData`** (HMAI-109) — nowy exception markerujący dane od usera w `CreateArticle` aggregate. Pozwala kontrolerowi rozróżnić "twoje dane są złe" (mapowany na generic 422) od "coś się zepsuło" (500 z generic message).
+
+### Changed
+
+- **`MusicController`** (HMAI-65): nowe stałe `MAX_TOP_ALBUMS_LIMIT=1000`, `MAX_COMPARISON_LIMIT=200`, `DEFAULT_LIMIT=50`. Private helper `parseLimit(?string $raw, int $max): ?int` z `ctype_digit` — odrzuca floats/scientific notation/negatywne/zero przez 422 zamiast cichego clampowania do 1 (`max(1, min(MAX, (int) $raw))` było buggy). Komunikat: `Field "limit" must be a positive integer between 1 and {max}.`
+- **`SeriesController::create()` + `SeriesController::addEpisode()`** (HMAI-66): `mb_strlen($title) > 255` → 422 z komunikatem `Title must be at most 255 characters.`. `mb_strlen` (nie `strlen`) liczy znaki, nie bajty — 255-znakowy emoji tytuł mieści się w `VARCHAR(255) utf8mb4`.
+- **`BooksController` log reading session** (HMAI-67): `pages_read` walidowane jako `is_int($value) && $value > 0` — odrzuca floaty (`1.5`), stringi numeryczne, ujemne, zero przez 422. Pre-validation przed dispatchem `LogReadingSession`.
+- **`BooksController` log reading session** (HMAI-68): pole `date` walidowane przez `DateTimeImmutable::createFromFormat('!Y-m-d', $raw)` + round-trip equality (`$dt->format('Y-m-d') === $raw`) — wyłapuje `2026-02-30`, `2026/05/21`, ISO 8601 z czasem. 422 z komunikatem `Field "date" must be a date in Y-m-d format.`
+- **`ArticlesController::create()`** (HMAI-109): `InvalidArgumentException` z aggregate już nie leakuje raw message w response. Zamiast tego logger warning + generyczny `'error' => 'Invalid article data.'`. Domain exception message wraca do logów (Graylog), nie do klienta.
+- **CLAUDE.md**: dodana sekcja "API exception listener (HMAI-79)" (kontrakty 4xx vs 5xx, HandlerFailedException unwrap pattern). Status epica HMAI-129 → epik zamknięty (8/8). "Wydania" → 1.8.0.
+
+### Coverage
+
+- **495 PHP tests** passing (vs 453 at 1.7.1) — +42 nowych: 6 ApiExceptionListener (5 unit + 2 integration), 4 PATCH episode rating, 4 CSRF regression, 10 Music limit validation (2× 5-case data provider), 4 Series/Episode title length, 6 Books pages_read int, 5 Books date Y-m-d format, 3 Articles generic error.
+- **5 Playwright** (Series desktop + mobile — bez zmian).
+- **28 Newman** requests / 42 assertions (bez zmian — nowy PATCH endpoint nie wpięty w `tests-e2e/postman/AIHomeManager.postman_collection.json`; osobny follow-up HMAI-33 deferred do 1.9.x).
+- PHPStan level 8 clean, baseline bez nowych entries. CS Fixer + Rector dry-run green.
+
+### Documentation
+
+- **Confluence id 46891009** "Dokumentacja API" — v4. Dodane: sekcja CSRF decision (HMAI-57), sekcja Global exception handling (HMAI-79, kontrakty 4xx vs generic 500), PATCH rating endpoint w Series, walidacje per moduł (HMAI-65/66/67/68/109), 500 status code row.
+- **Confluence id 49643522** "Series — Warstwa HTTP REST API Controller" — v2. PATCH rating endpoint, tabela walidacji (`mb_strlen`, `is_int 1..10`), pre-validation pattern note, nowe test scenarios.
+- **CHANGELOG.md**: ta sekcja.
+- **CLAUDE.md**: epik HMAI-129 → zamknięty 2026-05-20; "Wydania" → 1.8.0.
+
+### Migration
+
+Brak. Czysto warstwa kontrolerów + kernel.exception listener — brak nowych ENV, brak DB migrations, brak Redis schema changes. Klienci API, którzy wcześniej polegali na `getMessage()` z 500 (n.b. tego nie powinni byli robić), zobaczą teraz `Internal server error.` zamiast oryginalnego komunikatu — sprawdzaj logi (Graylog kanał default) by zobaczyć przyczynę.
+
+### Closed Jira
+
+| ID | Tytuł | PR |
+|---|---|---|
+| [HMAI-67](https://honemanager.atlassian.net/browse/HMAI-67) | Validate `pages_read` is a positive integer in log reading session | [#119](https://github.com/zlotylesk/AIHomeManager/pull/119) |
+| [HMAI-68](https://honemanager.atlassian.net/browse/HMAI-68) | Validate reading session date format as `Y-m-d` | [#120](https://github.com/zlotylesk/AIHomeManager/pull/120) |
+| [HMAI-65](https://honemanager.atlassian.net/browse/HMAI-65) | Validate Music limit query param as positive integer | [#121](https://github.com/zlotylesk/AIHomeManager/pull/121) |
+| [HMAI-66](https://honemanager.atlassian.net/browse/HMAI-66) | Validate series and episode title length up to 255 characters | [#122](https://github.com/zlotylesk/AIHomeManager/pull/122) |
+| [HMAI-109](https://honemanager.atlassian.net/browse/HMAI-109) | Replace leaked exception message with generic article validation error | [#123](https://github.com/zlotylesk/AIHomeManager/pull/123) |
+| [HMAI-79](https://honemanager.atlassian.net/browse/HMAI-79) | Add global API exception listener returning JSON for `^/api/*` | [#124](https://github.com/zlotylesk/AIHomeManager/pull/124) |
+| [HMAI-43](https://honemanager.atlassian.net/browse/HMAI-43) | Add PATCH episode rating endpoint wired to existing aggregate | [#125](https://github.com/zlotylesk/AIHomeManager/pull/125) |
+| [HMAI-57](https://honemanager.atlassian.net/browse/HMAI-57) | Document stateless API key decision and add CSRF regression tests | [#126](https://github.com/zlotylesk/AIHomeManager/pull/126) |
+| [HMAI-129](https://honemanager.atlassian.net/browse/HMAI-129) | API hardening (epic close) | [#127](https://github.com/zlotylesk/AIHomeManager/pull/127) |
+
+### Carried forward
+
+Brak — fixVersion 1.8.0 100% Done. Postman/Newman update dla nowego PATCH endpointu = HMAI-33 follow-up (deferred). Frontend Series UI button dla inline rating edit = osobny follow-up (deferred).
+
 ## [1.7.1] — 2026-05-19
 
 Domknięcie epica **HMAI-128** (Frontend hardening — JS quality, CSP/SRI, build pipeline) — 12/12 podzadań. Druga partia po batchu 1.7.0: HMAI-41 (Webpack Encore + Stimulus pilot dla Series UI) + epic review (wpięcie `window.apiCall` w pozostałe 4 moduły, regression tests dla CSP/Encore manifest, full rewrite Confluence patterns id 52297730 v2). 453/453 PHP (+2 vs 1.7.0 — regression guards) + 5/5 Playwright + 28/28 Newman. PHPStan level 8 clean (zero new baseline entries).
