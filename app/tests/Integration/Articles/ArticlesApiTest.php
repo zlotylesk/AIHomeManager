@@ -157,6 +157,45 @@ class ArticlesApiTest extends WebTestCase
         self::assertSame('news', $data['category']);
     }
 
+    public function testUpdateArticleRejectsBlankCategoryWith422(): void
+    {
+        // Article::updateMetadata rejects whitespace-only category (HMAI-110) —
+        // without the InvalidArgumentException → 422 catch the global
+        // ApiExceptionListener would turn it into a generic 500.
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Original',
+            'url' => 'https://example.com/blank-cat',
+        ]));
+        $id = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PUT', "/api/articles/{$id}", content: (string) json_encode([
+            'title' => 'Updated',
+            'category' => '   ',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertStringContainsString('category cannot be a blank string', $data['error']);
+    }
+
+    public function testUpdateArticleRejectsZeroEstimatedReadTimeWith422(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Original',
+            'url' => 'https://example.com/zero-ert',
+        ]));
+        $id = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PUT', "/api/articles/{$id}", content: (string) json_encode([
+            'title' => 'Updated',
+            'estimated_read_time' => 0,
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertStringContainsString('estimatedReadTime must be a positive integer', $data['error']);
+    }
+
     public function testDeleteArticleReturns204(): void
     {
         $this->client->request('POST', '/api/articles', content: json_encode([

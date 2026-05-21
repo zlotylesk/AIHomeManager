@@ -127,8 +127,18 @@ final class ArticlesController extends AbstractController
                 estimatedReadTime: isset($data['estimated_read_time']) ? (int) $data['estimated_read_time'] : null,
             ));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof DomainException) {
+            $original = $e->getPrevious();
+            if ($original instanceof DomainException) {
                 return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
+            }
+            // Article::updateMetadata() rejects blank category, over-length
+            // fields, and zero/negative estimatedReadTime with
+            // InvalidArgumentException carrying the article id. Surface those as
+            // 422 — without this catch they'd hit the global ApiExceptionListener
+            // and become an opaque "Internal server error.", which is wrong
+            // because the input is the cause.
+            if ($original instanceof InvalidArgumentException) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             throw $e;
         }

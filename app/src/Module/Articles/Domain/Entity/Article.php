@@ -6,9 +6,15 @@ namespace App\Module\Articles\Domain\Entity;
 
 use App\Module\Articles\Domain\ValueObject\ArticleUrl;
 use DateTimeImmutable;
+use InvalidArgumentException;
 
 final class Article
 {
+    // Mirrors Article.orm.xml VARCHAR(500)/VARCHAR(255). Keep in sync if the
+    // schema column lengths ever change.
+    private const int MAX_TITLE_LENGTH = 500;
+    private const int MAX_CATEGORY_LENGTH = 255;
+
     public function __construct(private readonly string $id, private string $title, private readonly ArticleUrl $url, private ?string $category, private ?int $estimatedReadTime, private readonly DateTimeImmutable $addedAt, private ?DateTimeImmutable $readAt, private bool $isRead)
     {
     }
@@ -61,6 +67,32 @@ final class Article
 
     public function updateMetadata(string $title, ?string $category, ?int $estimatedReadTime): void
     {
+        $title = trim($title);
+        if ('' === $title) {
+            throw new InvalidArgumentException(sprintf('Article %s: title cannot be empty.', $this->id));
+        }
+        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
+            throw new InvalidArgumentException(sprintf('Article %s: title must be at most %d characters.', $this->id, self::MAX_TITLE_LENGTH));
+        }
+
+        if (null !== $category) {
+            $category = trim($category);
+            // Blank-after-trim is rejected (not silently coerced to null) so the
+            // caller commits to either a real value or an explicit null — silent
+            // coercion is the kind of "ghost mutation" that HMAI-110 exists to
+            // prevent.
+            if ('' === $category) {
+                throw new InvalidArgumentException(sprintf('Article %s: category cannot be a blank string — pass null to clear it.', $this->id));
+            }
+            if (mb_strlen($category) > self::MAX_CATEGORY_LENGTH) {
+                throw new InvalidArgumentException(sprintf('Article %s: category must be at most %d characters.', $this->id, self::MAX_CATEGORY_LENGTH));
+            }
+        }
+
+        if (null !== $estimatedReadTime && $estimatedReadTime < 1) {
+            throw new InvalidArgumentException(sprintf('Article %s: estimatedReadTime must be a positive integer, got %d.', $this->id, $estimatedReadTime));
+        }
+
         $this->title = $title;
         $this->category = $category;
         $this->estimatedReadTime = $estimatedReadTime;
