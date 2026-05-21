@@ -34,6 +34,13 @@ final class ImportArticlesCommand extends Command
             .'Omit to auto-detect — but auto-detect cannot identify Windows-1250 (mbstring '
             .'limitation), so pass it explicitly for Polish-Windows files.',
         );
+        $this->addOption(
+            'dry-run',
+            null,
+            InputOption::VALUE_NONE,
+            'Parse and validate the CSV without persisting anything. Reports the '
+            .'same Imported/Skipped/Errors counts a real run would produce.',
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -53,9 +60,10 @@ final class ImportArticlesCommand extends Command
         }
 
         $encoding = $input->getOption('encoding');
+        $dryRun = (bool) $input->getOption('dry-run');
 
         try {
-            $result = $this->importer->import($file, $encoding);
+            $result = $this->importer->import($file, $encoding, $dryRun);
         } catch (InvalidArgumentException $e) {
             // Surface the allowlist error from ArticleImporter as a user-friendly
             // CLI message — without this the user sees a raw PHP exception trace.
@@ -65,7 +73,8 @@ final class ImportArticlesCommand extends Command
         }
 
         $output->writeln(sprintf(
-            'Imported: %d | Skipped (duplicates): %d | Errors: %d',
+            '%sImported: %d | Skipped (duplicates): %d | Errors: %d',
+            $dryRun ? '[DRY RUN] ' : '',
             $result->imported,
             $result->skipped,
             $result->errors,

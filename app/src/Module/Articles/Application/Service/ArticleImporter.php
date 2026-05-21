@@ -52,8 +52,13 @@ final readonly class ArticleImporter
      *                              you know the source (e.g. a Polish Pocket
      *                              export saved as Windows-1250) — auto-detect on
      *                              an 8 KB sample can misidentify short files.
+     * @param bool        $dryRun   when true, validates each row and produces the
+     *                              same ImportResult counts as a real run, but
+     *                              skips the repository write. The duplicate check
+     *                              (existsByUrl) still fires so the `skipped` count
+     *                              reflects what a subsequent real run would see.
      */
-    public function import(string $filePath, ?string $encoding = null): ImportResult
+    public function import(string $filePath, ?string $encoding = null, bool $dryRun = false): ImportResult
     {
         if (null !== $encoding && !in_array($encoding, self::SUPPORTED_ENCODINGS, true)) {
             throw new InvalidArgumentException(sprintf('Unsupported encoding "%s". Supported: %s', $encoding, implode(', ', self::SUPPORTED_ENCODINGS)));
@@ -93,7 +98,7 @@ final readonly class ArticleImporter
                     $row[$col] = $fields[$idx] ?? null;
                 }
 
-                $this->processRow($row, $result);
+                $this->processRow($row, $result, $dryRun);
             }
         } finally {
             fclose($handle);
@@ -129,7 +134,7 @@ final readonly class ArticleImporter
         return 'UTF-8';
     }
 
-    private function processRow(array $row, ImportResult $result): void
+    private function processRow(array $row, ImportResult $result, bool $dryRun = false): void
     {
         $title = trim($row['title'] ?? '');
         $rawUrl = trim($row['url'] ?? '');
@@ -186,7 +191,9 @@ final readonly class ArticleImporter
             isRead: $isRead,
         );
 
-        $this->repository->save($article);
+        if (!$dryRun) {
+            $this->repository->save($article);
+        }
         ++$result->imported;
     }
 }

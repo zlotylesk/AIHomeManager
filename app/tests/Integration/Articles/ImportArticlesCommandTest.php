@@ -54,6 +54,26 @@ final class ImportArticlesCommandTest extends KernelTestCase
         self::assertStringContainsString('ó', $row['title']);
     }
 
+    public function testDryRunFlagPreviewsImportWithoutPersisting(): void
+    {
+        // Confirms --dry-run wiring: the flag reaches ArticleImporter::import()
+        // (no rows in DB despite Imported=1) and the CLI output carries the
+        // [DRY RUN] prefix so the operator knows nothing was committed.
+        $file = tempnam(sys_get_temp_dir(), 'cli_import_');
+        file_put_contents(
+            $file,
+            "title,url,time_added,tags,status\nDry,https://example.com/dry-cli,1641750653,,unread\n"
+        );
+
+        $exit = $this->tester->execute(['--file' => $file, '--dry-run' => true]);
+
+        self::assertSame(Command::SUCCESS, $exit);
+        self::assertStringContainsString('[DRY RUN] Imported: 1', $this->tester->getDisplay());
+
+        $count = $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM articles');
+        self::assertSame('0', (string) $count);
+    }
+
     public function testRejectsUnsupportedEncodingWithFriendlyMessage(): void
     {
         // The InvalidArgumentException from the importer's allowlist must be
