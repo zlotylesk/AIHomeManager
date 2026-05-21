@@ -218,6 +218,55 @@ class ArticleImporterTest extends KernelTestCase
         self::assertSame(1, $result->errors);
     }
 
+    public function testDryRunCountsRowsButDoesNotPersistThem(): void
+    {
+        $file = $this->createCsvFile(
+            "title,url,time_added,tags,status\n".
+            "Good,https://example.com/dry1,1641750653,,unread\n".
+            "Good 2,https://example.com/dry2,1641750653,,unread\n".
+            "Bad URL,not-a-url,1641750653,,unread\n"
+        );
+
+        $result = $this->importer->import($file, null, dryRun: true);
+
+        // Counts mirror what a real run would produce — caller can preview
+        // before committing. errors=1 (bad URL), imported=2, skipped=0.
+        self::assertSame(2, $result->imported);
+        self::assertSame(0, $result->skipped);
+        self::assertSame(1, $result->errors);
+
+        // Critical invariant: zero rows on disk despite imported=2.
+        $count = $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM articles');
+        self::assertSame('0', (string) $count);
+    }
+
+    public function testDryRunStillFlagsDuplicatesAgainstExistingRows(): void
+    {
+        // Seed one row by a real import, then dry-run with a CSV that contains
+        // both the seeded URL and a fresh one. The existsByUrl check must still
+        // fire in dry-run mode so the user sees an honest preview.
+        $seedFile = $this->createCsvFile(
+            "title,url,time_added,tags,status\n".
+            "Seeded,https://example.com/seeded,1641750653,,unread\n"
+        );
+        $this->importer->import($seedFile);
+
+        $dryFile = $this->createCsvFile(
+            "title,url,time_added,tags,status\n".
+            "Seeded,https://example.com/seeded,1641750653,,unread\n".
+            "Fresh,https://example.com/fresh,1641750653,,unread\n"
+        );
+
+        $result = $this->importer->import($dryFile, null, dryRun: true);
+
+        self::assertSame(1, $result->imported);
+        self::assertSame(1, $result->skipped);
+        self::assertSame(0, $result->errors);
+
+        $count = $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM articles');
+        self::assertSame('1', (string) $count); // only the seeded one
+    }
+
     private function createCsvFile(string $content): string
     {
         $file = tempnam(sys_get_temp_dir(), 'articles_test_');
