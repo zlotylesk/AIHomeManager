@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Csv\CsvBuilder;
 use App\Module\Tasks\Application\DTO\TaskTimeDTO;
 use App\Module\Tasks\Application\DTO\TimeReportDTO;
 use App\Module\Tasks\Application\Query\GetTimeReport;
+use App\Module\Tasks\Application\Service\TaskCsvExporter;
 use DateTimeImmutable;
 use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,6 +27,33 @@ final class TasksController extends AbstractController
         #[Target('query.bus')]
         private readonly MessageBusInterface $queryBus,
     ) {
+    }
+
+    #[Route('/export', methods: ['GET'])]
+    public function export(Request $request, TaskCsvExporter $exporter): Response
+    {
+        $fromStr = $request->query->get('from');
+        $toStr = $request->query->get('to');
+
+        try {
+            $from = null !== $fromStr ? new DateTimeImmutable($fromStr) : null;
+            $to = null !== $toStr ? new DateTimeImmutable($toStr) : null;
+        } catch (Exception) {
+            return new JsonResponse(
+                ['error' => 'Invalid date format. Use YYYY-MM-DD.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        // See ArticlesController::export for why we buffer instead of streaming.
+        return new Response(
+            CsvBuilder::build(TaskCsvExporter::HEADERS, $exporter->rows($from, $to)),
+            Response::HTTP_OK,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename=tasks.csv',
+            ],
+        );
     }
 
     #[Route('/time-report', methods: ['GET'])]
