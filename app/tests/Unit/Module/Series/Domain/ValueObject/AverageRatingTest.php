@@ -27,4 +27,14 @@ final class AverageRatingTest extends TestCase
 
         self::assertSame(0.0, $average->value());
     }
+
+    public function testEqualsComparesByComputedValue(): void
+    {
+        $a = new AverageRating([new Rating(8), new Rating(6)]);
+        $b = new AverageRating([new Rating(7), new Rating(7)]);
+        $c = new AverageRating([new Rating(9), new Rating(9)]);
+
+        self::assertTrue($a->equals($b), 'Different rating sets that average to the same value must equal.');
+        self::assertFalse($a->equals($c));
+    }
 }

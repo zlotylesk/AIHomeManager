@@ -82,4 +82,14 @@ final class ReadingProgressTest extends TestCase
 
         new ReadingProgress(-1, 200);
     }
+
+    public function testEqualsRequiresBothCurrentAndTotalToMatch(): void
+    {
+        $a = new ReadingProgress(50, 200);
+
+        self::assertTrue($a->equals(new ReadingProgress(50, 200)));
+        // Same percentage (25%), different totalPages — must NOT equal.
+        self::assertFalse($a->equals(new ReadingProgress(25, 100)));
+        self::assertFalse($a->equals(new ReadingProgress(51, 200)));
+    }
 }

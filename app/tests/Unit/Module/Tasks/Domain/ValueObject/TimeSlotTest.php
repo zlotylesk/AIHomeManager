@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Module\Tasks\Domain\ValueObject;
 
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
 use DateTimeImmutable;
+use DateTimeZone;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
@@ -60,5 +61,36 @@ final class TimeSlotTest extends TestCase
 
         self::assertEquals($start, $slot->startDateTime());
         self::assertEquals($end, $slot->endDateTime());
+    }
+
+    public function testEqualsComparesByUtcTimestampNotTimezone(): void
+    {
+        // 09:00 Warsaw and 08:00 UTC (during winter) point to the same instant.
+        // Equality must be timezone-blind — what matters is the moment in time,
+        // not how the wall clock was labelled when the slot was constructed.
+        $a = new TimeSlot(
+            new DateTimeImmutable('2025-01-15 09:00:00', new DateTimeZone('Europe/Warsaw')),
+            new DateTimeImmutable('2025-01-15 10:00:00', new DateTimeZone('Europe/Warsaw')),
+        );
+        $b = new TimeSlot(
+            new DateTimeImmutable('2025-01-15 08:00:00', new DateTimeZone('UTC')),
+            new DateTimeImmutable('2025-01-15 09:00:00', new DateTimeZone('UTC')),
+        );
+
+        self::assertTrue($a->equals($b));
+    }
+
+    public function testEqualsRejectsDifferentInstants(): void
+    {
+        $a = new TimeSlot(
+            new DateTimeImmutable('2025-01-15 09:00:00'),
+            new DateTimeImmutable('2025-01-15 10:00:00'),
+        );
+        $b = new TimeSlot(
+            new DateTimeImmutable('2025-01-15 09:00:00'),
+            new DateTimeImmutable('2025-01-15 10:30:00'),
+        );
+
+        self::assertFalse($a->equals($b));
     }
 }

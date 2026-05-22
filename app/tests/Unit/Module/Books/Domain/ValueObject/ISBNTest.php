@@ -86,4 +86,14 @@ final class ISBNTest extends TestCase
 
         self::assertSame('080442957X', $isbn->value());
     }
+
+    public function testEqualsCompareNormalizedFormSoFormattingDoesNotMatter(): void
+    {
+        // The pin: input formatting (hyphens, spaces) cannot affect equality —
+        // ISBN is uniquely identified by its 10/13 digit canonical form. If a
+        // future refactor stops normalizing, this test catches it.
+        self::assertTrue(new ISBN('0306406152')->equals(new ISBN('0-306-40615-2')));
+        self::assertTrue(new ISBN('9780306406157')->equals(new ISBN('978-0-306-40615-7')));
+        self::assertFalse(new ISBN('0306406152')->equals(new ISBN('080442957X')));
+    }
 }

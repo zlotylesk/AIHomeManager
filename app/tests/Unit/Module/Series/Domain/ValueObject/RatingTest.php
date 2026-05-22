@@ -44,4 +44,10 @@ final class RatingTest extends TestCase
 
         self::assertSame(10, $rating->value());
     }
+
+    public function testEqualsComparesByValue(): void
+    {
+        self::assertTrue(new Rating(7)->equals(new Rating(7)));
+        self::assertFalse(new Rating(7)->equals(new Rating(8)));
+    }
 }
