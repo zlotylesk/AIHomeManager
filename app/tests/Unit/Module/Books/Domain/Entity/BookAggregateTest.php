@@ -1,0 +1,107 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Unit\Module\Books\Domain\Entity;
+
+use App\Module\Books\Domain\Entity\Book;
+use App\Module\Books\Domain\Entity\ReadingSession;
+use App\Module\Books\Domain\Enum\BookStatus;
+use App\Module\Books\Domain\Event\BookCompleted;
+use App\Module\Books\Domain\ValueObject\ISBN;
+use DateTimeImmutable;
+use PHPUnit\Framework\TestCase;
+
+final class BookAggregateTest extends TestCase
+{
+    public function testAddReadingSessionEmitsBookCompletedOnceWhenReadingFinishes(): void
+    {
+        $book = $this->makeBook(totalPages: 100);
+
+        // Partial session — must NOT record completion.
+        $book->addReadingSession($this->makeSession(pagesRead: 60));
+        self::assertSame([], $book->releaseEvents(), 'Partial reads must not record BookCompleted.');
+        self::assertSame(BookStatus::READING, $book->status());
+
+        // Final session brings the book to 100/100 — exactly one BookCompleted.
+        $book->addReadingSession($this->makeSession(pagesRead: 40));
+
+        $events = $book->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(BookCompleted::class, $events[0]);
+        self::assertSame('book-id', $events[0]->bookId);
+        self::assertSame(BookStatus::COMPLETED, $book->status());
+    }
+
+    public function testReleaseEventsDrainsTheRecordedList(): void
+    {
+        // Pin handler contract: a second releaseEvents() call after the first
+        // returns nothing. Without the drain, an event would dispatch twice if
+        // a handler ever called the method more than once on the same aggregate.
+        $book = $this->makeBook(totalPages: 10);
+        $book->addReadingSession($this->makeSession(pagesRead: 10));
+
+        $firstDrain = $book->releaseEvents();
+        $secondDrain = $book->releaseEvents();
+
+        self::assertCount(1, $firstDrain);
+        self::assertSame([], $secondDrain);
+    }
+
+    public function testBookCompletedIsNotReEmittedOnSubsequentSessionsAgainstCompletedBook(): void
+    {
+        // If addReadingSession is called against an already-completed book and
+        // the page count doesn't exceed the total, the entity must not re-emit
+        // BookCompleted. Subscribers (notifications, achievements) treat this
+        // as a one-shot — duplicate emits would be a real bug.
+        //
+        // Domain guard: zero-page sessions don't change pages but still go
+        // through addReadingSession; this regression test pins the no-duplicate
+        // contract on the "already-completed" arm.
+        $book = $this->makeBook(totalPages: 10);
+        $book->addReadingSession($this->makeSession(pagesRead: 10));
+        $firstDrain = $book->releaseEvents();
+        self::assertCount(1, $firstDrain);
+
+        $book->addReadingSession($this->makeSession(pagesRead: 0));
+
+        self::assertSame([], $book->releaseEvents(), 'Already-completed book must not re-emit BookCompleted.');
+    }
+
+    public function testStartingReadingDoesNotEmitBookCompleted(): void
+    {
+        // TO_READ → READING transition exists in addReadingSession but is NOT
+        // a completion event today. KISS: BookCompleted is the only event;
+        // BookStatusChanged for the start transition can be added when a
+        // subscriber actually needs it.
+        $book = $this->makeBook(totalPages: 100);
+        $book->addReadingSession($this->makeSession(pagesRead: 1));
+
+        self::assertSame(BookStatus::READING, $book->status());
+        self::assertSame([], $book->releaseEvents());
+    }
+
+    private function makeBook(int $totalPages): Book
+    {
+        return new Book(
+            id: 'book-id',
+            isbn: new ISBN('9780000000002'),
+            title: 'Test',
+            author: 'Author',
+            publisher: 'Publisher',
+            year: 2024,
+            coverUrl: null,
+            totalPages: $totalPages,
+        );
+    }
+
+    private function makeSession(int $pagesRead): ReadingSession
+    {
+        return new ReadingSession(
+            id: 'session-id',
+            bookId: 'book-id',
+            date: new DateTimeImmutable('2026-05-22 12:00:00'),
+            pagesRead: $pagesRead,
+        );
+    }
+}

@@ -9,7 +9,9 @@ use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Domain\Entity\ReadingSession;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
 use DateTimeImmutable;
+use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Uid\Uuid;
 
 #[AsMessageHandler(bus: 'command.bus')]
@@ -17,6 +19,8 @@ final readonly class LogReadingSessionHandler
 {
     public function __construct(
         private BookRepositoryInterface $bookRepository,
+        #[Target('event.bus')]
+        private MessageBusInterface $eventBus,
     ) {
     }
 
@@ -38,5 +42,9 @@ final readonly class LogReadingSessionHandler
 
         $book->addReadingSession($session);
         $this->bookRepository->save($book);
+
+        foreach ($book->releaseEvents() as $event) {
+            $this->eventBus->dispatch($event);
+        }
     }
 }
