@@ -5,16 +5,12 @@ declare(strict_types=1);
 namespace App\Module\Tasks\Domain\Entity;
 
 use App\Module\Tasks\Domain\Enum\TaskStatus;
-use App\Module\Tasks\Domain\Event\TaskScheduled;
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
 
 final class Task
 {
     private TaskStatus $status;
-
-    /** @var object[] */
-    private array $recordedEvents = [];
 
     public function __construct(
         private readonly string $id,
@@ -52,12 +48,12 @@ final class Task
 
     public function schedule(): void
     {
+        // HMAI-134: TaskScheduled emission via $recordedEvents was removed
+        // together with the dead releaseEvents() drain — no Application
+        // handler called it. When Tasks gains a CreateTaskHandler, re-wire
+        // event recording HERE and dispatch via event.bus in the handler
+        // (Series/Books pattern).
         $this->status = TaskStatus::PENDING;
-        $this->recordedEvents[] = new TaskScheduled(
-            taskId: $this->id,
-            title: $this->title,
-            timeSlot: $this->timeSlot,
-        );
     }
 
     public function complete(): void
@@ -73,14 +69,5 @@ final class Task
     public function assignGoogleEventId(string $googleEventId): void
     {
         $this->googleEventId = $googleEventId;
-    }
-
-    /** @return object[] */
-    public function releaseEvents(): array
-    {
-        $events = $this->recordedEvents;
-        $this->recordedEvents = [];
-
-        return $events;
     }
 }
