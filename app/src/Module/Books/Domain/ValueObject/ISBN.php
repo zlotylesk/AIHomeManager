@@ -34,6 +34,14 @@ final readonly class ISBN
         return $this->normalized;
     }
 
+    public function equals(self $other): bool
+    {
+        // Compare normalized form so "978-0-13-468599-1" and "9780134685991"
+        // (same ISBN, different input formatting) count as equal — that's the
+        // whole point of normalization at construction time.
+        return $this->normalized === $other->normalized;
+    }
+
     private function isValidIsbn10(string $isbn): bool
     {
         if (!preg_match('/^\d{9}[\dX]$/', $isbn)) {

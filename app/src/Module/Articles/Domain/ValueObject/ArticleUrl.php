@@ -41,4 +41,9 @@ final readonly class ArticleUrl
     {
         return $this->url;
     }
+
+    public function equals(self $other): bool
+    {
+        return $this->url === $other->url;
+    }
 }

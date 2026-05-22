@@ -44,4 +44,10 @@ final class TaskTitleTest extends TestCase
 
         self::assertSame(255, mb_strlen($title->value()));
     }
+
+    public function testEqualsComparesByValue(): void
+    {
+        self::assertTrue(new TaskTitle('Buy milk')->equals(new TaskTitle('Buy milk')));
+        self::assertFalse(new TaskTitle('Buy milk')->equals(new TaskTitle('Buy bread')));
+    }
 }

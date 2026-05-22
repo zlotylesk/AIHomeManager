@@ -92,4 +92,18 @@ final class ArticleUrlTest extends TestCase
 
         new ArticleUrl($url);
     }
+
+    public function testEqualsComparesByUrlValue(): void
+    {
+        self::assertTrue(
+            new ArticleUrl('https://example.com/a')->equals(new ArticleUrl('https://example.com/a')),
+        );
+        self::assertTrue(
+            new ArticleUrl('  https://example.com/a  ')->equals(new ArticleUrl('https://example.com/a')),
+            'Trimming happens at construction — two inputs differing only in surrounding whitespace must equal.',
+        );
+        self::assertFalse(
+            new ArticleUrl('https://example.com/a')->equals(new ArticleUrl('https://example.com/b')),
+        );
+    }
 }

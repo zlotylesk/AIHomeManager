@@ -49,4 +49,10 @@ final readonly class ReadingProgress
     {
         return new self($page, $this->totalPages);
     }
+
+    public function equals(self $other): bool
+    {
+        return $this->currentPage === $other->currentPage
+            && $this->totalPages === $other->totalPages;
+    }
 }

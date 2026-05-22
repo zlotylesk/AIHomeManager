@@ -23,4 +23,12 @@ final readonly class AverageRating
     {
         return $this->value;
     }
+
+    public function equals(self $other): bool
+    {
+        // Float === is safe here because both sides come from the same
+        // round(…, 2) pipeline — no transcendental functions, no accumulated
+        // FP drift to worry about.
+        return $this->value === $other->value;
+    }
 }
