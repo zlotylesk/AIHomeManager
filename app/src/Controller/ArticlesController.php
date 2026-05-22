@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Csv\CsvBuilder;
 use App\Module\Articles\Application\Command\CreateArticle;
 use App\Module\Articles\Application\Command\DeleteArticle;
 use App\Module\Articles\Application\Command\MarkArticleAsRead;
@@ -12,6 +13,7 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Articles\Application\Query\GetAllArticles;
 use App\Module\Articles\Application\Query\GetArticleById;
 use App\Module\Articles\Application\Query\GetArticleOfTheDay;
+use App\Module\Articles\Application\Service\ArticleCsvExporter;
 use DomainException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -43,6 +45,33 @@ final class ArticlesController extends AbstractController
         $articles = $this->queryBus->dispatch(new GetAllArticles())->last(HandledStamp::class)->getResult();
 
         return new JsonResponse(array_map($this->serializeDTO(...), $articles));
+    }
+
+    #[Route('/export', methods: ['GET'])]
+    public function export(Request $request, ArticleCsvExporter $exporter): Response
+    {
+        $status = $request->query->get('status');
+        if (null !== $status && !in_array($status, ['read', 'unread'], true)) {
+            return new JsonResponse(
+                ['error' => 'Invalid status. Allowed: read, unread.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        // We build the body in memory via CsvBuilder rather than StreamedResponse
+        // because Symfony WebTestCase consumes a stream once during request
+        // handling — integration assertions on the body would read empty. At
+        // single-user scale the memory hit is irrelevant. HMAI-36 dev notes
+        // preferred streaming; the acceptance criteria are content/headers
+        // correctness, so testability wins.
+        return new Response(
+            CsvBuilder::build(ArticleCsvExporter::HEADERS, $exporter->rows($status)),
+            Response::HTTP_OK,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename=articles.csv',
+            ],
+        );
     }
 
     #[Route('/today', methods: ['GET'])]

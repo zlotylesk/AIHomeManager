@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Csv\CsvBuilder;
 use App\Module\Books\Application\Command\AddBook;
 use App\Module\Books\Application\Command\LogReadingSession;
 use App\Module\Books\Application\Command\RemoveBook;
@@ -14,6 +15,7 @@ use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
+use App\Module\Books\Application\Service\BookCsvExporter;
 use App\Module\Books\Domain\ValueObject\CoverUrl;
 use DateTimeImmutable;
 use DomainException;
@@ -54,6 +56,20 @@ final class BooksController extends AbstractController
         $books = $this->queryBus->dispatch(new GetAllBooks($statusParam))->last(HandledStamp::class)->getResult();
 
         return new JsonResponse(array_map($this->serializeDTO(...), $books));
+    }
+
+    #[Route('/export', methods: ['GET'])]
+    public function export(BookCsvExporter $exporter): Response
+    {
+        // See ArticlesController::export for why we buffer instead of streaming.
+        return new Response(
+            CsvBuilder::build(BookCsvExporter::HEADERS, $exporter->rows()),
+            Response::HTTP_OK,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename=books.csv',
+            ],
+        );
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
