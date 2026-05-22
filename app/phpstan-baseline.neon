@@ -397,12 +397,6 @@ parameters:
 			path: tests/Unit/Module/Series/Infrastructure/Logging/NewRelicMonologHandlerTest.php
 
 		-
-			message: '#^Call to static method PHPUnit\\Framework\\Assert\:\:assertInstanceOf\(\) with ''DateTimeImmutable'' and DateTimeImmutable will always evaluate to true\.$#'
-			identifier: staticMethod.alreadyNarrowedType
-			count: 1
-			path: tests/Unit/Module/Tasks/Domain/TaskAggregateTest.php
-
-		-
 			message: '#^Call to an undefined method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleTokenRepositoryInterface\:\:method\(\)\.$#'
 			identifier: method.notFound
 			count: 10
