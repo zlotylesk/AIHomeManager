@@ -9,6 +9,7 @@ use App\Module\Articles\Domain\ValueObject\ArticleUrl;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 
 final class ArticleTest extends TestCase
 {
@@ -200,6 +201,32 @@ final class ArticleTest extends TestCase
         self::assertSame(500, mb_strlen($article->title()));
         self::assertSame(255, mb_strlen((string) $article->category()));
         self::assertSame(1, $article->estimatedReadTime());
+    }
+
+    public function testArticleHasNoEventRecordingInfrastructure(): void
+    {
+        // HMAI-59 (P1) — Article intentionally records and dispatches no
+        // domain events. CreateArticleHandler, MarkArticleAsReadHandler,
+        // DeleteArticleHandler and UpdateArticleHandler don't call
+        // releaseEvents() because there's nothing to release. HMAI-44 review
+        // flagged the previous releaseEvents()+recordedEvents pair as dead
+        // code; the entity has been cleaned but the pattern can sneak back
+        // in piecemeal (one PR adds the field, another adds the method, no
+        // single PR adds dispatch wiring). This guard fails fast on any
+        // re-introduction so the dead-code regression can't slip through.
+        //
+        // To add domain events to Articles legitimately, change this test
+        // in the same PR as the handler wiring — never one without the other.
+        $reflection = new ReflectionClass(Article::class);
+
+        self::assertFalse(
+            $reflection->hasMethod('releaseEvents'),
+            'Article::releaseEvents() must not be re-introduced without wiring dispatch in every handler — see HMAI-59.',
+        );
+        self::assertFalse(
+            $reflection->hasProperty('recordedEvents'),
+            'Article::$recordedEvents must not be re-introduced without wiring dispatch in every handler — see HMAI-59.',
+        );
     }
 
     private function makeArticle(): Article
