@@ -4,6 +4,71 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.9.0] — 2026-05-23
+
+Domknięcie dwóch epików: **HMAI-131** (Domain model & DDD purity — 12/12 podzadań) i **HMAI-132** (Features — eksport CSV, 1/1 podzadanie). Pierwsza Major-level emisja domain eventu poza modułem Series (Books → `BookCompleted`), spójne `equals()` na wszystkich ośmiu Value Objects + testy regresji, dead-code dla event-recording zablokowany reflection guardami w Articles i Tasks, three CSV export endpoints (`/api/{books,tasks,articles}/export`) dzielące shared `App\Csv\CsvBuilder` (UTF-8 BOM + RFC 4180). 542/542 PHP (+47 vs 1.8.0) + 5/5 Playwright + 34/34 Newman.
+
+### Added
+
+- **`Books\Domain\Event\BookCompleted`** + dispatch w `LogReadingSessionHandler` (HMAI-58). One-shot guard: emisja tylko przy *pierwszym* osiągnięciu 100% (warunek `&& BookStatus::COMPLETED !== $this->status`) — kolejne sesje po ukończeniu książki już nie wybudzają eventu. 7 nowych testów (BookAggregateTest scenariusze + LogReadingSessionHandlerTest dispatch).
+- **`equals(self $other): bool` w 8 immutable Value Objects** (HMAI-83 + HMAI-131): `Rating`, `AverageRating`, `ReadingProgress`, `ISBN` (porównanie znormalizowanej formy), `TaskTitle`, `TimeSlot` (porównanie UTC timestamps — TZ-blind), `ArticleUrl`, `CoverUrl` (uzupełnione przy epic review). +8 unit testów (1 per VO) + nowy `CoverUrlTest` z pełnym pokryciem konstrukcji/walidacji/equality (9 testów).
+- **Reflection regression tests** dla dead-code prevention (HMAI-59, HMAI-134): `ArticleTest::testArticleHasNoEventRecordingInfrastructure` i `TaskAggregateTest::testTaskHasNoEventRecordingInfrastructure` — pinują brak `recordedEvents` field i `releaseEvents()` method via `ReflectionClass`. Re-introdukcja wymaga jednoczesnego usunięcia guard testa + dopięcia handlera w tej samej PR.
+- **CSV export endpoints (HMAI-36):**
+  - `GET /api/books/export` — kolumny: `isbn, title, author, status, percentage, totalPages`. `percentage` liczone w PHP (silent degrade do 0.0 przy `total_pages=0` — żaden divide-by-zero).
+  - `GET /api/tasks/export?from=&to=` — kolumny: `title, startTime, endTime, durationMinutes, googleEventId`. Filtr po `time_start` (kiedy praca się wydarzyła).
+  - `GET /api/articles/export?status=` — kolumny: `title, url, category, readAt, isRead`. Filtr po stanie `read|unread`.
+- **`App\Csv\CsvBuilder`** — shared helper (BOM + `fputcsv` z `escape: ''` zgodny z PHP 8.4 + RFC 4180). Per-moduł `*CsvExporter` w `Application/Service/` z `rows()` jako generatorem na DBAL cursor (`executeQuery + fetchAssociative` w pętli — nie `fetchAllAssociative`, żeby duże eksporty nie pożerały pamięci).
+- **`ImportArticlesCommand --dry-run`** (HMAI-119) — flaga `--dry-run` waliduje CSV i wypisuje co byłoby zaimportowane, bez insertów. Wzorzec do replikacji w przyszłych importach.
+
+### Changed
+
+- **`Tasks\Domain\Entity\Task`** (HMAI-134): usunięte martwe `recordedEvents` field, `releaseEvents()` method i emisja `TaskScheduled` z `schedule()`. Klasa `TaskScheduled` zostawiona jako kontrakt na przyszłość. 3 stare testy z `TaskAggregateTest` usunięte, 1 reflection regression dodany. Orphan PHPStan baseline entry usunięty.
+- **`Articles\Domain\Entity\Article`** (HMAI-110): `updateMetadata()` waliduje invariants (`title`/`url`/`category` po `trim` non-empty, `mb_strlen <= 255`) + komunikat `'Article "%s" field "%s" cannot be empty.'` z kontekstem id+pola — debug-friendly w logach. `\InvalidArgumentException` przy naruszeniu.
+- **`Books\Application\Handler\AddBookHandler`** (HMAI-91): fail-fast na pusty title (`?? ''` fallback usunięty). Pełen kontekst do logu zamiast cichego pustego rekordu.
+- **`Series\Domain\Entity\Series::rateEpisode()`** (HMAI-89): komunikat wyjątku `'Season "%s" not found in series "%s".'` zamiast `'Season "%s" not found.'` — kontekst series id dla łatwiejszego debugu w Graylog.
+- **`Articles\Application\Query\GetAllArticles` + `GetArticleOfTheDay`** (HMAI-120): promoted do `final readonly class`. `ImportResult` świadomie zostaje mutable (counter increment w pętli) — dodany komentarz wyjaśniający.
+- **`BooksController::create()`** (HMAI-108): `str_contains($e->getMessage(), 'not found')` zastąpione przez typed `BookNotFoundException` instanceof check. Nie-fragile mapping na 404.
+- **`Tasks\Application\QueryHandler\GetTimeReportHandler`** (HMAI-117): `@return list<array{date: string, hours: float, taskCount: int}>` w PHPDoc — PHPStan teraz typecheckuje rezultat.
+- **`ISBN` VO** (HMAI-111): local variable `$normalizedValue` (nie `$normalized` jak property) — czytelność dla reviewerów.
+- **`tests-e2e/postman/AIHomeManager.postman_collection.json`** (HMAI-132): +3 export requesty (Books/Tasks/Articles) z asercjami status + content-type + filename + CSV header row. 31 → 34 requestów, 42 → 54 asercji.
+- **CLAUDE.md**: epiki HMAI-131 + HMAI-132 → zamknięte; "Wydania" → 1.9.0; tabela domain events zaktualizowana o `BookCompleted`.
+
+### Coverage
+
+- **542 PHP tests** passing (vs 495 at 1.8.0) — +47 nowych: 7 Book/BookCompleted (HMAI-58), 8 VO equals() (HMAI-83), 9 CoverUrlTest (HMAI-131 epic), 1 Article reflection guard (HMAI-59), 1 Task reflection guard (HMAI-134) − 3 dead Task tests (HMAI-134), 6 Article updateMetadata invariants (HMAI-110), 4 AddBookHandler title fail-fast (HMAI-91), 11 export endpoints (HMAI-36), 3 import dry-run (HMAI-119).
+- **5 Playwright** (bez zmian).
+- **34 Newman** requests / 54 assertions (vs 28/42 — dodane 3 export + 4 asercji × 3, plus drobne korekty).
+- PHPStan level 8 clean, baseline bez nowych entries.
+
+### Documentation
+
+- **Confluence id 49053698** "Architektura heksagonalna i DDD w PHP" — v4. Dodane: Sekcja 7 "DDD purity hardening" (VO equals() z tabelą per-VO strategii, aggregate event emission contracts + one-shot guard pattern, dead-code reflection guards, invariant validation z kontekstem, `final readonly` consistency).
+- **Confluence id 46891009** "Dokumentacja API" — v5. Dodane: sekcja "CSV Export — wspólne wzorce" (BOM + RFC 4180 + buffered Response trade-off + PDF deferral) + per-module export endpoint rows.
+- **`tests-e2e/postman/README.md`**: bump request/assertion count, note o export coverage.
+- **CHANGELOG.md**: ta sekcja.
+- **CLAUDE.md**: epiki HMAI-131 + HMAI-132 oznaczone jako zamknięte 2026-05-23; "Wydania" → 1.9.0.
+
+### Migration
+
+Brak. Wszystkie zmiany w warstwach Domain + Application + Infrastructure controllers — brak nowych ENV, brak DB migrations, brak Redis schema changes. Klienci konsumujący `/api/books`, `/api/tasks/time-report`, `/api/articles` mają teraz dodatkowy endpoint `/export` (GET, CSV) — nieinwazyjne.
+
+### Closed Jira
+
+| ID | Tytuł | PR |
+|---|---|---|
+| [HMAI-119](https://honemanager.atlassian.net/browse/HMAI-119) | Add --dry-run flag to ImportArticlesCommand | [#128](https://github.com/zlotylesk/AIHomeManager/pull/128) |
+| [HMAI-110](https://honemanager.atlassian.net/browse/HMAI-110) | Validate Article::updateMetadata invariants with explicit context | [#129](https://github.com/zlotylesk/AIHomeManager/pull/129) |
+| [HMAI-59](https://honemanager.atlassian.net/browse/HMAI-59) | Pin no-event-recording on Article entity to prevent dead-code regression | [#130](https://github.com/zlotylesk/AIHomeManager/pull/130) |
+| [HMAI-58](https://honemanager.atlassian.net/browse/HMAI-58) | Emit BookCompleted event when reading hits 100% and dispatch via event bus | [#131](https://github.com/zlotylesk/AIHomeManager/pull/131) |
+| [HMAI-83](https://honemanager.atlassian.net/browse/HMAI-83) | Add value-based equals() to all seven domain value objects | [#132](https://github.com/zlotylesk/AIHomeManager/pull/132) |
+| [HMAI-120](https://honemanager.atlassian.net/browse/HMAI-120) | Promote marker queries to final readonly and document ImportResult mutability | [#133](https://github.com/zlotylesk/AIHomeManager/pull/133) |
+| [HMAI-134](https://honemanager.atlassian.net/browse/HMAI-134) | Remove dead releaseEvents() from Task and pin regression via reflection | [#134](https://github.com/zlotylesk/AIHomeManager/pull/134) |
+| [HMAI-36](https://honemanager.atlassian.net/browse/HMAI-36) | Add CSV export endpoints for Books, Tasks and Articles | [#135](https://github.com/zlotylesk/AIHomeManager/pull/135) |
+| [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — epic close | [#136](https://github.com/zlotylesk/AIHomeManager/pull/136) |
+| [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — epic close | [#137](https://github.com/zlotylesk/AIHomeManager/pull/137) |
+
+Pre-existing (carried forward): [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) (Gotowe od 1.3.0 — Rate limiting epic, świadomie w fixVersion 1.9.0 jako historical reference).
+
 ## [1.8.0] — 2026-05-21
 
 Domknięcie epica **HMAI-129** (API hardening — input validation, error contracts, exception handling) — 8/8 podzadań (HMAI-43, 57, 65, 66, 67, 68, 79, 109). Najszerszy zakres: nowy globalny `ApiExceptionListener` (HMAI-79) konwertujący uncaught throwables na `^/api/*` na JSON z generycznym 500, nowy PATCH endpoint `/api/series/.../rating` (HMAI-43), spójna walidacja per moduł (Music limit, Series/Episode title length, Books pages_read/date), CSRF decision doc dla stateless+API key (HMAI-57). 495/495 PHP (+42 vs 1.7.1) + 5/5 Playwright + 28/28 Newman. PHPStan level 8 clean (zero new baseline entries).
