@@ -24,9 +24,9 @@ npx newman run tests-e2e/postman/AIHomeManager.postman_collection.json --ignore-
 
 `--ignore-redirects` jest niezbedne dla testow OAuth — bez niego newman podaza za 302 do `accounts.google.com` i widzi 200 zamiast 302.
 
-## Stan na 2026-05-16
+## Stan na 2026-05-23
 
-28 requestow, 42 asercje, 100% zielone (BN API + Discogs OAuth zwracaja 503/502 — toleruja to asercje).
+34 requestow, 54 asercje, 100% zielone (BN API + Discogs OAuth zwracaja 503/502 — toleruja to asercje). +3 export requesty (Books/Tasks/Articles CSV) dodane przy epic review HMAI-132.
 
 Pominiete vs. spec Confluence (oryginalnie 37 req):
 
