@@ -4,26 +4,26 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend: dual track — Series UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Books/Articles/Music wciąż na Twig + vanilla JS (`app/public/js/`), wszystkie używają `window.apiCall` z `public/js/util.js`.
 
-**Status code review (HMAI-44, 2026-05-01; restruktura epików 2026-05-07; backlog zamknięty 2026-05-23 w 1.9.0):** ~~0 otwartych follow-upów~~ — wszystkie 59 ticketów z label `ai_code_review` zamknięte (P0 + P1 + P2). Projekt wyszedł z fazy hardeningu po code review HMAI-44. Pełny raport historyczny: `docs/code-review/HMAI-44-app-review.md`. Confluence: page id 52658177. Następne większe zmiany będą wymagały nowego sourcing'u ticketów (nie ma już aktywnego backlogu z code review).
+**Status code review (HMAI-44):** backlog zamknięty 2026-05-23 (1.9.0). 59/59 ticketów `ai_code_review` Gotowe. Projekt w fazie utrzymania. Raport: `docs/code-review/HMAI-44-app-review.md`. Confluence id 52658177.
 
-**Wydania:** ostatni tag `1.9.0` (2026-05-23) — domknięcie epików **HMAI-131** (Domain model & DDD purity, 12/12 podzadań) i **HMAI-132** (Features — exports, 1/1 podzadanie). Pierwsza emisja domain eventu poza Series (`Books.BookCompleted`), spójne `equals()` na wszystkich 8 VO + reflection guards przeciw dead-code w Articles/Tasks, 3 CSV export endpointy z shared `App\Csv\CsvBuilder`. 542/542 PHP (+47 vs 1.8.0) + 5/5 Playwright + 34/34 Newman. Confluence id 49053698 v4 (DDD page) + id 46891009 v5 (Dokumentacja API). Pełny CHANGELOG: `CHANGELOG.md`. Poprzednie: 1.8.0 (HMAI-129 API hardening, 2026-05-21), 1.7.1 (HMAI-128 batch 2, 2026-05-19), 1.7.0 (HMAI-128 batch 1, 2026-05-18), 1.6.0 (HMAI-126 Operability, 2026-05-17), 1.5.0 (HMAI-124 Persistence, 2026-05-17), 1.4.0 (HMAI-125 Test coverage, 2026-05-16), 1.3.0 (HMAI-127 + HMAI-130, 2026-05-16), 1.2.0 (HMAI-123 Critical findings, 2026-05-07).
+**Wydania:** ostatni tag `1.9.0` (2026-05-23) — HMAI-131 DDD purity + HMAI-132 CSV exports. 542/542 PHP + 5/5 Playwright + 34/34 Newman. Pełna historia → [CHANGELOG.md](CHANGELOG.md). Bieżący stan release/epików → [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md). Archiwum domknięć → [docs/HISTORY.md](docs/HISTORY.md).
 
-**Epiki follow-upów (counts: 2026-05-23 po epic review HMAI-131/132):**
+**Epiki follow-upów (snapshot 2026-05-23 — wszystkie zamknięte):**
 
-| Epik | Tytuł | Otwarte |
-|---|---|---:|
-| [HMAI-123](https://honemanager.atlassian.net/browse/HMAI-123) | Critical findings (C1–C12) — epik zamknięty | — |
-| [HMAI-124](https://honemanager.atlassian.net/browse/HMAI-124) | Persistence & DB integrity — epik zamknięty po przeglądzie 2026-05-17 (9/9 podzadań, Confluence patterns id 49119233 v3) | — |
-| [HMAI-125](https://honemanager.atlassian.net/browse/HMAI-125) | Test coverage — epik zamknięty po przeglądzie 2026-05-16 (12/12 podzadań + ReadingSession unit test domknął lukę po BookAggregateTest) | — |
-| [HMAI-126](https://honemanager.atlassian.net/browse/HMAI-126) | Operability & observability — epik zamknięty po przeglądzie 2026-05-17 (6/6 podzadań: HMAI-37 health, HMAI-35 scheduler, HMAI-39 fixtures, HMAI-107 OAuth audit log, HMAI-112 API metrics, HMAI-133 amqp-messenger) | — |
-| [HMAI-127](https://honemanager.atlassian.net/browse/HMAI-127) | External API clients — resilience, error handling, OAuth refresh — epik zamknięty po przeglądzie 2026-05-16 (14/14 podzadań, hub patterns Confluence id 59441164) | — |
-| [HMAI-128](https://honemanager.atlassian.net/browse/HMAI-128) | Frontend hardening — epik zamknięty po przeglądzie 2026-05-19 (12/12 podzadań + `apiCall` wpięty w articles/books/music/tasks + CSP/Encore regression tests, Confluence id 52297730 v2) | — |
-| [HMAI-129](https://honemanager.atlassian.net/browse/HMAI-129) | API hardening — epik zamknięty po przeglądzie 2026-05-20 (8/8 podzadań + globalny `ApiExceptionListener` + CSRF decision doc `docs/HMAI-57.md` + Confluence id 46891009 v4 + id 49643522 v2). DoD `details: {field: msg}` świadomie uproszczone do `{"error": "..."}` — single-error early return | — |
-| [HMAI-130](https://honemanager.atlassian.net/browse/HMAI-130) | Rate limiting & throttling — epik zamknięty po przeglądzie 2026-05-10 (HMAI-38 + dopełniające testy per-IP isolation, logger spy, DI wiring) | — |
-| [HMAI-131](https://honemanager.atlassian.net/browse/HMAI-131) | Domain model & DDD purity — epik zamknięty po przeglądzie 2026-05-23 (12/12 podzadań: HMAI-58, 59, 83, 89, 91, 108, 110, 111, 117, 119, 120, 134 + CoverUrl::equals() audit gap fill + Confluence id 49053698 v4 z Sekcją 7 DDD purity hardening) | — |
-| [HMAI-132](https://honemanager.atlassian.net/browse/HMAI-132) | Features — epik zamknięty po przeglądzie 2026-05-23 (1/1: HMAI-36 CSV exports + 3 Newman smoke tests dodane przy epic review + Confluence id 46891009 v5 z sekcją "CSV Export — wspólne wzorce". PDF świadomie odroczony) | — |
+| Epik | Tytuł | Status |
+|---|---|---|
+| HMAI-123 | Critical findings (C1–C12) | ✓ 12/12 (1.2.0) |
+| HMAI-124 | Persistence & DB integrity | ✓ 9/9 (1.5.0) |
+| HMAI-125 | Test coverage | ✓ 12/12 (1.4.0) |
+| HMAI-126 | Operability & observability | ✓ 6/6 (1.6.0) |
+| HMAI-127 | External API resilience | ✓ 14/14 (1.3.0) |
+| HMAI-128 | Frontend hardening | ✓ 12/12 (1.7.1) |
+| HMAI-129 | API hardening | ✓ 8/8 (1.8.0) |
+| HMAI-130 | Rate limiting & throttling | ✓ 1/1 (1.3.0) |
+| HMAI-131 | Domain model & DDD purity | ✓ 12/12 (1.9.0) |
+| HMAI-132 | Features — exports | ✓ 1/1 (1.9.0) |
 
-**Ostatnio zamknięte (2026-05-08 → 2026-05-23):** HMAI-131 epic closure 2026-05-23 (12/12 podzadań DDD purity: HMAI-58 BookCompleted event, HMAI-59 Article reflection guard, HMAI-83 equals() w 7 VO, HMAI-89 Series exception context, HMAI-91 AddBookHandler fail-fast, HMAI-108 typed BookNotFoundException, HMAI-110 Article::updateMetadata invariants, HMAI-111 ISBN shadowed param, HMAI-117 GetTimeReportHandler PHPDoc, HMAI-119 ImportArticles --dry-run, HMAI-120 final readonly audit, HMAI-134 Task dead-code + reflection guard). HMAI-132 epic closure 2026-05-23 (1/1: HMAI-36 CSV exports dla Books/Tasks/Articles + shared App\Csv\CsvBuilder + 11 integration tests + 3 Newman smoke). 542/542 PHP (+47 vs 1.8.0). Confluence id 49053698 v4 (Architektura heksagonalna i DDD w PHP — nowa Sekcja 7) + id 46891009 v5 (Dokumentacja API — CSV Export wzorce). HMAI-129 epic closure 2026-05-20 (8/8 podzadań: HMAI-43 PATCH episode rating endpoint, HMAI-57 CSRF stateless+API key decision, HMAI-65 Music limit walidacja, HMAI-66 Series/Episode title length 255, HMAI-67 Books pages_read int, HMAI-68 Books date Y-m-d, HMAI-79 globalny ApiExceptionListener JSON 500, HMAI-109 Articles generic error message). 495/495 PHP (+42 vs 1.7.1). Confluence id 46891009 v4 (Dokumentacja API) + id 49643522 v2 (Series HTTP Controller). HMAI-128 epic closure 2026-05-19 (12/12: HMAI-41 Encore+Stimulus + 9-pack batch 1.7.0 + apiCall wpięty w 4 modułach), HMAI-128 batch 1.7.0 (frontend JS hardening, 9 zadań — HMAI-69, 70, 71, 72, 77, 78, 98, 100, 115), HMAI-38 rate limiting, HMAI-62 narrow exception catches, HMAI-63 Discogs HTTP error codes, HMAI-64 OAuth refresh, HMAI-80 AlbumNormalizer regex logging, HMAI-81 ArticleImporter explicit encoding, HMAI-84 Last.fm whitespace key, HMAI-90 GoogleClientFactory ctor validation, HMAI-96 NationalLibrary XXE protection, HMAI-105 Discogs OAuth status check, HMAI-106 Google OAuth init try-catch, HMAI-113 Discogs credentials VO, HMAI-114 Discogs clock drift detector, HMAI-121 README, HMAI-123 + HMAI-127 + HMAI-130 epic closures, HMAI-125 batch (test coverage, 10/12 zadań — HMAI-73, 74, 76, 82, 93, 94, 95, 97, 99, 116), HMAI-42 Playwright Series E2E, HMAI-33 Newman/Postman collection (12/12), HMAI-125 epic closure (review + ReadingSession unit test), HMAI-124 epic closure (persistence 9/9 — HMAI-60, 61, 75 dup, 86, 88, 92, 102, 103, 122 + GetArticleOfTheDayHandlerTest + Confluence v3), HMAI-126 epic closure (operability 6/6 — HMAI-37, 35, 39, 107, 112, 133).
+Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Architektura — ZASADY NIENARUSZALNE
 
@@ -243,6 +243,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 4. Przed `git commit`: pokaż diff + propozycję commit message, NIE commituj bez zgody
 5. NIE dodawaj `Co-Authored-By: Claude` w commitach (preferencja)
 6. Branche: `HMAI-XX-krotki-opis` od `develop`
+7. Po większym kroku (zamknięty ticket / epic review / release) **zaproponuj** userowi `/compact` — nie wykonuj automatycznie. Sygnał: kolejny krok rozpocznie nowy scope (next ticket, post-release, kolejne PR-y).
 
 ## Linki
 
