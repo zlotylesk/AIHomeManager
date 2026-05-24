@@ -1,4 +1,8 @@
-.claude
+# Claude Code — local-only artifacts (rest of .claude/ is committed)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/agent-memory/
+
 app/vendor/
 app/var/
 app/.env.local

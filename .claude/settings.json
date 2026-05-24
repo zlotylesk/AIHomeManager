@@ -1,0 +1,164 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(mkdir -p *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git fetch *)",
+      "Bash(git branch)",
+      "Bash(git branch -a)",
+      "Bash(git branch --show-current)",
+      "Bash(git ls-files *)",
+      "Bash(git ls-tree *)",
+      "Bash(git remote -v)",
+      "Bash(make test)",
+      "Bash(make test-unit)",
+      "Bash(make test-integration)",
+      "Bash(make routes)",
+      "Bash(make services)",
+      "Bash(make logs)",
+      "Bash(make messenger-status)",
+      "Bash(docker compose ps)",
+      "Bash(docker compose ps *)",
+      "Bash(docker compose logs *)",
+      "Bash(docker compose config)",
+      "mcp__claude_ai_Atlassian_Rovo__getAccessibleAtlassianResources",
+      "mcp__claude_ai_Atlassian_Rovo__getJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__searchJiraIssuesUsingJql",
+      "mcp__claude_ai_Atlassian_Rovo__getTransitionsForJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__getJiraProjectIssueTypesMetadata",
+      "mcp__claude_ai_Atlassian_Rovo__getConfluenceSpaces",
+      "mcp__claude_ai_Atlassian_Rovo__getConfluencePage",
+      "mcp__claude_ai_Atlassian_Rovo__getPagesInConfluenceSpace",
+      "mcp__claude_ai_Atlassian_Rovo__searchConfluenceUsingCql",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__list_directory_with_sizes",
+      "mcp__filesystem__directory_tree",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__get_file_info",
+      "mcp__github__get_file_contents",
+      "mcp__github__get_pull_request",
+      "mcp__github__get_pull_request_files",
+      "mcp__github__get_pull_request_comments",
+      "mcp__github__get_pull_request_status",
+      "mcp__github__list_pull_requests",
+      "mcp__github__list_commits",
+      "mcp__github__list_issues",
+      "mcp__github__get_issue",
+      "mcp__github__search_code",
+      "mcp__github__search_issues",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "sequential-thinking",
+    "context7",
+    "filesystem"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-check-update.js"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-session-state.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-context-monitor.js",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-read-injection-scanner.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-phase-boundary.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-prompt-guard.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-read-guard.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-workflow-guard.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-validate-commit.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
