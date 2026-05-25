@@ -42,4 +42,10 @@ final readonly class DoctrineTaskRepository implements TaskRepositoryInterface
             ->setParameter('to', $to)
             ->getResult();
     }
+
+    public function remove(Task $task): void
+    {
+        $this->entityManager->remove($task);
+        $this->entityManager->flush();
+    }
 }

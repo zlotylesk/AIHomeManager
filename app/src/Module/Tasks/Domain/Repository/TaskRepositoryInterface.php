@@ -20,4 +20,6 @@ interface TaskRepositoryInterface
      * @return Task[]
      */
     public function findByDateRange(DateTimeImmutable $from, DateTimeImmutable $to): array;
+
+    public function remove(Task $task): void;
 }
