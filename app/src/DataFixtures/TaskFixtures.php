@@ -37,12 +37,11 @@ final class TaskFixtures extends Fixture
         ];
 
         foreach ($seeds as [$id, $title, $start, $end]) {
-            $task = new Task(
+            $task = Task::create(
                 id: $id,
                 title: new TaskTitle($title),
                 timeSlot: new TimeSlot($start, $end),
             );
-            $task->schedule();
 
             $this->repository->save($task);
         }

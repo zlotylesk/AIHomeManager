@@ -8,7 +8,7 @@ use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
 use DateTimeImmutable;
 
-final readonly class TaskScheduled
+final readonly class TaskUpdated
 {
     public DateTimeImmutable $occurredAt;
 

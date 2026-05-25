@@ -35,6 +35,7 @@ Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.
 - Command handler: `#[AsMessageHandler(bus: 'command.bus')]`
 - Query handler: `#[AsMessageHandler(bus: 'query.bus')]`
 - Event handler: `#[AsMessageHandler]` bez `bus:` (default)
+- `event.bus` skonfigurowany z `allow_no_handlers: true` — domain events to fire-and-forget, subscriber opcjonalny (HMAI-135)
 
 ## Konwencje nazewnictwa
 
@@ -56,7 +57,7 @@ Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.
 - **Pozostałe moduły** (Tasks/Books/Articles/Music): Twig + vanilla JS w `public/js/*.js`, global helpers `window.TOAST_TIMEOUT_MS` / `window.safeUrl` / `window.apiCall` z `public/js/util.js`. Migracja do Encore odroczona (osobne tickety w HMAI-128 follow-up).
 - Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`
 - Selektor ocen Series: 10 przycisków (NIE `<input type=number>`)
-- Tasks UI = tylko `/api/tasks/time-report` (brak create/list endpointów)
+- Tasks API: pełny REST CRUD (`POST/GET/GET{id}/PATCH{id}/DELETE{id} /api/tasks`, `POST {id}/complete`, `POST {id}/cancel`) + `/time-report` + `/export` (HMAI-135). Google Calendar sync via `CalendarServiceInterface` z graceful degrade
 - Brakujący zakres frontu (Jira): HMAI-43 (UI dla nowego PATCH episode rating endpointu — backend kompletny)
 
 ### Webpack Encore (HMAI-41)
@@ -147,7 +148,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport) per project config w `playwright.config.ts`
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json` (HMAI-33 — 28 req / 42 assertions / 100% green). Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`); details w `tests-e2e/postman/README.md`
 - Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x
-- Stan: 408/408 PHP passing + 5/5 Playwright + 28/28 Newman requests (HMAI-42 + HMAI-33 + HMAI-125 epic close, 2026-05-16)
+- Stan: 571/571 PHP passing + 5/5 Playwright + 28/28 Newman requests (HMAI-135 Tasks CRUD, 2026-05-25)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 - E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series`
 
