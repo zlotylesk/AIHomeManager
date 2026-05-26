@@ -27,6 +27,11 @@ services:
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
+    App\Infrastructure\Backup\DatabaseBackupService:
+        arguments:
+            $databaseUrl: '%env(DATABASE_URL)%'
+            $backupDir: '%env(BACKUP_DIR)%'
+
     App\Module\Series\Domain\Repository\SeriesRepositoryInterface:
         alias: App\Module\Series\Infrastructure\Persistence\DoctrineSeriesRepository
 
