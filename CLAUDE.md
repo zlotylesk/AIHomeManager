@@ -97,11 +97,12 @@ GELF UDP input w Graylog: konfigurować ręcznie po pierwszym `make monitoring-u
 
 ## Symfony Scheduler (HMAI-35)
 
-`src/Schedule.php` rejestruje 3 zadania cykliczne (via `dragonmantank/cron-expression`):
+`src/Schedule.php` rejestruje 4 zadania cykliczne (via `dragonmantank/cron-expression`):
 
 | Cron | Wiadomość | Efekt |
 |---|---|---|
 | `0 0 * * *` | `Articles\...\ResetDailyArticleCache` | Usuwa Redis `articles:today`, kasuje `article_daily_picks` > 7 dni |
+| `0 3 * * *` | `App\Application\Scheduled\BackupDatabase` | mysqldump + gzip → `/backups/homemanager-YYYY-MM-DD.sql.gz`, retention 30 daily + 12 monthly (HMAI-136) |
 | `0 8 * * 1` | `App\Application\Scheduled\GenerateWeeklyActivityReport` | Loguje `scheduled_task=weekly_report` do default channel (read_articles, pages_read, completed_tasks, rated_episodes_total) |
 | `0 */6 * * *` | `Music\...\RefreshDiscogsCollection` | Pre-warm cache kolekcji przed wygaśnięciem 6h TTL |
 
@@ -139,6 +140,8 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Załaduj fixtures (dev) | `make fixtures` |
 | Webpack Encore dev/watch/prod | `make assets` / `make assets-watch` / `make assets-prod` |
 | Npm install (po `package.json` change) | `make node-install` |
+| Backup MySQL (ręczny) | `make backup-now` |
+| Restore MySQL | `make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz` |
 
 ## Testy
 
@@ -148,7 +151,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport) per project config w `playwright.config.ts`
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json` (HMAI-33 — 28 req / 42 assertions / 100% green). Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`); details w `tests-e2e/postman/README.md`
 - Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x
-- Stan: 571/571 PHP passing + 5/5 Playwright + 28/28 Newman requests (HMAI-135 Tasks CRUD, 2026-05-25)
+- Stan: 585/585 PHP passing + 5/5 Playwright + 28/28 Newman requests (HMAI-136 MySQL backup, 2026-05-26)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 - E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series`
 

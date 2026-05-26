@@ -4,6 +4,7 @@ services:
       context: docker/php
     volumes:
       - ./app:/var/www/html
+      - ./backups:/backups
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
       REDIS_URL: redis://redis:6379
@@ -106,12 +107,13 @@ services:
 
   scheduler_worker:
     # HMAI-35: Runs Symfony Scheduler recurring messages — midnight cache reset,
-    # weekly activity report, 6h Discogs cache warmup. Same image as the
-    # messenger worker; consumes the dedicated `scheduler_default` transport.
+    # weekly activity report, 6h Discogs cache warmup, daily MySQL backup (HMAI-136).
+    # Same image as the messenger worker; consumes the dedicated `scheduler_default` transport.
     build:
       context: docker/php
     volumes:
       - ./app:/var/www/html
+      - ./backups:/backups
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
       REDIS_URL: redis://redis:6379

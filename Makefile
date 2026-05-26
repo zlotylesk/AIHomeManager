@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures node-install assets assets-watch assets-prod
+.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures node-install assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -108,3 +108,10 @@ assets-watch:
 
 assets-prod:
 	docker compose exec node npm run build
+
+backup-now:
+	docker compose exec php bin/console app:backup-database
+
+restore:
+	@test -n "$(BACKUP)" || (echo "Usage: make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz" && exit 1)
+	gunzip -c $(BACKUP) | docker compose exec -T mysql mysql -uhomemanager -phomemanager homemanager

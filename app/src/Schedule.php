@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App;
 
+use App\Application\Scheduled\BackupDatabase;
 use App\Application\Scheduled\GenerateWeeklyActivityReport;
 use App\Module\Articles\Application\Command\ResetDailyArticleCache;
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
@@ -42,6 +43,7 @@ final readonly class Schedule implements ScheduleProviderInterface
             ->processOnlyLastMissedRun(true)
             ->add(
                 RecurringMessage::cron('0 0 * * *', new ResetDailyArticleCache()),
+                RecurringMessage::cron('0 3 * * *', new BackupDatabase()),
                 RecurringMessage::cron('0 8 * * 1', new GenerateWeeklyActivityReport()),
                 RecurringMessage::cron('0 */6 * * *', new RefreshDiscogsCollection($this->discogsUsername)),
             );
