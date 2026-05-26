@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Infrastructure\Backup;
 
 use App\Infrastructure\Backup\DatabaseBackupService;
 use DateTimeImmutable;
+use Override;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -14,7 +15,7 @@ final class DatabaseBackupServiceTest extends TestCase
 {
     private string $tmpDir;
 
-    #[\Override]
+    #[Override]
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,7 +23,7 @@ final class DatabaseBackupServiceTest extends TestCase
         mkdir($this->tmpDir, 0o755, true);
     }
 
-    #[\Override]
+    #[Override]
     protected function tearDown(): void
     {
         $files = glob($this->tmpDir.'/*');
