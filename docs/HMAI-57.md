@@ -1,3 +1,5 @@
+> **Status:** This decision has been promoted to [ADR-005 in Confluence](https://honemanager.atlassian.net/wiki/spaces/H/pages/64225282). This file retains the original drafting context.
+
 # HMAI-57 — CSRF on mutating API endpoints
 
 **Jira:** https://honemanager.atlassian.net/browse/HMAI-57
