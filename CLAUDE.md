@@ -93,7 +93,7 @@ Async messages routowane do `async` transportu: `Series\Domain\Event\EpisodeRate
 
 `NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic`.
 
-GELF UDP input w Graylog: konfigurować ręcznie po pierwszym `make monitoring-up` (System → Inputs → GELF UDP → Launch).
+GELF UDP input + index sets + streams: `make monitoring-bootstrap` (idempotentny skrypt `scripts/graylog-bootstrap.sh`, HMAI-142). Tworzy GELF UDP input, index sets `auth-events` (90 dni, time-based) i `series-events` (30 dni, time-based) z odpowiadającymi stream'ami filtrującymi po `channel`. Wymaga działającego Graylog (`make monitoring-up` najpierw).
 
 ## Symfony Scheduler (HMAI-35)
 
@@ -135,6 +135,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Kontenery | `make services` |
 | Status workera | `make messenger-status` |
 | Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
+| Graylog bootstrap (inputs+indexes+streams) | `make monitoring-bootstrap` |
 | E2E (Playwright) install/run | `make test-e2e-install` / `make test-e2e` |
 | Newman (Postman REST collection) | `make test-newman-install` / `make test-newman` |
 | Załaduj fixtures (dev) | `make fixtures` |
