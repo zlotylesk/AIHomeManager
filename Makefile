@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures node-install assets assets-watch assets-prod backup-now restore
+.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures node-install assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -75,6 +75,9 @@ monitoring-down:
 
 monitoring-logs:
 	docker compose --profile monitoring logs -f graylog
+
+monitoring-bootstrap:
+	bash scripts/graylog-bootstrap.sh
 
 phpstan:
 	docker compose exec php vendor/bin/phpstan analyse --memory-limit=1G
