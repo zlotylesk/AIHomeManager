@@ -91,4 +91,28 @@ class ArticlesExportApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
     }
+
+    public function testPdfExportContainsPdfMagicBytes(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'PDF test article',
+            'url' => 'https://example.com/pdf',
+            'category' => 'tech',
+        ]));
+
+        $this->client->request('GET', '/api/articles/export?format=pdf');
+
+        self::assertResponseIsSuccessful();
+        $response = $this->client->getResponse();
+        self::assertSame('application/pdf', $response->headers->get('Content-Type'));
+        self::assertSame('attachment; filename=articles.pdf', $response->headers->get('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $response->getContent());
+    }
+
+    public function testExportRejectsInvalidFormatWith422(): void
+    {
+        $this->client->request('GET', '/api/articles/export?format=xml');
+
+        self::assertResponseStatusCodeSame(422);
+    }
 }

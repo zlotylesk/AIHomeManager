@@ -14,6 +14,7 @@ use App\Module\Articles\Application\Query\GetAllArticles;
 use App\Module\Articles\Application\Query\GetArticleById;
 use App\Module\Articles\Application\Query\GetArticleOfTheDay;
 use App\Module\Articles\Application\Service\ArticleCsvExporter;
+use App\Pdf\PdfBuilder;
 use DomainException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -48,28 +49,46 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/export', methods: ['GET'])]
-    public function export(Request $request, ArticleCsvExporter $exporter): Response
+    public function export(Request $request, ArticleCsvExporter $csvExporter, PdfBuilder $pdfBuilder): Response
     {
         $status = $request->query->get('status');
-        if (null !== $status && !in_array($status, ['read', 'unread'], true)) {
+        if (null !== $status && !\in_array($status, ['read', 'unread'], true)) {
             return new JsonResponse(
                 ['error' => 'Invalid status. Allowed: read, unread.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY,
             );
         }
 
-        // We build the body in memory via CsvBuilder rather than StreamedResponse
-        // because Symfony WebTestCase consumes a stream once during request
-        // handling — integration assertions on the body would read empty. At
-        // single-user scale the memory hit is irrelevant. HMAI-36 dev notes
-        // preferred streaming; the acceptance criteria are content/headers
-        // correctness, so testability wins.
+        $format = $request->query->get('format', 'csv');
+        if (!\in_array($format, ['csv', 'pdf'], true)) {
+            return new JsonResponse(
+                ['error' => 'Invalid format. Allowed: csv, pdf.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        if ('csv' === $format) {
+            return new Response(
+                CsvBuilder::build(ArticleCsvExporter::HEADERS, $csvExporter->rows($status)),
+                Response::HTTP_OK,
+                [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => 'attachment; filename=articles.csv',
+                ],
+            );
+        }
+
+        $rows = [];
+        foreach ($csvExporter->rows($status) as $row) {
+            $rows[] = array_combine(ArticleCsvExporter::HEADERS, $row);
+        }
+
         return new Response(
-            CsvBuilder::build(ArticleCsvExporter::HEADERS, $exporter->rows($status)),
+            $pdfBuilder->build('exports/articles_pdf.html.twig', ['rows' => $rows]),
             Response::HTTP_OK,
             [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => 'attachment; filename=articles.csv',
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename=articles.pdf',
             ],
         );
     }

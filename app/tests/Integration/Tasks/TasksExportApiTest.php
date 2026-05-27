@@ -124,4 +124,32 @@ class TasksExportApiTest extends WebTestCase
 
         self::assertSame("\xEF\xBB\xBFtitle,startTime,endTime,durationMinutes,googleEventId\n", $body);
     }
+
+    public function testPdfExportContainsPdfMagicBytes(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('tasks', [
+            'id' => 'task0002-0000-0000-0000-000000000000',
+            'title' => 'PDF test task',
+            'status' => 'completed',
+            'time_start' => '2025-01-10 08:00:00',
+            'time_end' => '2025-01-10 09:00:00',
+            'google_event_id' => null,
+        ]);
+
+        $this->client->request('GET', '/api/tasks/export?format=pdf');
+
+        self::assertResponseIsSuccessful();
+        $response = $this->client->getResponse();
+        self::assertSame('application/pdf', $response->headers->get('Content-Type'));
+        self::assertSame('attachment; filename=tasks.pdf', $response->headers->get('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $response->getContent());
+    }
+
+    public function testExportRejectsInvalidFormatWith422(): void
+    {
+        $this->client->request('GET', '/api/tasks/export?format=xml');
+
+        self::assertResponseStatusCodeSame(422);
+    }
 }

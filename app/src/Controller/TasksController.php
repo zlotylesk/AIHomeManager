@@ -18,6 +18,7 @@ use App\Module\Tasks\Application\Query\GetAllTasks;
 use App\Module\Tasks\Application\Query\GetTaskById;
 use App\Module\Tasks\Application\Query\GetTimeReport;
 use App\Module\Tasks\Application\Service\TaskCsvExporter;
+use App\Pdf\PdfBuilder;
 use DateTimeImmutable;
 use DomainException;
 use Exception;
@@ -184,7 +185,7 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/export', methods: ['GET'])]
-    public function export(Request $request, TaskCsvExporter $exporter): Response
+    public function export(Request $request, TaskCsvExporter $csvExporter, PdfBuilder $pdfBuilder): Response
     {
         $fromStr = $request->query->get('from');
         $toStr = $request->query->get('to');
@@ -199,12 +200,36 @@ final class TasksController extends AbstractController
             );
         }
 
+        $format = $request->query->get('format', 'csv');
+        if (!\in_array($format, ['csv', 'pdf'], true)) {
+            return new JsonResponse(
+                ['error' => 'Invalid format. Allowed: csv, pdf.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        if ('csv' === $format) {
+            return new Response(
+                CsvBuilder::build(TaskCsvExporter::HEADERS, $csvExporter->rows($from, $to)),
+                Response::HTTP_OK,
+                [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => 'attachment; filename=tasks.csv',
+                ],
+            );
+        }
+
+        $rows = [];
+        foreach ($csvExporter->rows($from, $to) as $row) {
+            $rows[] = array_combine(TaskCsvExporter::HEADERS, $row);
+        }
+
         return new Response(
-            CsvBuilder::build(TaskCsvExporter::HEADERS, $exporter->rows($from, $to)),
+            $pdfBuilder->build('exports/tasks_pdf.html.twig', ['rows' => $rows]),
             Response::HTTP_OK,
             [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => 'attachment; filename=tasks.csv',
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename=tasks.pdf',
             ],
         );
     }
