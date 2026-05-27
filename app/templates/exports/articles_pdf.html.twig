@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: "DejaVu Sans", sans-serif; font-size: 10pt; }
+        h1 { font-size: 16pt; margin-bottom: 8pt; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 4pt 6pt; text-align: left; }
+        th { background-color: #e0e0e0; font-weight: bold; }
+        .footer { margin-top: 10pt; font-size: 8pt; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Articles Export</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>URL</th>
+                <th>Category</th>
+                <th>Read At</th>
+                <th>Is Read</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.title }}</td>
+                <td>{{ row.url }}</td>
+                <td>{{ row.category }}</td>
+                <td>{{ row.readAt }}</td>
+                <td>{{ row.isRead == '1' ? 'Yes' : 'No' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No articles found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="footer">Generated {{ 'now'|date('Y-m-d H:i') }} &mdash; AIHomeManager</p>
+</body>
+</html>

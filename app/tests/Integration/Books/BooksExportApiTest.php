@@ -67,4 +67,43 @@ class BooksExportApiTest extends WebTestCase
 
         self::assertSame("\xEF\xBB\xBFisbn,title,author,status,percentage,totalPages\n", $body);
     }
+
+    public function testPdfExportContainsPdfMagicBytes(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('books', [
+            'id' => 'book0000-0000-0000-0000-000000000002',
+            'isbn' => '9780306406157',
+            'title' => 'Clean Code',
+            'author' => 'Robert C. Martin',
+            'publisher' => 'Prentice Hall',
+            'year' => 2008,
+            'total_pages' => 300,
+            'current_page' => 150,
+            'status' => 'reading',
+        ]);
+
+        $this->client->request('GET', '/api/books/export?format=pdf');
+
+        self::assertResponseIsSuccessful();
+        $response = $this->client->getResponse();
+        self::assertSame('application/pdf', $response->headers->get('Content-Type'));
+        self::assertSame('attachment; filename=books.pdf', $response->headers->get('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $response->getContent());
+    }
+
+    public function testExportDefaultFormatIsCsv(): void
+    {
+        $this->client->request('GET', '/api/books/export');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('text/csv; charset=UTF-8', $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
+    public function testExportRejectsInvalidFormatWith422(): void
+    {
+        $this->client->request('GET', '/api/books/export?format=xml');
+
+        self::assertResponseStatusCodeSame(422);
+    }
 }

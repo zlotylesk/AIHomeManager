@@ -17,6 +17,7 @@ use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
 use App\Module\Books\Application\Service\BookCsvExporter;
 use App\Module\Books\Domain\ValueObject\CoverUrl;
+use App\Pdf\PdfBuilder;
 use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
@@ -59,15 +60,38 @@ final class BooksController extends AbstractController
     }
 
     #[Route('/export', methods: ['GET'])]
-    public function export(BookCsvExporter $exporter): Response
+    public function export(Request $request, BookCsvExporter $csvExporter, PdfBuilder $pdfBuilder): Response
     {
-        // See ArticlesController::export for why we buffer instead of streaming.
+        $format = $request->query->get('format', 'csv');
+        if (!\in_array($format, ['csv', 'pdf'], true)) {
+            return new JsonResponse(
+                ['error' => 'Invalid format. Allowed: csv, pdf.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        if ('csv' === $format) {
+            return new Response(
+                CsvBuilder::build(BookCsvExporter::HEADERS, $csvExporter->rows()),
+                Response::HTTP_OK,
+                [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => 'attachment; filename=books.csv',
+                ],
+            );
+        }
+
+        $rows = [];
+        foreach ($csvExporter->rows() as $row) {
+            $rows[] = array_combine(BookCsvExporter::HEADERS, $row);
+        }
+
         return new Response(
-            CsvBuilder::build(BookCsvExporter::HEADERS, $exporter->rows()),
+            $pdfBuilder->build('exports/books_pdf.html.twig', ['rows' => $rows]),
             Response::HTTP_OK,
             [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => 'attachment; filename=books.csv',
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename=books.pdf',
             ],
         );
     }
