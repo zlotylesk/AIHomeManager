@@ -73,7 +73,7 @@ Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.
 
 Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production). Node service: `aihm-node-1` (`node:24-alpine`, mount na `./app`). `make node-install` reinstaluje `npm install` po zmianie `package.json`.
 
-`public/build/` + `node_modules/` w `.gitignore`. CI buduje assets oddzielnie (osobny step do dodania w `.github/workflows/`).
+`public/build/` + `node_modules/` w `.gitignore`. CI buduje assets w jobach `tests` i `e2e-playwright` (`npm ci && npm run build` w `app/`) przed PHPUnit/Playwright — bez tego Twig `encore_entry_*` wywala 500.
 
 ## Infrastruktura
 
@@ -154,7 +154,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x
 - Stan: 600/600 PHP passing + 5/5 Playwright + 34/34 Newman requests (HMAI-141 BookCompleted routing, 2026-05-27)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
-- E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series`
+- E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series` — **dotyczy tylko env `dev`/`prod`**. W CI (HMAI-140) joby E2E/Newman lecą z `APP_ENV=test`, gdzie `monolog when@test` kieruje kanały `series`/`auth` na handlery `null` → Graylog niepotrzebny. Klucze `*_TOKEN_KEY` w CI to **poprawny base64 32B** (`TokenCipher` rzuca dla innej długości — OAuth-init request inaczej zwróci 500 zamiast 302/502). App server w CI: `symfony server:start --no-tls --port=8080` (serwuje routing + statyczne assety Encore; gołe `php -S` tego nie łączy)
 
 ## Security — API Key
 
@@ -203,7 +203,7 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 - **PHPStan** level 8 + `phpstan-symfony` + `phpstan-doctrine` + `phpstan-phpunit`. Config: `app/phpstan.neon.dist`. Baseline (182 errors): `app/phpstan-baseline.neon` — celowo, by nie blokować mergy istniejącego długu; nowe błędy wymagają fixu lub rozszerzenia baseline'u przez `make phpstan-baseline`
 - **PHP CS Fixer**: `@Symfony` + `@PHP84Migration` + `global_namespace_import` (klasy importowane). Config: `app/.php-cs-fixer.dist.php`
 - **Rector**: `withPhpSets()` + `deadCode` (49 plików zmienionych przy starcie). Config: `app/rector.php`
-- CI: `.github/workflows/static-analysis.yml` uruchamia CS Fixer + PHPStan na każdy push/PR
+- CI: `.github/workflows/ci.yml` — 4 joby na każdy push/PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8), `tests` (PHPUnit), `e2e-playwright` i `e2e-newman` (oba `needs: tests`, HMAI-140)
 
 | Komenda | Akcja |
 |---|---|
