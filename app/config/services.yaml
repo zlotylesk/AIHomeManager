@@ -69,6 +69,9 @@ services:
             $lastfmUsername: '%env(LASTFM_USERNAME)%'
             $discogsUsername: '%env(DISCOGS_USERNAME)%'
 
+    App\Module\Music\Domain\Repository\ListeningSessionRepositoryInterface:
+        alias: App\Module\Music\Infrastructure\Persistence\DoctrineListeningSessionRepository
+
     App\Module\Music\Domain\Port\VinylCollectionInterface:
         alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
 

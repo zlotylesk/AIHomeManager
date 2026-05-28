@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Music\Domain\Entity\ListeningSession" table="music_listening_sessions">
+        <unique-constraints>
+            <unique-constraint columns="dedup_hash" name="uniq_listening_sessions_dedup"/>
+        </unique-constraints>
+        <indexes>
+            <index name="idx_listening_sessions_played_at" columns="played_at"/>
+        </indexes>
+        <id name="id" type="string" column="id" length="36"/>
+        <embedded name="artist" class="App\Module\Music\Domain\ValueObject\AlbumArtist" use-column-prefix="false"/>
+        <embedded name="title" class="App\Module\Music\Domain\ValueObject\AlbumTitle" use-column-prefix="false"/>
+        <field name="playedAt" type="datetime_immutable" column="played_at" nullable="false"/>
+        <field name="source" type="listening_source" column="source" length="50" nullable="false"/>
+        <field name="playCount" type="integer" column="play_count" nullable="true"/>
+        <field name="dedupHash" type="string" column="dedup_hash" length="64" nullable="false"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
+    </entity>
+
+</doctrine-mapping>

@@ -11,6 +11,8 @@ use App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler;
 use App\Module\Music\Application\Service\AlbumNormalizer;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Result;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Redis;
@@ -31,6 +33,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
     private Redis $redis;
     private MusicListeningHistoryInterface $lastfm;
     private VinylCollectionInterface $discogs;
+    private Connection $connection;
 
     protected function setUp(): void
     {
@@ -40,6 +43,13 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
         $this->lastfm = $this->createStub(MusicListeningHistoryInterface::class);
         $this->discogs = $this->createStub(VinylCollectionInterface::class);
+
+        // Local listening history is empty in these comparison unit tests — the
+        // recentlyPlayedNotOwned slice is covered separately (HMAI-144).
+        $emptyResult = $this->createStub(Result::class);
+        $emptyResult->method('fetchAllAssociative')->willReturn([]);
+        $this->connection = $this->createStub(Connection::class);
+        $this->connection->method('executeQuery')->willReturn($emptyResult);
     }
 
     private function makeHandler(): GetMusicComparisonHandler
@@ -49,6 +59,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
             $this->discogs,
             new AlbumNormalizer(new NullLogger()),
             $this->redis,
+            $this->connection,
             'lastfm_user',
             'discogs_user',
         );
@@ -143,6 +154,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
             'wantList' => [],
             'dustyShelf' => [],
             'matchScore' => self::CACHED_MATCH_SCORE_MARKER,
+            'recentlyPlayedNotOwned' => [],
         ]);
 
         $redis = $this->createMock(Redis::class);
@@ -154,6 +166,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
             $this->discogs,
             new AlbumNormalizer(new NullLogger()),
             $redis,
+            $this->connection,
             'user',
             'user'
         );
@@ -177,12 +190,15 @@ final class GetMusicComparisonHandlerTest extends TestCase
                 ['artist' => 'Unknown', 'title' => 'No Year', 'year' => null, 'format' => 'CD', 'discogsId' => 100],
             ],
             'matchScore' => self::HALF_MATCH_SCORE,
+            'recentlyPlayedNotOwned' => [
+                ['artist' => 'Beach House', 'title' => 'Bloom', 'playCount' => 12, 'imageUrl' => null],
+            ],
         ]);
 
         $redis = $this->createMock(Redis::class);
         $redis->method('get')->willReturn($payload);
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, $this->connection, 'u', 'u');
         $result = $handler(new GetMusicComparison());
 
         self::assertCount(1, $result->ownedAndListened);
@@ -194,6 +210,9 @@ final class GetMusicComparisonHandlerTest extends TestCase
         self::assertSame(1975, $result->dustyShelf[0]->year);
         self::assertNull($result->dustyShelf[1]->year);
         self::assertSame(self::HALF_MATCH_SCORE, $result->matchScore);
+        self::assertCount(1, $result->recentlyPlayedNotOwned);
+        self::assertSame('Bloom', $result->recentlyPlayedNotOwned[0]->title);
+        self::assertSame(12, $result->recentlyPlayedNotOwned[0]->playCount);
     }
 
     public function testIgnoresMalformedJsonAndRecomputes(): void
@@ -205,7 +224,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $redis->method('get')->willReturn('{not valid json');
         $redis->expects(self::once())->method('setex');
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, $this->connection, 'u', 'u');
         $result = $handler(new GetMusicComparison(limit: 1));
 
         self::assertCount(1, $result->wantList);
@@ -220,7 +239,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $redis->method('get')->willReturn(json_encode(['ownedAndListened' => 'not-an-array']));
         $redis->expects(self::once())->method('setex');
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, $this->connection, 'u', 'u');
         $result = $handler(new GetMusicComparison(limit: 1));
 
         self::assertCount(1, $result->wantList);
@@ -247,6 +266,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
             $this->discogs,
             new AlbumNormalizer(new NullLogger()),
             $redis,
+            $this->connection,
             'same_lastfm_user',
             $discogsUsername,
         );
@@ -274,7 +294,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
         ]));
         $redis->expects(self::once())->method('setex');
 
-        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, 'u', 'u');
+        $handler = new GetMusicComparisonHandler($this->lastfm, $this->discogs, new AlbumNormalizer(new NullLogger()), $redis, $this->connection, 'u', 'u');
         $result = $handler(new GetMusicComparison());
 
         self::assertSame(self::NO_MATCH_SCORE, $result->matchScore);
