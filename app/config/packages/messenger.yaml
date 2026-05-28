@@ -43,6 +43,7 @@ framework:
             # with observable side-effects is added.
             App\Module\Series\Domain\Event\EpisodeRated: async
             App\Module\Music\Application\Command\RefreshDiscogsCollection: async
+            App\Module\Music\Application\Command\PollLastFmRecentTracks: async
 
 when@test:
     framework:

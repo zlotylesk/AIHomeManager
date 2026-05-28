@@ -29,6 +29,7 @@ class MusicApiTest extends WebTestCase
 
         $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
         $conn->executeStatement('TRUNCATE TABLE discogs_oauth_tokens');
+        $conn->executeStatement('TRUNCATE TABLE music_listening_sessions');
     }
 
     /**
@@ -243,7 +244,7 @@ class MusicApiTest extends WebTestCase
         $data = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertIsArray($data);
         self::assertSame(
-            ['matchScore', 'ownedAndListened', 'wantList', 'dustyShelf'],
+            ['matchScore', 'ownedAndListened', 'wantList', 'dustyShelf', 'recentlyPlayedNotOwned'],
             array_keys($data)
         );
         // 1 of the 2 requested albums (The Wall) is in the collection → 50%.
@@ -257,5 +258,120 @@ class MusicApiTest extends WebTestCase
         // it lands on the dustyShelf.
         self::assertCount(1, $data['dustyShelf']);
         self::assertSame('Forgotten Album', $data['dustyShelf'][0]['title']);
+    }
+
+    public function testCreateSessionPersistsAndReturns201(): void
+    {
+        $this->postSession([
+            'artist' => 'Pink Floyd',
+            'title' => 'The Wall',
+            'playedAt' => '2026-05-20T10:00:00+00:00',
+            'playCount' => 5,
+        ]);
+
+        self::assertResponseStatusCodeSame(201);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Pink Floyd', $data['artist']);
+        self::assertSame('The Wall', $data['title']);
+        self::assertSame('manual', $data['source']);
+        self::assertSame(5, $data['playCount']);
+    }
+
+    public function testCreateSessionRejectsMissingPlayedAt(): void
+    {
+        $this->postSession(['artist' => 'Pink Floyd', 'title' => 'The Wall']);
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertArrayHasKey('error', $data);
+    }
+
+    public function testCreateSessionRejectsEmptyArtist(): void
+    {
+        // Empty artist fails AlbumArtist VO construction inside the handler — the
+        // controller must translate that wrapped exception to a 422, not a 500.
+        $this->postSession([
+            'artist' => '   ',
+            'title' => 'The Wall',
+            'playedAt' => '2026-05-20T10:00:00+00:00',
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateSessionRejectsInvalidSource(): void
+    {
+        $this->postSession([
+            'artist' => 'Pink Floyd',
+            'title' => 'The Wall',
+            'playedAt' => '2026-05-20T10:00:00+00:00',
+            'source' => 'bogus',
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testHistoryReturnsPostedSessionsNewestFirst(): void
+    {
+        $this->postSession(['artist' => 'A', 'title' => 'Older', 'playedAt' => '2026-05-18T09:00:00+00:00']);
+        $this->postSession(['artist' => 'B', 'title' => 'Newer', 'playedAt' => '2026-05-20T09:00:00+00:00']);
+
+        $this->client->request('GET', '/api/music/history');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertCount(2, $data);
+        self::assertSame(['id', 'artist', 'title', 'playedAt', 'source', 'playCount'], array_keys($data[0]));
+        self::assertSame('Newer', $data[0]['title']);
+        self::assertSame('Older', $data[1]['title']);
+    }
+
+    public function testHistoryIsIdempotentForDuplicatePost(): void
+    {
+        $payload = ['artist' => 'Pink Floyd', 'title' => 'The Wall', 'playedAt' => '2026-05-20T10:00:00+00:00'];
+        $this->postSession($payload);
+        $this->postSession($payload);
+
+        $this->client->request('GET', '/api/music/history');
+
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertCount(1, $data);
+    }
+
+    public function testHistoryFiltersBySource(): void
+    {
+        $this->postSession(['artist' => 'A', 'title' => 'Manual', 'playedAt' => '2026-05-20T09:00:00+00:00', 'source' => 'manual']);
+        $this->postSession(['artist' => 'B', 'title' => 'Scrobble', 'playedAt' => '2026-05-20T10:00:00+00:00', 'source' => 'lastfm_scrobble']);
+
+        $this->client->request('GET', '/api/music/history?source=manual');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertCount(1, $data);
+        self::assertSame('Manual', $data[0]['title']);
+    }
+
+    public function testHistoryRejectsInvalidSource(): void
+    {
+        $this->client->request('GET', '/api/music/history?source=bogus');
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertArrayHasKey('error', $data);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function postSession(array $payload): void
+    {
+        $this->client->request(
+            'POST',
+            '/api/music/sessions',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            (string) json_encode($payload)
+        );
     }
 }

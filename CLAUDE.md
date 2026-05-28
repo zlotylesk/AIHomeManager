@@ -89,7 +89,7 @@ Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-pro
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
 
-Async messages routowane do `async` transportu: `Series\Domain\Event\EpisodeRated`, `Music\Application\Command\RefreshDiscogsCollection` (HMAI-56 — fetch kolekcji Discogs offloaded z requestu, endpoint `/api/music/collection` zwraca cache + dispatcha refresh przy miss). `Books\Domain\Event\BookCompleted` świadomie sync (in-memory) — brak handlera, brak I/O side-effects (ADR-006, HMAI-141). Pinned przez `BookCompletedRoutingTest`.
+Async messages routowane do `async` transportu: `Series\Domain\Event\EpisodeRated`, `Music\Application\Command\RefreshDiscogsCollection` (HMAI-56 — fetch kolekcji Discogs offloaded z requestu, endpoint `/api/music/collection` zwraca cache + dispatcha refresh przy miss), `Music\Application\Command\PollLastFmRecentTracks` (HMAI-144 — scheduler poll co 30 min, handler dispatchuje `LogListeningSession` per track na sync command.bus). `Books\Domain\Event\BookCompleted` świadomie sync (in-memory) — brak handlera, brak I/O side-effects (ADR-006, HMAI-141). Pinned przez `BookCompletedRoutingTest`.
 
 `NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic`.
 
@@ -97,7 +97,7 @@ GELF UDP input + index sets + streams: `make monitoring-bootstrap` (idempotentny
 
 ## Symfony Scheduler (HMAI-35)
 
-`src/Schedule.php` rejestruje 4 zadania cykliczne (via `dragonmantank/cron-expression`):
+`src/Schedule.php` rejestruje 5 zadań cyklicznych (via `dragonmantank/cron-expression`):
 
 | Cron | Wiadomość | Efekt |
 |---|---|---|
@@ -105,6 +105,7 @@ GELF UDP input + index sets + streams: `make monitoring-bootstrap` (idempotentny
 | `0 3 * * *` | `App\Application\Scheduled\BackupDatabase` | mysqldump + gzip → `/backups/homemanager-YYYY-MM-DD.sql.gz`, retention 30 daily + 12 monthly (HMAI-136) |
 | `0 8 * * 1` | `App\Application\Scheduled\GenerateWeeklyActivityReport` | Loguje `scheduled_task=weekly_report` do default channel (read_articles, pages_read, completed_tasks, rated_episodes_total) |
 | `0 */6 * * *` | `Music\...\RefreshDiscogsCollection` | Pre-warm cache kolekcji przed wygaśnięciem 6h TTL |
+| `*/30 * * * *` | `Music\...\PollLastFmRecentTracks` | Poll Last.fm recent tracks → lokalna historia odsłuchów (HMAI-144), idempotentny przez `dedup_hash` |
 
 Worker: `bin/console debug:scheduler` pokazuje stan; `docker compose up -d scheduler_worker` konsumuje transport `scheduler_default`. Stateful via `cache.app` (filesystem, mount na hoście) — restart workera odpala max 1 zaległe okno (`processOnlyLastMissedRun(true)`).
 
@@ -152,7 +153,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport) per project config w `playwright.config.ts`
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json` (HMAI-33 — 34 req / 66 assertions). Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`); details w `tests-e2e/postman/README.md`
 - Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x
-- Stan: 600/600 PHP passing + 5/5 Playwright + 34/34 Newman requests (HMAI-141 BookCompleted routing, 2026-05-27)
+- Stan: 630/630 PHP passing + 5/5 Playwright + 36/36 Newman requests (HMAI-144 Music ListeningSession aggregate, 2026-05-28)
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 - E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series` — **dotyczy tylko env `dev`/`prod`**. W CI (HMAI-140) joby E2E/Newman lecą z `APP_ENV=test`, gdzie `monolog when@test` kieruje kanały `series`/`auth` na handlery `null` → Graylog niepotrzebny. Klucze `*_TOKEN_KEY` w CI to **poprawny base64 32B** (`TokenCipher` rzuca dla innej długości — OAuth-init request inaczej zwróci 500 zamiast 302/502). App server w CI: `symfony server:start --no-tls --port=8080` (serwuje routing + statyczne assety Encore; gołe `php -S` tego nie łączy)
 

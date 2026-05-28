@@ -5,6 +5,7 @@ doctrine:
         types:
             task_status: App\Module\Tasks\Infrastructure\Persistence\Doctrine\Type\TaskStatusType
             book_status: App\Module\Books\Infrastructure\Persistence\Doctrine\Type\BookStatusType
+            listening_source: App\Module\Music\Infrastructure\Persistence\Doctrine\Type\ListeningSourceType
 
         # IMPORTANT: You MUST configure your server version,
         # either here or in the DATABASE_URL env var (see .env file)
@@ -55,6 +56,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Books/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Books\Domain\ValueObject'
+            MusicDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Music/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Music\Domain\Entity'
+            MusicDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Music/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Music\Domain\ValueObject'
 
 when@test:
     doctrine:

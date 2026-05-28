@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Music\Infrastructure\External;
 
 use App\Module\Music\Application\DTO\AlbumDTO;
+use App\Module\Music\Application\DTO\RecentTrackDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
+use DateTimeImmutable;
 use JsonException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -81,6 +83,87 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         $this->redis->setex($cacheKey, self::CACHE_TTL, $this->encodeAlbumsForCache($albums));
 
         return $albums;
+    }
+
+    /**
+     * Fetches the most recent plays straight from Last.fm — NOT cached, since the
+     * scheduler polls this to capture new scrobbles the local history hasn't seen
+     * yet (HMAI-144). A cache would hide exactly the deltas we are polling for.
+     *
+     * @return RecentTrackDTO[]
+     */
+    public function getRecentTracks(string $username, int $limit): array
+    {
+        if ('' === trim($this->apiKey)) {
+            throw new RuntimeException('Last.fm API key not configured');
+        }
+
+        $start = microtime(true);
+        $status = null;
+
+        try {
+            $response = $this->httpClient->request('GET', self::API_URL, [
+                'query' => [
+                    'method' => 'user.getrecenttracks',
+                    'user' => $username,
+                    'limit' => $limit,
+                    'api_key' => $this->apiKey,
+                    'format' => 'json',
+                ],
+            ]);
+
+            $status = $response->getStatusCode();
+            $data = $response->toArray();
+        } catch (TransportExceptionInterface $e) {
+            $this->recordCall('user.getrecenttracks', $start, null, 'transport_error');
+
+            throw new RuntimeException('Last.fm API unavailable.', 0, $e);
+        }
+
+        $this->recordCall('user.getrecenttracks', $start, $status);
+
+        return $this->parseRecentTracks($data);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return RecentTrackDTO[]
+     */
+    private function parseRecentTracks(array $data): array
+    {
+        $tracks = [];
+
+        foreach ($data['recenttracks']['track'] ?? [] as $item) {
+            // The currently-playing track carries no play timestamp — skip it,
+            // it isn't a completed listening session yet.
+            if ('true' === ($item['@attr']['nowplaying'] ?? null) || !isset($item['date']['uts'])) {
+                continue;
+            }
+
+            $artist = trim((string) ($item['artist']['#text'] ?? $item['artist']['name'] ?? ''));
+            $album = trim((string) ($item['album']['#text'] ?? ''));
+            if ('' === $artist || '' === $album) {
+                continue;
+            }
+
+            // Last.fm returns play time as a UNIX timestamp in UTC seconds.
+            $playedAt = DateTimeImmutable::createFromFormat('U', (string) $item['date']['uts']);
+            if (false === $playedAt) {
+                continue;
+            }
+
+            $mbid = trim((string) ($item['album']['mbid'] ?? $item['mbid'] ?? ''));
+
+            $tracks[] = new RecentTrackDTO(
+                artist: $artist,
+                album: $album,
+                playedAt: $playedAt,
+                mbid: '' !== $mbid ? $mbid : null,
+            );
+        }
+
+        return $tracks;
     }
 
     /** @param AlbumDTO[] $albums */

@@ -11,6 +11,9 @@ use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Application\Service\AlbumNormalizer;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use DateTimeImmutable;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use JsonException;
 use Redis;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -20,13 +23,16 @@ final readonly class GetMusicComparisonHandler
 {
     private const int DUSTY_SHELF_LIMIT = 500;
     private const int CACHE_TTL = 3600;
-    private const string CACHE_VERSION = 'v3';
+    private const string CACHE_VERSION = 'v4';
+    private const int RECENTLY_PLAYED_WINDOW_DAYS = 90;
+    private const int RECENTLY_PLAYED_LIMIT = 100;
 
     public function __construct(
         private MusicListeningHistoryInterface $listeningHistory,
         private VinylCollectionInterface $vinylCollection,
         private AlbumNormalizer $normalizer,
         private Redis $redis,
+        private Connection $connection,
         private string $lastfmUsername,
         private string $discogsUsername,
     ) {
@@ -99,11 +105,56 @@ final readonly class GetMusicComparisonHandler
             wantList: $wantList,
             dustyShelf: $dustyShelf,
             matchScore: $matchScore,
+            recentlyPlayedNotOwned: $this->computeRecentlyPlayedNotOwned($discogsKeys),
         );
 
         $this->redis->setex($cacheKey, self::CACHE_TTL, $this->serializeDto($dto));
 
         return $dto;
+    }
+
+    /**
+     * Albums played recently per the local listening history (HMAI-144) that are
+     * absent from the Discogs collection — "you keep playing this, maybe buy it".
+     * Sourced from our own DB, not Last.fm, so it works even when Last.fm is down.
+     *
+     * @param array<string, true> $discogsKeys normalized owned-album keys
+     *
+     * @return AlbumDTO[]
+     */
+    private function computeRecentlyPlayedNotOwned(array $discogsKeys): array
+    {
+        $since = new DateTimeImmutable(sprintf('-%d days', self::RECENTLY_PLAYED_WINDOW_DAYS))
+            ->format('Y-m-d H:i:s');
+
+        $rows = $this->connection->executeQuery(
+            'SELECT artist, title, COUNT(*) AS plays
+             FROM music_listening_sessions
+             WHERE played_at >= :since
+             GROUP BY artist, title
+             ORDER BY plays DESC
+             LIMIT :limit',
+            ['since' => $since, 'limit' => self::RECENTLY_PLAYED_LIMIT],
+            ['limit' => ParameterType::INTEGER],
+        )->fetchAllAssociative();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $artist = (string) $row['artist'];
+            $title = (string) $row['title'];
+            if (isset($discogsKeys[$this->normalizer->normalize($artist, $title)])) {
+                continue;
+            }
+
+            $result[] = new AlbumDTO(
+                artist: $artist,
+                title: $title,
+                playCount: (int) $row['plays'],
+                imageUrl: null,
+            );
+        }
+
+        return $result;
     }
 
     private function serializeDto(MusicComparisonDTO $dto): string
@@ -113,6 +164,7 @@ final readonly class GetMusicComparisonHandler
             'wantList' => array_map(self::albumToArray(...), $dto->wantList),
             'dustyShelf' => array_map(self::vinylToArray(...), $dto->dustyShelf),
             'matchScore' => $dto->matchScore,
+            'recentlyPlayedNotOwned' => array_map(self::albumToArray(...), $dto->recentlyPlayedNotOwned),
         ], JSON_THROW_ON_ERROR);
     }
 
@@ -128,6 +180,7 @@ final readonly class GetMusicComparisonHandler
             || !is_array($decoded['ownedAndListened'] ?? null)
             || !is_array($decoded['wantList'] ?? null)
             || !is_array($decoded['dustyShelf'] ?? null)
+            || !is_array($decoded['recentlyPlayedNotOwned'] ?? null)
             || !is_float($decoded['matchScore'] ?? null) && !is_int($decoded['matchScore'] ?? null)) {
             return null;
         }
@@ -135,8 +188,9 @@ final readonly class GetMusicComparisonHandler
         $owned = self::mapAlbums($decoded['ownedAndListened']);
         $want = self::mapAlbums($decoded['wantList']);
         $dusty = self::mapVinyls($decoded['dustyShelf']);
+        $recentlyPlayed = self::mapAlbums(array_values($decoded['recentlyPlayedNotOwned']));
 
-        if (null === $owned || null === $want || null === $dusty) {
+        if (null === $owned || null === $want || null === $dusty || null === $recentlyPlayed) {
             return null;
         }
 
@@ -145,6 +199,7 @@ final readonly class GetMusicComparisonHandler
             wantList: $want,
             dustyShelf: $dusty,
             matchScore: (float) $decoded['matchScore'],
+            recentlyPlayedNotOwned: $recentlyPlayed,
         );
     }
 

@@ -30,11 +30,13 @@ final class MusicControllerTest extends TestCase
     {
         $listeningHistory = $this->createStub(MusicListeningHistoryInterface::class);
         $queryBus = $this->createStub(MessageBusInterface::class);
+        $commandBus = $this->createStub(MessageBusInterface::class);
 
         $controller = new MusicController(
             listeningHistory: $listeningHistory,
             vinylCollection: $vinylCollection,
             queryBus: $queryBus,
+            commandBus: $commandBus,
             lastfmUsername: 'lf-user',
             discogsUsername: 'disco-user',
         );

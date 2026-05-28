@@ -14,6 +14,8 @@ final readonly class MusicComparisonDTO
         /** @var VinylRecordDTO[] */
         public array $dustyShelf,
         public float $matchScore,
+        /** @var AlbumDTO[] Recently played from local history but not in the Discogs collection (HMAI-144). */
+        public array $recentlyPlayedNotOwned = [],
     ) {
     }
 }
