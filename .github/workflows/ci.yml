@@ -170,3 +170,313 @@ jobs:
 
       - name: PHPUnit
         run: vendor/bin/phpunit
+
+  e2e-playwright:
+    name: Playwright E2E (desktop + mobile)
+    needs: tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: homemanager_test
+          MYSQL_USER: homemanager
+          MYSQL_PASSWORD: homemanager
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      APP_ENV: test
+      APP_DEBUG: '1'
+      # Base dbname "homemanager"; doctrine when@test appends _test → connects to
+      # "homemanager_test" (same convention as the `tests` job above).
+      DATABASE_URL: 'mysql://homemanager:homemanager@127.0.0.1:3306/homemanager?serverVersion=8.0&charset=utf8mb4'
+      REDIS_URL: 'redis://127.0.0.1:6379'
+      LOCK_DSN: 'redis://127.0.0.1:6379'
+      # Smoke run: async EpisodeRated is dispatched but not consumed (no worker).
+      # The series-detail average is computed live from the DB, so the rating test
+      # still passes; the async Redis cache is orthogonal.
+      MESSENGER_TRANSPORT_DSN: 'in-memory://'
+      API_KEY: 'e2e-test-key'
+      # 32-byte base64 keys — TokenCipher rejects any other length. Fake but valid;
+      # no real secrets, and OAuth-init requests need a constructible cipher.
+      DISCOGS_TOKEN_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+      GOOGLE_TOKEN_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+      DISCOGS_CONSUMER_KEY: e2e
+      DISCOGS_CONSUMER_SECRET: e2e
+      LASTFM_API_KEY: e2e
+      LASTFM_USERNAME: e2e
+      DISCOGS_USERNAME: e2e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
+          coverage: none
+          tools: composer:v2
+
+      # Symfony local server routes Symfony paths AND serves Encore build assets
+      # from public/. Bare `php -S` cannot do both (no router → 404 on routes;
+      # index.php router → 404 on static assets), which would break the Series UI.
+      - name: Install Symfony CLI
+        run: |
+          curl -1sLf 'https://dl.cloudsmith.io/public/symfony/stable/setup.deb.sh' | sudo -E bash
+          sudo apt-get install -y symfony-cli
+
+      - name: Get composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('app/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Make console executable
+        run: chmod +x bin/console
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            app/package-lock.json
+            package-lock.json
+
+      - name: Install Encore dependencies
+        run: npm ci
+
+      - name: Build Webpack Encore assets
+        run: npm run build
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -uhomemanager -phomemanager --silent && exit 0
+            echo "Waiting for MySQL ($i/30)..."
+            sleep 1
+          done
+          echo "MySQL did not become ready in time"
+          exit 1
+
+      - name: Run database migrations
+        run: bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Install Playwright dependencies
+        working-directory: ${{ github.workspace }}
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ${{ github.workspace }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Start application server
+        run: symfony server:start --no-tls --port=8080 --daemon
+
+      - name: Wait for application
+        run: |
+          for i in {1..30}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/api/health || true)
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
+              echo "App responding (HTTP $code)"
+              exit 0
+            fi
+            echo "Waiting for app ($i/30)..."
+            sleep 1
+          done
+          echo "App did not become ready in time"
+          exit 1
+
+      - name: Run Playwright tests
+        working-directory: ${{ github.workspace }}
+        env:
+          E2E_BASE_URL: 'http://127.0.0.1:8080'
+          E2E_API_KEY: 'e2e-test-key'
+        run: npx playwright test --reporter=github,html
+
+      - name: Stop application server
+        if: always()
+        run: symfony server:stop || true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+  e2e-newman:
+    name: Newman API smoke
+    needs: tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: homemanager_test
+          MYSQL_USER: homemanager
+          MYSQL_PASSWORD: homemanager
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      APP_ENV: test
+      APP_DEBUG: '1'
+      DATABASE_URL: 'mysql://homemanager:homemanager@127.0.0.1:3306/homemanager?serverVersion=8.0&charset=utf8mb4'
+      REDIS_URL: 'redis://127.0.0.1:6379'
+      LOCK_DSN: 'redis://127.0.0.1:6379'
+      MESSENGER_TRANSPORT_DSN: 'in-memory://'
+      API_KEY: 'e2e-test-key'
+      DISCOGS_TOKEN_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+      GOOGLE_TOKEN_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+      DISCOGS_CONSUMER_KEY: e2e
+      DISCOGS_CONSUMER_SECRET: e2e
+      LASTFM_API_KEY: e2e
+      LASTFM_USERNAME: e2e
+      DISCOGS_USERNAME: e2e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Symfony CLI
+        run: |
+          curl -1sLf 'https://dl.cloudsmith.io/public/symfony/stable/setup.deb.sh' | sudo -E bash
+          sudo apt-get install -y symfony-cli
+
+      - name: Get composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('app/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Make console executable
+        run: chmod +x bin/console
+
+      # Newman hits only /api/* and /auth/* (JSON) — no Encore assets needed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install Newman dependencies
+        working-directory: ${{ github.workspace }}
+        run: npm ci
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -uhomemanager -phomemanager --silent && exit 0
+            echo "Waiting for MySQL ($i/30)..."
+            sleep 1
+          done
+          echo "MySQL did not become ready in time"
+          exit 1
+
+      - name: Run database migrations
+        run: bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Start application server
+        run: symfony server:start --no-tls --port=8080 --daemon
+
+      - name: Wait for application
+        run: |
+          for i in {1..30}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/api/health || true)
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
+              echo "App responding (HTTP $code)"
+              exit 0
+            fi
+            echo "Waiting for app ($i/30)..."
+            sleep 1
+          done
+          echo "App did not become ready in time"
+          exit 1
+
+      # base_url forced to 127.0.0.1 (collection default is localhost, which can
+      # resolve to ::1 while the Symfony server binds IPv4). --ignore-redirects is
+      # required so OAuth-init requests assert 302/502 instead of following to the
+      # provider.
+      - name: Run Newman API smoke tests
+        working-directory: ${{ github.workspace }}
+        run: >-
+          npx newman run tests-e2e/postman/AIHomeManager.postman_collection.json
+          --ignore-redirects
+          --env-var "base_url=http://127.0.0.1:8080/api"
+          --env-var "api_key=e2e-test-key"
+          --reporters cli,htmlextra
+          --reporter-htmlextra-export newman-report.html
+
+      - name: Stop application server
+        if: always()
+        run: symfony server:stop || true
+
+      - name: Upload Newman report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: newman-report.html
+          retention-days: 30

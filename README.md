@@ -333,7 +333,7 @@ make rector-dry / rector  # Rector
 
 PHPStan baseline (`app/phpstan-baseline.neon`) trzyma istniejący dług — celowo, by nie blokować mergy. Nowe błędy wymagają fixu lub explicit dodania do baseline'u przez `make phpstan-baseline`.
 
-CI (`.github/workflows/static-analysis.yml`) uruchamia CS Fixer + PHPStan na każdym push i PR.
+CI (`.github/workflows/ci.yml`) uruchamia na każdym push i PR cztery joby: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8), `tests` (PHPUnit), `e2e-playwright` (Playwright desktop + mobile) oraz `e2e-newman` (Newman API smoke). Joby E2E startują aplikację przez `symfony server:start` (env `test`, `in-memory://` transport) i uploadują raporty HTML jako artifacts (retencja 30 dni).
 
 ---
 
