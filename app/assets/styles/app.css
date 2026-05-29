@@ -1,5 +1,12 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Mobile layouts must never scroll horizontally. `clip` (not `hidden`) kills any
+   stray sub-pixel overflow — e.g. fractional `1fr` grid tracks rounding up on
+   Linux — without turning the root into a scroll container, so the sticky navbar
+   keeps working. Layout geometry is untouched, so real overflow is still
+   detectable by element-level checks. */
+html, body { overflow-x: clip; }
+
 :root {
     --color-bg: #f5f5f5;
     --color-surface: #fff;
