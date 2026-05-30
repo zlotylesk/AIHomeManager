@@ -7,7 +7,7 @@ on:
 
 jobs:
   static-analysis:
-    name: Static analysis (Rector, CS Fixer, PHPStan)
+    name: Static analysis (Rector, CS Fixer, PHPStan, Deptrac)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -58,6 +58,12 @@ jobs:
 
       - name: PHPStan
         run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+      # HMAI-146: deptrac enforces hexagonal layer boundaries (Domain/Application
+      # /Infrastructure) and cross-module isolation. Pre-existing violations are
+      # in deptrac.yaml `skip_violations`; new ones must be fixed.
+      - name: Deptrac
+        run: vendor/bin/deptrac analyse --no-progress
 
   tests:
     name: PHPUnit (unit + integration)

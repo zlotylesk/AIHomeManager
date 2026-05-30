@@ -1,0 +1,213 @@
+deptrac:
+    paths:
+        - ./src
+
+    exclude_files:
+        - '#.*Tests.*#'
+
+    # HMAI-146 — Architecture boundaries enforced as CI gate.
+    #
+    # Layers per module (Articles / Books / Music / Series / Tasks) × layer
+    # (Domain / Application / Infrastructure) give cross-module isolation in
+    # addition to the hexagonal direction rules. The `Glue` layer covers everything
+    # outside src/Module/ (controllers, event listeners, kernel, security,
+    # scheduled commands, etc.) and is allowed to wire any module together.
+    #
+    # The `Vendor` layer captures framework code (Symfony, Doctrine, Psr, …) so
+    # that Domain → [] becomes a real rule: an `use Doctrine\…` inside any *Domain
+    # layer is a violation. Application/Infrastructure may freely import Vendor —
+    # that is the whole point of the hex outer ring.
+    layers:
+        - name: ArticlesDomain
+          collectors:
+              - type: directory
+                value: src/Module/Articles/Domain/.*
+
+        - name: ArticlesApplication
+          collectors:
+              - type: directory
+                value: src/Module/Articles/Application/.*
+
+        - name: ArticlesInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Articles/Infrastructure/.*
+
+        - name: BooksDomain
+          collectors:
+              - type: directory
+                value: src/Module/Books/Domain/.*
+
+        - name: BooksApplication
+          collectors:
+              - type: directory
+                value: src/Module/Books/Application/.*
+
+        - name: BooksInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Books/Infrastructure/.*
+
+        - name: MusicDomain
+          collectors:
+              - type: directory
+                value: src/Module/Music/Domain/.*
+
+        - name: MusicApplication
+          collectors:
+              - type: directory
+                value: src/Module/Music/Application/.*
+
+        - name: MusicInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Music/Infrastructure/.*
+
+        - name: SeriesDomain
+          collectors:
+              - type: directory
+                value: src/Module/Series/Domain/.*
+
+        - name: SeriesApplication
+          collectors:
+              - type: directory
+                value: src/Module/Series/Application/.*
+
+        - name: SeriesInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Series/Infrastructure/.*
+
+        - name: TasksDomain
+          collectors:
+              - type: directory
+                value: src/Module/Tasks/Domain/.*
+
+        - name: TasksApplication
+          collectors:
+              - type: directory
+                value: src/Module/Tasks/Application/.*
+
+        - name: TasksInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Tasks/Infrastructure/.*
+
+        # Everything inside src/ that is not under src/Module/ — controllers,
+        # event listeners, security, kernel, scheduled tasks, health, http
+        # decorators, entities and repositories not yet migrated to modules, etc.
+        # Glue may wire any module together; that's its job.
+        - name: Glue
+          collectors:
+              - type: bool
+                must:
+                    - type: directory
+                      value: src/.*
+                must_not:
+                    - type: directory
+                      value: src/Module/.*
+
+        # Framework code. Captured so that `*Domain → []` actually fails on a
+        # stray `use Doctrine\…` or `use Symfony\…` inside the domain layer.
+        - name: Vendor
+          collectors:
+              - type: classLike
+                value: ^(Symfony|Doctrine|Psr|Monolog|GuzzleHttp|Predis|Twig|Composer|League|Google|Sentry|Redis|AMQPChannel|AMQPConnection|AMQPQueue|AMQPExchange|AMQPEnvelope|AMQPException|JsonException|Random|Throwable|DateTime|DateTimeImmutable|DateTimeInterface|DateTimeZone|DateInterval|Exception|RuntimeException|LogicException|InvalidArgumentException|DomainException|UnexpectedValueException|OutOfBoundsException|OutOfRangeException|RangeException|TypeError|ValueError|Generator|Closure|Stringable|ArrayAccess|Countable|IteratorAggregate|Iterator|Traversable|JsonSerializable|UnitEnum|BackedEnum)\\\\.*
+
+    ruleset:
+        # Domain layer: zero outbound dependencies. Formalizes the CLAUDE.md
+        # "Domain bez frameworka" rule — any `use Doctrine\…` or cross-module
+        # import lights up here.
+        ArticlesDomain: []
+        BooksDomain: []
+        MusicDomain: []
+        SeriesDomain: []
+        TasksDomain: []
+
+        # Application layer: own Domain only. May freely import Vendor (Messenger
+        # attributes, etc.). May NOT import other modules or Infrastructure.
+        ArticlesApplication:
+            - ArticlesDomain
+            - Vendor
+        BooksApplication:
+            - BooksDomain
+            - Vendor
+        MusicApplication:
+            - MusicDomain
+            - Vendor
+        SeriesApplication:
+            - SeriesDomain
+            - Vendor
+        TasksApplication:
+            - TasksDomain
+            - Vendor
+
+        # Infrastructure layer: own Domain + own Application + Vendor.
+        # No cross-module reach.
+        ArticlesInfrastructure:
+            - ArticlesDomain
+            - ArticlesApplication
+            - Vendor
+        BooksInfrastructure:
+            - BooksDomain
+            - BooksApplication
+            - Vendor
+        MusicInfrastructure:
+            - MusicDomain
+            - MusicApplication
+            - Vendor
+        SeriesInfrastructure:
+            - SeriesDomain
+            - SeriesApplication
+            - Vendor
+        TasksInfrastructure:
+            - TasksDomain
+            - TasksApplication
+            - Vendor
+
+        # Glue: controllers, listeners, kernel, security — orchestration code
+        # that legitimately wires modules together at the edges.
+        Glue:
+            - ArticlesDomain
+            - ArticlesApplication
+            - ArticlesInfrastructure
+            - BooksDomain
+            - BooksApplication
+            - BooksInfrastructure
+            - MusicDomain
+            - MusicApplication
+            - MusicInfrastructure
+            - SeriesDomain
+            - SeriesApplication
+            - SeriesInfrastructure
+            - TasksDomain
+            - TasksApplication
+            - TasksInfrastructure
+            - Vendor
+
+        Vendor: []
+
+    # Baseline — pre-existing violations grandfathered in when deptrac was first
+    # wired up (HMAI-146). New violations of these rules must be fixed; new
+    # baseline entries require explicit justification. Generate updates via:
+    #     vendor/bin/deptrac analyse --formatter=baseline --output=deptrac.yaml
+    # (then manually move the new `skip_violations` block back here).
+    #
+    # Known follow-ups:
+    # - Books/Music Domain ports return Application DTOs — should return domain
+    #   value objects or arrays of primitives (separate ticket).
+    # - Music/Tasks Infrastructure uses App\Security\TokenCipher — cross-module
+    #   shared crypto helper; consider promoting to a Shared layer or moving the
+    #   port into Domain so each module owns its cipher abstraction.
+    skip_violations:
+        App\Module\Books\Domain\Port\BookMetadataProviderInterface:
+            - App\Module\Books\Application\DTO\BookMetadataDTO
+        App\Module\Music\Domain\Port\MusicListeningHistoryInterface:
+            - App\Module\Music\Application\DTO\AlbumDTO
+            - App\Module\Music\Application\DTO\RecentTrackDTO
+        App\Module\Music\Domain\Port\VinylCollectionInterface:
+            - App\Module\Music\Application\DTO\VinylRecordDTO
+        App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
+            - App\Security\TokenCipher
+        App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
+            - App\Security\TokenCipher

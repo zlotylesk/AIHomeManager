@@ -40,6 +40,7 @@
         "symfony/yaml": "8.0.*"
     },
     "require-dev": {
+        "deptrac/deptrac": "^4.6",
         "doctrine/doctrine-fixtures-bundle": "^4.3",
         "friendsofphp/php-cs-fixer": "^3.95",
         "phpstan/extension-installer": "*",
