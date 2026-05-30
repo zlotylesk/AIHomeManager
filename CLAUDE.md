@@ -28,7 +28,7 @@ Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.
 ## Architektura — ZASADY NIENARUSZALNE
 
 - Hexagonal: `src/Module/{Name}/{Domain,Application,Infrastructure}/`
-- Domain bez frameworka: `grep -r "use Doctrine" src/Module/*/Domain/` MUSI zwracać pusty wynik
+- Domain bez frameworka: `grep -r "use Doctrine" src/Module/*/Domain/` MUSI zwracać pusty wynik. Bramka CI: `make deptrac` (HMAI-146) — Domain → [] na poziomie tokenów, cross-module coupling zakazany
 - Doctrine XML w `Infrastructure/Persistence/Doctrine/*.orm.xml` — NIE migrować na atrybuty PHP (ADR-001)
 - Domain Events: agregat gromadzi w `$recordedEvents`, handler dispatchuje po `releaseEvents()`. Wzorzec: `Series` aggregate
 - Query handlery: DBAL, NIE ORM (nie hydratuj agregatów do odczytu)
@@ -199,20 +199,23 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 - Docker healthcheck na `nginx`: `wget --spider http://localhost/api/health` (interval 30s, retries 3, start_period 30s) — end-to-end stack probe
 - `HealthChecker` (`src/Health/HealthChecker.php`) — `readonly` (NIE `final` żeby PHPUnit `createStub` działał w teście kontrolera)
 
-## Static Analysis (HMAI-40)
+## Static Analysis (HMAI-40, HMAI-146)
 
 - **PHPStan** level 8 + `phpstan-symfony` + `phpstan-doctrine` + `phpstan-phpunit`. Config: `app/phpstan.neon.dist`. Baseline (182 errors): `app/phpstan-baseline.neon` — celowo, by nie blokować mergy istniejącego długu; nowe błędy wymagają fixu lub rozszerzenia baseline'u przez `make phpstan-baseline`
 - **PHP CS Fixer**: `@Symfony` + `@PHP84Migration` + `global_namespace_import` (klasy importowane). Config: `app/.php-cs-fixer.dist.php`
 - **Rector**: `withPhpSets()` + `deadCode` (49 plików zmienionych przy starcie). Config: `app/rector.php`
-- CI: `.github/workflows/ci.yml` — 4 joby na każdy push/PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8), `tests` (PHPUnit), `e2e-playwright` i `e2e-newman` (oba `needs: tests`, HMAI-140)
+- **Deptrac** (HMAI-146): formalizuje granice heksagonalne — każdy moduł ma osobne layery `*Domain` / `*Application` / `*Infrastructure`. Domain → [] (zero zależności poza PHP core), Application → własny Domain + Vendor, Infrastructure → własny Domain + własna Application + Vendor, `Glue` (Controllers/EventListeners/Kernel/Security poza `src/Module/`) → wszystko. Cross-module coupling zakazany. Config: `app/deptrac.yaml` ze scalonym `skip_violations` (6 pre-existing — Domain ports zwracające Application DTOs w Books/Music, Music/Tasks Infrastructure → `App\Security\TokenCipher`). Regeneracja: `make deptrac-baseline` → przenieść `skip_violations` z `deptrac-baseline.yaml` do `deptrac.yaml` i usunąć osobny plik (single source of truth)
+- CI: `.github/workflows/ci.yml` — 4 joby na każdy push/PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac), `tests` (PHPUnit), `e2e-playwright` i `e2e-newman` (oba `needs: tests`, HMAI-140)
 
 | Komenda | Akcja |
 |---|---|
-| `make analyse` | CS Fixer (dry-run) + PHPStan |
+| `make analyse` | CS Fixer (dry-run) + PHPStan + Deptrac |
 | `make phpstan` | PHPStan analyse |
 | `make phpstan-baseline` | Regeneruj baseline (po naprawie błędów) |
 | `make cs-check` / `cs-fix` | CS Fixer dry-run / apply |
 | `make rector-dry` / `rector` | Rector dry-run / apply |
+| `make deptrac` | Deptrac analyse (architecture boundaries) |
+| `make deptrac-baseline` | Regeneruj baseline deptrac |
 
 ## Rate limiting — own API + external APIs (HMAI-38)
 

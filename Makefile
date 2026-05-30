@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry analyse fixtures node-install assets assets-watch assets-prod backup-now restore
+.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline analyse fixtures node-install assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -97,7 +97,16 @@ rector-dry:
 rector:
 	docker compose exec php vendor/bin/rector process
 
-analyse: cs-check phpstan
+deptrac:
+	docker compose exec php vendor/bin/deptrac analyse --no-progress
+
+# Regenerate baseline after fixing legitimate violations. Output goes to
+# deptrac-baseline.yaml — move the skip_violations block into deptrac.yaml
+# (single source of truth) and delete the standalone file.
+deptrac-baseline:
+	docker compose exec php vendor/bin/deptrac analyse --formatter=baseline --output=deptrac-baseline.yaml
+
+analyse: cs-check phpstan deptrac
 
 # HMAI-41: Webpack Encore build targets — run inside aihm-node-1 (node:24-alpine).
 node-install:
