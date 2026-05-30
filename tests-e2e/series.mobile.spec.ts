@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const uniqueTitle = (prefix: string) => `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-test('series page renders without horizontal overflow at 375px', async ({ page, request }) => {
+test('series page renders without horizontal overflow at 393px (Pixel 5)', async ({ page, request }) => {
   const title = uniqueTitle('E2E Mobile');
   await request.post('/api/series', { data: { title } });
 
