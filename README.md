@@ -2,8 +2,6 @@
 
 Single-user system automatyzacji codziennych czynności — telewizja (Series), kalendarz (Tasks), czytelnictwo (Books / Articles) i kolekcja muzyczna (Music). Zbudowany jako modularny monolit Symfony 8 z heksagonalną architekturą i CQRS.
 
-> **Status:** wszystkie 5 modułów wdrożone (HMAI-1—HMAI-30). Cały backlog code review HMAI-44 (59 follow-upów) zamknięty w wydaniu **1.9.0** (2026-05-23). 542/542 PHP + 5/5 Playwright + 34/34 Newman — wszystkie zielone, PHPStan level 8 clean. Projekt w fazie utrzymania.
-
 ---
 
 ## Spis treści
@@ -23,7 +21,6 @@ Single-user system automatyzacji codziennych czynności — telewizja (Series), 
 - [Struktura projektu](#struktura-projektu)
 - [API](#api)
 - [Workflow Jira](#workflow-jira)
-- [Roadmap](#roadmap)
 - [Linki](#linki)
 - [Licencja](#licencja)
 
@@ -31,7 +28,7 @@ Single-user system automatyzacji codziennych czynności — telewizja (Series), 
 
 ## O projekcie
 
-AIHomeManager agreguje codzienne aktywności jednego użytkownika w pięciu modułach domenowych. Każdy moduł jest niezależny architektonicznie (Domain bez frameworka, własny język ubiquitous), połączone luźno przez CQRS bus i Symfony Messenger. Frontend dual-track: Series UI używa Webpack Encore + Stimulus (od 1.7.0), pozostałe moduły (Tasks/Books/Articles/Music) wciąż na Twig + vanilla JS — wspólny `window.apiCall` z `public/js/util.js`.
+AIHomeManager agreguje codzienne aktywności jednego użytkownika w pięciu modułach domenowych. Każdy moduł jest niezależny architektonicznie (Domain bez frameworka, własny język ubiquitous), połączone luźno przez CQRS bus i Symfony Messenger. Frontend dual-track: Series UI używa Webpack Encore + Stimulus, pozostałe moduły (Tasks/Books/Articles/Music) wciąż na Twig + vanilla JS — wspólny `window.apiCall` z `public/js/util.js`.
 
 **Podstawowe założenia:**
 
@@ -438,33 +435,11 @@ Każde zadanie HMAI-XX = jeden branch + jeden PR. Schemat:
 5. PR do `develop` z tytułem `HMAI-XX - {Title EN}`.
 6. Status Jira → Code Review.
 
-Code review HMAI-44 (kwiecień 2026, 9 epików tematycznych [HMAI-123..132](https://honemanager.atlassian.net/jira/software/projects/HMAI/boards)) — wszystkie 59 follow-upów **zamknięte 2026-05-23 w release 1.9.0**. Aktywny backlog: brak; nowe pomysły idą do project board jako standalone tickety.
-
----
-
-## Roadmap
-
-**Status:** wszystkie domknięte epiki code review (HMAI-123 .. HMAI-132) są zamknięte i wydane. Pełna oś czasu wydań w [`CHANGELOG.md`](CHANGELOG.md). Kluczowe ostatnie wydania:
-
-| Tag | Data | Tema |
-|---|---|---|
-| **1.9.0** | 2026-05-23 | Domain & DDD purity (HMAI-131) + CSV exports (HMAI-132) — zamyka backlog HMAI-44 |
-| 1.8.0 | 2026-05-21 | API hardening (HMAI-129) — `ApiExceptionListener`, walidacje per moduł |
-| 1.7.1/1.7.0 | 2026-05-19/18 | Frontend hardening (HMAI-128) + Webpack Encore + Stimulus dla Series |
-| 1.6.0 | 2026-05-17 | Operability (HMAI-126) — `/api/health`, Scheduler, fixtures, API metrics |
-| 1.5.0 | 2026-05-17 | Persistence (HMAI-124) — N+1 fix, lookup indexes, hydrator extraction |
-| 1.4.0 | 2026-05-16 | Test coverage (HMAI-125) — +120 testów po code review |
-| 1.3.0 | 2026-05-16 | External API resilience (HMAI-127) + rate limiting (HMAI-130) |
-| 1.2.0 | 2026-05-07 | Critical findings (HMAI-123) — wszystkie 12 P0 blockers |
-
-**Co dalej:** projekt jest w fazie utrzymania. Nowe ficzery + zmiany architektoniczne wymagają nowego sourcing'u ticketów (np. po kolejnym audytcie albo z user-facing feedback). Pojedyncze tickety bez epica: dodaj bezpośrednio do project board, oznacz `fixVersion` przy mergu PR-a.
-
 ---
 
 ## Linki
 
 - **Confluence hub:** https://honemanager.atlassian.net/wiki/spaces/H/pages/46661633
-- **Code review HMAI-44:** https://honemanager.atlassian.net/wiki/spaces/H/pages/52658177
 - **Jira board:** https://honemanager.atlassian.net/jira/software/projects/HMAI/boards
 - **Repozytorium:** https://github.com/zlotylesk/AIHomeManager
 - **Dokumentacja kontekstu Claude Code:** [`CLAUDE.md`](CLAUDE.md)
