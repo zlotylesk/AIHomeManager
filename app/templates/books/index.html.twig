@@ -3,59 +3,79 @@
 {% block title %}Books — AIHomeManager{% endblock %}
 
 {% block body %}
-<div class="app">
+<div class="app" data-controller="books">
     <header class="app-header">
         <h1 class="app-title">Books</h1>
         <div class="header-actions">
-            <select id="filter-status" class="select-filter">
+            <select class="select-filter"
+                    data-books-target="filterStatus"
+                    data-action="change->books#filterChange">
                 <option value="">All</option>
                 <option value="to_read">To Read</option>
                 <option value="reading">Reading</option>
                 <option value="completed">Completed</option>
             </select>
-            <button class="btn btn-primary" id="btn-add-book">+ Add Book</button>
+            <button class="btn btn-primary" data-action="click->books#openAddBook">+ Add Book</button>
         </div>
     </header>
 
-    <div id="modal-add-book" class="modal hidden">
+    <div class="modal hidden"
+         data-books-target="addBookModal"
+         data-action="click->books#closeAddBookBackdrop">
         <div class="modal-box">
             <h2>Add Book by ISBN</h2>
-            <form id="form-add-book">
+            <form data-books-target="addBookForm"
+                  data-action="submit->books#submitAddBook">
                 <label for="input-isbn">ISBN (13 digits)</label>
-                <input id="input-isbn" type="text" placeholder="e.g. 9780306406157" required>
+                <input id="input-isbn"
+                       type="text"
+                       placeholder="e.g. 9780306406157"
+                       required
+                       data-books-target="isbnInput">
                 <p class="form-hint">Metadata (title, author, cover) will be fetched automatically.</p>
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Add Book</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancel-book">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeAddBook">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="modal-reading-session" class="modal hidden">
+    <div class="modal hidden"
+         data-books-target="sessionModal"
+         data-action="click->books#closeSessionBackdrop">
         <div class="modal-box">
-            <h2>Log Reading Session</h2>
-            <form id="form-reading-session">
-                <input type="hidden" id="session-book-id">
+            <h2 data-books-target="sessionTitle">Log Reading Session</h2>
+            <form data-books-target="sessionForm"
+                  data-action="submit->books#submitSession">
+                <input type="hidden" data-books-target="sessionBookId">
                 <label for="input-pages">Pages read</label>
-                <input id="input-pages" type="number" min="1" placeholder="e.g. 30" required>
+                <input id="input-pages"
+                       type="number"
+                       min="1"
+                       placeholder="e.g. 30"
+                       required
+                       data-books-target="pagesInput">
                 <label for="input-session-date">Date</label>
-                <input id="input-session-date" type="date" required>
+                <input id="input-session-date"
+                       type="date"
+                       required
+                       data-books-target="sessionDateInput">
                 <label for="input-notes">Notes (optional)</label>
-                <input id="input-notes" type="text" placeholder="Optional notes">
+                <input id="input-notes"
+                       type="text"
+                       placeholder="Optional notes"
+                       data-books-target="notesInput">
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Save Session</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancel-session">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeSession">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="books-grid" class="books-grid">
+    <div id="books-grid" class="books-grid" data-books-target="list">
         <div class="loading">Loading…</div>
     </div>
 </div>
-
-<script src="{{ asset('js/util.js') }}"></script>
-<script src="{{ asset('js/books.js') }}"></script>
 {% endblock %}
