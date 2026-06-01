@@ -1,10 +1,16 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 
 const uniqueIsbn = () => {
-  // 13-digit numeric ISBN-shaped string; uniqueness avoids collisions across
-  // re-runs against the same dev DB. The API does not validate checksum.
-  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`.padStart(13, '0').slice(-13);
-  return suffix;
+  // Build a checksum-valid ISBN-13 — the Books module's ISBN value object
+  // rejects bad check digits (returns 422). 978-prefix (Bookland) + 9 unique
+  // digits + computed check digit. Uniqueness via Date.now() + random tail.
+  const body = `978${String(Date.now()).slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`.slice(0, 12);
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(body[i], 10) * (i % 2 === 0 ? 1 : 3);
+  }
+  const check = (10 - (sum % 10)) % 10;
+  return body + String(check);
 };
 
 const uniqueTitle = (prefix: string) => `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
