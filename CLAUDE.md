@@ -2,7 +2,7 @@
 
 Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfony 8 + MySQL 8 + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami. Wszystkie moduły zaimplementowane (HMAI-1—HMAI-30).
 
-**Moduły:** Series, Tasks, Books, Articles, Music. Frontend: dual track — Series UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Books/Articles/Music wciąż na Twig + vanilla JS (`app/public/js/`), wszystkie używają `window.apiCall` z `public/js/util.js`.
+**Moduły:** Series, Tasks, Books, Articles, Music. Frontend: dual track — Series + Books UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music wciąż na Twig + vanilla JS (`app/public/js/`), wszystkie używają `window.apiCall` z `public/js/util.js`.
 
 **Status code review (HMAI-44):** backlog zamknięty 2026-05-23 (1.9.0). 59/59 ticketów `ai_code_review` Gotowe. Projekt w fazie utrzymania. Raport: `docs/code-review/HMAI-44-app-review.md`. Confluence id 52658177.
 
@@ -53,8 +53,8 @@ Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.
 
 ## Frontend
 
-- **Series UI:** Webpack Encore + Stimulus (HMAI-41, od 1.7.1). `assets/controllers/series_controller.js` jako Stimulus controller, mountowany przez `data-controller="series"` na `app/templates/series/index.html.twig`. Build: `make assets-prod` → `public/build/*.{js,css}` + `entrypoints.json` manifest. `base.html.twig` używa `{{ encore_entry_link_tags('app') }}` + `{{ encore_entry_script_tags('app') }}`.
-- **Pozostałe moduły** (Tasks/Books/Articles/Music): Twig + vanilla JS w `public/js/*.js`, global helpers `window.TOAST_TIMEOUT_MS` / `window.safeUrl` / `window.apiCall` z `public/js/util.js`. Migracja do Encore odroczona (osobne tickety w HMAI-128 follow-up).
+- **Series + Books UI:** Webpack Encore + Stimulus (Series od HMAI-41/1.7.1, Books od HMAI-139/1.10.0). Stimulus controllers w `assets/controllers/{series,books}_controller.js`, mountowane przez `data-controller="..."` na `app/templates/{series,books}/index.html.twig`. Build: `make assets-prod` → `public/build/*.{js,css}` + `entrypoints.json` manifest. `base.html.twig` używa `{{ encore_entry_link_tags('app') }}` + `{{ encore_entry_script_tags('app') }}`.
+- **Pozostałe moduły** (Tasks/Articles/Music): Twig + vanilla JS w `public/js/*.js`, global helpers `window.TOAST_TIMEOUT_MS` / `window.safeUrl` / `window.apiCall` z `public/js/util.js`. Migracja do Encore odroczona (osobne tickety w HMAI-128 follow-up).
 - Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`
 - Selektor ocen Series: 10 przycisków (NIE `<input type=number>`)
 - Tasks API: pełny REST CRUD (`POST/GET/GET{id}/PATCH{id}/DELETE{id} /api/tasks`, `POST {id}/complete`, `POST {id}/cancel`) + `/time-report` + `/export` (HMAI-135). Google Calendar sync via `CalendarServiceInterface` z graceful degrade
@@ -69,6 +69,7 @@ Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.
 | `app/assets/bootstrap.js` | `startStimulusApp` auto-discovery z `controllers/` |
 | `app/assets/util.js` | ES module export: `TOAST_TIMEOUT_MS`, `safeUrl`, `apiCall`, `escHtml` (źródło dla Encore-side; vanilla side wciąż używa `public/js/util.js`) |
 | `app/assets/controllers/series_controller.js` | Stimulus controller dla Series UI |
+| `app/assets/controllers/books_controller.js` | Stimulus controller dla Books UI (HMAI-139) |
 | `app/assets/styles/app.css` | Globalny stylesheet (jedyne źródło prawdy od 1.7.1; `public/css/app.css` jeszcze zostaje dla vanilla pages — usunąć po migracji wszystkich modułów) |
 
 Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production). Node service: `aihm-node-1` (`node:24-alpine`, mount na `./app`). `make node-install` reinstaluje `npm install` po zmianie `package.json`.
