@@ -6,9 +6,9 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Status code review (HMAI-44):** backlog zamknięty 2026-05-23 (1.9.0). 59/59 ticketów `ai_code_review` Gotowe. Projekt w fazie utrzymania. Raport: `docs/code-review/HMAI-44-app-review.md`. Confluence id 52658177.
 
-**Wydania:** ostatni tag `1.9.0` (2026-05-23) — HMAI-131 DDD purity + HMAI-132 CSV exports. 542/542 PHP + 5/5 Playwright + 34/34 Newman. Pełna historia → [CHANGELOG.md](CHANGELOG.md). Bieżący stan release/epików → [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md). Archiwum domknięć → [docs/HISTORY.md](docs/HISTORY.md).
+**Wydania:** ostatni tag `1.10.0` (2026-06-01) — HMAI-145 epic close (Application audit follow-up). Tasks REST CRUD + Google Calendar (HMAI-135), Books → Encore (HMAI-139), Music local listening sessions (HMAI-144), PDF export (HMAI-138), MySQL backup automation (HMAI-136), Nginx security headers (HMAI-137), CI E2E jobs (HMAI-140), Graylog retention (HMAI-142), Deptrac (HMAI-146). 630/630 PHP + 9/9 Playwright + 36/36 Newman. Poprzednie: `1.9.0` (HMAI-131/132). Pełna historia → [CHANGELOG.md](CHANGELOG.md). Bieżący stan release/epików → [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md). Archiwum domknięć → [docs/HISTORY.md](docs/HISTORY.md).
 
-**Epiki follow-upów (snapshot 2026-05-23 — wszystkie zamknięte):**
+**Epiki follow-upów (snapshot 2026-06-01 — wszystkie zamknięte):**
 
 | Epik | Tytuł | Status |
 |---|---|---|
@@ -22,6 +22,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | HMAI-130 | Rate limiting & throttling | ✓ 1/1 (1.3.0) |
 | HMAI-131 | Domain model & DDD purity | ✓ 12/12 (1.9.0) |
 | HMAI-132 | Features — exports | ✓ 1/1 (1.9.0) |
+| HMAI-145 | Application audit follow-up (features/hardening/DevOps) | ✓ 12/12 (1.10.0) |
 
 Detale każdego epika i highlights per release w [docs/HISTORY.md](docs/HISTORY.md).
 
