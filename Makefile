@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline analyse fixtures node-install assets assets-watch assets-prod backup-now restore
+.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline analyse fixtures node-install assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -17,6 +17,9 @@ migrate:
 
 migrate-test:
 	docker compose exec php bin/console doctrine:migrations:migrate --no-interaction --env=test
+
+schema-validate:
+	docker compose exec php bin/console doctrine:schema:validate
 
 test:
 	docker compose exec php vendor/bin/phpunit

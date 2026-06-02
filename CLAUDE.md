@@ -135,6 +135,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json`. Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`); details w `tests-e2e/postman/README.md`
 - Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
+- CI gate: job `tests` uruchamia `doctrine:schema:validate` po migracjach a przed PHPUnit — drift ORM XML mapping vs schema MySQL blokuje merge (osobna kategoria błędu, nie zaszyta w teście). Lokalnie: `make schema-validate`
 - E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series` — **dotyczy tylko env `dev`/`prod`**. W CI joby E2E/Newman lecą z `APP_ENV=test`, gdzie `monolog when@test` kieruje kanały `series`/`auth` na handlery `null` → Graylog niepotrzebny. Klucze `*_TOKEN_KEY` w CI to **poprawny base64 32B** (`TokenCipher` rzuca dla innej długości — OAuth-init request inaczej zwróci 500 zamiast 302/502). App server w CI: `symfony server:start --no-tls --port=8080` (serwuje routing + statyczne assety Encore; gołe `php -S` tego nie łączy)
 
 ## Security — API Key
@@ -196,6 +197,7 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 | `make rector-dry` / `rector` | Rector dry-run / apply |
 | `make deptrac` | Deptrac analyse (architecture boundaries) |
 | `make deptrac-baseline` | Regeneruj baseline deptrac |
+| `make schema-validate` | Doctrine schema validate (ORM XML mapping ↔ MySQL schema) |
 
 ## Rate limiting — own API + external APIs
 
