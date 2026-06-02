@@ -1,6 +1,6 @@
 # AIHomeManager
 
-Single-user system automatyzacji codziennych czynności — telewizja (Series), kalendarz (Tasks), czytelnictwo (Books / Articles) i kolekcja muzyczna (Music). Zbudowany jako modularny monolit Symfony 8 z heksagonalną architekturą i CQRS.
+Single-user system automatyzacji codziennych czynności — telewizja (Series), kalendarz (Tasks), czytelnictwo (Books / Articles) i kolekcja muzyczna (Music). Modularny monolit Symfony 8 z heksagonalną architekturą i CQRS.
 
 ---
 
@@ -20,7 +20,6 @@ Single-user system automatyzacji codziennych czynności — telewizja (Series), 
 - [Monitoring](#monitoring)
 - [Struktura projektu](#struktura-projektu)
 - [API](#api)
-- [Workflow Jira](#workflow-jira)
 - [Linki](#linki)
 - [Licencja](#licencja)
 
@@ -28,17 +27,19 @@ Single-user system automatyzacji codziennych czynności — telewizja (Series), 
 
 ## O projekcie
 
-AIHomeManager agreguje codzienne aktywności jednego użytkownika w pięciu modułach domenowych. Każdy moduł jest niezależny architektonicznie (Domain bez frameworka, własny język ubiquitous), połączone luźno przez CQRS bus i Symfony Messenger. Frontend dual-track: Series UI używa Webpack Encore + Stimulus, pozostałe moduły (Tasks/Books/Articles/Music) wciąż na Twig + vanilla JS — wspólny `window.apiCall` z `public/js/util.js`.
+AIHomeManager agreguje codzienne aktywności jednego użytkownika w pięciu modułach domenowych. Każdy moduł jest niezależny architektonicznie (Domain bez frameworka, własny język ubiquitous), połączone luźno przez CQRS bus i Symfony Messenger. Frontend dual-track: Series + Books UI używają Webpack Encore + Stimulus, pozostałe moduły (Tasks/Articles/Music) wciąż na Twig + vanilla JS — wspólny `window.apiCall` z `public/js/util.js`.
 
 **Podstawowe założenia:**
 
 - Pojedynczy użytkownik (brak multi-tenant).
 - API stateless chronione kluczem (`X-API-Key`); UI publiczne.
-- Heksagonalna architektura — `Domain` nie zna Doctrine ani Symfony.
-- Doctrine XML mapping (decyzja architektoniczna ADR-001 — nie migrujemy na atrybuty PHP).
-- CQRS z dwoma busami: `command.bus` (default) i `query.bus`, plus `event.bus` dla domain events (Series.`EpisodeRated`, Books.`BookCompleted`).
+- Heksagonalna architektura — `Domain` nie zna Doctrine ani Symfony, granice egzekwowane przez Deptrac w CI.
+- Doctrine XML mapping (ADR-001 — nie migrujemy na atrybuty PHP).
+- CQRS z dwoma busami: `command.bus` i `query.bus`, plus `event.bus` dla domain events (Series.`EpisodeRated`, Books.`BookCompleted`).
 - Per-IP rate limiting na `^/api/*` (60/min), proaktywny throttle external API klientów (Last.fm, Discogs, BN).
 - OAuth tokens szyfrowane at rest (libsodium secretbox, osobne klucze per provider).
+- Defense-in-depth security headers (dual-layer: nginx + Symfony listener).
+- Codzienny mysqldump → gzip + retention (30 daily + 12 monthly).
 
 ---
 
@@ -47,10 +48,10 @@ AIHomeManager agreguje codzienne aktywności jednego użytkownika w pięciu modu
 | Moduł | Co robi | Kluczowe integracje |
 |---|---|---|
 | **Series** | Katalog seriali, sezony, odcinki, oceny 1–10, średnie wyliczane przez worker | — |
-| **Tasks** | Zadania z `TimeSlot`, raport czasowy, sync z Google Calendar | Google Calendar API (OAuth2) |
-| **Books** | Lista książek, status (`to_read` / `reading` / `completed`), sesje czytania, metadane po ISBN | API Biblioteki Narodowej (XML) |
-| **Articles** | Codzienny artykuł do przeczytania, import CSV, kategorie, deterministyczny wybór "artykułu na dziś" z cache | — |
-| **Music** | Top albumów (Last.fm), kolekcja winyli (Discogs), porównanie posiadanych vs słuchanych | Last.fm API, Discogs OAuth1 |
+| **Tasks** | Pełny REST CRUD zadań z `TimeSlot`, raport czasowy, eksport CSV/PDF, sync z Google Calendar | Google Calendar API (OAuth2) |
+| **Books** | Biblioteka, status (`to_read` / `reading` / `completed`), sesje czytania, metadane po ISBN, eksport CSV/PDF | API Biblioteki Narodowej (XML) |
+| **Articles** | Codzienny artykuł do przeczytania, import CSV z Pocket, kategorie, eksport CSV/PDF | — |
+| **Music** | Top albumów + lokalna historia odsłuchów (Last.fm), kolekcja winyli (Discogs), porównanie posiadanych vs słuchanych | Last.fm API, Discogs OAuth1 |
 
 ---
 
@@ -77,12 +78,12 @@ src/Module/{Name}/
 
 **Reguły nienaruszalne:**
 
-- `grep -r "use Doctrine" src/Module/*/Domain/` MUSI zwracać pusty wynik.
+- `grep -r "use Doctrine" src/Module/*/Domain/` MUSI zwracać pusty wynik. Egzekwowane przez `make deptrac` w CI — Domain → [], cross-module coupling zakazany.
 - Aggregate root gromadzi eventy w `$recordedEvents`, handler dispatchuje po `releaseEvents()` (wzorzec: `Series` aggregate).
 - Query handlery używają DBAL bezpośrednio — nie hydratujemy agregatów do odczytu.
 - Command handler: `#[AsMessageHandler(bus: 'command.bus')]`. Query handler: `#[AsMessageHandler(bus: 'query.bus')]`. Event handler: `#[AsMessageHandler]` (default bus).
 
-Pełny opis wzorców i decyzji architektonicznych: [`docs/code-review/HMAI-44-app-review.md`](docs/code-review/HMAI-44-app-review.md).
+Decyzje architektoniczne (ADR): patrz Confluence space `H` → ADRs.
 
 ---
 
@@ -96,15 +97,16 @@ Pełny opis wzorców i decyzji architektonicznych: [`docs/code-review/HMAI-44-ap
 | DB | MySQL 8 |
 | Cache / KV | Redis 7 |
 | Async messaging | RabbitMQ 3.12 + Symfony Messenger |
-| Frontend (Series) | Webpack Encore + Stimulus (Node.js 24 LTS w kontenerze) |
-| Frontend (pozostałe moduły) | Twig + vanilla JavaScript (`public/js/`) |
+| Frontend (Series, Books) | Webpack Encore + Stimulus (Node.js 24 LTS w kontenerze) |
+| Frontend (Tasks, Articles, Music) | Twig + vanilla JavaScript (`public/js/`) |
 | Testy backendu | PHPUnit 13 |
 | Testy E2E | Playwright 1.49 (`tests-e2e/`) |
 | Testy smoke API | Newman / Postman v2.1 (`tests-e2e/postman/`) |
 | Logowanie | Monolog → Graylog 5.2 (GELF UDP) + opcjonalnie New Relic |
+| PDF | dompdf/dompdf ^3.1 |
 | Konteneryzacja | Docker + Docker Compose |
 
-**Static analysis:** PHPStan level 8 (`phpstan-symfony` + `phpstan-doctrine` + `phpstan-phpunit`), PHP CS Fixer (`@Symfony` + `@PHP84Migration`), Rector (`withPhpSets()` + `deadCode`).
+**Static analysis:** PHPStan level 8 (`phpstan-symfony` + `phpstan-doctrine` + `phpstan-phpunit`), PHP CS Fixer (`@Symfony` + `@PHP84Migration`), Rector (`withPhpSets()` + `deadCode`), Deptrac (hexagonal boundaries).
 
 ---
 
@@ -139,7 +141,7 @@ Uzupełnij `app/.env.local` zgodnie z sekcją [Konfiguracja](#konfiguracja). **B
 make setup
 ```
 
-`make setup` w jednej komendzie: build obrazów Docker → `docker compose up -d` → `composer install` → `npm install` (Node container, dla Webpack Encore) → migracje MySQL → cache warmup. Sprawdź status:
+`make setup` w jednej komendzie: build obrazów Docker → `docker compose up -d` → `composer install` → `npm install` (Node container, dla Webpack Encore) → migracje MySQL → cache warmup.
 
 ```bash
 make services            # lista kontenerów + porty
@@ -153,7 +155,7 @@ make messenger-status    # czy worker konsumuje async transport
 make assets-prod         # build artefaktów do public/build/
 ```
 
-Wymagane tylko dla Series UI (Stimulus controller w `app/assets/`). Pozostałe moduły renderują się z `public/js/*.js` (bez build step).
+Wymagane — bez `entrypoints.json` Twig wywala 500 na `encore_entry_*` helpers (`base.html.twig` ich używa dla wszystkich stron).
 
 ### 4. Adresy serwisów
 
@@ -172,12 +174,12 @@ Routes UI: `/` (redirect → `/series`), `/series`, `/tasks`, `/books`, `/articl
 
 ```bash
 make fixtures            # demo data dla dev env
-make test                # 542/542 PHPUnit
-make test-e2e            # 5/5 Playwright (Series desktop + mobile)
-make test-newman         # 34/34 Newman/Postman smoke
+make test                # PHPUnit (unit + integration)
+make test-e2e            # Playwright (desktop + mobile)
+make test-newman         # Newman/Postman smoke
 ```
 
-> **Pierwsze uruchomienie poszczególnych modułów** (OAuth Google/Discogs, Last.fm, fixtures, dane testowe) jest opisane krok-po-kroku na Confluence: [Pierwsze uruchomienie — konfiguracja zewnętrznych serwisów](https://honemanager.atlassian.net/wiki/spaces/H/pages/50659329/Pierwsze+uruchomienie+konfiguracja+zewn+trznych+serwis+w).
+> **Pierwsze uruchomienie modułów wymagających OAuth** (Google Calendar, Discogs) opisane na Confluence: [Pierwsze uruchomienie — konfiguracja zewnętrznych serwisów](https://honemanager.atlassian.net/wiki/spaces/H/pages/50659329/Pierwsze+uruchomienie+konfiguracja+zewn+trznych+serwis+w).
 
 ---
 
@@ -251,13 +253,17 @@ Tokeny zostaną zaszyfrowane i zapisane w MySQL.
 | Status workera | `make messenger-status` |
 | Logi | `make logs` |
 | Fixtures (demo data, dev only) | `make fixtures` |
-| Webpack Encore (Series UI) | `make assets` / `make assets-watch` / `make assets-prod` |
+| Webpack Encore (Series + Books) | `make assets` / `make assets-watch` / `make assets-prod` |
 | Reinstall npm w node container | `make node-install` |
-| Analiza statyczna (CS Fixer dry-run + PHPStan) | `make analyse` |
+| Analiza statyczna (CS Fixer + PHPStan + Deptrac) | `make analyse` |
 | PHPStan | `make phpstan` / `make phpstan-baseline` |
 | CS Fixer | `make cs-check` / `make cs-fix` |
 | Rector | `make rector-dry` / `make rector` |
+| Deptrac (architecture boundaries) | `make deptrac` / `make deptrac-baseline` |
+| Backup MySQL (ręczny) | `make backup-now` |
+| Restore MySQL z gzipa | `make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz` |
 | Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
+| Graylog bootstrap (inputs + indexes + streams) | `make monitoring-bootstrap` |
 
 ---
 
@@ -268,20 +274,21 @@ Tokeny zostaną zaszyfrowane i zapisane w MySQL.
 ```
 master   ← stable, tylko merge z develop
 develop  ← integracja, default dla PR-ów
-HMAI-XX-krotki-opis  ← feature/fix branch
+feature/fix branche  ← tworzone z develop
 ```
 
 Branche tworzymy z `develop`. Merge do `develop` przez PR.
 
 ### Worker Symfony Messenger
 
-Kontener `messenger_worker` konsumuje async eventy (`EpisodeRated`, `RefreshDiscogsCollection`) z RabbitMQ. Komenda:
+Dwa workery: `messenger_worker` (async — `EpisodeRated`, `RefreshDiscogsCollection`, `PollLastFmRecentTracks`) i `scheduler_worker` (`scheduler_default` transport — backup, weekly report, daily article reset itp.). Komenda:
 
 ```
 bin/console messenger:consume async --time-limit=3600 -vv
+bin/console messenger:consume scheduler_default --time-limit=3600 -vv
 ```
 
-Routing zdefiniowany w `app/config/packages/messenger.yaml`. W test envie transport jest przepięty na `in-memory://`.
+Routing zdefiniowany w `app/config/packages/messenger.yaml`. W test envie transporty są przepięte na `in-memory://`.
 
 ### Konwencje nazewnictwa
 
@@ -302,18 +309,18 @@ Routing zdefiniowany w `app/config/packages/messenger.yaml`. W test envie transp
 ## Testy
 
 ```bash
-make test               # 542/542 PHPUnit (Unit + Integration)
+make test               # PHPUnit (Unit + Integration)
 make test-unit          # tylko Domain
 make test-integration   # tylko integration
-make test-e2e           # 5/5 Playwright (Series desktop + mobile)
-make test-newman        # 34/34 Newman/Postman smoke
+make test-e2e           # Playwright (desktop + mobile)
+make test-newman        # Newman/Postman smoke
 ```
 
 - **Unit:** `tests/Unit/Module/{Name}/Domain/` — wzorzec `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php` (gold standard).
-- **Integration:** `tests/Integration/` — używają realnej bazy + Redis + in-memory transport (`when@test` w `messenger.yaml`).
-- Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`).
+- **Integration:** `tests/Integration/` — realna baza + Redis + in-memory transport (`when@test` w `messenger.yaml`).
+- Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — header `X-API-Key: test-api-key` (zob. `app/.env.test`).
 - **E2E (Playwright)** w `tests-e2e/`, TypeScript. Files matching `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport).
-- **Smoke (Newman)** w `tests-e2e/postman/AIHomeManager.postman_collection.json` — 34 requesty / 54 asercji. Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`).
+- **Smoke (Newman)** w `tests-e2e/postman/AIHomeManager.postman_collection.json`. Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`).
 - **E2E/Newman pre-req:** `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm/Google placeholders ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO).
 
 ---
@@ -321,16 +328,19 @@ make test-newman        # 34/34 Newman/Postman smoke
 ## Analiza statyczna
 
 ```bash
-make analyse              # CS Fixer (dry-run) + PHPStan
+make analyse              # CS Fixer (dry-run) + PHPStan + Deptrac
 make phpstan              # PHPStan analyse
 make phpstan-baseline     # regeneruj baseline po naprawie błędów
 make cs-check / cs-fix    # PHP CS Fixer
 make rector-dry / rector  # Rector
+make deptrac              # Deptrac architecture boundaries
 ```
 
-PHPStan baseline (`app/phpstan-baseline.neon`) trzyma istniejący dług — celowo, by nie blokować mergy. Nowe błędy wymagają fixu lub explicit dodania do baseline'u przez `make phpstan-baseline`.
+PHPStan baseline (`app/phpstan-baseline.neon`) trzyma istniejący dług. Nowe błędy wymagają fixu lub explicit dodania do baseline'u przez `make phpstan-baseline`.
 
-CI (`.github/workflows/ci.yml`) uruchamia na każdym push i PR cztery joby: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8), `tests` (PHPUnit), `e2e-playwright` (Playwright desktop + mobile) oraz `e2e-newman` (Newman API smoke). Joby E2E startują aplikację przez `symfony server:start` (env `test`, `in-memory://` transport) i uploadują raporty HTML jako artifacts (retencja 30 dni).
+Deptrac formalizuje granice heksagonalne: każdy moduł ma osobne layery Domain/Application/Infrastructure. Domain → [] (zero zależności poza PHP core), cross-module coupling zakazany. Pre-existing violations w `skip_violations` (Domain ports zwracające Application DTOs w Books/Music; Music/Tasks Infrastructure → `App\Security\TokenCipher`).
+
+CI (`.github/workflows/ci.yml`) uruchamia na każdym push i PR cztery joby: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac), `tests` (PHPUnit), `e2e-playwright` (Playwright desktop + mobile) oraz `e2e-newman` (Newman API smoke). Joby E2E startują aplikację przez `symfony server:start` (env `test`, `in-memory://` transport) i uploadują raporty HTML jako artifacts (retencja 30 dni).
 
 ---
 
@@ -339,14 +349,26 @@ CI (`.github/workflows/ci.yml`) uruchamia na każdym push i PR cztery joby: `sta
 Stack `graylog + mongodb + opensearch` chodzi pod profilem Compose `monitoring` — **nie** startuje z `make up`:
 
 ```bash
-make monitoring-up        # start
-make monitoring-logs      # podgląd
-make monitoring-down      # stop
+make monitoring-up           # start
+make monitoring-bootstrap    # GELF UDP input + index sets + streams (idempotent)
+make monitoring-logs         # podgląd
+make monitoring-down         # stop
 ```
 
-Po pierwszym uruchomieniu zaloguj się do http://localhost:9000 (admin/admin) i ręcznie skonfiguruj GELF UDP input: **System → Inputs → GELF UDP → Launch new input**, port 12201.
+Po pierwszym uruchomieniu zaloguj się do http://localhost:9000 (admin/admin). `make monitoring-bootstrap` tworzy GELF UDP input (port 12201), index sets `auth-events` (90 dni retention) i `series-events` (30 dni) plus stream'y filtrujące po `channel`.
 
 `NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade gdy brak rozszerzenia `newrelic` (logi nie są wysyłane, ale aplikacja nie pada).
+
+### Backup MySQL
+
+Symfony Scheduler odpala `App\Application\Scheduled\BackupDatabase` codziennie o 03:00:
+
+```bash
+make backup-now                                         # backup ad-hoc
+make restore BACKUP=backups/homemanager-2026-06-01.sql.gz
+```
+
+Retention: 30 daily + 12 monthly (1-szy każdego miesiąca pozostaje). Runbook: Confluence → Disaster recovery — MySQL restore.
 
 ---
 
@@ -355,33 +377,49 @@ Po pierwszym uruchomieniu zaloguj się do http://localhost:9000 (admin/admin) i 
 ```
 .
 ├── app/                            ← Symfony root
+│   ├── assets/                     ← Webpack Encore source
+│   │   ├── app.js
+│   │   ├── bootstrap.js
+│   │   ├── util.js                 ← ES module helpers
+│   │   ├── controllers/            ← Stimulus controllers
+│   │   └── styles/app.css
 │   ├── bin/console
 │   ├── config/
 │   │   └── packages/
 │   │       ├── security.yaml       ← API Key authenticator
-│   │       └── messenger.yaml      ← async transport, routing
+│   │       ├── messenger.yaml      ← async transport, routing
+│   │       └── rate_limiter.yaml
+│   ├── deptrac.yaml                ← architecture boundary config
 │   ├── migrations/
 │   ├── public/
 │   │   ├── index.php
-│   │   ├── css/
-│   │   └── js/                     ← vanilla JS, jeden plik per moduł
+│   │   ├── build/                  ← Encore build output (gitignored)
+│   │   └── js/                     ← vanilla JS (Tasks/Articles/Music)
 │   ├── src/
 │   │   ├── Controller/
+│   │   ├── EventListener/
+│   │   ├── Health/
+│   │   ├── Http/                   ← RateLimitedHttpClient
 │   │   ├── Module/                 ← {Series,Tasks,Books,Articles,Music}
 │   │   │   └── {Name}/{Domain,Application,Infrastructure}/
+│   │   ├── Schedule.php
 │   │   └── Security/
 │   ├── templates/                  ← Twig
 │   ├── tests/
 │   │   ├── Unit/
 │   │   └── Integration/
+│   ├── webpack.config.js
 │   ├── composer.json
 │   └── phpunit.dist.xml
 ├── docker/                         ← Dockerfiles, nginx config
 ├── docker-compose.yml
-├── docs/
-│   └── code-review/
+├── scripts/
+│   └── graylog-bootstrap.sh
+├── tests-e2e/                      ← Playwright + Newman
+│   └── postman/
 ├── Makefile
-├── CLAUDE.md                       ← kontekst dla Claude Code (architektura, konwencje)
+├── CHANGELOG.md
+├── CLAUDE.md                       ← kontekst dla Claude Code
 └── README.md
 ```
 
@@ -398,6 +436,8 @@ X-API-Key: <wartość z .env.local>
 ```
 
 Brak / błędny klucz → `401 {"error": "..."}`.
+
+Wyjątek: `GET /api/health` — publiczny readiness probe (MySQL + Redis + RabbitMQ).
 
 Endpointy `/auth/google*`, `/auth/discogs*` oraz UI (`/`, `/series`, …) są publiczne.
 
@@ -420,20 +460,14 @@ curl -X POST http://localhost:8080/api/series/{seriesId}/seasons/{seasonId}/epis
   -d '{"rating": 9}'
 ```
 
-Pełna lista endpointów: `make routes`.
+### Eksport — Books / Articles / Tasks
 
----
+```bash
+curl -H "X-API-Key: $API_KEY" "http://localhost:8080/api/books/export?format=csv" -o books.csv
+curl -H "X-API-Key: $API_KEY" "http://localhost:8080/api/books/export?format=pdf" -o books.pdf
+```
 
-## Workflow Jira
-
-Każde zadanie HMAI-XX = jeden branch + jeden PR. Schemat:
-
-1. `git checkout develop && git pull`
-2. `git checkout -b HMAI-XX-krotki-opis`
-3. Implementacja zgodnie z hexagonal + Doctrine XML.
-4. `make test` musi być zielony.
-5. PR do `develop` z tytułem `HMAI-XX - {Title EN}`.
-6. Status Jira → Code Review.
+Pełna lista endpointów: `make routes`. Szczegółowa dokumentacja API: Confluence → Dokumentacja API.
 
 ---
 
@@ -443,6 +477,7 @@ Każde zadanie HMAI-XX = jeden branch + jeden PR. Schemat:
 - **Jira board:** https://honemanager.atlassian.net/jira/software/projects/HMAI/boards
 - **Repozytorium:** https://github.com/zlotylesk/AIHomeManager
 - **Dokumentacja kontekstu Claude Code:** [`CLAUDE.md`](CLAUDE.md)
+- **Changelog:** [`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 

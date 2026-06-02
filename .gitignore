@@ -18,3 +18,7 @@ test-results/
 playwright-report/
 playwright/.cache/
 backups/
+
+# Local-only planning notes (not committed)
+PLAN.md
+TODO.md
