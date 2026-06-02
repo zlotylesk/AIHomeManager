@@ -157,6 +157,13 @@ jobs:
       - name: Run database migrations
         run: bin/console doctrine:migrations:migrate --no-interaction
 
+      # HMAI-148: blocks merge if ORM XML mapping drifts from the migrated
+      # MySQL schema (added field without migration, added column without
+      # mapping, type mismatch). Surfaces drift as its own failure category
+      # rather than as an opaque hydration exception inside PHPUnit.
+      - name: Validate Doctrine schema
+        run: bin/console doctrine:schema:validate
+
       # HMAI-41: FrontendControllerTest hits Twig templates that call
       # encore_entry_link_tags('app') / encore_entry_script_tags('app'),
       # which require public/build/entrypoints.json from a real Encore build.
