@@ -5,6 +5,13 @@ on:
     branches: [master, develop]
   pull_request:
 
+# HMAI-151: rapid fixup pushes used to spawn parallel runs that were thrown
+# away anyway. github.ref groups PR head refs and branch pushes; the older
+# run is cancelled the moment a newer commit lands on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   static-analysis:
     name: Static analysis (Rector, CS Fixer, PHPStan, Deptrac)
