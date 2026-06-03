@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline analyse fixtures node-install assets assets-watch assets-prod backup-now restore
+.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -109,7 +109,13 @@ deptrac:
 deptrac-baseline:
 	docker compose exec php vendor/bin/deptrac analyse --formatter=baseline --output=deptrac-baseline.yaml
 
-analyse: cs-check phpstan deptrac
+# HMAI-149: composer audit queries FriendsOfPHP/security-advisories for known
+# CVEs in installed deps. --abandoned=report keeps abandoned packages as a
+# warning (not a hard fail) — abandonment ≠ vulnerability.
+audit:
+	docker compose exec php composer audit --abandoned=report
+
+analyse: cs-check phpstan deptrac audit
 
 # HMAI-41: Webpack Encore build targets — run inside aihm-node-1 (node:24-alpine).
 node-install:
