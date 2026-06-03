@@ -186,7 +186,8 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 - **PHP CS Fixer**: `@Symfony` + `@PHP84Migration` + `global_namespace_import` (klasy importowane). Config: `app/.php-cs-fixer.dist.php`
 - **Rector**: `withPhpSets()` + `deadCode`. Config: `app/rector.php`
 - **Deptrac**: formalizuje granice heksagonalne — każdy moduł ma osobne layery `*Domain` / `*Application` / `*Infrastructure`. Domain → [] (zero zależności poza PHP core), Application → własny Domain + Vendor, Infrastructure → własny Domain + własna Application + Vendor, `Glue` (Controllers/EventListeners/Kernel/Security poza `src/Module/`) → wszystko. Cross-module coupling zakazany. Config: `app/deptrac.yaml` ze scalonym `skip_violations` (pre-existing — Domain ports zwracające Application DTOs w Books/Music, Music/Tasks Infrastructure → `App\Security\TokenCipher`). Regeneracja: `make deptrac-baseline` → przenieść `skip_violations` z `deptrac-baseline.yaml` do `deptrac.yaml` i usunąć osobny plik (single source of truth)
-- CI: `.github/workflows/ci.yml` — 4 joby na każdy push/PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac), `tests` (PHPUnit), `e2e-playwright` i `e2e-newman` (oba `needs: tests`)
+- **Composer audit**: `composer audit` (od 2.4 wbudowane) queryuje FriendsOfPHP/security-advisories. CI gate w `static-analysis` po Deptrac — blokuje merge gdy advisory pojawi się dla zainstalowanej wersji paczki. Lokalnie: `make audit`. Fail = bumpować dep, nie suppressować (advisory failing CI to legit signal)
+- CI: `.github/workflows/ci.yml` — 4 joby na każdy push/PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac + Composer audit), `tests` (PHPUnit), `e2e-playwright` i `e2e-newman` (oba `needs: tests`)
 
 | Komenda | Akcja |
 |---|---|
@@ -198,6 +199,7 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 | `make deptrac` | Deptrac analyse (architecture boundaries) |
 | `make deptrac-baseline` | Regeneruj baseline deptrac |
 | `make schema-validate` | Doctrine schema validate (ORM XML mapping ↔ MySQL schema) |
+| `make audit` | Composer audit (security advisories) |
 
 ## Rate limiting — own API + external APIs
 

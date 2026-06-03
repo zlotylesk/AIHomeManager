@@ -65,6 +65,14 @@ jobs:
       - name: Deptrac
         run: vendor/bin/deptrac analyse --no-progress
 
+      # HMAI-149: composer audit queries FriendsOfPHP/security-advisories for
+      # known CVEs in installed deps. Blocks merge when an advisory exists for
+      # any locked version — bump the package or accept the breakage; do not
+      # suppress. --abandoned=report keeps abandoned packages as a warning
+      # (not a hard fail) — abandonment ≠ vulnerability.
+      - name: Composer audit
+        run: composer audit --abandoned=report
+
   tests:
     name: PHPUnit (unit + integration)
     runs-on: ubuntu-latest
