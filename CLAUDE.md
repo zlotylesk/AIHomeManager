@@ -163,6 +163,14 @@ HSTS (`Strict-Transport-Security`) zakomentowane w nginx — odkomentować PO ko
 
 Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: frontend, API, error 404, all headers).
 
+## Request correlation
+
+- `App\EventListener\RequestIdListener` — `kernel.request` priority 256 (przed `ApiRateLimitListener` @100, żeby 429 niosło korelator), `kernel.response` priority 0. Czyta header `X-Request-ID` z requestu lub generuje UUID v4. Wartość zapisuje w atrybucie requestu `_request_id` i echoes back w response header.
+- Walidacja inbound: `^[A-Za-z0-9._-]{1,128}$`. Wartości spoza tego zestawu są odrzucane (server-generated UUID je zastępuje) — ochrona przed wstrzykiwaniem znaków sterujących do logów.
+- `App\Logging\RequestIdProcessor` — invokable, `#[AsMonologProcessor]`. Czyta `_request_id` z `RequestStack->getMainRequest()` i dodaje `extra.request_id` do każdego `LogRecord` emitowanego w trakcie requestu. CLI/worker context (brak main requestu) — passthrough.
+- Async (Messenger): propagacja ID do workera świadomie poza scope HMAI-158 — wymaga osobnego Stampa + middleware.
+- Regresja: `tests/Integration/EventListener/RequestIdListenerTest.php` (4 testy: brak header, valid echo, invalid replaced, log extra carry).
+
 ## API exception listener
 
 - `App\EventListener\ApiExceptionListener` — `kernel.exception` (priority 64, przed framework `ErrorListener` na -64). Konwertuje uncaught throwables na `^/api/*` na `JsonResponse`.
