@@ -193,6 +193,11 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # HMAI-150: block merge on high/critical CVEs in frontend deps (Encore,
+      # Stimulus, transitive build-time tooling). low/moderate are noise here.
+      - name: npm audit (high+critical)
+        run: npm audit --audit-level=high
+
       - name: Build Webpack Encore assets
         run: npm run build
 
@@ -300,6 +305,10 @@ jobs:
 
       - name: Install Encore dependencies
         run: npm ci
+
+      # HMAI-150: gate frontend deps before build.
+      - name: npm audit (high+critical, Encore)
+        run: npm audit --audit-level=high
 
       - name: Build Webpack Encore assets
         run: npm run build
