@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install assets assets-watch assets-prod backup-now restore
+.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -120,6 +120,15 @@ analyse: cs-check phpstan deptrac audit
 # HMAI-41: Webpack Encore build targets — run inside aihm-node-1 (node:24-alpine).
 node-install:
 	docker compose exec node npm install
+
+# HMAI-150: npm audit gate. Mirrors the CI step that runs after every `npm ci`
+# for the frontend deps (tests + e2e-playwright jobs, both in app/).
+# --audit-level=high ignores low/moderate noise; high+critical block merge.
+# Fix by bumping the package, not by suppressing the advisory. Root
+# package.json (Playwright/Newman) is intentionally out of scope — see
+# CLAUDE.md Webpack Encore section.
+node-audit:
+	docker compose exec node npm audit --audit-level=high
 
 assets:
 	docker compose exec node npm run dev

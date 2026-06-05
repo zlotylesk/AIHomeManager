@@ -52,9 +52,13 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | `app/assets/controllers/books_controller.js` | Stimulus controller dla Books UI |
 | `app/assets/styles/app.css` | Globalny stylesheet (jedyne źródło prawdy) |
 
-Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production). Node service: `aihm-node-1` (`node:24-alpine`, mount na `./app`). `make node-install` reinstaluje `npm install` po zmianie `package.json`.
+Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production), `make node-audit` (CVE gate). Node service: `aihm-node-1` (`node:24-alpine`, mount na `./app`). `make node-install` reinstaluje `npm install` po zmianie `package.json`.
 
 `public/build/` + `node_modules/` w `.gitignore`. CI buduje assets w jobach `tests` i `e2e-playwright` (`npm ci && npm run build` w `app/`) przed PHPUnit/Playwright — bez tego Twig `encore_entry_*` wywala 500.
+
+**npm audit gate (HMAI-150):** każdy `npm ci` deps frontend (`tests` job + `e2e-playwright`, oba w `app/`) ma zaraz po sobie `npm audit --audit-level=high`. Low/moderate są noise dla devDeps i przepuszczane; high+critical blokują merge. Fix = bump paczki (`npm install pkg@latest`), nie suppress — advisory na zainstalowanej wersji to legit signal. Lokalnie: `make node-audit`.
+
+Root `package.json` (Playwright + Newman) **świadomie poza gate**: newman 6.x (latest stable) ciągnie deep-transitive CVE w `handlebars`/`lodash`/`postman-*` bez forward-fixu od vendora; `audit fix --force` cofnąłby do newman 2.1.2 i wywalił kolekcję Postman. Re-evaluacja śledzona w HMAI-174 — gdy newman 7.x wyjdzie z czystym drzewem, gate wraca na root.
 
 ## Infrastruktura
 
@@ -123,6 +127,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Załaduj fixtures (dev) | `make fixtures` |
 | Webpack Encore dev/watch/prod | `make assets` / `make assets-watch` / `make assets-prod` |
 | Npm install (po `package.json` change) | `make node-install` |
+| npm audit (high+critical CVE gate) | `make node-audit` |
 | Backup MySQL (ręczny) | `make backup-now` |
 | Restore MySQL | `make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz` |
 
