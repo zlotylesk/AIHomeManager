@@ -187,9 +187,15 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 ## Health endpoint
 
 - `GET /api/health` — publiczny readiness probe (bez `X-API-Key`)
-- Probe'y: MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP do hosta z `MESSENGER_TRANSPORT_DSN`, timeout 1s)
-- 200 `{"status":"healthy", "components":{"mysql":"up", "redis":"up", "rabbitmq":"up"}, "timestamp":"..."}` gdy wszystko up
-- 503 `"status":"unhealthy"` + komponent `"down"` gdy któryś probe pada — orchestratorzy nie kierują traffic do degraded instancji
+- Probe'y: MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP do hosta z `MESSENGER_TRANSPORT_DSN`, timeout 1s), Disk (`disk_free_space('/')`)
+- 200 `{"status":"healthy", "components":{"mysql":"up", "redis":"up", "rabbitmq":"up", "disk":"up"}, "timestamp":"..."}` gdy wszystko up
+- 503 `"status":"unhealthy"` + komponent `"down"` gdy któryś probe pada (lub disk >95% used) — orchestratorzy nie kierują traffic do degraded instancji
+- **Disk probe (HMAI-155)** ma 3 stany, pozostałe nadal binarne up/down:
+    - `< 80% used` → `up`
+    - `80–95% used` → `degraded` (HTTP 200, `status: "degraded"` w body — monitoring page'uje przed eskalacją, traffic dalej rutowany)
+    - `> 95% used` → `down` (HTTP 503 — MySQL flush/binlog ginie przy braku headroomu, rób miejsce ZANIM serwer crashuje)
+    - Thresholds hardcoded jako consts w `HealthChecker` (`DISK_DEGRADED_RATIO=0.80`, `DISK_DOWN_RATIO=0.95`). YAGNI na ENV override — pojedyncza instancja, jeden dysk, jeden problem.
+    - `disk_free_space('/')` mierzy overlayfs Dockera → odzwierciedla miejsce hosta (single-volume setup). Multi-volume (MySQL na osobnym data volume) wymagałby osobnego probe — out of scope.
 - Docker healthcheck na `nginx`: `wget --spider http://localhost/api/health` (interval 30s, retries 3, start_period 30s) — end-to-end stack probe
 - `HealthChecker` (`src/Health/HealthChecker.php`) — `readonly` (NIE `final` żeby PHPUnit `createStub` działał w teście kontrolera)
 
