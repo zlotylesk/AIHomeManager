@@ -1,0 +1,43 @@
+# HMAI-152: weekly dependency surveillance. Composer + npm (frontend + root)
+# + GitHub Actions ecosystems each get scheduled PRs from `dependabot[bot]`.
+# Groups collapse symfony/* and doctrine/* into single PRs so an 8-package
+# Symfony bump does not produce 8 separate reviews.
+#
+# Manual fallback: `make audit` (composer) and `make node-audit` (frontend
+# npm) still run in CI for high+critical CVEs — Dependabot covers freshness,
+# audit covers severity-gated regressions.
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      symfony:
+        patterns:
+          - "symfony/*"
+      doctrine:
+        patterns:
+          - "doctrine/*"
+      dev:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
