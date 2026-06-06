@@ -7,7 +7,7 @@
         "@symfony/webpack-encore": "^6.0.0",
         "core-js": "^3.38.0",
         "regenerator-runtime": "^0.13.9",
-        "webpack": "^5.72",
+        "webpack": "^5.107",
         "webpack-cli": "^6.0.0"
     },
     "license": "UNLICENSED",
