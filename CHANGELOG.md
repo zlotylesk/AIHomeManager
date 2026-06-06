@@ -4,6 +4,66 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.11.0] — 2026-06-06
+
+Domknięcie epica **HMAI-159** (CI hardening, dependency safety, observability & DX quick wins) — 10/10 podzadań. Wydanie maintenance — brak zmian funkcjonalnych, same poprawki "fundamentu": dwie nowe bramki security (`composer audit` + `npm audit`), Dependabot per ekosystem, CI hygiene (concurrency + per-job timeouts), PHPUnit gate na deprecations, 3-state disk probe w `/api/health`, request correlation header z propagacją do logów Monolog, i `make doctor`/`make logs-*` dla onboardingu. 638/638 PHP (+8 vs 1.10.0) + 9/9 Playwright + 36/36 Newman.
+
+### Added
+
+- **`composer audit` CI gate (HMAI-149).** Krok w jobie `static-analysis` po Deptrac — query do FriendsOfPHP/security-advisories. Advisory na zainstalowanej wersji paczki blokuje merge. Lokalnie: `make audit`. Fix = bump dep, nie suppress.
+- **`npm audit --audit-level=high` CI gate (HMAI-150).** Krok po każdym `npm ci` w jobach `tests` + `e2e-playwright` (oba w `app/`). Low/moderate dla devDeps przepuszczane jako noise; high+critical blokują merge. Root `package.json` (Playwright + Newman) świadomie poza gate — newman 6.x ciągnie deep-transitive CVE bez forward-fixu. Lokalnie: `make node-audit`. Re-eval w HMAI-174.
+- **Dependabot config (HMAI-152).** `.github/dependabot.yml` — 4 ekosystemy: composer (`/app`, weekly Mon z grupami `symfony/*`/`doctrine/*`/dev), npm (`/app` + `/`, weekly), github-actions (`/`, monthly). PR-y od `dependabot[bot]` przechodzą ten sam CI gate co user commits. Komplementarne z audit gates: freshness vs severity-gated regression.
+- **Health endpoint disk probe (HMAI-155).** `App\Health\HealthChecker::checkDisk()` z 3-state ratio: `< 80%` → `up`, `80–95%` → `degraded` (HTTP 200 + body sygnal), `> 95%` → `down` (HTTP 503). Thresholdy hardcoded jako consts (`DISK_DEGRADED_RATIO=0.80`, `DISK_DOWN_RATIO=0.95`). Rationale: MySQL buffer pool flush + binlog ginie przy braku headroomu — `degraded` page'uje monitoring przed eskalacją bez drenowania ruchu. `disk_free_space('/')` mierzy overlayfs Dockera (single-volume setup).
+- **Request correlation ID (HMAI-158).** `App\EventListener\RequestIdListener` (`kernel.request` priority 256 — przed `ApiRateLimitListener` @100, żeby 429 niosło correlator). Czyta `X-Request-ID` z requestu lub generuje UUID v4. Walidacja inbound regex `^[A-Za-z0-9._-]{1,128}$` (ochrona przed log injection). `App\Logging\RequestIdProcessor` (`#[AsMonologProcessor]`) dodaje `extra.request_id` do każdego `LogRecord` emitowanego w request lifecycle. Worker/CLI context — passthrough. Async propagacja Messenger świadomie poza scope.
+- **`make doctor` preflight env check (HMAI-157).** `scripts/doctor.sh` — read-only check: docker daemon up, stan 8 kontenerów, `app/.env.local` istnieje, `DISCOGS_TOKEN_KEY` + `GOOGLE_TOKEN_KEY` base64-decoded length = 32. Onboarding na nowym laptopie skraca się z 15 min manual debug do jednej komendy.
+- **Per-service logs Makefile targets (HMAI-156).** `make logs-{php,nginx,mysql,redis,rabbitmq,worker,scheduler,node}` — shortcuty zamiast `make logs` (cały stack). Mapping `logs-worker` → `messenger_worker`, `logs-scheduler` → `scheduler_worker` (jak się czyta na głos).
+
+### Changed
+
+- **CI concurrency (HMAI-151).** Workflow ma top-level `concurrency` block grupujący po `github.ref` z `cancel-in-progress: true`. Push nowego commita na ten sam branch ubija poprzedniego runa. Oszczędza minuty CI i daje feedback na najnowszym kodzie.
+- **CI job timeouts (HMAI-154).** Każdy job ma explicit `timeout-minutes`: `static-analysis: 10`, `tests: 15`, `e2e-playwright: 20`, `e2e-newman: 10`. Cap ≈ 2-3× obserwowanego peaku. Default GitHub Actions to 360 min — runaway/deadlock bez bound zjada cały budżet darmowych minut na pojedynczy hang.
+- **PHPUnit deprecation gate (HMAI-153).** `phpunit.dist.xml` ma `failOnDeprecation="true"` + `failOnPhpunitDeprecation="true"` + `failOnNotice="true"` + `failOnWarning="true"`. Nowe PHP deprecations w `src/` ORAZ deprecations samego PHPUnit (`->expects(self::any())`, `with()` bez `expects()`) blokują CI. `<source>` ma `ignoreIndirectDeprecations="true"` — vendor noise (`google/apiclient`) świadomie filtrowany. Pierwsza ofiara gate'u: `UpdateTaskHandlerTest::any()` → `once()` (preserves the with-constraint).
+- **CLAUDE.md**: nowe sekcje per ticket — Health endpoint (3-state), Request correlation, CI timeouts/concurrency, npm audit gate; tabela komend Makefile rozszerzona o `make doctor`, `make logs-*`, `make node-audit`; "Wydania" → 1.11.0; sekcja Static Analysis dopisuje Composer audit + Dependabot.
+
+### Coverage
+
+- **638 PHP tests** passing (vs 630 at 1.10.0) — +8 nowych: 4 w `HealthCheckerTest` + `HealthControllerTest` (3-state disk probe paths), 4 w `RequestIdListenerTest` (UUID generation, valid echo, invalid replace via regex guard, `LogRecord.extra.request_id` carry).
+- **9 Playwright** (bez zmian — wydanie nie dotyka frontendu).
+- **36 Newman** requests / 66 assertions (bez zmian — brak nowych endpointów).
+- PHPStan level 8 clean, baseline bez nowych entries. Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` wszystkie zielone w CI.
+
+### Documentation
+
+- **Confluence id 52658177** "Code quality — narzędzia i bramki CI" — v6. Tabela bramek CI rozszerzona o `composer audit` (static-analysis) i `npm audit` (tests + e2e), nowa sekcja "Security — automated dependency scanning" z Dependabot, "CI hygiene — concurrency & cancel-in-progress", `PHPUnit deprecation gate`, lokalne komendy uzupełnione o `make audit` i `make node-audit`.
+- **Confluence id 49119253** "Graylog and OpenSearch — centralized logging" — v5. Nowa sekcja "Request correlation — X-Request-ID + request_id" — przepływ Listener → Processor, walidacja regex, graceful degrade w CLI/worker, async propagacja jako future work, przykłady query w Graylog.
+- **Confluence id 68812803** "Health endpoint — /api/health readiness probe" — nowa strona. Kontrakt JSON, tabela HTTP semantics, 3-state disk probe, Docker healthcheck, API key/rate limit bypass, regresja testowa.
+- **CHANGELOG.md**: ta sekcja.
+- **CLAUDE.md**: HMAI-159 oznaczone jako zamknięte 2026-06-06; "Wydania" → 1.11.0.
+
+### Migration
+
+Brak. Wydanie maintenance — brak nowych ENV, brak DB migrations, brak destructive ops. Zmiany dotykają tylko CI (`.github/`), config (`phpunit.dist.xml`, `composer.lock`, `package-lock.json`), `Makefile`, dwóch listenerów Symfony, jednego processora Monolog i dwóch metod w `HealthChecker`.
+
+### Closed Jira
+
+| ID | Tytuł | PR |
+|---|---|---|
+| [HMAI-149](https://honemanager.atlassian.net/browse/HMAI-149) | composer audit CI gate | [#153](https://github.com/zlotylesk/AIHomeManager/pull/153) |
+| [HMAI-150](https://honemanager.atlassian.net/browse/HMAI-150) | npm audit CI gate for frontend deps | [#156](https://github.com/zlotylesk/AIHomeManager/pull/156) |
+| [HMAI-151](https://honemanager.atlassian.net/browse/HMAI-151) | CI concurrency cancel in-progress | [#154](https://github.com/zlotylesk/AIHomeManager/pull/154) |
+| [HMAI-152](https://honemanager.atlassian.net/browse/HMAI-152) | Dependabot config | [#158](https://github.com/zlotylesk/AIHomeManager/pull/158) |
+| [HMAI-153](https://honemanager.atlassian.net/browse/HMAI-153) | PHPUnit failOnPhpunitDeprecation gate | [#162](https://github.com/zlotylesk/AIHomeManager/pull/162) |
+| [HMAI-154](https://honemanager.atlassian.net/browse/HMAI-154) | Timeout-minutes per CI job | [#159](https://github.com/zlotylesk/AIHomeManager/pull/159) |
+| [HMAI-155](https://honemanager.atlassian.net/browse/HMAI-155) | Health endpoint disk space probe (3-state) | [#157](https://github.com/zlotylesk/AIHomeManager/pull/157) |
+| [HMAI-156](https://honemanager.atlassian.net/browse/HMAI-156) | Per-service logs Makefile targets | [#160](https://github.com/zlotylesk/AIHomeManager/pull/160) |
+| [HMAI-157](https://honemanager.atlassian.net/browse/HMAI-157) | make doctor preflight env check | [#161](https://github.com/zlotylesk/AIHomeManager/pull/161) |
+| [HMAI-158](https://honemanager.atlassian.net/browse/HMAI-158) | Request correlation header + Monolog processor | [#155](https://github.com/zlotylesk/AIHomeManager/pull/155) |
+| [HMAI-159](https://honemanager.atlassian.net/browse/HMAI-159) | 1.11.0 epic — quick wins (epic review) | — |
+
+### Carried forward
+
+- **HMAI-174** — Monitor newman 7.x release; re-enable npm audit gate dla root `package.json` gdy newman wyjdzie z czystym drzewem zależności. Świadomie tracking-only.
+
 ## [1.10.0] — 2026-06-01
 
 Domknięcie epica **HMAI-145** (Application audit follow-up — features, hardening, DevOps) — 12/12 podzadań. Pierwszy release po HMAI-44 maintenance milestone, niosący nową funkcjonalność (Tasks REST CRUD z Google Calendar, PDF export, lokalny aggregate listening sessions), drugi moduł na Encore track (Books), automatyzację DevOps (backup MySQL, retencja Graylog, CI E2E jobs, formalizacja granic Deptrac) i defense-in-depth security headers. 630/630 PHP (+88 vs 1.9.0) + 9/9 Playwright (+4) + 36/36 Newman (+2). PHPStan level 8 clean (zero new baseline entries).
