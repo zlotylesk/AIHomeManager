@@ -208,6 +208,7 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 - **Composer audit**: `composer audit` (od 2.4 wbudowane) queryuje FriendsOfPHP/security-advisories. CI gate w `static-analysis` po Deptrac — blokuje merge gdy advisory pojawi się dla zainstalowanej wersji paczki. Lokalnie: `make audit`. Fail = bumpować dep, nie suppressować (advisory failing CI to legit signal)
 - **Dependabot (HMAI-152)**: `.github/dependabot.yml` — 4 ekosystemy: composer (`/app`, weekly Mon, grupy `symfony/*`/`doctrine/*`/dev), npm (`/app` + `/`, weekly), github-actions (`/`, monthly). PR-y od `dependabot[bot]` przechodzą ten sam CI gate co user commits — review + merge gdy zielone. Dependabot pokrywa freshness, `composer audit`/`npm audit` pokrywa severity-gated regression — komplementarne, nie zastępują się
 - CI: `.github/workflows/ci.yml` — 4 joby na każdy push/PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac + Composer audit), `tests` (PHPUnit), `e2e-playwright` i `e2e-newman` (oba `needs: tests`)
+- **CI job timeouts (HMAI-154)**: każdy job ma explicit `timeout-minutes` — `static-analysis: 10`, `tests: 15`, `e2e-playwright: 20`, `e2e-newman: 10`. Cap = ~2–3× obserwowanego peaku. Default GitHub Actions to 360 min — runaway/deadlock bez bound zjada cały budżet darmowych minut na pojedynczy hang. Po 30 dniach monitorować realne czasy: jeśli któryś job zbliża się do bound (>70%), podnieść — nie obniżać, bo flaky CI to gorsze niż timeout
 
 | Komenda | Akcja |
 |---|---|
