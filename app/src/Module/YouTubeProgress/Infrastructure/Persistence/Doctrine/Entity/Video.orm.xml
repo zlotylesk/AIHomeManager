@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\YouTubeProgress\Domain\Entity\Video" table="videos">
+        <indexes>
+            <index name="idx_videos_channel" columns="channel"/>
+            <index name="idx_videos_started_at" columns="started_at"/>
+            <index name="idx_videos_watched_at" columns="watched_at"/>
+        </indexes>
+        <id name="id" type="string" column="youtube_id" length="20"/>
+        <field name="title" type="string" column="title" length="512" nullable="false"/>
+        <field name="channel" type="string" column="channel" length="255" nullable="false"/>
+        <field name="durationSeconds" type="integer" column="duration_seconds" nullable="false"/>
+        <field name="addedAt" type="datetime_immutable" column="added_to_watchlist_at" nullable="false"/>
+        <field name="startedAt" type="datetime_immutable" column="started_at" nullable="true"/>
+        <field name="watchedAt" type="datetime_immutable" column="watched_at" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>

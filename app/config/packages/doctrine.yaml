@@ -66,6 +66,11 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Music/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Music\Domain\ValueObject'
+            YouTubeProgressDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/YouTubeProgress/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\YouTubeProgress\Domain\Entity'
 
 when@test:
     doctrine:

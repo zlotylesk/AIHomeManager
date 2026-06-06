@@ -12,10 +12,10 @@ use DateTimeImmutable;
 final class Video
 {
     private function __construct(
-        private readonly YoutubeVideoId $id,
+        private readonly string $id,
         private string $title,
-        private readonly ChannelName $channel,
-        private VideoDuration $duration,
+        private readonly string $channel,
+        private int $durationSeconds,
         private readonly DateTimeImmutable $addedAt,
         private ?DateTimeImmutable $startedAt = null,
         private ?DateTimeImmutable $watchedAt = null,
@@ -29,7 +29,16 @@ final class Video
         VideoDuration $duration,
         DateTimeImmutable $addedAt,
     ): self {
-        return new self($id, $title, $channel, $duration, $addedAt);
+        // Store value-object primitives directly so Doctrine ORM can persist
+        // them as scalar columns without embeddables. Getters below rehydrate
+        // the VOs on read — domain code never sees the raw scalars.
+        return new self(
+            $id->value(),
+            $title,
+            $channel->value(),
+            $duration->toSeconds(),
+            $addedAt,
+        );
     }
 
     public function markStarted(DateTimeImmutable $at): void
@@ -64,12 +73,12 @@ final class Video
     public function updateMetadata(string $title, VideoDuration $duration): void
     {
         $this->title = $title;
-        $this->duration = $duration;
+        $this->durationSeconds = $duration->toSeconds();
     }
 
     public function id(): YoutubeVideoId
     {
-        return $this->id;
+        return new YoutubeVideoId($this->id);
     }
 
     public function title(): string
@@ -79,12 +88,12 @@ final class Video
 
     public function channel(): ChannelName
     {
-        return $this->channel;
+        return new ChannelName($this->channel);
     }
 
     public function duration(): VideoDuration
     {
-        return $this->duration;
+        return new VideoDuration($this->durationSeconds);
     }
 
     public function addedAt(): DateTimeImmutable
