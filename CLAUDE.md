@@ -116,7 +116,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Integration only | `make test-integration` |
 | Cache clear | `make cc` |
 | Migracje dev/test | `make migrate` / `make migrate-test` |
-| Logi | `make logs` |
+| Logi | `make logs` (all) / `make logs-{php,nginx,mysql,redis,rabbitmq,worker,scheduler,node}` (per-service, HMAI-156) |
 | Routing | `make routes` |
 | Kontenery | `make services` |
 | Status workera | `make messenger-status` |
