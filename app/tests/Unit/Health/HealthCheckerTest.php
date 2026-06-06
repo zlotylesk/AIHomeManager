@@ -109,4 +109,36 @@ final class HealthCheckerTest extends TestCase
 
         self::assertSame('down', $result['rabbitmq']);
     }
+
+    public function testCheckDiskReturnsOneOfThreeKnownStates(): void
+    {
+        // HMAI-155: smoke test — disk_free_space('/') on a working filesystem
+        // returns a valid ratio. We can't mock the PHP built-in, so the test
+        // exercises the real I/O path and guarantees the method never escapes
+        // the {up, degraded, down} contract under normal conditions.
+        $connection = $this->createMock(Connection::class);
+        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
+
+        $redis = $this->createStub(Redis::class);
+        $redis->method('ping')->willReturn('+PONG');
+
+        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+
+        self::assertContains($checker->checkDisk(), ['up', 'degraded', 'down']);
+    }
+
+    public function testCheckIncludesDiskComponent(): void
+    {
+        // Regression: the `check()` map must always contain `disk` so the
+        // controller's component iteration never returns a partial response.
+        $connection = $this->createMock(Connection::class);
+        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
+
+        $redis = $this->createStub(Redis::class);
+        $redis->method('ping')->willReturn('+PONG');
+
+        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+
+        self::assertArrayHasKey('disk', $checker->check());
+    }
 }

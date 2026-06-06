@@ -24,6 +24,11 @@ use Throwable;
  */
 readonly class HealthChecker
 {
+    // HMAI-155: disk usage thresholds. 95% = down because MySQL needs headroom
+    // for buffer pool flush + binlog before write failures cascade.
+    private const float DISK_DEGRADED_RATIO = 0.80;
+    private const float DISK_DOWN_RATIO = 0.95;
+
     public function __construct(
         private Connection $connection,
         #[Autowire(service: 'app.redis')]
@@ -37,7 +42,7 @@ readonly class HealthChecker
     }
 
     /**
-     * @return array<string, string> component => 'up' | 'down'
+     * @return array<string, string> component => 'up' | 'degraded' | 'down'
      */
     public function check(): array
     {
@@ -45,7 +50,27 @@ readonly class HealthChecker
             'mysql' => $this->probe(fn () => $this->connection->executeQuery('SELECT 1'), 'mysql'),
             'redis' => $this->probe(fn () => $this->pingRedis(), 'redis'),
             'rabbitmq' => $this->probe(fn () => $this->openRabbitMqSocket(), 'rabbitmq'),
+            'disk' => $this->checkDisk(),
         ];
+    }
+
+    public function checkDisk(): string
+    {
+        $free = @disk_free_space('/');
+        $total = @disk_total_space('/');
+        if (false === $free || false === $total || $total <= 0.0) {
+            return 'down';
+        }
+
+        $usedRatio = 1.0 - ($free / $total);
+        if ($usedRatio >= self::DISK_DOWN_RATIO) {
+            return 'down';
+        }
+        if ($usedRatio >= self::DISK_DEGRADED_RATIO) {
+            return 'degraded';
+        }
+
+        return 'up';
     }
 
     private function probe(callable $check, string $component): string
