@@ -93,6 +93,21 @@ deptrac:
               - type: directory
                 value: src/Module/Tasks/Infrastructure/.*
 
+        - name: YouTubeProgressDomain
+          collectors:
+              - type: directory
+                value: src/Module/YouTubeProgress/Domain/.*
+
+        - name: YouTubeProgressApplication
+          collectors:
+              - type: directory
+                value: src/Module/YouTubeProgress/Application/.*
+
+        - name: YouTubeProgressInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/YouTubeProgress/Infrastructure/.*
+
         # Everything inside src/ that is not under src/Module/ — controllers,
         # event listeners, security, kernel, scheduled tasks, health, http
         # decorators, entities and repositories not yet migrated to modules, etc.
@@ -123,6 +138,7 @@ deptrac:
         MusicDomain: []
         SeriesDomain: []
         TasksDomain: []
+        YouTubeProgressDomain: []
 
         # Application layer: own Domain only. May freely import Vendor (Messenger
         # attributes, etc.). May NOT import other modules or Infrastructure.
@@ -140,6 +156,9 @@ deptrac:
             - Vendor
         TasksApplication:
             - TasksDomain
+            - Vendor
+        YouTubeProgressApplication:
+            - YouTubeProgressDomain
             - Vendor
 
         # Infrastructure layer: own Domain + own Application + Vendor.
@@ -164,6 +183,10 @@ deptrac:
             - TasksDomain
             - TasksApplication
             - Vendor
+        YouTubeProgressInfrastructure:
+            - YouTubeProgressDomain
+            - YouTubeProgressApplication
+            - Vendor
 
         # Glue: controllers, listeners, kernel, security — orchestration code
         # that legitimately wires modules together at the edges.
@@ -183,6 +206,9 @@ deptrac:
             - TasksDomain
             - TasksApplication
             - TasksInfrastructure
+            - YouTubeProgressDomain
+            - YouTubeProgressApplication
+            - YouTubeProgressInfrastructure
             - Vendor
 
         Vendor: []
