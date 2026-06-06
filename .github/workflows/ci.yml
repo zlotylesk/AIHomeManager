@@ -16,6 +16,9 @@ jobs:
   static-analysis:
     name: Static analysis (Rector, CS Fixer, PHPStan, Deptrac)
     runs-on: ubuntu-latest
+    # HMAI-154: cap at ~2× observed peak (4 min). Default 360 min would let a
+    # runaway burn the entire free-tier budget on a single hang.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: app
@@ -83,6 +86,9 @@ jobs:
   tests:
     name: PHPUnit (unit + integration)
     runs-on: ubuntu-latest
+    # HMAI-154: cap at ~3× observed peak (5 min). Higher headroom than other
+    # jobs because integration tests spin up MySQL/Redis/RabbitMQ containers.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -208,6 +214,9 @@ jobs:
     name: Playwright E2E (desktop + mobile)
     needs: tests
     runs-on: ubuntu-latest
+    # HMAI-154: cap at ~3× observed peak (7 min). Browser fixtures + Encore
+    # build push this job longest.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: app
@@ -374,6 +383,8 @@ jobs:
     name: Newman API smoke
     needs: tests
     runs-on: ubuntu-latest
+    # HMAI-154: cap at ~3× observed peak (3 min). Newman is the lightest job.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: app
