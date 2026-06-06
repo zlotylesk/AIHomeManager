@@ -1,4 +1,4 @@
-.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore
+.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore
 
 up:
 	docker compose up -d
@@ -53,6 +53,34 @@ shell:
 
 logs:
 	docker compose logs -f
+
+# HMAI-156: per-service log shortcuts. `make logs` tails every container,
+# which makes single-service debugging painful. Service names mirror
+# docker-compose.yml (logs-worker -> messenger_worker since that's how it
+# reads aloud, same for logs-scheduler).
+logs-php:
+	docker compose logs -f php
+
+logs-nginx:
+	docker compose logs -f nginx
+
+logs-mysql:
+	docker compose logs -f mysql
+
+logs-redis:
+	docker compose logs -f redis
+
+logs-rabbitmq:
+	docker compose logs -f rabbitmq
+
+logs-worker:
+	docker compose logs -f messenger_worker
+
+logs-scheduler:
+	docker compose logs -f scheduler_worker
+
+logs-node:
+	docker compose logs -f node
 
 cc:
 	docker compose exec php bin/console cache:clear
