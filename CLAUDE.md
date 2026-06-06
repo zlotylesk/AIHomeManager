@@ -120,6 +120,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Routing | `make routes` |
 | Kontenery | `make services` |
 | Status workera | `make messenger-status` |
+| Preflight env health check (HMAI-157) | `make doctor` |
 | Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
 | Graylog bootstrap (inputs+indexes+streams) | `make monitoring-bootstrap` |
 | E2E (Playwright) install/run | `make test-e2e-install` / `make test-e2e` |
