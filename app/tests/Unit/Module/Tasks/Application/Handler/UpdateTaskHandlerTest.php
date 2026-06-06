@@ -29,7 +29,7 @@ final class UpdateTaskHandlerTest extends TestCase
         $task->releaseEvents();
 
         $repo = $this->createMock(TaskRepositoryInterface::class);
-        $repo->expects(self::any())->method('findById')->with('t-1')->willReturn($task);
+        $repo->expects(self::once())->method('findById')->with('t-1')->willReturn($task);
         $repo->expects(self::once())->method('save');
 
         $calendar = $this->createMock(CalendarServiceInterface::class);
