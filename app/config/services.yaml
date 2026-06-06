@@ -175,6 +175,9 @@ services:
     App\Module\Articles\Domain\Repository\ArticleDailyPickRepositoryInterface:
         alias: App\Module\Articles\Infrastructure\Persistence\DoctrineArticleDailyPickRepository
 
+    App\Module\YouTubeProgress\Domain\Repository\VideoRepositoryInterface:
+        alias: App\Module\YouTubeProgress\Infrastructure\Persistence\DoctrineVideoRepository
+
     App\Module\Articles\Application\QueryHandler\GetArticleOfTheDayHandler:
         arguments:
             $redis: '@app.redis'
