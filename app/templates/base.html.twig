@@ -9,6 +9,7 @@
            it once those move to CSS classes. #}
         <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'{% if app.environment == 'dev' %} https://cdn.jsdelivr.net{% endif %}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; base-uri 'self'; object-src 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="api-key" content="{{ api_key }}">
         <title>{% block title %}AIHomeManager{% endblock %}</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🏠</text></svg>">
         {# HMAI-41: Webpack Encore manifest-driven asset tags. Series UI runs
