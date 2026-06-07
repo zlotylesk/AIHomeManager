@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\YouTubeProgress\Domain\Entity\WatchSession" table="watch_sessions">
+        <indexes>
+            <index name="idx_watch_sessions_created_at" columns="created_at"/>
+        </indexes>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="totalDurationSeconds" type="integer" column="total_duration_seconds" nullable="false"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
+        <field name="youtubePlaylistId" type="string" column="youtube_playlist_id" length="64" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>
