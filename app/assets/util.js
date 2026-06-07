@@ -13,7 +13,14 @@ export function safeUrl(url) {
 }
 
 export async function apiCall(url, options = {}) {
-    const res = await fetch(url, options);
+    const headers = new Headers(options.headers || {});
+    const meta = document.querySelector('meta[name="api-key"]');
+    const apiKey = meta ? meta.getAttribute('content') : '';
+    if (apiKey && !headers.has('X-API-Key')) {
+        headers.set('X-API-Key', apiKey);
+    }
+
+    const res = await fetch(url, { ...options, headers });
 
     if (!res.ok) {
         const text = await res.text();

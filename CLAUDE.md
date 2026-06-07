@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music. Frontend dual-track: Series + Books UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music na Twig + vanilla JS (`app/public/js/`) z `window.apiCall` z `public/js/util.js`.
 
-**Status:** projekt operacyjny, jeden release (`1.11.0`). Pełna historia → [CHANGELOG.md](CHANGELOG.md).
+**Status:** projekt operacyjny, ostatni tag `1.11.1` (patch — Books BN API migration + frontend API key dispatch fix). Poprzednie: `1.11.0`. Pełna historia → [CHANGELOG.md](CHANGELOG.md).
 
 ## Architektura — ZASADY NIENARUSZALNE
 
