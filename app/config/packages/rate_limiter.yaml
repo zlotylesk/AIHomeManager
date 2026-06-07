@@ -29,6 +29,15 @@ framework:
             rate: { interval: '1 second', amount: 1 }
             cache_pool: 'cache.rate_limiter'
 
+        # YouTube Data API v3: quota is unit-based (10000 units/day default), not
+        # request-rate based. 60 req/min is a soft HTTP fallback that paces sync
+        # bursts well under daily quota — real exhaustion surfaces as a 403.
+        youtube_api:
+            policy: 'token_bucket'
+            limit: 60
+            rate: { interval: '1 minute', amount: 60 }
+            cache_pool: 'cache.rate_limiter'
+
 when@test:
     services:
         # InMemoryStorage isn't tagged kernel.reset, so state survives across requests
@@ -50,4 +59,6 @@ when@test:
             lastfm_api:
                 policy: 'no_limit'
             national_library_api:
+                policy: 'no_limit'
+            youtube_api:
                 policy: 'no_limit'

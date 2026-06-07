@@ -181,6 +181,13 @@ services:
     App\Module\YouTubeProgress\Domain\Repository\WatchSessionRepositoryInterface:
         alias: App\Module\YouTubeProgress\Infrastructure\Persistence\DoctrineWatchSessionRepository
 
+    App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface:
+        alias: App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient
+
+    App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
+        arguments:
+            $httpClient: '@app.youtube_http_client'
+
     App\Module\Articles\Application\QueryHandler\GetArticleOfTheDayHandler:
         arguments:
             $redis: '@app.redis'
@@ -226,6 +233,13 @@ services:
             $inner: '@http_client'
             $limiterFactory: '@limiter.national_library_api'
             $limiterName: 'national_library_api'
+
+    app.youtube_http_client:
+        class: App\Http\RateLimitedHttpClient
+        arguments:
+            $inner: '@http_client'
+            $limiterFactory: '@limiter.youtube_api'
+            $limiterName: 'youtube_api'
 
 when@test:
     services:
