@@ -43,7 +43,13 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
 
         try {
             $response = $this->httpClient->request('GET', self::API_URL, [
-                'query' => ['isbnissn' => $isbn, 'kind' => 'book', 'limit' => 1],
+                // BN's filter param is camelCase `isbnIssn`. Lowercase `isbnissn`
+                // is silently ignored — BN then returns arbitrary catalogue
+                // records, so the wrong book (or one with no page count → 422) is
+                // returned for every ISBN. Regression from the HMAI-175 migration.
+                // No `kind` filter: BN categorises books as `książka` (Polish), so
+                // `kind=book` matched nothing and emptied the result set.
+                'query' => ['isbnIssn' => $isbn, 'limit' => 1],
                 'timeout' => 5,
             ]);
 
