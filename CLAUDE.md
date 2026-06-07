@@ -240,7 +240,7 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 - Dwie instancje w `services.yaml`: `app.discogs_token_cipher` (klucz `DISCOGS_TOKEN_KEY`) i `app.google_token_cipher` (`GOOGLE_TOKEN_KEY`) — osobne klucze rozdzielają blast radius
 - Klucze 32B base64 w `.env.local`. Generate: `php -r "echo base64_encode(sodium_crypto_secretbox_keygen());"`
 - Discogs OAuth1: `DiscogsTokenRepository` (Music) — pole-per-pole encryption (`oauth_token`, `oauth_token_secret`)
-- Google OAuth2: `GoogleOAuthTokenRepository` (Tasks) — szyfruje cały `token_json` (access+refresh+expires)
+- Google OAuth2: `GoogleOAuthTokenRepository` (Tasks) — szyfruje cały `token_json` (access+refresh+expires). Scope claims kumulatywne na refresh tokenie: `calendar.events` (Tasks) + `youtube` (YouTubeProgress, HMAI-163, full read/write — T11 wymaga `createPlaylist`). Jeden token, dwa moduły — `GoogleClientFactory::create()` requestuje oba scope'y, `setPrompt('consent')` wymusza re-consent. **Po deployu HMAI-163 user MUSI raz przejść `/auth/google`** żeby uzyskać token z poszerzonym scope — bez tego YT API call zwróci 403. Regresja: `tests/Integration/Module/YouTubeProgress/GoogleClientYouTubeScopeTest.php`
 
 ## MCP servers (`.mcp.json`)
 

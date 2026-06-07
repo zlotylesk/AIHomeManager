@@ -21,6 +21,18 @@ final class GoogleClientFactoryTest extends TestCase
         self::assertContains('https://www.googleapis.com/auth/calendar.events', $client->getScopes());
     }
 
+    public function testWiresYouTubeScopeSoOneTokenServesCalendarAndYouTube(): void
+    {
+        // YouTubeProgress (HMAI-163) reuses this OAuth client; the full-access
+        // youtube scope must be requested so the cumulative refresh token can
+        // call the YouTube Data API (write included) alongside Calendar.
+        $factory = new GoogleClientFactory('client-id', 'client-secret', 'https://example.com/auth/google/callback');
+
+        $client = $factory->create();
+
+        self::assertContains('https://www.googleapis.com/auth/youtube', $client->getScopes());
+    }
+
     public function testPropagatesClientSecretAndRedirectUriToClient(): void
     {
         $factory = new GoogleClientFactory('client-id', 'client-secret', 'https://example.com/auth/google/callback');
