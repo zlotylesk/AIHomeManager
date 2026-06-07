@@ -7,6 +7,7 @@ namespace App\Tests\Unit\Module\Books\Infrastructure;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Infrastructure\External\NationalLibraryApiClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Redis;
 use RuntimeException;
@@ -24,25 +25,39 @@ final class NationalLibraryApiClientTest extends TestCase
         $this->redis->method('setex')->willReturn(true);
     }
 
-    private function makeXml(array $fields = []): string
+    /**
+     * @param array<string, string|int> $fields
+     */
+    private function makeXml(array $fields = [], ?string $marcPages = null): string
     {
-        $dc = '';
+        $body = '';
         foreach ($fields as $key => $value) {
-            $dc .= sprintf('<dc:%s xmlns:dc="http://purl.org/dc/elements/1.1/">%s</dc:%s>', $key, htmlspecialchars((string) $value), $key);
+            $body .= sprintf('<%s>%s</%s>', $key, htmlspecialchars((string) $value), $key);
         }
 
-        return sprintf('<?xml version="1.0" encoding="UTF-8"?><bibs><bib>%s</bib></bibs>', $dc);
+        if (null !== $marcPages) {
+            $body .= sprintf(
+                '<marc xmlns="http://www.loc.gov/MARC21/slim">'
+                .'<datafield tag="300"><subfield code="a">%s</subfield></datafield>'
+                .'</marc>',
+                htmlspecialchars($marcPages),
+            );
+        }
+
+        return sprintf('<?xml version="1.0" encoding="UTF-8"?><resp><bibs><bib>%s</bib></bibs></resp>', $body);
     }
 
     public function testReturnsBookMetadataFromValidXmlResponse(): void
     {
-        $xml = $this->makeXml([
-            'title' => 'Clean Code',
-            'creator' => 'Robert C. Martin',
-            'publisher' => 'Prentice Hall',
-            'date' => '2008',
-            'format' => '320 s.',
-        ]);
+        $xml = $this->makeXml(
+            [
+                'title' => 'Clean Code',
+                'author' => 'Robert C. Martin',
+                'publisher' => 'Prentice Hall',
+                'publicationYear' => '2008',
+            ],
+            '320 s. ;',
+        );
 
         $httpClient = new MockHttpClient(new MockResponse($xml));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
@@ -56,19 +71,39 @@ final class NationalLibraryApiClientTest extends TestCase
         self::assertSame(320, $dto->totalPages);
     }
 
-    public function testParsesTotalPagesFromFormatString(): void
+    /**
+     * @return array<string, array{0: string, 1: ?int}>
+     */
+    public static function marcPagesProvider(): array
     {
-        $xml = $this->makeXml(['title' => 'Book', 'format' => '256 stron']);
+        return [
+            'plain "320 s." form' => ['320 s.', 320],
+            'trailing semicolon' => ['320 s. ;', 320],
+            'bracketed appendix pages' => ['200, [4] s.', 200],
+            'Polish "stron" word' => ['150 stron', 150],
+            'high page count' => ['1024 s.', 1024],
+            'non-paginated media (CD-ROM)' => ['1 dysk optyczny (CD-ROM)', null],
+            'empty subfield' => ['', null],
+        ];
+    }
+
+    #[DataProvider('marcPagesProvider')]
+    public function testExtractsTotalPagesFromMarcDatafield300(string $marcAValue, ?int $expected): void
+    {
+        $xml = $this->makeXml(['title' => 'Sample'], $marcAValue);
         $httpClient = new MockHttpClient(new MockResponse($xml));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
 
         $dto = $client->getByIsbn('9780306406157');
 
-        self::assertSame(256, $dto->totalPages);
+        self::assertSame($expected, $dto->totalPages);
     }
 
-    public function testHandlesPartialMetadataWithoutTotalPages(): void
+    public function testHandlesPartialMetadataWithoutMarcBlock(): void
     {
+        // Without a <marc> child, totalPages defaults to null and the handler
+        // surfaces the "fill it in manually" message to the user — the API
+        // call itself still succeeds.
         $xml = $this->makeXml(['title' => 'Partial Book']);
         $httpClient = new MockHttpClient(new MockResponse($xml));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
@@ -77,18 +112,34 @@ final class NationalLibraryApiClientTest extends TestCase
 
         self::assertSame('Partial Book', $dto->title);
         self::assertNull($dto->author);
+        self::assertNull($dto->publisher);
+        self::assertNull($dto->year);
         self::assertNull($dto->totalPages);
     }
 
     public function testThrowsNotFoundWhenNoBibReturned(): void
     {
-        $xml = '<?xml version="1.0" encoding="UTF-8"?><bibs></bibs>';
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><resp><bibs></bibs></resp>';
         $httpClient = new MockHttpClient(new MockResponse($xml));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
 
         $this->expectException(BookMetadataNotFoundException::class);
 
         $client->getByIsbn('0000000001');
+    }
+
+    public function testThrowsNotFoundWhenBibHasNoTitle(): void
+    {
+        // BN occasionally returns a <bib> with author/publisher but no <title>
+        // (placeholder / in-progress catalogue entry). Without a title the DTO
+        // is useless for our purposes — treat it the same as "not found".
+        $xml = $this->makeXml(['author' => 'Anonymous']);
+        $httpClient = new MockHttpClient(new MockResponse($xml));
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $this->expectException(BookMetadataNotFoundException::class);
+
+        $client->getByIsbn('9780306406157');
     }
 
     public function testThrowsRuntimeExceptionOnMalformedXmlResponse(): void
@@ -111,7 +162,7 @@ final class NationalLibraryApiClientTest extends TestCase
         $xxe = <<<'XML'
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
-            <bibs><bib><title>&xxe;</title></bib></bibs>
+            <resp><bibs><bib><title>&xxe;</title></bib></bibs></resp>
             XML;
 
         $httpClient = new MockHttpClient(new MockResponse($xxe));
@@ -128,7 +179,7 @@ final class NationalLibraryApiClientTest extends TestCase
         // Belt-and-suspenders: stripos() ensures lowercase "<!doctype" and
         // whitespace-padded variants are caught — a naive substr() match could
         // be bypassed by such trivial obfuscation.
-        $payload = '<?xml version="1.0"?><!doctype bibs><bibs><bib><title>Innocent</title></bib></bibs>';
+        $payload = '<?xml version="1.0"?><!doctype resp><resp><bibs><bib><title>Innocent</title></bib></bibs></resp>';
         $httpClient = new MockHttpClient(new MockResponse($payload));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
 

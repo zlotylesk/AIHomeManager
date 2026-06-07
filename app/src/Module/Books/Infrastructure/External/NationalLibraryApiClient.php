@@ -17,7 +17,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final readonly class NationalLibraryApiClient implements BookMetadataProviderInterface
 {
-    private const string API_URL = 'https://api.bn.org.pl/api/bibs';
+    private const string API_URL = 'https://data.bn.org.pl/api/bibs.xml';
+    private const string MARC_NAMESPACE = 'http://www.loc.gov/MARC21/slim';
     private const int CACHE_TTL = 86400;
     private const string CACHE_PREFIX = 'book:metadata:';
 
@@ -118,24 +119,19 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
 
     private function parseBib(SimpleXMLElement $bib): BookMetadataDTO
     {
-        $dc = $bib->children('http://purl.org/dc/elements/1.1/');
-
-        $title = trim((string) ($dc->title ?? '')) ?: null;
+        $title = trim((string) ($bib->title ?? '')) ?: null;
 
         if (null === $title) {
             throw new BookMetadataNotFoundException('Book not found in National Library.');
         }
 
-        $author = trim((string) ($dc->creator ?? '')) ?: null;
-        $publisher = trim((string) ($dc->publisher ?? '')) ?: null;
+        $author = trim((string) ($bib->author ?? '')) ?: null;
+        $publisher = trim((string) ($bib->publisher ?? '')) ?: null;
 
-        $yearStr = trim((string) ($dc->date ?? ''));
+        $yearStr = trim((string) ($bib->publicationYear ?? ''));
         $year = '' !== $yearStr ? (int) $yearStr : null;
-
-        $formatStr = trim((string) ($dc->format ?? ''));
-        $totalPages = null;
-        if ('' !== $formatStr && preg_match('/\d+/', $formatStr, $matches)) {
-            $totalPages = (int) $matches[0];
+        if (0 === $year) {
+            $year = null;
         }
 
         return new BookMetadataDTO(
@@ -143,8 +139,35 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             author: $author,
             publisher: $publisher,
             year: $year,
-            totalPages: $totalPages,
+            totalPages: $this->extractTotalPagesFromMarc($bib),
             coverUrl: null,
         );
+    }
+
+    private function extractTotalPagesFromMarc(SimpleXMLElement $bib): ?int
+    {
+        // BN 2024+ payloads embed full MARC21 records under a dedicated
+        // namespace. The bibliographic "physical description" element (tag 300,
+        // subfield 'a') is the only place page count lives now — the old
+        // dc:format field is gone. XPath sidesteps SimpleXML's quirky default-
+        // namespace handling, which silently breaks property-style traversal
+        // ($marc->datafield) when the root and its children share a non-empty
+        // namespace.
+        $bib->registerXPathNamespace('m', self::MARC_NAMESPACE);
+        $subfields = $bib->xpath('m:marc/m:datafield[@tag="300"]/m:subfield[@code="a"]');
+        if (!is_array($subfields) || [] === $subfields) {
+            return null;
+        }
+
+        foreach ($subfields as $subfield) {
+            // Tolerate variations like "320 s.", "320 s. ;", "200, [4] s.",
+            // "150 stron". Bail (return null) on non-page descriptions like
+            // "1 dysk optyczny (CD-ROM)" — those are e-books/CDs.
+            if (1 === preg_match('/(\d+)\s*(?:,\s*\[\d+\])?\s*s(?:tron|\.)?/u', (string) $subfield, $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        return null;
     }
 }
