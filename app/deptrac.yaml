@@ -237,3 +237,11 @@ deptrac:
             - App\Security\TokenCipher
         App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
             - App\Security\TokenCipher
+        # YouTubeProgress Domain port returns an Application DTO — same grandfathered
+        # pattern as Books/Music ports above (HMAI-164).
+        App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface:
+            - App\Module\YouTubeProgress\Application\DTO\VideoMetadata
+        # YouTube adapter re-uses the Tasks Google OAuth token repository — one
+        # token source for the shared Google API surface (HMAI-164).
+        App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
+            - App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface
