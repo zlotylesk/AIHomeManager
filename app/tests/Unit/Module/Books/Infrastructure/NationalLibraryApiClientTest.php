@@ -71,6 +71,28 @@ final class NationalLibraryApiClientTest extends TestCase
         self::assertSame(320, $dto->totalPages);
     }
 
+    public function testQueriesBnWithCamelCaseIsbnIssnParamAndNoKindFilter(): void
+    {
+        // Regression: BN's filter param is camelCase `isbnIssn`. The HMAI-175
+        // migration sent lowercase `isbnissn`, which BN ignores — returning an
+        // arbitrary record (wrong book, or 422 when it had no page count). The
+        // `kind=book` filter also has to stay gone: BN tags books `książka`, so
+        // it emptied the result set.
+        $capturedUrl = null;
+        $httpClient = new MockHttpClient(function (string $method, string $url) use (&$capturedUrl): MockResponse {
+            $capturedUrl = $url;
+
+            return new MockResponse($this->makeXml(['title' => 'Sample'], '320 s.'));
+        });
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $client->getByIsbn('9788375780635');
+
+        self::assertStringContainsString('isbnIssn=9788375780635', (string) $capturedUrl);
+        self::assertStringNotContainsString('isbnissn=', (string) $capturedUrl);
+        self::assertStringNotContainsString('kind=book', (string) $capturedUrl);
+    }
+
     /**
      * @return array<string, array{0: string, 1: ?int}>
      */
