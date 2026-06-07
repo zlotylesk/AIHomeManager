@@ -4,6 +4,36 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.11.1] — 2026-06-07
+
+Patch release wycelowany w dwa realne usterki end-userowe odkryte zaraz po wydaniu 1.11.0. Bez nowych modułów, bez DB migrations, bez nowych ENV. **645/645 PHP tests** (+7 nowych w `NationalLibraryApiClientTest`) — Playwright/Newman bez zmian. PHPStan level 8 clean.
+
+### Fixed
+
+- **Books — Biblioteka Narodowa API migration (HMAI-175).** `api.bn.org.pl` zwracał NXDOMAIN — BN wyłącząło stary endpoint, każde dodawanie książki po ISBN przez modal "Add book" wybuchało komunikatem "National Library API is unavailable". `NationalLibraryApiClient::API_URL` przeniesione na `https://data.bn.org.pl/api/bibs.xml`. `parseBib()` przerobiony z Dublin Core (`<dc:title>`, `<dc:creator>`, …) na nowy schemat plain-elements (`<title>`, `<author>`, `<publisher>`, `<publicationYear>`) opakowany w `<resp>` → `<bibs>` → `<bib>`. Pages przeniosło się do osobnego MARC21 namespace — wyciągane przez XPath z `<datafield tag="300"><subfield code="a">`. Tolerancja na warianty BN: `"320 s."`, `"320 s. ;"`, `"200, [4] s."`, `"150 stron"`. Non-paginowane media (CD-ROM, e-booki) → null, handler dalej rzuca grzeczne "fill total_pages manually". XXE guard (HMAI-96) i Redis cache layer nietknięte.
+- **Frontend — API key dispatch przez meta tag.** `window.apiCall` w `public/js/util.js` i `apiCall` w `assets/util.js` nie wstrzykiwały headera `X-API-Key`, więc Tasks/Articles/Music/Books bombardowały toast'ami "API key missing" przy każdym wejściu na stronę. Twig eksportuje `%env(API_KEY)%` jako global `api_key`, `base.html.twig` wkłada w `<meta name="api-key" content="…">`, a obie wersje `apiCall` czytają meta-tag i dorzucają header, nie nadpisując jeśli caller już swój ustawił. Brak osobnego ticketu — hotfix chore commit bezpośrednio na develop, świadomie wycięty do tagu 1.11.1.
+
+### Coverage
+
+- **645 PHP tests** passing (vs 638 at 1.11.0) — +7 w `NationalLibraryApiClientTest`: 7-wariantowy `#[DataProvider]` `testExtractsTotalPagesFromMarcDatafield300` plus 1 nowy `testThrowsNotFoundWhenBibHasNoTitle`, minus 1 zlikwidowany `testParsesTotalPagesFromFormatString` (relikt Dublin Core). Pozostałe oryginalne testy BN przepisane na nowy format response'u.
+- **9 Playwright** (bez zmian — brak nowych e2e scenariuszy w tym patchu).
+- **36 Newman** requests / 66 assertions (bez zmian — brak nowych endpointów).
+- PHPStan level 8 clean — usunięty jeden baseline entry dla `makeXml` po dodaniu `@param` typu. Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` zielone.
+
+### Migration
+
+Brak migracji DB i ENV. Po deploy opcjonalnie wyczyść stale entries w Redis cache (24h TTL i tak je zje):
+
+```bash
+docker exec aihm-redis-1 sh -c 'redis-cli --scan --pattern "book:metadata:*" | xargs -r redis-cli del'
+```
+
+### Closed Jira
+
+| ID | Tytuł | PR |
+|---|---|---|
+| [HMAI-175](https://honemanager.atlassian.net/browse/HMAI-175) | Books — migrate National Library API from api.bn.org.pl to data.bn.org.pl | [#177](https://github.com/zlotylesk/AIHomeManager/pull/177) |
+
 ## [1.11.0] — 2026-06-06
 
 Domknięcie epica **HMAI-159** (CI hardening, dependency safety, observability & DX quick wins) — 10/10 podzadań. Wydanie maintenance — brak zmian funkcjonalnych, same poprawki "fundamentu": dwie nowe bramki security (`composer audit` + `npm audit`), Dependabot per ekosystem, CI hygiene (concurrency + per-job timeouts), PHPUnit gate na deprecations, 3-state disk probe w `/api/health`, request correlation header z propagacją do logów Monolog, i `make doctor`/`make logs-*` dla onboardingu. 638/638 PHP (+8 vs 1.10.0) + 9/9 Playwright + 36/36 Newman.
