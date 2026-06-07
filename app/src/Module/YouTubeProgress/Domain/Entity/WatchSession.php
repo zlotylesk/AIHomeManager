@@ -11,6 +11,7 @@ use InvalidArgumentException;
 
 final class WatchSession
 {
+    private readonly string $id;
     /** @var YoutubeVideoId[] */
     private readonly array $videoIds;
     private ?string $youtubePlaylistId = null;
@@ -19,7 +20,7 @@ final class WatchSession
      * @param YoutubeVideoId[] $videoIds
      */
     private function __construct(
-        private readonly WatchSessionId $id,
+        WatchSessionId $id,
         array $videoIds,
         private readonly int $totalDurationSeconds,
         private readonly DateTimeImmutable $createdAt,
@@ -32,6 +33,7 @@ final class WatchSession
             throw new InvalidArgumentException(sprintf('Total duration must be non-negative, %d given.', $totalDurationSeconds));
         }
 
+        $this->id = $id->value;
         // Re-index defensively so external callers can't sneak in an array with
         // gaps or non-sequential keys that would surprise downstream consumers.
         $this->videoIds = array_values($videoIds);
@@ -43,6 +45,24 @@ final class WatchSession
     public static function create(array $videoIds, int $totalDurationSeconds, DateTimeImmutable $createdAt): self
     {
         return new self(WatchSessionId::generate(), $videoIds, $totalDurationSeconds, $createdAt);
+    }
+
+    /**
+     * Restore from persistence — bypasses ID generation but keeps invariant checks.
+     *
+     * @param YoutubeVideoId[] $videoIds
+     */
+    public static function reconstitute(
+        string $id,
+        array $videoIds,
+        int $totalDurationSeconds,
+        DateTimeImmutable $createdAt,
+        ?string $youtubePlaylistId,
+    ): self {
+        $session = new self(WatchSessionId::fromString($id), $videoIds, $totalDurationSeconds, $createdAt);
+        $session->youtubePlaylistId = $youtubePlaylistId;
+
+        return $session;
     }
 
     public function markPushedToYouTube(string $playlistId): void
@@ -60,7 +80,7 @@ final class WatchSession
 
     public function id(): WatchSessionId
     {
-        return $this->id;
+        return WatchSessionId::fromString($this->id);
     }
 
     /** @return YoutubeVideoId[] */

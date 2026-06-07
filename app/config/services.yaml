@@ -178,6 +178,9 @@ services:
     App\Module\YouTubeProgress\Domain\Repository\VideoRepositoryInterface:
         alias: App\Module\YouTubeProgress\Infrastructure\Persistence\DoctrineVideoRepository
 
+    App\Module\YouTubeProgress\Domain\Repository\WatchSessionRepositoryInterface:
+        alias: App\Module\YouTubeProgress\Infrastructure\Persistence\DoctrineWatchSessionRepository
+
     App\Module\Articles\Application\QueryHandler\GetArticleOfTheDayHandler:
         arguments:
             $redis: '@app.redis'
