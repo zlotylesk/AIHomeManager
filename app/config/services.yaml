@@ -184,6 +184,9 @@ services:
     App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface:
         alias: App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient
 
+    App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistWriterInterface:
+        alias: App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient
+
     App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
         arguments:
             $httpClient: '@app.youtube_http_client'
