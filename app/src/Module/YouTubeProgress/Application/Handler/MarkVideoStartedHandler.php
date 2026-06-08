@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\YouTubeProgress\Application\Handler;
+
+use App\Module\YouTubeProgress\Application\Command\MarkVideoStarted;
+use App\Module\YouTubeProgress\Domain\Repository\VideoRepositoryInterface;
+use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+
+#[AsMessageHandler(bus: 'command.bus')]
+final readonly class MarkVideoStartedHandler
+{
+    public function __construct(
+        private VideoRepositoryInterface $videos,
+    ) {
+    }
+
+    public function __invoke(MarkVideoStarted $command): void
+    {
+        $video = $this->videos->findByYoutubeId(new YoutubeVideoId($command->youtubeVideoId));
+        if (null === $video) {
+            throw new NotFoundHttpException(sprintf('Video "%s" not found in watchlist', $command->youtubeVideoId));
+        }
+
+        // Idempotency invariant lives in the aggregate: a no-op markStarted
+        // leaves the entity clean, so Doctrine emits no UPDATE on save().
+        $video->markStarted($command->at);
+        $this->videos->save($video);
+    }
+}
