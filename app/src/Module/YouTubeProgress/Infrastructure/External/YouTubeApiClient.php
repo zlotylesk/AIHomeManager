@@ -7,7 +7,9 @@ namespace App\Module\YouTubeProgress\Infrastructure\External;
 use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
 use App\Module\YouTubeProgress\Application\DTO\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface;
+use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistWriterInterface;
 use App\Module\YouTubeProgress\Domain\ValueObject\VideoDuration;
+use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;
 use DateTimeImmutable;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -19,8 +21,9 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * app.youtube_http_client (RateLimitedHttpClient). Fail-fast: no retry on quota
  * or transport errors (follow-up ticket).
  */
-final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface
+final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface, YouTubePlaylistWriterInterface
 {
+    private const string PLAYLISTS_URL = 'https://www.googleapis.com/youtube/v3/playlists';
     private const string PLAYLIST_ITEMS_URL = 'https://www.googleapis.com/youtube/v3/playlistItems';
     private const string VIDEOS_URL = 'https://www.googleapis.com/youtube/v3/videos';
     private const int PAGE_SIZE = 50;
@@ -65,6 +68,52 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface
         }
 
         return $videos;
+    }
+
+    public function createPlaylist(string $name, bool $private = true): string
+    {
+        $data = $this->httpClient->request('POST', self::PLAYLISTS_URL, [
+            'headers' => ['Authorization' => 'Bearer '.$this->accessToken()],
+            'query' => ['part' => 'snippet,status'],
+            'json' => [
+                'snippet' => ['title' => $name],
+                'status' => ['privacyStatus' => $private ? 'private' : 'public'],
+            ],
+        ])->toArray();
+
+        $id = $data['id'] ?? null;
+        if (!is_string($id) || '' === $id) {
+            throw new RuntimeException('YouTube createPlaylist: missing id in response.');
+        }
+
+        return $id;
+    }
+
+    /**
+     * @param list<YoutubeVideoId> $videoIds
+     */
+    public function addVideosToPlaylist(string $playlistId, array $videoIds): void
+    {
+        // YouTube has no batch insert for playlistItems — one POST per video,
+        // sent sequentially so the playlist keeps the session's video order.
+        // accessToken() is re-read per call (cheap, in-memory) so a long
+        // sequence survives a mid-loop token refresh in the repository.
+        foreach ($videoIds as $videoId) {
+            $status = $this->httpClient->request('POST', self::PLAYLIST_ITEMS_URL, [
+                'headers' => ['Authorization' => 'Bearer '.$this->accessToken()],
+                'query' => ['part' => 'snippet'],
+                'json' => [
+                    'snippet' => [
+                        'playlistId' => $playlistId,
+                        'resourceId' => ['kind' => 'youtube#video', 'videoId' => $videoId->value()],
+                    ],
+                ],
+            ])->getStatusCode();
+
+            if ($status >= 400) {
+                throw new RuntimeException(sprintf('YouTube addVideosToPlaylist failed for video "%s" (HTTP %d).', $videoId->value(), $status));
+            }
+        }
     }
 
     private function accessToken(): string
