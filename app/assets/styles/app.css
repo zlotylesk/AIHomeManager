@@ -178,6 +178,32 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .match-score { font-size: .95rem; color: var(--color-text-muted); }
 .match-score-value { font-size: 1.5rem; font-weight: 700; color: var(--color-primary); }
 
+/* ── YouTubeProgress ── */
+.yt-section { margin-bottom: 2rem; }
+.yt-section-title { font-size: 1.05rem; font-weight: 600; margin-bottom: .75rem; }
+.yt-sessions { display: flex; flex-direction: column; gap: 1rem; }
+.yt-watchlist { display: flex; flex-direction: column; gap: .4rem; }
+.youtube-progress-session-card { background: var(--color-surface); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); }
+.youtube-progress-session-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.youtube-progress-session-info { display: flex; flex-direction: column; }
+.youtube-progress-session-date { font-weight: 600; font-size: .9rem; }
+.youtube-progress-session-duration { font-size: .8rem; color: var(--color-text-muted); }
+.youtube-progress-pushed { font-size: .85rem; color: var(--color-success); font-weight: 600; }
+.youtube-progress-session-videos { display: flex; flex-direction: column; gap: .3rem; border-top: 1px solid var(--color-border); padding-top: .5rem; }
+.youtube-progress-video-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; background: var(--color-surface); border-radius: var(--radius); padding: .5rem .75rem; box-shadow: var(--shadow); flex-wrap: wrap; }
+.youtube-progress-session-videos .youtube-progress-video-row { box-shadow: none; padding: .3rem 0; background: transparent; }
+.youtube-progress-video-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.youtube-progress-video-title { font-size: .9rem; font-weight: 600; color: var(--color-primary); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.youtube-progress-video-title:hover { text-decoration: underline; }
+.youtube-progress-video-channel { font-size: .78rem; color: var(--color-text-muted); }
+.youtube-progress-video-meta { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; flex-wrap: wrap; }
+.youtube-progress-video-duration { font-size: .8rem; color: var(--color-text-muted); white-space: nowrap; }
+.youtube-progress-video-actions { display: flex; gap: .35rem; }
+.youtube-progress-status-badge { display: inline-block; color: #fff; border-radius: 4px; padding: .1rem .5rem; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+.youtube-progress-status-badge--split-pool { background: var(--color-secondary); }
+.youtube-progress-status-badge--started { background: var(--color-primary); }
+.youtube-progress-status-badge--watched { background: var(--color-success); }
+
 /* Loading overlay */
 .loading-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 3rem; color: var(--color-text-muted); }
 .spinner { width: 36px; height: 36px; border: 3px solid var(--color-border); border-top-color: var(--color-primary); border-radius: 50%; animation: spin .8s linear infinite; }

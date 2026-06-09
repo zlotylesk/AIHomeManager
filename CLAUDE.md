@@ -2,7 +2,7 @@
 
 Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfony 8 + MySQL 8 + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami.
 
-**Moduły:** Series, Tasks, Books, Articles, Music, YouTubeProgress. Frontend dual-track: Series + Books UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music na Twig + vanilla JS (`app/public/js/`) z `window.apiCall` z `public/js/util.js`.
+**Moduły:** Series, Tasks, Books, Articles, Music, YouTubeProgress. Frontend dual-track: Series + Books + YouTubeProgress UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music na Twig + vanilla JS (`app/public/js/`) z `window.apiCall` z `public/js/util.js`.
 
 **Status:** projekt operacyjny, ostatni tag `1.11.1` (patch — Books BN API migration + frontend API key dispatch fix). Poprzednie: `1.11.0`. Pełna historia → [CHANGELOG.md](CHANGELOG.md).
 
@@ -34,9 +34,10 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 ## Frontend
 
-- **Series + Books UI:** Webpack Encore + Stimulus. Stimulus controllers w `assets/controllers/{series,books}_controller.js`, mountowane przez `data-controller="..."` na `app/templates/{series,books}/index.html.twig`. Build: `make assets-prod` → `public/build/*.{js,css}` + `entrypoints.json` manifest. `base.html.twig` używa `{{ encore_entry_link_tags('app') }}` + `{{ encore_entry_script_tags('app') }}`.
+- **Series + Books + YouTubeProgress UI:** Webpack Encore + Stimulus. Stimulus controllers w `assets/controllers/{series,books,youtube_progress}_controller.js`, mountowane przez `data-controller="..."` na `app/templates/{series,books,youtube_progress}/index.html.twig`. Build: `make assets-prod` → `public/build/*.{js,css}` + `entrypoints.json` manifest. `base.html.twig` używa `{{ encore_entry_link_tags('app') }}` + `{{ encore_entry_script_tags('app') }}`.
 - **Pozostałe moduły** (Tasks/Articles/Music): Twig + vanilla JS w `public/js/*.js`, global helpers `window.TOAST_TIMEOUT_MS` / `window.safeUrl` / `window.apiCall` z `public/js/util.js`.
-- Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`
+- Routes: `/` → redirect, `/series`, `/tasks`, `/books`, `/articles`, `/music`, `/youtube-progress`
+- YouTubeProgress panel (`/youtube-progress`, HMAI-173): `YouTubeProgressController` (`^/api/youtube-progress/*`) — `GET watchlist` + `GET sessions` czytają wprost przez Domain repos (brak query layer); `POST sync` (dispatch `SyncWatchlist`+`RegenerateSessions`, 400 gdy `YOUTUBE_WATCHLIST_PLAYLIST_ID` puste), `POST videos/{id}/start|watched`, `POST sessions/{id}/push-to-youtube` dispatchują command handlery (404/idempotencja w handlerach, unwrap przez `ApiExceptionListener`). Strona Twig route'owana z `FrontendController` jak reszta nav.
 - Selektor ocen Series: 10 przycisków (NIE `<input type=number>`)
 - Tasks API: pełny REST CRUD (`POST/GET/GET{id}/PATCH{id}/DELETE{id} /api/tasks`, `POST {id}/complete`, `POST {id}/cancel`) + `/time-report` + `/export`. Google Calendar sync via `CalendarServiceInterface` z graceful degrade
 
@@ -50,6 +51,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 | `app/assets/util.js` | ES module export: `TOAST_TIMEOUT_MS`, `safeUrl`, `apiCall`, `escHtml` |
 | `app/assets/controllers/series_controller.js` | Stimulus controller dla Series UI |
 | `app/assets/controllers/books_controller.js` | Stimulus controller dla Books UI |
+| `app/assets/controllers/youtube_progress_controller.js` | Stimulus controller dla YouTubeProgress panel (sync/start/watched/push) |
 | `app/assets/styles/app.css` | Globalny stylesheet (jedyne źródło prawdy) |
 
 Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production), `make node-audit` (CVE gate). Node service: `aihm-node-1` (`node:24-alpine`, mount na `./app`). `make node-install` reinstaluje `npm install` po zmianie `package.json`.

@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}YouTube — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="youtube-progress">
+    <header class="app-header">
+        <h1 class="app-title">YouTube Progress</h1>
+        <div class="header-actions">
+            <button class="btn btn-primary"
+                    data-youtube-progress-target="syncButton"
+                    data-action="click->youtube-progress#sync">Synchronizuj</button>
+        </div>
+    </header>
+
+    <section class="yt-section">
+        <h2 class="yt-section-title">Sesje do obejrzenia</h2>
+        <div id="youtube-progress-sessions"
+             class="yt-sessions"
+             data-youtube-progress-target="sessions">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+
+    <section class="yt-section">
+        <h2 class="yt-section-title">Watchlist</h2>
+        <div id="youtube-progress-watchlist"
+             class="yt-watchlist"
+             data-youtube-progress-target="watchlist">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
