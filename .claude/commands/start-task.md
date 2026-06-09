@@ -1,18 +1,20 @@
 Workflow Jira: **$ARGUMENTS**. Wykonuj kroki ściśle po kolei.
 
+> **⚡ Świeży kontekst — zrób to PRZED `/start-task`:** ten workflow zakłada czystą sesję. Najlepszy efekt: wpisz `/clear`, a dopiero potem `/start-task $ARGUMENTS`. Dlaczego nie jako krok wewnątrz skilla — `/clear` kasuje cały kontekst (łącznie z numerem ticketu i treścią tych instrukcji), więc po nim nie ma czego kontynuować; `/compact` i `/clear` to komendy harnessu uruchamiane przez użytkownika, model sam ich nie wywoła. Jeśli wystartowałeś bez `/clear`, Krok 0 oceni świeżość kontekstu i w razie potrzeby przerwie, prosząc o reset.
+
 > **Środowisko Windows:** Host to Windows 11 (`C:\Users\poczt\PhpstormProjects\AIHM`). Tool `Bash` w Claude Code uruchamia WSL/Git-Bash — większość poleceń POSIX-owych (`git`, `docker exec`, `sed`, `xargs`, `grep`) działa stamtąd. Polecenia czysto-PowerShellowe (`Invoke-RestMethod`, `$env:VAR`, `[IO.File]::ReadAllText`) używaj wyłącznie przez tool `PowerShell` — nie mieszaj składni. `make` działa w WSL; gdy pada z `env: can't execute 'php'` (PATH issue wokół docker compose CLI), użyj: `docker exec aihm-php-1 sh -c "cd /var/www/html && php …"` — to działa zarówno z Bash jak i PowerShell. Dotyczy też `bin/console`, `vendor/bin/phpunit`, `vendor/bin/phpstan`, `vendor/bin/php-cs-fixer`, `vendor/bin/rector`.
 
 ## Wspólne (0–3)
 
 **0. Preflight — budżet tokenów sesji.** Przed czymkolwiek innym oceń, czy obecna sesja udźwignie cały workflow do zamknięcia worklogu. User nie chce przerywać pracy na odświeżenie limitu i wracać do połowicznego stanu (uncommitted diff, branch bez PR, status Jira "W toku" bez worklogu).
 
-Heurystyka — jeśli **dwie lub więcej** z poniższych są prawdziwe, zatrzymaj się i powiedz userowi `Sesja może nie wystarczyć na pełen workflow $ARGUMENTS — sugeruję start w świeżej sesji.`:
+Heurystyka — jeśli **dwie lub więcej** z poniższych są prawdziwe, zatrzymaj się i powiedz userowi `Kontekst nie jest świeży — uruchom `/clear`, a potem ponownie `/start-task $ARGUMENTS` (czysty start = pełny budżet tokenów na cały workflow).`:
 - Aktualna sesja ma >70% długości typowego okna kontekstu (≥1 kompaktowanie już się zdarzyło lub liczba wcześniejszych wywołań narzędzi przekracza ~150).
 - Jira opis zadania zapowiada szeroki scope (≥5 plików do tknięcia, nowa migracja, nowy moduł, refactor cross-cutting, epic review).
 - Zadanie wymaga długo trwających operacji (Playwright E2E, `make test` pełnym pakietem, build pipeline) wielokrotnie pod rząd.
 - W tej sesji właśnie skończyłeś inny ticket — kolejny tego samego dnia w tej samej sesji rośnie ryzyko, że worklog drugiego nie zdąży.
 
-Gdy zatrzymujesz się: **nic nie zmieniaj w repo i nie ruszaj Jiry**. Tylko ostrzeżenie i propozycja. User decyduje czy mimo to ruszamy.
+Gdy zatrzymujesz się: **nic nie zmieniaj w repo i nie ruszaj Jiry**. Tylko ostrzeżenie + rekomendacja `/clear` i ponowne `/start-task $ARGUMENTS`. User decyduje czy mimo to ruszamy bez resetu.
 
 Gdy ryzyka nie ma — przejdź do Kroku 1 bez komentarza.
 
