@@ -92,6 +92,16 @@
       ]
     },
     {
+      "name": "YouTubeProgress",
+      "description": "Panel watchlisty YT z auto-podzialem na sesje 30-min. POST /sync wymaga realnego YouTube OAuth (w test env playlist ID jest ustawione, wiec sync uderzylby w API) — pominiety w smoke. Testowane deterministyczne sciezki: read (watchlist/sessions) + 404 dla nieistniejacych encji.",
+      "item": [
+        { "name": "GET - Watchlist (lista filmow)", "request": { "method": "GET", "header": [{ "key": "Accept", "value": "application/json" }], "url": { "raw": "{{base_url}}/youtube-progress/watchlist", "host": ["{{base_url}}"], "path": ["youtube-progress", "watchlist"] } }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has videos array', () => { const body = pm.response.json(); pm.expect(body).to.have.property('videos'); pm.expect(Array.isArray(body.videos)).to.be.true; });"] } }] },
+        { "name": "GET - Sesje (lista)", "request": { "method": "GET", "header": [{ "key": "Accept", "value": "application/json" }], "url": { "raw": "{{base_url}}/youtube-progress/sessions", "host": ["{{base_url}}"], "path": ["youtube-progress", "sessions"] } }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));", "pm.test('Has sessions array', () => { const body = pm.response.json(); pm.expect(body).to.have.property('sessions'); pm.expect(Array.isArray(body.sessions)).to.be.true; });"] } }] },
+        { "name": "POST - Oznacz nieistniejacy film jako rozpoczety (404)", "request": { "method": "POST", "header": [{ "key": "Accept", "value": "application/json" }], "url": { "raw": "{{base_url}}/youtube-progress/videos/nonexistent-vid/start", "host": ["{{base_url}}"], "path": ["youtube-progress", "videos", "nonexistent-vid", "start"] } }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 404 dla nieistniejacego filmu', () => pm.response.to.have.status(404));"] } }] },
+        { "name": "POST - Push nieistniejacej sesji (404)", "request": { "method": "POST", "header": [{ "key": "Accept", "value": "application/json" }], "url": { "raw": "{{base_url}}/youtube-progress/sessions/11111111-1111-4111-8111-111111111111/push-to-youtube", "host": ["{{base_url}}"], "path": ["youtube-progress", "sessions", "11111111-1111-4111-8111-111111111111", "push-to-youtube"] } }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 404 dla nieistniejacej sesji', () => pm.response.to.have.status(404));"] } }] }
+      ]
+    },
+    {
       "name": "Auth",
       "description": "OAuth endpointy (poza firewallem /api). Newman musi byc uruchomiony z --ignore-redirects, inaczej HTTP klient policzy 200 z accounts.google.com zamiast 302 z naszej aplikacji.",
       "auth": { "type": "noauth" },

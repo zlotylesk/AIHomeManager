@@ -1,6 +1,6 @@
 # Postman / Newman collection
 
-Pelnoekosystemowy test API uruchamiany przez Newman CLI. Pokrywa Series, Tasks (time-report), Books, Music, Articles oraz OAuth startery dla Google i Discogs. Implementuje akceptacje HMAI-33.
+Pelnoekosystemowy test API uruchamiany przez Newman CLI. Pokrywa Series, Tasks (time-report), Books, Music, Articles, YouTubeProgress oraz OAuth startery dla Google i Discogs. Implementuje akceptacje HMAI-33.
 
 ## Wymagania
 
@@ -24,9 +24,9 @@ npx newman run tests-e2e/postman/AIHomeManager.postman_collection.json --ignore-
 
 `--ignore-redirects` jest niezbedne dla testow OAuth — bez niego newman podaza za 302 do `accounts.google.com` i widzi 200 zamiast 302.
 
-## Stan na 2026-05-23
+## Stan na 2026-06-09
 
-34 requestow, 54 asercje, 100% zielone (BN API + Discogs OAuth zwracaja 503/502 — toleruja to asercje). +3 export requesty (Books/Tasks/Articles CSV) dodane przy epic review HMAI-132.
+38 requestow, 60 asercji, 100% zielone (BN API + Discogs OAuth zwracaja 503/502 — toleruja to asercje). +3 export requesty (Books/Tasks/Articles CSV) dodane przy epic review HMAI-132. +4 req YouTubeProgress (watchlist/sessions read + 2× 404) dodane przy epic review HMAI-160 — `POST /sync` swiadomie pominiety (wymaga realnego YouTube OAuth).
 
 Pominiete vs. spec Confluence (oryginalnie 37 req):
 
