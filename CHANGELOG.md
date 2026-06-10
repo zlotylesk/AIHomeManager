@@ -4,6 +4,75 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.12.0] — 2026-06-10
+
+Domknięcie epica **HMAI-160** (YouTubeProgress — manager watchlisty z auto-podziałem na sesje 30-min) — 13/13 podzadań. Szósty moduł aplikacji: synchronizuje playlistę "AIHM Watchlist" z YouTube do lokalnej tabeli `videos`, deterministycznie pakuje nieobejrzane filmy w sesje ≤30 min pogrupowane po kanale (`WatchSessionSplitter`), śledzi postęp (`started`/`watched`) i potrafi wypchnąć wygenerowaną sesję z powrotem na YouTube jako nową playlistę. Pełna heksagonalna ścieżka (Domain → Application CQRS → Infrastructure) z dwoma agregatami (`Video`, `WatchSession`), poszerzeniem scope'u Google OAuth o `youtube` (read/write), klientem YouTube Data API v3 (read + write) za rate-limiterem, oraz panelem frontowym `/youtube-progress` (Webpack Encore + Stimulus). **766/766 PHP** (+121 vs 1.11.1) + **14/14 Playwright** (+5) + **43 Newman** requests / 87 assertions (vs 36/66). PHPStan level 8 clean.
+
+### Added
+
+- **YouTubeProgress Domain — `Video` aggregate (HMAI-161).** Szkielet modułu `src/Module/YouTubeProgress/{Domain,Application,Infrastructure}` + agregat `Video` z VO (`VideoId`, `Duration`, `WatchStatus`) i unit testami. Domain bez frameworka (Deptrac `YouTubeProgressDomain → []`).
+- **`Video` persistence (HMAI-162).** Doctrine XML mapping (`Infrastructure/Persistence/Doctrine/*.orm.xml`), `DoctrineVideoRepository`, migracja `Version20260606000001` → tabela `videos`.
+- **Google OAuth `youtube` scope (HMAI-163).** `GoogleClientFactory::create()` requestuje kumulatywnie `calendar.events` (Tasks) + `youtube` (full read/write — wymagane przez `createPlaylist` w HMAI-171), `setPrompt('consent')` wymusza re-consent. Jeden token szyfrowany przez `app.google_token_cipher`, dwa moduły. Regresja: `GoogleClientYouTubeScopeTest`.
+- **YouTube Data API client — read (HMAI-164).** `fetchPlaylistVideos()` — pobiera pozycje playlisty watchlisty (paginacja, mapowanie na Domain). Za dekoratorem `app.youtube_http_client` (`RateLimitedHttpClient`).
+- **`SyncWatchlist` command + handler (HMAI-165).** Zaciąga playlistę z YouTube i upsertuje do `videos` (idempotentnie po `VideoId`). 400 gdy `YOUTUBE_WATCHLIST_PLAYLIST_ID` puste.
+- **`WatchSession` aggregate (HMAI-166).** Drugi agregat + VO (`SessionId`, `SessionDuration`) z regułą ≤30 min i unit testami.
+- **`WatchSession` persistence (HMAI-167).** Doctrine XML + `DoctrineWatchSessionRepository`, migracja `Version20260607000001` → tabele `watch_sessions` + `watch_session_videos`.
+- **`WatchSessionSplitter` (HMAI-168).** Czysty algorytm (bez I/O): deterministyczny, channel-grouped greedy packer — grupuje nieobejrzane filmy po kanale i pakuje w sesje ≤30 min. Pokryty unit testami na granicach (overflow, single video > 30 min, kolejność deterministyczna).
+- **`RegenerateSessions` command + handler (HMAI-169).** Przebudowuje sesje z aktualnego stanu watchlisty przez `WatchSessionSplitter` (wywoływane razem z `SyncWatchlist` z endpointu `/sync`).
+- **`MarkVideoStarted` + `MarkVideoWatched` commands + handlers (HMAI-170).** Przejścia stanu `WatchStatus` na agregacie `Video` (404/idempotencja w handlerach).
+- **YouTube Data API client — write (HMAI-171).** `createPlaylist()` + `addItems()` — tworzy nową playlistę na koncie YouTube i dorzuca filmy sesji.
+- **`PushSessionToYouTube` command + handler (HMAI-172).** Materializuje wybraną `WatchSession` jako realną playlistę YouTube przez klienta write.
+- **Frontend panel `/youtube-progress` (HMAI-173).** `YouTubeProgressController` (`^/api/youtube-progress/*`): `GET watchlist` + `GET sessions` czytają wprost przez Domain repos (brak query layer); `POST sync`, `POST videos/{id}/start|watched`, `POST sessions/{id}/push-to-youtube` dispatchują command handlery (unwrap przez `ApiExceptionListener`). UI: `assets/controllers/youtube_progress_controller.js` (Stimulus) na `templates/youtube_progress/index.html.twig`, route przez `FrontendController`, nav jak reszta. Nowy limiter `youtube_api` (token_bucket, 60/min — soft HTTP fallback pod unit-based quota 10000/dzień).
+
+### Changed
+
+- **Zależności (Dependabot).** Bump `webpack` 5.106.2 → 5.107.2, `@babel/core` 7.29.0 → 7.29.7, `@babel/preset-env` 7.29.5 → 7.29.7, `regenerator-runtime` 0.13.11 → 0.14.1 (`/app`); `actions/checkout` 4 → 6, `actions/cache` 4 → 5, `actions/upload-artifact` 4 → 7 (GitHub Actions). `webpack-cli` świadomie przypięty na `^6` (cofnięty z auto-bumpu 7.0.3) — `@symfony/webpack-encore@6` ma peer dependency na webpack-cli 6.x; 7.x wywalał build.
+- **Books — Postman smoke alignment.** Newman smoke dla Books dociągnięty do faktycznego kontraktu API (drobna korekta asercji, bez zmian w kodzie produkcyjnym).
+- **CLAUDE.md**: nowy moduł YouTubeProgress w opisie stacku/frontendu, sekcja panelu `/youtube-progress`, tabela Stimulus controllers + `youtube_progress_controller.js`, limiter `youtube_api` + `app.youtube_http_client`, OAuth scope `youtube` na tokenie Google, "Wydania" → 1.12.0.
+
+### Coverage
+
+- **766 PHP tests** passing (vs 645 at 1.11.1) — +121 nowych w pełnym pokryciu modułu YouTubeProgress: unit testy obu agregatów + VO, `WatchSessionSplitter` (algorytm na granicach), handlery (command + sync), klient YouTube API (read + write z mockiem HTTP), persistence repo (integration), kontroler API (`YouTubeProgressControllerTest`) i regresja scope'u OAuth.
+- **14 Playwright** (vs 9 at 1.11.1) — +5: `youtube-progress.desktop.spec.ts` (4 scenariusze: panel render, sync, start/watched, push) + `youtube-progress.mobile.spec.ts` (1).
+- **43 Newman** requests / 87 assertions (vs 36/66) — +7 requestów: smoke YouTubeProgress API (watchlist/sessions/sync/start/watched/push).
+- PHPStan level 8 clean, baseline bez nowych entries. Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` wszystkie zielone.
+
+### Documentation
+
+- **Confluence id 69926915** — strona modułu YouTubeProgress (epic review): architektura heksagonalna, oba agregaty, algorytm `WatchSessionSplitter`, przepływ sync → split → push, kontrakt API, OAuth scope, ENV.
+- **CHANGELOG.md**: ta sekcja.
+- **CLAUDE.md**: HMAI-160 oznaczone jako zamknięte 2026-06-10; "Wydania" → 1.12.0.
+
+### Migration
+
+1. **DB migration** — `make migrate` (dev) / `make migrate-test`. Tworzy tabele `videos`, `watch_sessions`, `watch_session_videos`. Brak destructive ops.
+2. **Nowy ENV** — `YOUTUBE_WATCHLIST_PLAYLIST_ID` w `app/.env.local` (ID playlisty "AIHM Watchlist", np. `PLrAXtmRdnEQy-...`). Puste = endpoint `/sync` zwraca 400. Placeholder dodany w `app/.env`.
+3. **OAuth re-consent (KRYTYCZNE)** — po deployu HMAI-163 user **MUSI raz przejść `/auth/google`**, żeby uzyskać token z poszerzonym scope `youtube`. Bez tego każdy call do YouTube API zwróci 403. Scope claims kumulatywne — Tasks/Calendar dalej działa na tym samym tokenie.
+4. **Frontend build** — `make assets-prod` (nowy `youtube_progress_controller.js` w bundlu Encore). CI buduje assety w jobach `tests` + `e2e-playwright`.
+
+### Closed Jira
+
+| ID | Tytuł | PR |
+|---|---|---|
+| [HMAI-161](https://honemanager.atlassian.net/browse/HMAI-161) | YouTubeProgress — Domain skeleton + Video aggregate + VO | [#171](https://github.com/zlotylesk/AIHomeManager/pull/171) |
+| [HMAI-162](https://honemanager.atlassian.net/browse/HMAI-162) | YouTubeProgress — Video persistence (Doctrine XML + repo + migracja) | [#172](https://github.com/zlotylesk/AIHomeManager/pull/172) |
+| [HMAI-163](https://honemanager.atlassian.net/browse/HMAI-163) | YouTubeProgress — Google OAuth youtube scope expansion | [#178](https://github.com/zlotylesk/AIHomeManager/pull/178) |
+| [HMAI-164](https://honemanager.atlassian.net/browse/HMAI-164) | YouTubeProgress — YouTube API client read (fetchPlaylistVideos) | [#180](https://github.com/zlotylesk/AIHomeManager/pull/180) |
+| [HMAI-165](https://honemanager.atlassian.net/browse/HMAI-165) | YouTubeProgress — SyncWatchlist command + handler | [#184](https://github.com/zlotylesk/AIHomeManager/pull/184) |
+| [HMAI-166](https://honemanager.atlassian.net/browse/HMAI-166) | YouTubeProgress — WatchSession aggregate + VO | [#174](https://github.com/zlotylesk/AIHomeManager/pull/174) |
+| [HMAI-167](https://honemanager.atlassian.net/browse/HMAI-167) | YouTubeProgress — WatchSession persistence (XML + repo + migracja) | [#175](https://github.com/zlotylesk/AIHomeManager/pull/175) |
+| [HMAI-168](https://honemanager.atlassian.net/browse/HMAI-168) | YouTubeProgress — WatchSessionSplitter (algorytm + unit testy) | [#176](https://github.com/zlotylesk/AIHomeManager/pull/176) |
+| [HMAI-169](https://honemanager.atlassian.net/browse/HMAI-169) | YouTubeProgress — RegenerateSessions command + handler | [#181](https://github.com/zlotylesk/AIHomeManager/pull/181) |
+| [HMAI-170](https://honemanager.atlassian.net/browse/HMAI-170) | YouTubeProgress — MarkVideoStarted + MarkVideoWatched | [#182](https://github.com/zlotylesk/AIHomeManager/pull/182) |
+| [HMAI-171](https://honemanager.atlassian.net/browse/HMAI-171) | YouTubeProgress — YouTube API client write (createPlaylist + addItems) | [#183](https://github.com/zlotylesk/AIHomeManager/pull/183) |
+| [HMAI-172](https://honemanager.atlassian.net/browse/HMAI-172) | YouTubeProgress — PushSessionToYouTube command + handler | [#185](https://github.com/zlotylesk/AIHomeManager/pull/185) |
+| [HMAI-173](https://honemanager.atlassian.net/browse/HMAI-173) | YouTubeProgress — Frontend /youtube-progress panel | [#186](https://github.com/zlotylesk/AIHomeManager/pull/186) |
+| [HMAI-160](https://honemanager.atlassian.net/browse/HMAI-160) | YouTubeProgress watchlist manager (epic review) | [#187](https://github.com/zlotylesk/AIHomeManager/pull/187) |
+
+### Carried forward
+
+- **HMAI-174** — Monitor newman 7.x release; re-enable npm audit gate dla root `package.json` gdy newman wyjdzie z czystym drzewem zależności. Świadomie tracking-only, re-eval Q3 2026.
+
 ## [1.11.1] — 2026-06-07
 
 Patch release wycelowany w dwa realne usterki end-userowe odkryte zaraz po wydaniu 1.11.0. Bez nowych modułów, bez DB migrations, bez nowych ENV. **645/645 PHP tests** (+7 nowych w `NationalLibraryApiClientTest`) — Playwright/Newman bez zmian. PHPStan level 8 clean.

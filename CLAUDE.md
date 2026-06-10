@@ -4,7 +4,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfon
 
 **Moduły:** Series, Tasks, Books, Articles, Music, YouTubeProgress. Frontend dual-track: Series + Books + YouTubeProgress UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music na Twig + vanilla JS (`app/public/js/`) z `window.apiCall` z `public/js/util.js`.
 
-**Status:** projekt operacyjny, ostatni tag `1.11.1` (patch — Books BN API migration + frontend API key dispatch fix). Poprzednie: `1.11.0`. Pełna historia → [CHANGELOG.md](CHANGELOG.md).
+**Status:** projekt operacyjny, ostatni tag `1.12.0` (minor — domknięcie epica HMAI-160 YouTubeProgress: szósty moduł, manager watchlisty z auto-podziałem na sesje 30-min). Poprzednie: `1.11.1`, `1.11.0`. Pełna historia → [CHANGELOG.md](CHANGELOG.md).
 
 ## Architektura — ZASADY NIENARUSZALNE
 
