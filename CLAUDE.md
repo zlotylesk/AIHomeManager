@@ -72,7 +72,7 @@ Root `package.json` (Playwright + Newman) **świadomie poza gate**: newman 6.x (
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
 | Worker Scheduler | `scheduler_worker` | `messenger:consume scheduler_default --time-limit=3600 -vv` |
 | Node (Encore build) | `node:24-alpine`, container `aihm-node-1` | Long-running `tail -f /dev/null`. `docker compose exec node npm ...` |
-| Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | NIE w `make up` — `make monitoring-up`. Kanał Monolog `series` |
+| Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | Od HMAI-176 w `make up` (pełny stack); `make min-up` = lean bez monitoringu. Kanały Monolog `series`/`auth` idą przez GELF — `gelf.transport` owinięty `IgnoreErrorTransportWrapper`, więc brak Graylog ≠ 500 (graceful degrade, logi dropowane) |
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
 
@@ -110,7 +110,8 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 
 | Akcja | Komenda |
 |---|---|
-| Start środowiska | `make up` |
+| Start środowiska (pełny stack + monitoring) | `make up` |
+| Start środowiska (lean, bez monitoringu) | `make min-up` |
 | Pełna inicjalizacja | `make setup` |
 | Shell PHP | `make shell` |
 | Wszystkie testy | `make test` |
@@ -145,7 +146,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - **PHPUnit gates (HMAI-153)**: `phpunit.dist.xml` ma `failOnDeprecation="true"` + `failOnPhpunitDeprecation="true"` + `failOnNotice="true"` + `failOnWarning="true"`. Nowe PHP deprecations w `src/` ORAZ deprecations samego PHPUnit (`->expects(self::any())`, `with()` bez `expects()` itd.) blokują CI. `<source>` ma `ignoreIndirectDeprecations="true"` + `restrictNotices/Warnings="true"` — vendor noise (np. google/apiclient `str_replace null` deprecation) jest świadomie filtrowany. Notices nie są na gate — 41 to data noise z testów, fix-effort vs value słaby. Lokalnie: `vendor/bin/phpunit --display-phpunit-deprecations` pokaże source PHPUnit deprecation; `--display-deprecations` pokaże PHP deprecation
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 - CI gate: job `tests` uruchamia `doctrine:schema:validate` po migracjach a przed PHPUnit — drift ORM XML mapping vs schema MySQL blokuje merge (osobna kategoria błędu, nie zaszyta w teście). Lokalnie: `make schema-validate`
-- E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input musi być skonfigurowany (`make monitoring-up` + POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`), inaczej `series` kanał Monologu wywala 500 na `/api/series` — **dotyczy tylko env `dev`/`prod`**. W CI joby E2E/Newman lecą z `APP_ENV=test`, gdzie `monolog when@test` kieruje kanały `series`/`auth` na handlery `null` → Graylog niepotrzebny. Klucze `*_TOKEN_KEY` w CI to **poprawny base64 32B** (`TokenCipher` rzuca dla innej długości — OAuth-init request inaczej zwróci 500 zamiast 302/502). App server w CI: `symfony server:start --no-tls --port=8080` (serwuje routing + statyczne assety Encore; gołe `php -S` tego nie łączy)
+- E2E/Newman pre-req: `API_KEY=e2e-test-key` w `app/.env.local`, Discogs/Last.fm placeholders (`DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `LASTFM_API_KEY`, `LASTFM_USERNAME`, `DISCOGS_USERNAME`) ustawione na cokolwiek niepuste (DI nie zboot'uje się z pustymi VO). Graylog GELF UDP input warto skonfigurować dla pełnej obserwowalności (`make up` startuje teraz monitoring domyślnie, potem `make monitoring-bootstrap`; alternatywnie ręczny POST do `/api/system/inputs` z `org.graylog2.inputs.gelf.udp.GELFUDPInput` na `0.0.0.0:12201`). Od HMAI-176 brak działającego Graylog **nie** wywala już 500 na `/api/series` — `gelf.transport` jest owinięty `IgnoreErrorTransportWrapper`, więc błędy transportu GELF są połykane (logi `series`/`auth` po cichu dropowane, request leci dalej; **dotyczy env `dev`/`prod`** — w `test` kanały i tak idą na `null`). W CI joby E2E/Newman lecą z `APP_ENV=test`, gdzie `monolog when@test` kieruje kanały `series`/`auth` na handlery `null` → Graylog niepotrzebny. Klucze `*_TOKEN_KEY` w CI to **poprawny base64 32B** (`TokenCipher` rzuca dla innej długości — OAuth-init request inaczej zwróci 500 zamiast 302/502). App server w CI: `symfony server:start --no-tls --port=8080` (serwuje routing + statyczne assety Encore; gołe `php -S` tego nie łączy)
 
 ## Security — API Key
 

@@ -1,10 +1,17 @@
-.PHONY: up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore doctor
 
+# Full stack including the monitoring profile (Graylog). The series/auth Monolog
+# channels log over GELF/UDP on the request path, so starting Graylog by default
+# keeps the `graylog` host resolvable and avoids the degraded path (HMAI-176).
 up:
+	docker compose --profile monitoring up -d
+
+# Lean app-only stack (no Graylog) — faster boot when you don't need monitoring.
+min-up:
 	docker compose up -d
 
 down:
-	docker compose down
+	docker compose --profile monitoring down
 
 build:
 	docker compose build
