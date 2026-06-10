@@ -62,6 +62,8 @@ Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Re
 
 **12. PR** → [wspólna](#pr). **Confluence** → [opcjonalnie](#confluence). Status → Code Review. **Zapamiętaj timestamp przejścia** (`endedAt`).
 
+**12a. Bug → komentarz z analizą** (tylko gdy `issuetype` to `Błąd`/Bug): dodaj do ticketu komentarz z dokładną analizą problemu i podjętymi działaniami do rozwiązania — patrz [bug-analiza](#bug-analysis). Obowiązkowe dla każdego Buga, niezależnie od scope'u; osobny byt od worklogu (Krok 13).
+
 **13. Rejestr czasu pracy:** różnica `endedAt − startedAt` zaokrąglona **w górę do pełnych 15 min** (zawsze w górę — patrz [worklog](#worklog)). `addWorklogToJiraIssue` z `started=startedAt` (ISO 8601 + tz) i `timeSpent` = wynik (np. `15m`, `30m`, `1h 15m`). **Bez `commentBody`** — czysty rejestr czasu.
 
 **14. Następny kandydat:** zarekomenduj userowi co dalej — patrz [next](#next).
@@ -139,6 +141,18 @@ Tests: {N} nowych — {jeden bullet z najważniejszym}
 Re-upload pełnej strony Confluence to drogi koszt (~10–15 KB tokenów per stronę). Pomijaj świadomie.
 
 Jak aktualizujesz: `searchConfluenceUsingCql` → pasująca strona modułu → `updateConfluencePage` z bumpniętym `versionMessage` zawierającym numer Jira. Nie istnieje → `createConfluencePage` w przestrzeni `H`.
+
+## Bug — komentarz z analizą {#bug-analysis}
+
+Gdy `issuetype` ticketu to **Błąd/Bug**, po wdrożeniu fixu dodaj `addCommentToJiraIssue` (cloudId honemanager, `contentFormat: markdown`) z analizą. Cel: ktoś czytający ticket za pół roku rozumie co i dlaczego się działo, bez czytania diffa. Struktura:
+
+- **Root cause** — konkretna przyczyna (plik:linia, łańcuch zdarzeń), nie objaw. Jeśli diagnoza skręciła, napisz czym różniła się od pierwszej hipotezy.
+- **Diagnoza** — jak doszedłeś do root cause (kluczowe obserwacje: status HTTP, wpis z logu, `git blame`, komenda repro). Zwięźle.
+- **Fix** — co zmienione i **dlaczego ta opcja**, nie inna. Lista plików z jednozdaniowym „po co".
+- **Weryfikacja** — jak potwierdzone (testy, manualny/E2E flow, before/after).
+- **PR** — link.
+
+Komentarz to rejestr decyzji, nie changelog — zwięźle, ale nie pomijaj „dlaczego". Odrębny od worklogu (Krok 13, który jest **bez** `commentBody`).
 
 ## Po zakończeniu zadania — co dalej {#next}
 
