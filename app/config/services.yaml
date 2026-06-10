@@ -44,11 +44,22 @@ services:
         arguments:
             $redis: '@app.redis'
 
-    gelf.transport:
+    # HMAI-176: the bare UDP transport throws the instant a log line is shipped to
+    # an unreachable Graylog (e.g. getaddrinfo for "graylog" fails when the monitoring
+    # stack is down). Because the `series` and `auth` Monolog channels log on the
+    # request path, that exception bubbled out and turned core endpoints like
+    # /api/series into a 500. IgnoreErrorTransportWrapper swallows transport-level
+    # errors so a dead log sink degrades silently instead of breaking the request.
+    gelf.transport.udp:
         class: Gelf\Transport\UdpTransport
         arguments:
             - '%env(GRAYLOG_HOST)%'
             - '%env(int:GRAYLOG_PORT)%'
+
+    gelf.transport:
+        class: Gelf\Transport\IgnoreErrorTransportWrapper
+        arguments:
+            - '@gelf.transport.udp'
 
     gelf.publisher:
         class: Gelf\Publisher
@@ -259,3 +270,15 @@ when@test:
             arguments:
                 $apiPerIpLimiter: '@limiter.api_per_ip'
                 $logger: '@App\Tests\Support\SpyLogger'
+
+        # HMAI-176: the test env routes the series/auth channels to null handlers, so
+        # the GELF services have no consumer and would be pruned from the container.
+        # Public aliases keyed by class name keep them reachable for
+        # GelfTransportResilienceTest, fetched via ::class (same pattern as SpyLogger)
+        # so phpstan-symfony resolves them without a dev-container lookup.
+        Gelf\Transport\IgnoreErrorTransportWrapper:
+            alias: gelf.transport
+            public: true
+        Gelf\Publisher:
+            alias: gelf.publisher
+            public: true

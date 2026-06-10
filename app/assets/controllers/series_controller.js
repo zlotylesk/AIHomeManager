@@ -4,17 +4,19 @@ import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
 const API = {
     series: () => apiCall('/api/series'),
     seriesDetail: (id) => apiCall(`/api/series/${id}`),
-    createSeries: (title) => fetch('/api/series', {
+    // Mutations go through apiCall so the X-API-Key meta header is attached —
+    // a bare fetch() skips it and the stateless api firewall answers 401 (HMAI-176).
+    createSeries: (title) => apiCall('/api/series', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title}),
     }),
-    addSeason: (seriesId, number) => fetch(`/api/series/${seriesId}/seasons`, {
+    addSeason: (seriesId, number) => apiCall(`/api/series/${seriesId}/seasons`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({number}),
     }),
-    addEpisode: (seriesId, seasonId, title, rating) => fetch(
+    addEpisode: (seriesId, seasonId, title, rating) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/episodes`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -153,19 +155,11 @@ export default class extends Controller {
             this.hideError();
 
             try {
-                const res = await API.addEpisode(seriesId, season.id, title, selectedRating);
-                if (!res.ok) {
-                    const err = await res.json();
-                    this.showError(err.error || 'Failed to add episode.');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Add Episode';
-                    return;
-                }
-                const {id} = await res.json();
+                const {id} = await API.addEpisode(seriesId, season.id, title, selectedRating);
                 season.episodes.push({id, title, rating: selectedRating});
                 onAdded();
-            } catch {
-                this.showError('Network error. Please try again.');
+            } catch (err) {
+                this.showError(err.message || 'Failed to add episode.');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Add Episode';
             }
@@ -273,20 +267,12 @@ export default class extends Controller {
             submitBtn.textContent = 'Adding…';
             this.hideError();
             try {
-                const res = await API.addSeason(series.id, number);
-                if (!res.ok) {
-                    const err = await res.json();
-                    this.showError(err.error || 'Failed to add season.');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Add Season';
-                    return;
-                }
-                const {id} = await res.json();
+                const {id} = await API.addSeason(series.id, number);
                 series.seasons.push({id, number, episodes: []});
                 form.remove();
                 onAdded();
-            } catch {
-                this.showError('Network error. Please try again.');
+            } catch (err) {
+                this.showError(err.message || 'Failed to add season.');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Add Season';
             }
@@ -334,20 +320,13 @@ export default class extends Controller {
             this.hideError();
 
             try {
-                const res = await API.createSeries(title);
-                if (!res.ok) {
-                    const err = await res.json();
-                    this.showError(err.error || 'Failed to create series.');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Create';
-                    return;
-                }
+                await API.createSeries(title);
                 this.hide(modal);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Create';
                 await this.loadSeriesList();
-            } catch {
-                this.showError('Network error. Please try again.');
+            } catch (err) {
+                this.showError(err.message || 'Failed to create series.');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Create';
             }
