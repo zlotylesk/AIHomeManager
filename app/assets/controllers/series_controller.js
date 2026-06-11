@@ -22,6 +22,14 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title, rating: rating || null}),
     }),
+    // PATCH — sets/changes the rating of an existing episode. Returns 204
+    // (apiCall → null) on success, 422 for a rating outside 1–10, 404 if missing.
+    rateEpisode: (seriesId, seasonId, episodeId, rating) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}/rating`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({rating}),
+    }),
 };
 
 function avg(nums) {
@@ -186,12 +194,19 @@ export default class extends Controller {
                         <tr>
                             <td>${i + 1}</td>
                             <td>${escHtml(ep.title)}</td>
-                            <td>${ep.rating !== null && ep.rating !== undefined ? `★ ${ep.rating}` : '—'}</td>
+                            <td class="rating-cell" data-ep-index="${i}"></td>
                         </tr>
                     `).join('')
                 }</tbody>
             </table>
         `;
+
+        // Hydrate each Rating cell into a clickable control (display ↔ inline
+        // selector). Built post-innerHTML so each cell binds to its episode object.
+        block.querySelectorAll('.rating-cell').forEach(td => {
+            const ep = season.episodes[Number(td.dataset.epIndex)];
+            this.renderRatingCell(td, seriesId, season, ep, onUpdate);
+        });
 
         block.querySelector('.js-add-episode').addEventListener('click', () => {
             if (block.querySelector('.add-episode-form')) return;
@@ -203,6 +218,58 @@ export default class extends Controller {
         });
 
         return block;
+    }
+
+    // Display mode for an episode's Rating cell: a button showing the current
+    // score (or "Rate"); clicking swaps the cell into the inline selector.
+    renderRatingCell(td, seriesId, season, ep, onUpdate) {
+        const rated = ep.rating !== null && ep.rating !== undefined;
+        td.innerHTML = '';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'rating-cell-btn' + (rated ? '' : ' rating-cell-empty');
+        btn.textContent = rated ? `★ ${ep.rating}` : 'Rate';
+        btn.title = rated ? 'Change rating' : 'Rate this episode';
+        btn.addEventListener('click', () => this.openRatingEditor(td, seriesId, season, ep, onUpdate));
+        td.appendChild(btn);
+    }
+
+    // Edit mode: the 10-button selector (current score highlighted) plus a
+    // cancel affordance. Picking a value PATCHes the episode; on success the
+    // model is updated and onUpdate() re-renders so season/series averages
+    // refresh immediately. Re-picking the current score is a no-op close.
+    openRatingEditor(td, seriesId, season, ep, onUpdate) {
+        td.innerHTML = '';
+        const editor = document.createElement('div');
+        editor.className = 'rating-editor';
+
+        const selector = this.renderRatingSelector(ep.rating ?? null, async value => {
+            if (value === ep.rating) {
+                this.renderRatingCell(td, seriesId, season, ep, onUpdate);
+                return;
+            }
+            selector.querySelectorAll('.rating-btn').forEach(b => { b.disabled = true; });
+            this.hideError();
+            try {
+                await API.rateEpisode(seriesId, season.id, ep.id, value);
+                ep.rating = value;
+                onUpdate();
+            } catch (err) {
+                this.showError(err.message || 'Failed to rate episode.');
+                this.renderRatingCell(td, seriesId, season, ep, onUpdate);
+            }
+        });
+
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'rating-cancel js-cancel-rate';
+        cancel.textContent = '✕';
+        cancel.title = 'Cancel';
+        cancel.addEventListener('click', () => this.renderRatingCell(td, seriesId, season, ep, onUpdate));
+
+        editor.appendChild(selector);
+        editor.appendChild(cancel);
+        td.appendChild(editor);
     }
 
     renderDetail(series) {
