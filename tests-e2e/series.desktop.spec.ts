@@ -66,6 +66,39 @@ test('adding a rated episode updates season and series average immediately', asy
   await expect(page.locator('.meta strong')).toContainText('★ 8');
 });
 
+test('rating an existing episode updates season and series average immediately', async ({ page, request }) => {
+  const title = uniqueTitle('E2E RateExisting');
+  const seriesRes = await request.post('/api/series', { data: { title } });
+  const { id: seriesId } = await seriesRes.json();
+  const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
+  const { id: seasonId } = await seasonRes.json();
+  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Unrated Pilot' } });
+  expect(epRes.ok()).toBeTruthy();
+
+  await gotoSeriesList(page);
+  await openSeriesDetail(page, title);
+
+  // Existing episode starts unrated — the cell offers a "Rate" affordance.
+  await expect(page.locator('.meta')).toContainText('No ratings yet');
+  const rateCell = page.locator('.episodes-table .rating-cell-btn');
+  await expect(rateCell).toHaveText('Rate');
+
+  // Open the inline selector and pick 7.
+  await rateCell.click();
+  await page.locator('.rating-editor .rating-btn', { hasText: '7' }).first().click();
+
+  await expect(page.locator('.season-block .season-header small')).toContainText('avg 7');
+  await expect(page.locator('.meta strong')).toContainText('★ 7');
+  await expect(page.locator('.episodes-table .rating-cell-btn')).toHaveText('★ 7');
+
+  // Re-rate the same episode to 9 — averages must follow without re-adding it.
+  await page.locator('.episodes-table .rating-cell-btn').click();
+  await page.locator('.rating-editor .rating-btn', { hasText: '9' }).first().click();
+
+  await expect(page.locator('.season-block .season-header small')).toContainText('avg 9');
+  await expect(page.locator('.meta strong')).toContainText('★ 9');
+});
+
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 
