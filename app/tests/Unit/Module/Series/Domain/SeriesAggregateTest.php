@@ -101,6 +101,64 @@ final class SeriesAggregateTest extends TestCase
         $series->rateEpisode(self::SEASON_ID, 'unknown-episode', new Rating(5));
     }
 
+    public function testOwnSeriesRatingStartsAsNull(): void
+    {
+        // The series' own (manual) score is separate from the episode-derived
+        // average and unset until the user rates the whole series (HMAI-179).
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        self::assertNull($series->rating());
+    }
+
+    public function testRateSetsOwnSeriesRating(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $series->rate(new Rating(10));
+
+        self::assertNotNull($series->rating());
+        self::assertSame(10, $series->rating()->value());
+    }
+
+    public function testRateSeriesRecordsNoDomainEvent(): void
+    {
+        // No subscriber consumes a "series rated" signal — YAGNI, so the
+        // aggregate stays event-free on manual rating (HMAI-179).
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $series->rate(new Rating(10));
+
+        self::assertEmpty($series->releaseEvents());
+    }
+
+    public function testRateSeasonSetsOwnSeasonRating(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $series->rateSeason(self::SEASON_ID, new Rating(6));
+
+        $season = $series->seasons()[self::SEASON_ID];
+        self::assertNotNull($season->rating());
+        self::assertSame(6, $season->rating()->value());
+    }
+
+    public function testRateSeasonRecordsNoDomainEvent(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $series->rateSeason(self::SEASON_ID, new Rating(6));
+
+        self::assertEmpty($series->releaseEvents());
+    }
+
+    public function testRateSeasonOnUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->rateSeason('unknown-season', new Rating(5));
+    }
+
     private function seriesWithSeason(): Series
     {
         $series = new Series(self::SERIES_ID, 'Breaking Bad');

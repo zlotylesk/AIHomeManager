@@ -294,4 +294,105 @@ class SeriesApiTest extends WebTestCase
         self::assertSame(9, $data['averageRating']);
         self::assertSame(9, $data['seasons'][0]['averageRating']);
     }
+
+    public function testRateSeriesReturns204AndIsReflectedSeparatelyFromAverage(): void
+    {
+        // HMAI-179: the user's own series score is stored and returned as
+        // `rating`, independent of `averageRating` (no episodes → average null).
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['rating' => 9]));
+
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame(9, $data['rating']);
+        self::assertNull($data['averageRating']);
+    }
+
+    public function testRateSeriesCoexistsWithEpisodeAverage(): void
+    {
+        // Own series rating and the episode-derived average must both survive,
+        // distinct from one another.
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'rating' => 4]));
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['rating' => 9]));
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/rating", content: (string) json_encode(['rating' => 7]));
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        self::assertSame(9, $data['rating']);
+        self::assertEquals(4.0, $data['averageRating']);
+        self::assertSame(7, $data['seasons'][0]['rating']);
+        self::assertEquals(4.0, $data['seasons'][0]['averageRating']);
+    }
+
+    public function testRateSeriesWithOutOfRangeRatingReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['rating' => 11]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "rating" must be an integer between 1 and 10.', $data['error']);
+    }
+
+    public function testRateSeriesForUnknownSeriesReturns404(): void
+    {
+        $this->client->request('PATCH', '/api/series/non-existent/rating', content: (string) json_encode(['rating' => 5]));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testRateSeasonReturns204AndIsReflectedSeparatelyFromAverage(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/rating", content: (string) json_encode(['rating' => 6]));
+
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame(6, $data['seasons'][0]['rating']);
+        self::assertNull($data['seasons'][0]['averageRating']);
+    }
+
+    public function testRateSeasonWithOutOfRangeRatingReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/rating", content: (string) json_encode(['rating' => 0]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testRateSeasonOnUnknownSeasonReturns404(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/missing-season-id/rating", content: (string) json_encode(['rating' => 6]));
+
+        self::assertResponseStatusCodeSame(404);
+    }
 }

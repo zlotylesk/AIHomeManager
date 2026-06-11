@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Domain\Entity;
 
+use App\Module\Series\Domain\ValueObject\Rating;
+
 final class Season
 {
     /** @var array<string, Episode> */
     private array $episodes = [];
+
+    /**
+     * The user's own, subjective season score — independent of (and never
+     * overwritten by) the average derived from episode ratings (HMAI-179).
+     */
+    private ?Rating $rating = null;
 
     public function __construct(
         private readonly string $id,
@@ -29,6 +37,16 @@ final class Season
     public function number(): int
     {
         return $this->number;
+    }
+
+    public function rating(): ?Rating
+    {
+        return $this->rating;
+    }
+
+    public function rate(Rating $rating): void
+    {
+        $this->rating = $rating;
     }
 
     /** @return array<string, Episode> */

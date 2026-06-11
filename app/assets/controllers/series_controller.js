@@ -30,6 +30,20 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({rating}),
     }),
+    // PATCH — the user's own (manual) whole-series score, independent of the
+    // episode-derived average. Same 204/422/404 contract as rateEpisode.
+    rateSeries: (seriesId, rating) => apiCall(`/api/series/${seriesId}/rating`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({rating}),
+    }),
+    // PATCH — the user's own (manual) season score, independent of the average.
+    rateSeason: (seriesId, seasonId, rating) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}/rating`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({rating}),
+    }),
 };
 
 function avg(nums) {
@@ -130,6 +144,66 @@ export default class extends Controller {
         return wrap;
     }
 
+    // Inline "My rating" control (display ↔ editor) for a series or season
+    // header. `current` is the user's own manual score (or null); `onSave`
+    // PATCHes it and must resolve before the display updates. Shown alongside —
+    // and fully independent of — the episode-derived average (HMAI-179).
+    buildOwnRatingControl(current, onSave) {
+        const wrap = document.createElement('span');
+        wrap.className = 'own-rating';
+
+        const renderDisplay = () => {
+            wrap.innerHTML = '';
+            const rated = current !== null && current !== undefined;
+            const label = document.createElement('span');
+            label.className = 'own-rating-label';
+            label.textContent = 'My rating:';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'rating-cell-btn' + (rated ? '' : ' rating-cell-empty');
+            btn.textContent = rated ? `★ ${current}` : 'Rate';
+            btn.title = rated ? 'Change your rating' : 'Set your rating';
+            btn.addEventListener('click', renderEditor);
+            wrap.append(label, ' ', btn);
+        };
+
+        const renderEditor = () => {
+            wrap.innerHTML = '';
+            const editor = document.createElement('div');
+            editor.className = 'rating-editor';
+
+            const selector = this.renderRatingSelector(current ?? null, async value => {
+                if (value === current) {
+                    renderDisplay();
+                    return;
+                }
+                selector.querySelectorAll('.rating-btn').forEach(b => { b.disabled = true; });
+                this.hideError();
+                try {
+                    await onSave(value);
+                    current = value;
+                    renderDisplay();
+                } catch (err) {
+                    this.showError(err.message || 'Failed to save rating.');
+                    renderDisplay();
+                }
+            });
+
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'rating-cancel';
+            cancel.textContent = '✕';
+            cancel.title = 'Cancel';
+            cancel.addEventListener('click', renderDisplay);
+
+            editor.append(selector, cancel);
+            wrap.appendChild(editor);
+        };
+
+        renderDisplay();
+        return wrap;
+    }
+
     buildAddEpisodeForm(seriesId, season, onAdded) {
         const form = document.createElement('form');
         form.className = 'add-episode-form';
@@ -187,6 +261,7 @@ export default class extends Controller {
                 <h3>Season ${season.number} ${seasonAvg !== null ? `<small style="font-weight:normal;color:#6b7280">avg ${seasonAvg}</small>` : ''}</h3>
                 <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
             </div>
+            <div class="own-rating-row" data-season-own-rating></div>
             <table class="episodes-table">
                 <thead><tr><th>#</th><th>Title</th><th>Rating</th></tr></thead>
                 <tbody class="episodes-tbody">${
@@ -200,6 +275,15 @@ export default class extends Controller {
                 }</tbody>
             </table>
         `;
+
+        // Season's own (manual) rating control — independent of the avg above.
+        // Saving updates the model in place; no full re-render needed.
+        block.querySelector('[data-season-own-rating]').appendChild(
+            this.buildOwnRatingControl(season.rating, async value => {
+                await API.rateSeason(seriesId, season.id, value);
+                season.rating = value;
+            })
+        );
 
         // Hydrate each Rating cell into a clickable control (display ↔ inline
         // selector). Built post-innerHTML so each cell binds to its episode object.
@@ -285,12 +369,21 @@ export default class extends Controller {
                     ${seriesAvg !== null ? `Average rating: <strong>★ ${seriesAvg}</strong>` : 'No ratings yet'}
                     · ${series.seasons.length} season(s)
                 </div>
+                <div class="own-rating-row" id="series-own-rating"></div>
             </div>
             <div class="section-actions">
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-add-season">+ Add Season</button>
             </div>
             <div id="seasons-container"></div>
         `;
+
+        // Series' own (manual) rating control — independent of the average above.
+        container.querySelector('#series-own-rating').appendChild(
+            this.buildOwnRatingControl(series.rating, async value => {
+                await API.rateSeries(series.id, value);
+                series.rating = value;
+            })
+        );
 
         const seasonsContainer = container.querySelector('#seasons-container');
         const renderSeasons = () => {
