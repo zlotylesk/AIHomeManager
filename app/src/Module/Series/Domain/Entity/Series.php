@@ -17,6 +17,12 @@ final class Series
     /** @var object[] */
     private array $recordedEvents = [];
 
+    /**
+     * The user's own, subjective whole-series score — independent of (and never
+     * overwritten by) the average derived from episode ratings (HMAI-179).
+     */
+    private ?Rating $rating = null;
+
     public function __construct(
         private readonly string $id,
         private readonly string $title,
@@ -37,6 +43,25 @@ final class Series
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function rating(): ?Rating
+    {
+        return $this->rating;
+    }
+
+    public function rate(Rating $rating): void
+    {
+        $this->rating = $rating;
+    }
+
+    public function rateSeason(string $seasonId, Rating $rating): void
+    {
+        if (!isset($this->seasons[$seasonId])) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        $this->seasons[$seasonId]->rate($rating);
     }
 
     /** @return array<string, Season> */

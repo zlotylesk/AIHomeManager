@@ -8,6 +8,7 @@
         <id name="id" type="string" column="id" length="36"/>
         <field name="seriesId" type="string" column="series_id" length="36" nullable="false"/>
         <field name="number" type="integer" column="number" nullable="false"/>
+        <embedded name="rating" class="App\Module\Series\Domain\ValueObject\Rating" use-column-prefix="false"/>
     </entity>
 
 </doctrine-mapping>

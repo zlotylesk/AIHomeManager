@@ -99,6 +99,41 @@ test('rating an existing episode updates season and series average immediately',
   await expect(page.locator('.meta strong')).toContainText('★ 9');
 });
 
+test('setting own series and season ratings persists independently of the average', async ({ page, request }) => {
+  // HMAI-179: the manual "My rating" controls are separate from the
+  // episode-derived average — here there are no episodes, so only the manual
+  // scores change.
+  const title = uniqueTitle('E2E OwnRating');
+  const seriesRes = await request.post('/api/series', { data: { title } });
+  const { id: seriesId } = await seriesRes.json();
+  const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
+  expect(seasonRes.ok()).toBeTruthy();
+
+  await gotoSeriesList(page);
+  await openSeriesDetail(page, title);
+
+  // Series' own rating starts unset.
+  const seriesOwn = page.locator('#series-own-rating .rating-cell-btn');
+  await expect(seriesOwn).toHaveText('Rate');
+  await seriesOwn.click();
+  await page.locator('#series-own-rating .rating-editor .rating-btn', { hasText: '9' }).first().click();
+  await expect(page.locator('#series-own-rating .rating-cell-btn')).toHaveText('★ 9');
+
+  // Season's own rating, likewise independent of any episode average.
+  const seasonOwn = page.locator('.season-block [data-season-own-rating] .rating-cell-btn');
+  await expect(seasonOwn).toHaveText('Rate');
+  await seasonOwn.click();
+  await page.locator('[data-season-own-rating] .rating-editor .rating-btn', { hasText: '6' }).first().click();
+  await expect(page.locator('.season-block [data-season-own-rating] .rating-cell-btn')).toHaveText('★ 6');
+
+  // Reload from the API — both manual scores must have persisted.
+  await page.reload();
+  await expect(page.locator('#series-list .loading')).toHaveCount(0, { timeout: 10_000 });
+  await openSeriesDetail(page, title);
+  await expect(page.locator('#series-own-rating .rating-cell-btn')).toHaveText('★ 9');
+  await expect(page.locator('.season-block [data-season-own-rating] .rating-cell-btn')).toHaveText('★ 6');
+});
+
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 

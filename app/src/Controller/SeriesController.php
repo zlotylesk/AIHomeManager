@@ -8,6 +8,8 @@ use App\Module\Series\Application\Command\AddEpisode;
 use App\Module\Series\Application\Command\AddEpisodeRating;
 use App\Module\Series\Application\Command\AddSeason;
 use App\Module\Series\Application\Command\CreateSeries;
+use App\Module\Series\Application\Command\RateSeason;
+use App\Module\Series\Application\Command\RateSeries;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
@@ -188,6 +190,72 @@ final class SeriesController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    #[Route('/{seriesId}/rating', methods: ['PATCH'])]
+    public function rateSeries(string $seriesId, Request $request): JsonResponse
+    {
+        $rating = $this->parseRating($request);
+        if ($rating instanceof JsonResponse) {
+            return $rating;
+        }
+
+        try {
+            $this->commandBus->dispatch(new RateSeries(seriesId: $seriesId, rating: $rating));
+        } catch (HandlerFailedException $e) {
+            return $this->mapRatingFailure($e);
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/{seriesId}/seasons/{seasonId}/rating', methods: ['PATCH'])]
+    public function rateSeason(string $seriesId, string $seasonId, Request $request): JsonResponse
+    {
+        $rating = $this->parseRating($request);
+        if ($rating instanceof JsonResponse) {
+            return $rating;
+        }
+
+        try {
+            $this->commandBus->dispatch(new RateSeason(seriesId: $seriesId, seasonId: $seasonId, rating: $rating));
+        } catch (HandlerFailedException $e) {
+            return $this->mapRatingFailure($e);
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * Validates the JSON `rating` field (integer 1–10). Returns the int on
+     * success, or a ready-to-send 422 JsonResponse — pre-empting the Rating VO's
+     * InvalidArgumentException so the invalid path stays free of unwrap noise.
+     */
+    private function parseRating(Request $request): int|JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $rating = $data['rating'] ?? null;
+
+        if (!is_int($rating) || $rating < 1 || $rating > 10) {
+            return new JsonResponse(
+                ['error' => 'Field "rating" must be an integer between 1 and 10.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        return $rating;
+    }
+
+    private function mapRatingFailure(HandlerFailedException $e): JsonResponse
+    {
+        $original = $e->getPrevious();
+        if ($original instanceof DomainException) {
+            return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
+        }
+        if ($original instanceof InvalidArgumentException) {
+            return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        throw $e;
+    }
+
     private function serializeDTO(SeriesDetailDTO $dto): array
     {
         $seasons = array_map(function ($season) {
@@ -199,6 +267,7 @@ final class SeriesController extends AbstractController
             return [
                 'id' => $season->id,
                 'number' => $season->number,
+                'rating' => $season->rating,
                 'averageRating' => $seasonAvg,
                 'episodes' => array_map(fn ($e) => [
                     'id' => $e->id,
@@ -220,6 +289,7 @@ final class SeriesController extends AbstractController
             'id' => $dto->id,
             'title' => $dto->title,
             'createdAt' => $dto->createdAt,
+            'rating' => $dto->rating,
             'averageRating' => $seriesAvg,
             'seasons' => $seasons,
         ];

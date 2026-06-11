@@ -14,9 +14,12 @@ use App\Module\Series\Application\DTO\SeriesDetailDTO;
  * to keep the row → DTO mapping in a single place.
  *
  * Expected row shape (column aliases come from the SELECT list in both handlers):
- *   series_id, series_title, series_created_at,
- *   season_id, season_number,
+ *   series_id, series_title, series_created_at, series_rating,
+ *   season_id, season_number, season_rating,
  *   episode_id, episode_title, episode_rating
+ *
+ * `series_rating` / `season_rating` are the user's own (manual) scores — kept
+ * separate from the average the controller derives from `episode_rating`.
  */
 final readonly class SeriesRowHydrator
 {
@@ -27,9 +30,9 @@ final readonly class SeriesRowHydrator
      */
     public function hydrate(array $rows): array
     {
-        /** @var array<string, array{id: string, title: string, createdAt: string}> $seriesMap */
+        /** @var array<string, array{id: string, title: string, createdAt: string, rating: int|null}> $seriesMap */
         $seriesMap = [];
-        /** @var array<string, array<string, array{id: string, number: int}>> $seasonMap */
+        /** @var array<string, array<string, array{id: string, number: int, rating: int|null}>> $seasonMap */
         $seasonMap = [];
         /** @var array<string, list<EpisodeDTO>> $episodeMap */
         $episodeMap = [];
@@ -43,6 +46,7 @@ final readonly class SeriesRowHydrator
                     'id' => $seriesId,
                     'title' => (string) $row['series_title'],
                     'createdAt' => (string) $row['series_created_at'],
+                    'rating' => isset($row['series_rating']) ? (int) $row['series_rating'] : null,
                 ];
                 $seasonMap[$seriesId] = [];
             }
@@ -51,6 +55,7 @@ final readonly class SeriesRowHydrator
                 $seasonMap[$seriesId][$seasonId] = [
                     'id' => $seasonId,
                     'number' => (int) $row['season_number'],
+                    'rating' => isset($row['season_rating']) ? (int) $row['season_rating'] : null,
                 ];
                 $episodeMap[$seasonId] = [];
             }
@@ -72,6 +77,7 @@ final readonly class SeriesRowHydrator
                     id: $season['id'],
                     number: $season['number'],
                     episodes: $episodeMap[$seasonId] ?? [],
+                    rating: $season['rating'],
                 );
             }
             $result[] = new SeriesDetailDTO(
@@ -79,6 +85,7 @@ final readonly class SeriesRowHydrator
                 title: $s['title'],
                 createdAt: $s['createdAt'],
                 seasons: $seasonDTOs,
+                rating: $s['rating'],
             );
         }
 

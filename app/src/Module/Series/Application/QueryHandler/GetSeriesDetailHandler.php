@@ -22,8 +22,8 @@ final readonly class GetSeriesDetailHandler
     public function __invoke(GetSeriesDetail $query): ?SeriesDetailDTO
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT s.id AS series_id, s.title AS series_title, s.created_at AS series_created_at,
-                    se.id AS season_id, se.number AS season_number,
+            'SELECT s.id AS series_id, s.title AS series_title, s.created_at AS series_created_at, s.rating_value AS series_rating,
+                    se.id AS season_id, se.number AS season_number, se.rating_value AS season_rating,
                     e.id AS episode_id, e.title AS episode_title, e.rating_value AS episode_rating
              FROM series s
              LEFT JOIN series_seasons se ON se.series_id = s.id

@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Module\Series\Domain;
 
 use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\Entity\Season;
+use App\Module\Series\Domain\ValueObject\Rating;
 use PHPUnit\Framework\TestCase;
 
 final class SeasonTest extends TestCase
@@ -57,5 +58,35 @@ final class SeasonTest extends TestCase
         $season->addEpisode(new Episode('ep-1', 'season-1', 'Pilot'));
 
         self::assertNull($season->findEpisode('ep-missing'));
+    }
+
+    public function testOwnRatingStartsAsNull(): void
+    {
+        // A season's own (manual) score is independent of episode ratings and
+        // unset until the user explicitly rates the season (HMAI-179).
+        $season = new Season('season-1', 'series-7', 1);
+
+        self::assertNull($season->rating());
+    }
+
+    public function testRateStoresOwnRating(): void
+    {
+        $season = new Season('season-1', 'series-7', 1);
+        $rating = new Rating(7);
+
+        $season->rate($rating);
+
+        self::assertSame($rating, $season->rating());
+    }
+
+    public function testRateOverwritesPreviousOwnRating(): void
+    {
+        $season = new Season('season-1', 'series-7', 1);
+        $season->rate(new Rating(4));
+
+        $season->rate(new Rating(9));
+
+        self::assertNotNull($season->rating());
+        self::assertSame(9, $season->rating()->value());
     }
 }

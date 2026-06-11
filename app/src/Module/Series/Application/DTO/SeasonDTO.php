@@ -11,6 +11,7 @@ final readonly class SeasonDTO
         public string $id,
         public int $number,
         public array $episodes,
+        public ?int $rating = null,
     ) {
     }
 }
