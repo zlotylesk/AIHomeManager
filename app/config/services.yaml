@@ -122,6 +122,11 @@ services:
         arguments:
             $key: '%env(base64:GOOGLE_TOKEN_KEY)%'
 
+    app.trakt_token_cipher:
+        class: App\Security\TokenCipher
+        arguments:
+            $key: '%env(base64:TRAKT_TOKEN_KEY)%'
+
     App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
         arguments:
             $cipher: '@app.discogs_token_cipher'
@@ -129,6 +134,26 @@ services:
     App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
         arguments:
             $cipher: '@app.google_token_cipher'
+
+    # Trakt OAuth2 (HMAI-180) — separate cipher key isolates blast radius.
+    App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository:
+        arguments:
+            $cipher: '@app.trakt_token_cipher'
+
+    App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface:
+        alias: App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository
+
+    App\Module\Series\Infrastructure\External\TraktTokenProvider:
+        arguments:
+            $clientId: '%env(TRAKT_CLIENT_ID)%'
+            $clientSecret: '%env(TRAKT_CLIENT_SECRET)%'
+            $redirectUri: '%env(TRAKT_REDIRECT_URI)%'
+
+    App\Controller\TraktAuthController:
+        arguments:
+            $clientId: '%env(TRAKT_CLIENT_ID)%'
+            $clientSecret: '%env(TRAKT_CLIENT_SECRET)%'
+            $redirectUri: '%env(TRAKT_REDIRECT_URI)%'
 
     App\Controller\DiscogsAuthController:
         arguments:

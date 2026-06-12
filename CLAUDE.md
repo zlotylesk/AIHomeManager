@@ -155,7 +155,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Authenticator: `App\Security\ApiKeyAuthenticator` — czyta header `X-API-Key`, porównuje przez `hash_equals` z `%env(API_KEY)%`. `supports()` zwraca `false` dla `/api/health` — publiczny readiness probe dla orchestratorów.
 - 401 JSON `{"error": "..."}` przy braku/błędnym kluczu
 - Klucz produkcyjny w `app/.env.local` (gitignored). `app/.env` ma tylko placeholder
-- `/auth/google*`, `/auth/discogs*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
+- `/auth/google*`, `/auth/discogs*`, `/auth/trakt*`, frontend (`/`, `/series` itd.) — firewall `main` z `security: false` (publiczne)
 - Test env: `API_KEY=test-api-key` w `app/.env.test`
 - **CSRF (ADR-005):** świadomie **nie używamy** `#[IsCsrfTokenValid]` na `^/api/*`. Firewall jest `stateless: true`, autoryzacja przez header `X-API-Key` (nie cookie) — przeglądarka nie ustawia custom headerów cross-origin, więc CSRF nie ma drogi. OAuth init (`/auth/*`) używa parametru `state`. Regresja w `tests/Integration/Security/ApiKeyAuthCsrfTest.php`.
 
@@ -241,10 +241,11 @@ Regresja: `tests/Integration/Security/SecurityHeadersTest.php` (4 testy: fronten
 ## Encryption — OAuth tokens
 
 - `App\Security\TokenCipher` (libsodium `secretbox`, format: base64(nonce ‖ ciphertext)) — wspólne narzędzie dla wszystkich OAuth providerów
-- Dwie instancje w `services.yaml`: `app.discogs_token_cipher` (klucz `DISCOGS_TOKEN_KEY`) i `app.google_token_cipher` (`GOOGLE_TOKEN_KEY`) — osobne klucze rozdzielają blast radius
+- Trzy instancje w `services.yaml`: `app.discogs_token_cipher` (klucz `DISCOGS_TOKEN_KEY`), `app.google_token_cipher` (`GOOGLE_TOKEN_KEY`) i `app.trakt_token_cipher` (`TRAKT_TOKEN_KEY`) — osobne klucze rozdzielają blast radius
 - Klucze 32B base64 w `.env.local`. Generate: `php -r "echo base64_encode(sodium_crypto_secretbox_keygen());"`
 - Discogs OAuth1: `DiscogsTokenRepository` (Music) — pole-per-pole encryption (`oauth_token`, `oauth_token_secret`)
 - Google OAuth2: `GoogleOAuthTokenRepository` (Tasks) — szyfruje cały `token_json` (access+refresh+expires). Scope claims kumulatywne na refresh tokenie: `calendar.events` (Tasks) + `youtube` (YouTubeProgress, HMAI-163, full read/write — T11 wymaga `createPlaylist`). Jeden token, dwa moduły — `GoogleClientFactory::create()` requestuje oba scope'y, `setPrompt('consent')` wymusza re-consent. **Po deployu HMAI-163 user MUSI raz przejść `/auth/google`** żeby uzyskać token z poszerzonym scope — bez tego YT API call zwróci 403. Regresja: `tests/Integration/Module/YouTubeProgress/GoogleClientYouTubeScopeTest.php`
+- Trakt OAuth2 (HMAI-180, warstwa 1/5 epica HMAI-178): `TraktOAuthTokenRepository` (Series/Infrastructure) — szyfruje cały `token_json`, wzorzec Google. Flow `/auth/trakt` (302→`trakt.tv/oauth/authorize` ze `state` w sesji) + `/auth/trakt/callback` (code→token przez `HttpClientInterface`, zapis zaszyfrowany, redirect `/series`). `TraktTokenProvider::getValidAccessToken()` robi refresh-on-expiry (grant `refresh_token`) — warstwa 2 (TraktApiClient) wstrzykuje provider zamiast repo. Tabela `trakt_oauth_tokens` (DBAL, nie-ORM) wykluczona z `doctrine.dbal.schema_filter` jak `google_oauth_tokens`. ENV: `TRAKT_CLIENT_ID`/`TRAKT_CLIENT_SECRET`/`TRAKT_REDIRECT_URI`. Regresja: `tests/Integration/Auth/TraktAuthControllerTest.php`, `tests/Unit/Module/Series/Infrastructure/TraktTokenProviderTest.php`
 
 ## MCP servers (`.mcp.json`)
 
