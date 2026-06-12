@@ -22,7 +22,7 @@ final class Episode
     public function __construct(
         private readonly string $id,
         private readonly string $seasonId,
-        private readonly string $title,
+        private string $title,
     ) {
     }
 
@@ -75,5 +75,10 @@ final class Episode
     {
         $this->watched = false;
         $this->watchedAt = null;
+    }
+
+    public function rename(string $title): void
+    {
+        $this->title = $title;
     }
 }

@@ -396,6 +396,141 @@ class SeriesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
+    public function testRenameSeriesReturns204AndUpdatesTitle(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Braking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}", content: (string) json_encode(['title' => 'Breaking Bad']));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Breaking Bad', $data['title']);
+    }
+
+    public function testRenameSeriesWithEmptyTitleReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}", content: (string) json_encode(['title' => '   ']));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Title is required.', $data['error']);
+    }
+
+    public function testRenameSeriesForUnknownSeriesReturns404(): void
+    {
+        $this->client->request('PATCH', '/api/series/non-existent', content: (string) json_encode(['title' => 'Breaking Bad']));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testRenumberSeasonReturns204AndUpdatesNumber(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}", content: (string) json_encode(['number' => 3]));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame(3, $data['seasons'][0]['number']);
+    }
+
+    public function testRenumberSeasonWithInvalidNumberReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}", content: (string) json_encode(['number' => 0]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testRenumberSeasonToNumberAlreadyUsedReturns409(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId1 = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 2]));
+
+        // Renumbering season 1 → 2 collides with the existing season 2.
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId1}", content: (string) json_encode(['number' => 2]));
+
+        self::assertResponseStatusCodeSame(409);
+    }
+
+    public function testRenumberSeasonForUnknownSeasonReturns404(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/missing-season-id", content: (string) json_encode(['number' => 2]));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testRenameEpisodeReturns204AndUpdatesTitle(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilto']));
+        $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}", content: (string) json_encode(['title' => 'Pilot']));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Pilot', $data['seasons'][0]['episodes'][0]['title']);
+    }
+
+    public function testRenameEpisodeWithEmptyTitleReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}", content: (string) json_encode(['title' => '']));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testRenameEpisodeOnUnknownEpisodeReturns404(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/missing-episode-id", content: (string) json_encode(['title' => 'Pilot']));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testClearSeriesRatingReturns204AndNullsRating(): void
     {
         // HMAI-191: an explicit {"rating": null} clears the own series score.

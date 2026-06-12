@@ -21,7 +21,7 @@ final class Season
     public function __construct(
         private readonly string $id,
         private readonly string $seriesId,
-        private readonly int $number,
+        private int $number,
     ) {
     }
 
@@ -53,6 +53,11 @@ final class Season
     public function clearRating(): void
     {
         $this->rating = null;
+    }
+
+    public function renumber(int $number): void
+    {
+        $this->number = $number;
     }
 
     /** @return array<string, Episode> */

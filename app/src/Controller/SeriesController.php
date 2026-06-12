@@ -13,10 +13,14 @@ use App\Module\Series\Application\Command\DeleteSeason;
 use App\Module\Series\Application\Command\DeleteSeries;
 use App\Module\Series\Application\Command\RateSeason;
 use App\Module\Series\Application\Command\RateSeries;
+use App\Module\Series\Application\Command\RenameEpisode;
+use App\Module\Series\Application\Command\RenameSeries;
+use App\Module\Series\Application\Command\RenumberSeason;
 use App\Module\Series\Application\Command\SetEpisodeWatched;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
+use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
 use DomainException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -73,23 +77,9 @@ final class SeriesController extends AbstractController
     #[Route('', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        $data = json_decode($request->getContent(), true) ?? [];
-        $title = trim($data['title'] ?? '');
-
-        if ('' === $title) {
-            $this->logger->warning('POST /api/series failed: title is empty');
-
-            return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        // mb_strlen counts characters, not bytes — a 255-char emoji title fits
-        // VARCHAR(255) in utf8mb4 (which reserves 4 bytes per char). Plain strlen
-        // would over-count multibyte input and reject legitimate titles.
-        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
-            return new JsonResponse(
-                ['error' => sprintf('Title must be at most %d characters.', self::MAX_TITLE_LENGTH)],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
+        $title = $this->parseTitle($request);
+        if ($title instanceof JsonResponse) {
+            return $title;
         }
 
         $id = $this->commandBus->dispatch(new CreateSeries($title))->last(HandledStamp::class)->getResult();
@@ -124,20 +114,13 @@ final class SeriesController extends AbstractController
     #[Route('/{seriesId}/seasons/{seasonId}/episodes', methods: ['POST'])]
     public function addEpisode(string $seriesId, string $seasonId, Request $request): JsonResponse
     {
+        $title = $this->parseTitle($request);
+        if ($title instanceof JsonResponse) {
+            return $title;
+        }
+
         $data = json_decode($request->getContent(), true) ?? [];
-        $title = trim($data['title'] ?? '');
         $rating = isset($data['rating']) ? (int) $data['rating'] : null;
-
-        if ('' === $title) {
-            return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
-            return new JsonResponse(
-                ['error' => sprintf('Title must be at most %d characters.', self::MAX_TITLE_LENGTH)],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
-        }
 
         try {
             $id = $this->commandBus->dispatch(new AddEpisode($seriesId, $seasonId, $title, $rating))
@@ -308,6 +291,99 @@ final class SeriesController extends AbstractController
             return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_NOT_FOUND);
         }
         throw $e;
+    }
+
+    #[Route('/{id}', methods: ['PATCH'])]
+    public function renameSeries(string $id, Request $request): JsonResponse
+    {
+        $title = $this->parseTitle($request);
+        if ($title instanceof JsonResponse) {
+            return $title;
+        }
+
+        try {
+            $this->commandBus->dispatch(new RenameSeries($id, $title));
+        } catch (HandlerFailedException $e) {
+            if ($e->getPrevious() instanceof DomainException) {
+                return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
+            }
+            throw $e;
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/{seriesId}/seasons/{seasonId}', methods: ['PATCH'])]
+    public function renumberSeason(string $seriesId, string $seasonId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $number = $data['number'] ?? null;
+
+        if (!is_int($number) || $number < 1) {
+            return new JsonResponse(['error' => 'Season number must be a positive integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $this->commandBus->dispatch(new RenumberSeason($seriesId, $seasonId, $number));
+        } catch (HandlerFailedException $e) {
+            $original = $e->getPrevious();
+            // SeasonNumberAlreadyTaken extends DomainException — check it first so
+            // a uniqueness clash answers 409, not the generic 404.
+            if ($original instanceof SeasonNumberAlreadyTaken) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_CONFLICT);
+            }
+            if ($original instanceof DomainException) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
+            }
+            throw $e;
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/{seriesId}/seasons/{seasonId}/episodes/{episodeId}', methods: ['PATCH'])]
+    public function renameEpisode(string $seriesId, string $seasonId, string $episodeId, Request $request): JsonResponse
+    {
+        $title = $this->parseTitle($request);
+        if ($title instanceof JsonResponse) {
+            return $title;
+        }
+
+        try {
+            $this->commandBus->dispatch(new RenameEpisode($seriesId, $seasonId, $episodeId, $title));
+        } catch (HandlerFailedException $e) {
+            if ($e->getPrevious() instanceof DomainException) {
+                return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_NOT_FOUND);
+            }
+            throw $e;
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * Validates the JSON `title` field (non-empty, ≤ MAX_TITLE_LENGTH). Returns
+     * the trimmed title or a ready-to-send 422 — shared by create, add episode
+     * and the rename endpoints (HMAI-186). mb_strlen counts characters not bytes,
+     * so a 255-char multibyte title still fits VARCHAR(255) in utf8mb4.
+     */
+    private function parseTitle(Request $request): string|JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $title = trim($data['title'] ?? '');
+
+        if ('' === $title) {
+            return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
+            return new JsonResponse(
+                ['error' => sprintf('Title must be at most %d characters.', self::MAX_TITLE_LENGTH)],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        return $title;
     }
 
     /**
