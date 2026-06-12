@@ -159,6 +159,36 @@ final class SeriesAggregateTest extends TestCase
         $series->rateSeason('unknown-season', new Rating(5));
     }
 
+    public function testClearRatingResetsOwnSeriesRating(): void
+    {
+        // HMAI-191: clearing reverts to "no manual score"; the episode-derived
+        // average (unrelated state) is unaffected.
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+        $series->rate(new Rating(8));
+
+        $series->clearRating();
+
+        self::assertNull($series->rating());
+    }
+
+    public function testClearSeasonRatingResetsOwnSeasonRating(): void
+    {
+        $series = $this->seriesWithSeason();
+        $series->rateSeason(self::SEASON_ID, new Rating(6));
+
+        $series->clearSeasonRating(self::SEASON_ID);
+
+        self::assertNull($series->seasons()[self::SEASON_ID]->rating());
+    }
+
+    public function testClearSeasonRatingOnUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->clearSeasonRating('unknown-season');
+    }
+
     public function testSetEpisodeWatchedMarksEpisode(): void
     {
         $series = $this->seriesWithEpisode();

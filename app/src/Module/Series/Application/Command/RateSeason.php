@@ -9,7 +9,7 @@ final readonly class RateSeason
     public function __construct(
         public string $seriesId,
         public string $seasonId,
-        public int $rating,
+        public ?int $rating,
     ) {
     }
 }

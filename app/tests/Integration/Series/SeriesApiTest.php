@@ -345,7 +345,7 @@ class SeriesApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
         $data = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertSame('Field "rating" must be an integer between 1 and 10.', $data['error']);
+        self::assertSame('Field "rating" must be an integer between 1 and 10, or null to clear.', $data['error']);
     }
 
     public function testRateSeriesForUnknownSeriesReturns404(): void
@@ -392,6 +392,59 @@ class SeriesApiTest extends WebTestCase
         $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/missing-season-id/rating", content: (string) json_encode(['rating' => 6]));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testClearSeriesRatingReturns204AndNullsRating(): void
+    {
+        // HMAI-191: an explicit {"rating": null} clears the own series score.
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['rating' => 9]));
+        $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['rating' => null]));
+
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertNull($data['rating']);
+    }
+
+    public function testClearSeasonRatingReturns204AndNullsRating(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/rating", content: (string) json_encode(['rating' => 6]));
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/rating", content: (string) json_encode(['rating' => null]));
+
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertNull($data['seasons'][0]['rating']);
+    }
+
+    public function testRateSeriesWithMissingRatingFieldReturns422(): void
+    {
+        // An absent key is a malformed request — distinct from an explicit
+        // null clear (HMAI-191).
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['foo' => 'bar']));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testClearSeriesRatingForUnknownSeriesReturns404(): void
+    {
+        $this->client->request('PATCH', '/api/series/non-existent/rating', content: (string) json_encode(['rating' => null]));
 
         self::assertResponseStatusCodeSame(404);
     }
