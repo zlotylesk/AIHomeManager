@@ -206,6 +206,36 @@ test('editing the series title inline persists it (HMAI-186)', async ({ page, re
   await expect(page.locator('#series-title-edit .inline-editable-value')).toHaveText(newTitle);
 });
 
+test('list search filters and sort reorders the visible cards (HMAI-189)', async ({ page, request }) => {
+  // Two series sharing a unique stamp (to isolate them from other rows in the
+  // shared dev DB), with titles that sort differently from their creation order.
+  const stamp = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+  const alpha = `AAA ${stamp}`;
+  const zeta = `ZZZ ${stamp}`;
+  // alpha is created first → zeta is the more recent of the two.
+  expect((await request.post('/api/series', { data: { title: alpha } })).ok()).toBeTruthy();
+  expect((await request.post('/api/series', { data: { title: zeta } })).ok()).toBeTruthy();
+
+  await gotoSeriesList(page);
+
+  // Filtering by the shared stamp isolates exactly our two cards.
+  await page.locator('#series-search').fill(stamp);
+  await expect(page.locator('.series-card')).toHaveCount(2);
+
+  // Default sort is Title A–Z → AAA precedes ZZZ.
+  await expect(page.locator('.series-card').first().locator('h3')).toHaveText(alpha);
+
+  // A narrower term hides the non-matching card entirely.
+  await page.locator('#series-search').fill(`AAA ${stamp}`);
+  await expect(page.locator('.series-card')).toHaveCount(1);
+  await expect(page.locator('.series-card h3')).toHaveText(alpha);
+
+  // Back to both, then sort by "Recently added" → ZZZ (newer) jumps to first.
+  await page.locator('#series-search').fill(stamp);
+  await page.locator('#series-sort').selectOption('created-desc');
+  await expect(page.locator('.series-card').first().locator('h3')).toHaveText(zeta);
+});
+
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 
