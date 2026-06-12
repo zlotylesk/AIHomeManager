@@ -29,11 +29,15 @@ final readonly class RateSeriesHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        $series->rate(new Rating($command->rating));
+        if (null === $command->rating) {
+            $series->clearRating();
+        } else {
+            $series->rate(new Rating($command->rating));
+        }
 
         $this->repository->save($series);
 
-        $this->logger->info('Series rated', [
+        $this->logger->info(null === $command->rating ? 'Series rating cleared' : 'Series rated', [
             'seriesId' => $command->seriesId,
             'rating' => $command->rating,
         ]);

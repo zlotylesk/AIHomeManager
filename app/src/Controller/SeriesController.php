@@ -231,6 +231,8 @@ final class SeriesController extends AbstractController
         }
 
         try {
+            // $rating may be null here — an explicit `{"rating": null}` clears
+            // the user's own score (HMAI-191).
             $this->commandBus->dispatch(new RateSeries(seriesId: $seriesId, rating: $rating));
         } catch (HandlerFailedException $e) {
             return $this->mapRatingFailure($e);
@@ -248,6 +250,8 @@ final class SeriesController extends AbstractController
         }
 
         try {
+            // $rating may be null here — an explicit `{"rating": null}` clears
+            // the season's own score (HMAI-191).
             $this->commandBus->dispatch(new RateSeason(seriesId: $seriesId, seasonId: $seasonId, rating: $rating));
         } catch (HandlerFailedException $e) {
             return $this->mapRatingFailure($e);
@@ -257,23 +261,40 @@ final class SeriesController extends AbstractController
     }
 
     /**
-     * Validates the JSON `rating` field (integer 1–10). Returns the int on
-     * success, or a ready-to-send 422 JsonResponse — pre-empting the Rating VO's
+     * Validates the JSON `rating` field. Returns the int (1–10) on a set,
+     * `null` on an explicit `{"rating": null}` clear (HMAI-191), or a
+     * ready-to-send 422 JsonResponse — pre-empting the Rating VO's
      * InvalidArgumentException so the invalid path stays free of unwrap noise.
+     *
+     * An explicit null is a deliberate clear; an absent key is a malformed
+     * request — hence array_key_exists (isset() can't tell the two apart).
      */
-    private function parseRating(Request $request): int|JsonResponse
+    private function parseRating(Request $request): int|JsonResponse|null
     {
         $data = json_decode($request->getContent(), true) ?? [];
-        $rating = $data['rating'] ?? null;
+
+        if (!is_array($data) || !array_key_exists('rating', $data)) {
+            return $this->invalidRatingResponse();
+        }
+
+        $rating = $data['rating'];
+        if (null === $rating) {
+            return null;
+        }
 
         if (!is_int($rating) || $rating < 1 || $rating > 10) {
-            return new JsonResponse(
-                ['error' => 'Field "rating" must be an integer between 1 and 10.'],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
+            return $this->invalidRatingResponse();
         }
 
         return $rating;
+    }
+
+    private function invalidRatingResponse(): JsonResponse
+    {
+        return new JsonResponse(
+            ['error' => 'Field "rating" must be an integer between 1 and 10, or null to clear.'],
+            Response::HTTP_UNPROCESSABLE_ENTITY
+        );
     }
 
     private function mapRatingFailure(HandlerFailedException $e): JsonResponse

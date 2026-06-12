@@ -8,7 +8,7 @@ final readonly class RateSeries
 {
     public function __construct(
         public string $seriesId,
-        public int $rating,
+        public ?int $rating,
     ) {
     }
 }

@@ -29,11 +29,15 @@ final readonly class RateSeasonHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        $series->rateSeason($command->seasonId, new Rating($command->rating));
+        if (null === $command->rating) {
+            $series->clearSeasonRating($command->seasonId);
+        } else {
+            $series->rateSeason($command->seasonId, new Rating($command->rating));
+        }
 
         $this->repository->save($series);
 
-        $this->logger->info('Season rated', [
+        $this->logger->info(null === $command->rating ? 'Season rating cleared' : 'Season rated', [
             'seriesId' => $command->seriesId,
             'seasonId' => $command->seasonId,
             'rating' => $command->rating,

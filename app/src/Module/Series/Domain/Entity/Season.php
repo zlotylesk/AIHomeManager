@@ -49,6 +49,11 @@ final class Season
         $this->rating = $rating;
     }
 
+    public function clearRating(): void
+    {
+        $this->rating = null;
+    }
+
     /** @return array<string, Episode> */
     public function episodes(): array
     {

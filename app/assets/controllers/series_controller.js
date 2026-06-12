@@ -173,6 +173,29 @@ export default class extends Controller {
             btn.title = rated ? 'Change your rating' : 'Set your rating';
             btn.addEventListener('click', renderEditor);
             wrap.append(label, ' ', btn);
+
+            // Clear affordance — only when a manual rating exists (HMAI-191).
+            // PATCHes {rating: null} and reverts the control to "Rate".
+            if (rated) {
+                const clear = document.createElement('button');
+                clear.type = 'button';
+                clear.className = 'rating-clear';
+                clear.textContent = '✕';
+                clear.title = 'Remove your rating';
+                clear.addEventListener('click', async () => {
+                    clear.disabled = true;
+                    this.hideError();
+                    try {
+                        await onSave(null);
+                        current = null;
+                        renderDisplay();
+                    } catch (err) {
+                        this.showError(err.message || 'Failed to clear rating.');
+                        clear.disabled = false;
+                    }
+                });
+                wrap.append(' ', clear);
+            }
         };
 
         const renderEditor = () => {

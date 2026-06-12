@@ -55,6 +55,16 @@ final class Series
         $this->rating = $rating;
     }
 
+    /**
+     * Drop the user's own whole-series score, reverting to "no manual rating,
+     * show only the episode-derived average" (HMAI-191). The average is
+     * untouched — it lives on the episodes, not here.
+     */
+    public function clearRating(): void
+    {
+        $this->rating = null;
+    }
+
     public function rateSeason(string $seasonId, Rating $rating): void
     {
         if (!isset($this->seasons[$seasonId])) {
@@ -62,6 +72,15 @@ final class Series
         }
 
         $this->seasons[$seasonId]->rate($rating);
+    }
+
+    public function clearSeasonRating(string $seasonId): void
+    {
+        if (!isset($this->seasons[$seasonId])) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        $this->seasons[$seasonId]->clearRating();
     }
 
     /** @return array<string, Season> */
