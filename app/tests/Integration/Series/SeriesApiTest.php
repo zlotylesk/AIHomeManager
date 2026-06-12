@@ -395,4 +395,78 @@ class SeriesApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(404);
     }
+
+    public function testSetEpisodeWatchedReturns204AndGetReflectsIt(): void
+    {
+        [$seriesId, $seasonId, $episodeId] = $this->seedEpisode();
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/watched", content: (string) json_encode(['watched' => true]));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $episode = $data['seasons'][0]['episodes'][0];
+        self::assertTrue($episode['watched']);
+        self::assertNotNull($episode['watchedAt']);
+        // Counters surface "watched X/Y" for the UI.
+        self::assertSame(1, $data['seasons'][0]['watchedCount']);
+        self::assertSame(1, $data['seasons'][0]['episodeCount']);
+        self::assertSame(1, $data['watchedCount']);
+    }
+
+    public function testUnsetEpisodeWatchedReturns204AndClearsFlag(): void
+    {
+        [$seriesId, $seasonId, $episodeId] = $this->seedEpisode();
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/watched", content: (string) json_encode(['watched' => true]));
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/watched", content: (string) json_encode(['watched' => false]));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $episode = $data['seasons'][0]['episodes'][0];
+        self::assertFalse($episode['watched']);
+        self::assertNull($episode['watchedAt']);
+        self::assertSame(0, $data['seasons'][0]['watchedCount']);
+    }
+
+    public function testSetEpisodeWatchedWithNonBooleanReturns422(): void
+    {
+        [$seriesId, $seasonId, $episodeId] = $this->seedEpisode();
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/watched", content: (string) json_encode(['watched' => 'yes']));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "watched" must be a boolean.', $data['error']);
+    }
+
+    public function testSetEpisodeWatchedOnUnknownEpisodeReturns404(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/missing-episode-id/watched", content: (string) json_encode(['watched' => true]));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string} [seriesId, seasonId, episodeId]
+     */
+    private function seedEpisode(): array
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        return [$seriesId, $seasonId, $episodeId];
+    }
 }

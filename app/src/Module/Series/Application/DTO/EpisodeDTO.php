@@ -10,6 +10,8 @@ final readonly class EpisodeDTO
         public string $id,
         public string $title,
         public ?int $rating,
+        public bool $watched = false,
+        public ?string $watchedAt = null,
     ) {
     }
 }

@@ -106,6 +106,9 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .episodes-table th { text-align: left; font-size: .8rem; color: var(--color-text-muted); padding: .4rem .5rem; border-bottom: 1px solid var(--color-border); }
 .episodes-table td { padding: .45rem .5rem; border-bottom: 1px solid var(--color-border); font-size: .9rem; }
 .episodes-table tr:last-child td { border-bottom: none; }
+.episodes-table tr.episode-watched td:nth-child(2) { color: var(--color-text-muted); }
+.episodes-table tr.episode-watched { background: rgba(16, 185, 129, .06); }
+.js-episode-watched { width: 1.05rem; height: 1.05rem; cursor: pointer; accent-color: var(--color-rating); }
 .rating-selector { display: flex; gap: .3rem; flex-wrap: wrap; }
 .rating-btn { width: 2rem; height: 2rem; border-radius: 50%; border: 2px solid var(--color-border); background: var(--color-surface); cursor: pointer; font-size: .85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all .1s; }
 .rating-btn:hover { border-color: var(--color-rating); color: var(--color-rating); }

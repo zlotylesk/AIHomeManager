@@ -65,6 +65,8 @@ final readonly class SeriesRowHydrator
                     id: (string) $row['episode_id'],
                     title: (string) $row['episode_title'],
                     rating: null !== $row['episode_rating'] ? (int) $row['episode_rating'] : null,
+                    watched: (bool) ($row['episode_watched'] ?? false),
+                    watchedAt: isset($row['episode_watched_at']) ? (string) $row['episode_watched_at'] : null,
                 );
             }
         }

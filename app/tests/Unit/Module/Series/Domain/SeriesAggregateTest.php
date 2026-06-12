@@ -159,6 +159,56 @@ final class SeriesAggregateTest extends TestCase
         $series->rateSeason('unknown-season', new Rating(5));
     }
 
+    public function testSetEpisodeWatchedMarksEpisode(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $series->setEpisodeWatched(self::SEASON_ID, self::EPISODE_ID, true);
+
+        $episode = $series->seasons()[self::SEASON_ID]->findEpisode(self::EPISODE_ID);
+        self::assertNotNull($episode);
+        self::assertTrue($episode->isWatched());
+        self::assertNotNull($episode->watchedAt());
+    }
+
+    public function testSetEpisodeWatchedFalseUnmarksEpisode(): void
+    {
+        $series = $this->seriesWithEpisode();
+        $series->setEpisodeWatched(self::SEASON_ID, self::EPISODE_ID, true);
+
+        $series->setEpisodeWatched(self::SEASON_ID, self::EPISODE_ID, false);
+
+        $episode = $series->seasons()[self::SEASON_ID]->findEpisode(self::EPISODE_ID);
+        self::assertNotNull($episode);
+        self::assertFalse($episode->isWatched());
+        self::assertNull($episode->watchedAt());
+    }
+
+    public function testSetEpisodeWatchedRecordsNoDomainEvent(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $series->setEpisodeWatched(self::SEASON_ID, self::EPISODE_ID, true);
+
+        self::assertEmpty($series->releaseEvents());
+    }
+
+    public function testSetEpisodeWatchedOnUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->setEpisodeWatched('unknown-season', self::EPISODE_ID, true);
+    }
+
+    public function testSetEpisodeWatchedOnUnknownEpisodeThrows(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $this->expectException(DomainException::class);
+        $series->setEpisodeWatched(self::SEASON_ID, 'unknown-episode', true);
+    }
+
     private function seriesWithSeason(): Series
     {
         $series = new Series(self::SERIES_ID, 'Breaking Bad');

@@ -104,6 +104,29 @@ final class Series
         );
     }
 
+    /**
+     * Toggle an episode's watched flag (HMAI-188). No domain event — nothing
+     * subscribes to it yet (YAGNI). The optional timestamp lets the Trakt import
+     * preserve the real watched-at date; a manual toggle defaults to now.
+     */
+    public function setEpisodeWatched(string $seasonId, string $episodeId, bool $watched, ?DateTimeImmutable $watchedAt = null): void
+    {
+        if (!isset($this->seasons[$seasonId])) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        $episode = $this->seasons[$seasonId]->findEpisode($episodeId);
+        if (null === $episode) {
+            throw new DomainException(sprintf('Episode "%s" not found in season "%s" of series "%s".', $episodeId, $seasonId, $this->id));
+        }
+
+        if ($watched) {
+            $episode->markWatched($watchedAt);
+        } else {
+            $episode->unmarkWatched();
+        }
+    }
+
     /** @return object[] */
     public function releaseEvents(): array
     {
