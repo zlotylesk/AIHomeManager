@@ -11,6 +11,7 @@
         <id name="id" type="string" column="id" length="36"/>
         <field name="seasonId" type="string" column="season_id" length="36" nullable="false"/>
         <field name="title" type="string" column="title" length="255" nullable="false"/>
+        <field name="number" type="integer" column="number" nullable="false"/>
         <field name="watched" type="boolean" column="watched" nullable="false">
             <options>
                 <option name="default">0</option>

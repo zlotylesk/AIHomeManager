@@ -7,6 +7,7 @@ namespace App\Tests\Unit\Module\Series\Domain;
 use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\Entity\Season;
 use App\Module\Series\Domain\ValueObject\Rating;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class SeasonTest extends TestCase
@@ -30,7 +31,7 @@ final class SeasonTest extends TestCase
     public function testAddEpisodeKeysItById(): void
     {
         $season = new Season('season-1', 'series-7', 1);
-        $episode = new Episode('ep-1', 'season-1', 'Pilot');
+        $episode = new Episode('ep-1', 'season-1', 'Pilot', 1);
 
         $season->addEpisode($episode);
 
@@ -42,8 +43,8 @@ final class SeasonTest extends TestCase
         // Episodes are keyed by id, so re-adding under the same id replaces
         // the existing reference rather than producing a duplicate slot.
         $season = new Season('season-1', 'series-7', 1);
-        $original = new Episode('ep-1', 'season-1', 'Pilot');
-        $replacement = new Episode('ep-1', 'season-1', 'Pilot (re-cut)');
+        $original = new Episode('ep-1', 'season-1', 'Pilot', 1);
+        $replacement = new Episode('ep-1', 'season-1', 'Pilot (re-cut)', 1);
 
         $season->addEpisode($original);
         $season->addEpisode($replacement);
@@ -52,10 +53,20 @@ final class SeasonTest extends TestCase
         self::assertSame($replacement, $season->findEpisode('ep-1'));
     }
 
+    public function testAddEpisodeRejectsADuplicateNumberInTheSameSeason(): void
+    {
+        // Episode numbers are unique within a season (HMAI-187).
+        $season = new Season('season-1', 'series-7', 1);
+        $season->addEpisode(new Episode('ep-1', 'season-1', 'Pilot', 1));
+
+        $this->expectException(InvalidArgumentException::class);
+        $season->addEpisode(new Episode('ep-2', 'season-1', 'Cat in the Bag', 1));
+    }
+
     public function testFindEpisodeReturnsNullForUnknownId(): void
     {
         $season = new Season('season-1', 'series-7', 1);
-        $season->addEpisode(new Episode('ep-1', 'season-1', 'Pilot'));
+        $season->addEpisode(new Episode('ep-1', 'season-1', 'Pilot', 1));
 
         self::assertNull($season->findEpisode('ep-missing'));
     }

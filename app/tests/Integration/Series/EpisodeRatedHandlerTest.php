@@ -45,10 +45,10 @@ class EpisodeRatedHandlerTest extends KernelTestCase
             "INSERT INTO series_seasons (id, series_id, number) VALUES ('season-1', 'series-1', 1)"
         );
         $em->executeStatement(
-            "INSERT INTO series_episodes (id, season_id, title, rating_value) VALUES ('ep-1', 'season-1', 'Pilot', 8)"
+            "INSERT INTO series_episodes (id, season_id, title, number, rating_value) VALUES ('ep-1', 'season-1', 'Pilot', 1, 8)"
         );
         $em->executeStatement(
-            "INSERT INTO series_episodes (id, season_id, title, rating_value) VALUES ('ep-2', 'season-1', 'Episode 2', 10)"
+            "INSERT INTO series_episodes (id, season_id, title, number, rating_value) VALUES ('ep-2', 'season-1', 'Episode 2', 2, 10)"
         );
 
         ($this->handler)(new EpisodeRated('series-1', 'season-1', 'ep-2', 10));
@@ -67,13 +67,13 @@ class EpisodeRatedHandlerTest extends KernelTestCase
             "INSERT INTO series_seasons (id, series_id, number) VALUES ('season-1', 'series-1', 1)"
         );
         $em->executeStatement(
-            "INSERT INTO series_episodes (id, season_id, title, rating_value) VALUES ('ep-1', 'season-1', 'Pilot', 7)"
+            "INSERT INTO series_episodes (id, season_id, title, number, rating_value) VALUES ('ep-1', 'season-1', 'Pilot', 1, 7)"
         );
         $em->executeStatement(
-            "INSERT INTO series_episodes (id, season_id, title, rating_value) VALUES ('ep-2', 'season-1', 'Ep2', 8)"
+            "INSERT INTO series_episodes (id, season_id, title, number, rating_value) VALUES ('ep-2', 'season-1', 'Ep2', 2, 8)"
         );
         $em->executeStatement(
-            "INSERT INTO series_episodes (id, season_id, title, rating_value) VALUES ('ep-3', 'season-1', 'Ep3', 9)"
+            "INSERT INTO series_episodes (id, season_id, title, number, rating_value) VALUES ('ep-3', 'season-1', 'Ep3', 3, 9)"
         );
 
         ($this->handler)(new EpisodeRated('series-1', 'season-1', 'ep-3', 9));
@@ -91,7 +91,7 @@ class EpisodeRatedHandlerTest extends KernelTestCase
             "INSERT INTO series_seasons (id, series_id, number) VALUES ('season-1', 'series-1', 1)"
         );
         $em->executeStatement(
-            "INSERT INTO series_episodes (id, season_id, title, rating_value) VALUES ('ep-1', 'season-1', 'Pilot', NULL)"
+            "INSERT INTO series_episodes (id, season_id, title, number, rating_value) VALUES ('ep-1', 'season-1', 'Pilot', 1, NULL)"
         );
 
         ($this->handler)(new EpisodeRated('series-1', 'season-1', 'ep-1', 5));

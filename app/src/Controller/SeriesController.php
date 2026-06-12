@@ -120,10 +120,27 @@ final class SeriesController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
+        $title = trim($data['title'] ?? '');
+        $number = $data['number'] ?? null;
         $rating = isset($data['rating']) ? (int) $data['rating'] : null;
 
+        if ('' === $title) {
+            return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
+            return new JsonResponse(
+                ['error' => sprintf('Title must be at most %d characters.', self::MAX_TITLE_LENGTH)],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        if (!is_int($number) || $number < 1) {
+            return new JsonResponse(['error' => 'Episode number must be a positive integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         try {
-            $id = $this->commandBus->dispatch(new AddEpisode($seriesId, $seasonId, $title, $rating))
+            $id = $this->commandBus->dispatch(new AddEpisode($seriesId, $seasonId, $title, $number, $rating))
                 ->last(HandledStamp::class)
                 ->getResult();
         } catch (HandlerFailedException $e) {
@@ -453,6 +470,7 @@ final class SeriesController extends AbstractController
                 'episodes' => array_map(fn ($e) => [
                     'id' => $e->id,
                     'title' => $e->title,
+                    'number' => $e->number,
                     'rating' => $e->rating,
                     'watched' => $e->watched,
                     'watchedAt' => $e->watchedAt,

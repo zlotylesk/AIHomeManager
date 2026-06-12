@@ -25,12 +25,12 @@ final readonly class GetAllSeriesHandler
         $rows = $this->connection->fetchAllAssociative(
             'SELECT s.id AS series_id, s.title AS series_title, s.created_at AS series_created_at, s.rating_value AS series_rating,
                     se.id AS season_id, se.number AS season_number, se.rating_value AS season_rating,
-                    e.id AS episode_id, e.title AS episode_title, e.rating_value AS episode_rating,
+                    e.id AS episode_id, e.title AS episode_title, e.number AS episode_number, e.rating_value AS episode_rating,
                     e.watched AS episode_watched, e.watched_at AS episode_watched_at
              FROM series s
              LEFT JOIN series_seasons se ON se.series_id = s.id
              LEFT JOIN series_episodes e ON e.season_id = se.id
-             ORDER BY s.created_at DESC, se.number ASC, e.id ASC'
+             ORDER BY s.created_at DESC, se.number ASC, e.number ASC'
         );
 
         return $this->hydrator->hydrate($rows);

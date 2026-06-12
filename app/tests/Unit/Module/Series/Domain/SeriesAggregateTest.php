@@ -32,7 +32,7 @@ final class SeriesAggregateTest extends TestCase
     public function testAddEpisodeAddsEpisodeToSeason(): void
     {
         $series = $this->seriesWithSeason();
-        $episode = new Episode(self::EPISODE_ID, self::SEASON_ID, 'Pilot');
+        $episode = new Episode(self::EPISODE_ID, self::SEASON_ID, 'Pilot', 1);
 
         $series->addEpisode(self::SEASON_ID, $episode);
 
@@ -83,7 +83,7 @@ final class SeriesAggregateTest extends TestCase
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
 
         $this->expectException(DomainException::class);
-        $series->addEpisode('unknown-season', new Episode(self::EPISODE_ID, 'unknown-season', 'Pilot'));
+        $series->addEpisode('unknown-season', new Episode(self::EPISODE_ID, 'unknown-season', 'Pilot', 1));
     }
 
     public function testRateEpisodeOnUnknownSeasonThrows(): void
@@ -408,7 +408,7 @@ final class SeriesAggregateTest extends TestCase
     private function seriesWithEpisode(): Series
     {
         $series = $this->seriesWithSeason();
-        $series->addEpisode(self::SEASON_ID, new Episode(self::EPISODE_ID, self::SEASON_ID, 'Pilot'));
+        $series->addEpisode(self::SEASON_ID, new Episode(self::EPISODE_ID, self::SEASON_ID, 'Pilot', 1));
 
         return $series;
     }

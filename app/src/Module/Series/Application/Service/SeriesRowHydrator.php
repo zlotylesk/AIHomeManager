@@ -64,6 +64,7 @@ final readonly class SeriesRowHydrator
                 $episodeMap[$seasonId][] = new EpisodeDTO(
                     id: (string) $row['episode_id'],
                     title: (string) $row['episode_title'],
+                    number: (int) $row['episode_number'],
                     rating: null !== $row['episode_rating'] ? (int) $row['episode_rating'] : null,
                     watched: (bool) ($row['episode_watched'] ?? false),
                     watchedAt: isset($row['episode_watched_at']) ? (string) $row['episode_watched_at'] : null,

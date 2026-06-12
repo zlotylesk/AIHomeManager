@@ -74,7 +74,7 @@ class SeriesRepositoryTest extends KernelTestCase
     {
         $series = new Series(id: 'id-1', title: 'Breaking Bad');
         $season = new Season(id: 'season-1', seriesId: 'id-1', number: 1);
-        $episode = new Episode('ep-1', 'season-1', 'Pilot');
+        $episode = new Episode('ep-1', 'season-1', 'Pilot', 1);
 
         $series->addSeason($season);
         $series->addEpisode('season-1', $episode);
@@ -131,15 +131,15 @@ class SeriesRepositoryTest extends KernelTestCase
     {
         $first = new Series(id: 's-1', title: 'Breaking Bad');
         $first->addSeason(new Season(id: 's-1-se-1', seriesId: 's-1', number: 1));
-        $first->addEpisode('s-1-se-1', new Episode('s-1-ep-1', 's-1-se-1', 'Pilot'));
-        $first->addEpisode('s-1-se-1', new Episode('s-1-ep-2', 's-1-se-1', 'Cat in the Bag'));
+        $first->addEpisode('s-1-se-1', new Episode('s-1-ep-1', 's-1-se-1', 'Pilot', 1));
+        $first->addEpisode('s-1-se-1', new Episode('s-1-ep-2', 's-1-se-1', 'Cat in the Bag', 2));
         $first->addSeason(new Season(id: 's-1-se-2', seriesId: 's-1', number: 2));
-        $first->addEpisode('s-1-se-2', new Episode('s-1-ep-3', 's-1-se-2', 'Seven Thirty-Seven'));
+        $first->addEpisode('s-1-se-2', new Episode('s-1-ep-3', 's-1-se-2', 'Seven Thirty-Seven', 1));
         $first->rateEpisode('s-1-se-1', 's-1-ep-1', new Rating(9));
 
         $second = new Series(id: 's-2', title: 'The Wire');
         $second->addSeason(new Season(id: 's-2-se-1', seriesId: 's-2', number: 1));
-        $second->addEpisode('s-2-se-1', new Episode('s-2-ep-1', 's-2-se-1', 'The Target'));
+        $second->addEpisode('s-2-se-1', new Episode('s-2-ep-1', 's-2-se-1', 'The Target', 1));
 
         $this->repository->save($first);
         $this->repository->save($second);
