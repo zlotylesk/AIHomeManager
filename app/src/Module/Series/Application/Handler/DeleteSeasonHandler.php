@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\Series\Application\Handler;
+
+use App\Module\Series\Application\Command\DeleteSeason;
+use App\Module\Series\Domain\Repository\SeriesRepositoryInterface;
+use DomainException;
+use Psr\Log\LoggerInterface;
+use Redis;
+use Symfony\Component\DependencyInjection\Attribute\Target;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+
+#[AsMessageHandler(bus: 'command.bus')]
+final readonly class DeleteSeasonHandler
+{
+    public function __construct(
+        private SeriesRepositoryInterface $repository,
+        private Redis $redis,
+        #[Target('series')]
+        private LoggerInterface $logger,
+    ) {
+    }
+
+    public function __invoke(DeleteSeason $command): void
+    {
+        $series = $this->repository->findById($command->seriesId);
+        if (null === $series) {
+            throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
+        }
+
+        // Throws DomainException (→ 404) when the season is unknown.
+        $season = $series->removeSeason($command->seasonId);
+
+        $this->repository->deleteSeason($season);
+
+        // Dropping a season changes the series average too, so invalidate both.
+        $this->redis->del("season:avg:{$command->seasonId}");
+        $this->redis->del("series:avg:{$command->seriesId}");
+
+        $this->logger->info('Season deleted', [
+            'seriesId' => $command->seriesId,
+            'seasonId' => $command->seasonId,
+        ]);
+    }
+}

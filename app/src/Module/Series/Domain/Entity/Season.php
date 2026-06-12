@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Series\Domain\Entity;
 
 use App\Module\Series\Domain\ValueObject\Rating;
+use DomainException;
 
 final class Season
 {
@@ -68,5 +69,22 @@ final class Season
     public function findEpisode(string $episodeId): ?Episode
     {
         return $this->episodes[$episodeId] ?? null;
+    }
+
+    /**
+     * Detach an episode from the season and return it so the caller (repository)
+     * can delete the underlying row. Throws when the episode is unknown so the
+     * delete endpoint surfaces a clean 404.
+     */
+    public function removeEpisode(string $episodeId): Episode
+    {
+        $episode = $this->episodes[$episodeId] ?? null;
+        if (null === $episode) {
+            throw new DomainException(sprintf('Episode "%s" not found in season "%s".', $episodeId, $this->id));
+        }
+
+        unset($this->episodes[$episodeId]);
+
+        return $episode;
     }
 }

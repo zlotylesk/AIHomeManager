@@ -263,6 +263,68 @@ final class SeriesAggregateTest extends TestCase
         $series->linkTrakt('   ');
     }
 
+    public function testRemoveSeasonRemovesItFromTheCollection(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $series->removeSeason(self::SEASON_ID);
+
+        self::assertArrayNotHasKey(self::SEASON_ID, $series->seasons());
+    }
+
+    public function testRemoveSeasonReturnsTheRemovedSeasonWithItsEpisodes(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $removed = $series->removeSeason(self::SEASON_ID);
+
+        self::assertSame(self::SEASON_ID, $removed->id());
+        self::assertArrayHasKey(self::EPISODE_ID, $removed->episodes());
+    }
+
+    public function testRemoveUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->removeSeason('unknown-season');
+    }
+
+    public function testRemoveEpisodeRemovesItFromTheSeason(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $series->removeEpisode(self::SEASON_ID, self::EPISODE_ID);
+
+        $season = $series->seasons()[self::SEASON_ID];
+        self::assertArrayNotHasKey(self::EPISODE_ID, $season->episodes());
+    }
+
+    public function testRemoveEpisodeReturnsTheRemovedEpisode(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $removed = $series->removeEpisode(self::SEASON_ID, self::EPISODE_ID);
+
+        self::assertSame(self::EPISODE_ID, $removed->id());
+    }
+
+    public function testRemoveEpisodeOnUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->removeEpisode('unknown-season', self::EPISODE_ID);
+    }
+
+    public function testRemoveUnknownEpisodeThrows(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $this->expectException(DomainException::class);
+        $series->removeEpisode(self::SEASON_ID, 'unknown-episode');
+    }
+
     private function seriesWithSeason(): Series
     {
         $series = new Series(self::SERIES_ID, 'Breaking Bad');

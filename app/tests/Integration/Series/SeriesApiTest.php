@@ -522,4 +522,114 @@ class SeriesApiTest extends WebTestCase
 
         return [$seriesId, $seasonId, $episodeId];
     }
+
+    public function testDeleteSeriesReturns204AndCascadesSeasonsAndEpisodes(): void
+    {
+        // HMAI-185: deleting a series must clear its seasons + episodes (no ORM
+        // cascade is mapped, so the repository issues the deletes explicitly).
+        [$seriesId] = $this->seedSeriesWithEpisode();
+
+        $this->client->request('DELETE', "/api/series/{$seriesId}");
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        self::assertResponseStatusCodeSame(404);
+
+        self::assertSame(0, $this->countRows('series_seasons'));
+        self::assertSame(0, $this->countRows('series_episodes'));
+    }
+
+    public function testDeleteUnknownSeriesReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/series/non-existent');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteSeasonReturns204AndCascadesEpisodes(): void
+    {
+        [$seriesId, $seasonId] = $this->seedSeriesWithEpisode();
+
+        $this->client->request('DELETE', "/api/series/{$seriesId}/seasons/{$seasonId}");
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame([], $data['seasons']);
+
+        self::assertSame(0, $this->countRows('series_episodes'));
+    }
+
+    public function testDeleteSeasonForUnknownSeriesReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/series/non-existent/seasons/whatever');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteUnknownSeasonReturns404(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('DELETE', "/api/series/{$seriesId}/seasons/missing-season-id");
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteEpisodeReturns204AndRemovesItFromDetail(): void
+    {
+        [$seriesId, $seasonId, $episodeId] = $this->seedSeriesWithEpisode();
+
+        $this->client->request('DELETE', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}");
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame([], $data['seasons'][0]['episodes']);
+        self::assertSame(0, $this->countRows('series_episodes'));
+    }
+
+    public function testDeleteEpisodeForUnknownSeriesReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/series/non-existent/seasons/whatever/episodes/whatever');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteUnknownEpisodeReturns404(): void
+    {
+        [$seriesId, $seasonId] = $this->seedSeriesWithEpisode();
+
+        $this->client->request('DELETE', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/missing-episode-id");
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    /** @return array{0: string, 1: string, 2: string} [seriesId, seasonId, episodeId] */
+    private function seedSeriesWithEpisode(): array
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        return [$seriesId, $seasonId, $episodeId];
+    }
+
+    private function countRows(string $table): int
+    {
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+
+        return match ($table) {
+            'series_seasons' => (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM series_seasons'),
+            'series_episodes' => (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM series_episodes'),
+            default => (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM series'),
+        };
+    }
 }

@@ -8,6 +8,9 @@ use App\Module\Series\Application\Command\AddEpisode;
 use App\Module\Series\Application\Command\AddEpisodeRating;
 use App\Module\Series\Application\Command\AddSeason;
 use App\Module\Series\Application\Command\CreateSeries;
+use App\Module\Series\Application\Command\DeleteEpisode;
+use App\Module\Series\Application\Command\DeleteSeason;
+use App\Module\Series\Application\Command\DeleteSeries;
 use App\Module\Series\Application\Command\RateSeason;
 use App\Module\Series\Application\Command\RateSeries;
 use App\Module\Series\Application\Command\SetEpisodeWatched;
@@ -258,6 +261,53 @@ final class SeriesController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/{id}', methods: ['DELETE'])]
+    public function deleteSeries(string $id): JsonResponse
+    {
+        try {
+            $this->commandBus->dispatch(new DeleteSeries($id));
+        } catch (HandlerFailedException $e) {
+            return $this->mapDeleteFailure($e);
+        }
+
+        $this->logger->info('Series deleted', ['id' => $id]);
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/{seriesId}/seasons/{seasonId}', methods: ['DELETE'])]
+    public function deleteSeason(string $seriesId, string $seasonId): JsonResponse
+    {
+        try {
+            $this->commandBus->dispatch(new DeleteSeason($seriesId, $seasonId));
+        } catch (HandlerFailedException $e) {
+            return $this->mapDeleteFailure($e);
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/{seriesId}/seasons/{seasonId}/episodes/{episodeId}', methods: ['DELETE'])]
+    public function deleteEpisode(string $seriesId, string $seasonId, string $episodeId): JsonResponse
+    {
+        try {
+            $this->commandBus->dispatch(new DeleteEpisode($seriesId, $seasonId, $episodeId));
+        } catch (HandlerFailedException $e) {
+            return $this->mapDeleteFailure($e);
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /** A missing series/season/episode surfaces as DomainException → 404. */
+    private function mapDeleteFailure(HandlerFailedException $e): JsonResponse
+    {
+        if ($e->getPrevious() instanceof DomainException) {
+            return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_NOT_FOUND);
+        }
+        throw $e;
     }
 
     /**

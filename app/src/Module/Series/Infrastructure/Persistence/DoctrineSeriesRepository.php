@@ -58,6 +58,39 @@ final readonly class DoctrineSeriesRepository implements SeriesRepositoryInterfa
         return $series;
     }
 
+    public function delete(Series $series): void
+    {
+        // No ORM cascade is mapped (the aggregate persists each entity manually
+        // via string FKs), so deletions are issued explicitly. The aggregate was
+        // hydrated with all seasons + episodes by findById, so removing them here
+        // leaves no orphan rows.
+        foreach ($series->seasons() as $season) {
+            foreach ($season->episodes() as $episode) {
+                $this->entityManager->remove($episode);
+            }
+            $this->entityManager->remove($season);
+        }
+
+        $this->entityManager->remove($series);
+        $this->entityManager->flush();
+    }
+
+    public function deleteSeason(Season $season): void
+    {
+        foreach ($season->episodes() as $episode) {
+            $this->entityManager->remove($episode);
+        }
+
+        $this->entityManager->remove($season);
+        $this->entityManager->flush();
+    }
+
+    public function deleteEpisode(Episode $episode): void
+    {
+        $this->entityManager->remove($episode);
+        $this->entityManager->flush();
+    }
+
     /** @return Series[] */
     public function findAll(): array
     {
