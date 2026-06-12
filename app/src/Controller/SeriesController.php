@@ -10,6 +10,7 @@ use App\Module\Series\Application\Command\AddSeason;
 use App\Module\Series\Application\Command\CreateSeries;
 use App\Module\Series\Application\Command\RateSeason;
 use App\Module\Series\Application\Command\RateSeries;
+use App\Module\Series\Application\Command\SetEpisodeWatched;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
@@ -190,6 +191,37 @@ final class SeriesController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    #[Route('/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/watched', methods: ['PATCH'])]
+    public function setEpisodeWatched(string $seriesId, string $seasonId, string $episodeId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $watched = $data['watched'] ?? null;
+
+        if (!is_bool($watched)) {
+            return new JsonResponse(
+                ['error' => 'Field "watched" must be a boolean.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        try {
+            $this->commandBus->dispatch(new SetEpisodeWatched(
+                seriesId: $seriesId,
+                seasonId: $seasonId,
+                episodeId: $episodeId,
+                watched: $watched,
+            ));
+        } catch (HandlerFailedException $e) {
+            $original = $e->getPrevious();
+            if ($original instanceof DomainException) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
+            }
+            throw $e;
+        }
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
     #[Route('/{seriesId}/rating', methods: ['PATCH'])]
     public function rateSeries(string $seriesId, Request $request): JsonResponse
     {
@@ -269,18 +301,20 @@ final class SeriesController extends AbstractController
                 'number' => $season->number,
                 'rating' => $season->rating,
                 'averageRating' => $seasonAvg,
+                'watchedCount' => count(array_filter($season->episodes, fn ($e) => $e->watched)),
+                'episodeCount' => count($season->episodes),
                 'episodes' => array_map(fn ($e) => [
                     'id' => $e->id,
                     'title' => $e->title,
                     'rating' => $e->rating,
+                    'watched' => $e->watched,
+                    'watchedAt' => $e->watchedAt,
                 ], $season->episodes),
             ];
         }, $dto->seasons);
 
-        $allRated = array_merge(...array_map(
-            fn ($s) => array_filter($s->episodes, fn ($e) => null !== $e->rating),
-            $dto->seasons
-        ));
+        $allEpisodes = array_merge(...array_map(fn ($s) => $s->episodes, $dto->seasons));
+        $allRated = array_filter($allEpisodes, fn ($e) => null !== $e->rating);
         $seriesAvg = count($allRated) > 0
             ? round(array_sum(array_map(fn ($e) => $e->rating, $allRated)) / count($allRated), 2)
             : null;
@@ -291,6 +325,8 @@ final class SeriesController extends AbstractController
             'createdAt' => $dto->createdAt,
             'rating' => $dto->rating,
             'averageRating' => $seriesAvg,
+            'watchedCount' => count(array_filter($allEpisodes, fn ($e) => $e->watched)),
+            'episodeCount' => count($allEpisodes),
             'seasons' => $seasons,
         ];
     }

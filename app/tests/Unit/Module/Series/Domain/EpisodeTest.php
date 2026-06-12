@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Module\Series\Domain;
 
 use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\ValueObject\Rating;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 
 final class EpisodeTest extends TestCase
@@ -49,5 +50,46 @@ final class EpisodeTest extends TestCase
 
         self::assertNotNull($episode->rating());
         self::assertSame(9, $episode->rating()->value());
+    }
+
+    public function testStartsUnwatched(): void
+    {
+        $episode = new Episode('ep-1', 'season-1', 'Pilot');
+
+        self::assertFalse($episode->isWatched());
+        self::assertNull($episode->watchedAt());
+    }
+
+    public function testMarkWatchedDefaultsTimestampToNow(): void
+    {
+        $episode = new Episode('ep-1', 'season-1', 'Pilot');
+
+        $episode->markWatched();
+
+        self::assertTrue($episode->isWatched());
+        self::assertNotNull($episode->watchedAt());
+    }
+
+    public function testMarkWatchedAcceptsExplicitTimestamp(): void
+    {
+        // The Trakt import (HMAI-183) passes the real watched-at date.
+        $episode = new Episode('ep-1', 'season-1', 'Pilot');
+        $when = new DateTimeImmutable('2024-01-15 20:00:00');
+
+        $episode->markWatched($when);
+
+        self::assertTrue($episode->isWatched());
+        self::assertSame($when, $episode->watchedAt());
+    }
+
+    public function testUnmarkWatchedClearsFlagAndTimestamp(): void
+    {
+        $episode = new Episode('ep-1', 'season-1', 'Pilot');
+        $episode->markWatched();
+
+        $episode->unmarkWatched();
+
+        self::assertFalse($episode->isWatched());
+        self::assertNull($episode->watchedAt());
     }
 }

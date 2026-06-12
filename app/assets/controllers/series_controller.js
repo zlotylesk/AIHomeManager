@@ -30,6 +30,14 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({rating}),
     }),
+    // PATCH — toggles an episode's watched flag (HMAI-188). 204 on success,
+    // 422 for a non-boolean body, 404 if the episode is missing.
+    setEpisodeWatched: (seriesId, seasonId, episodeId, watched) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}/watched`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({watched}),
+    }),
     // PATCH — the user's own (manual) whole-series score, independent of the
     // episode-derived average. Same 204/422/404 contract as rateEpisode.
     rateSeries: (seriesId, rating) => apiCall(`/api/series/${seriesId}/rating`, {
@@ -252,23 +260,25 @@ export default class extends Controller {
 
     renderSeasonBlock(seriesId, season, onUpdate) {
         const seasonAvg = avg(season.episodes.map(e => e.rating));
+        const watchedCount = season.episodes.filter(e => e.watched).length;
         const block = document.createElement('div');
         block.className = 'season-block';
         block.dataset.seasonId = season.id;
 
         block.innerHTML = `
             <div class="season-header">
-                <h3>Season ${season.number} ${seasonAvg !== null ? `<small style="font-weight:normal;color:#6b7280">avg ${seasonAvg}</small>` : ''}</h3>
+                <h3>Season ${season.number} <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} watched${seasonAvg !== null ? ` · avg ${seasonAvg}` : ''}</small></h3>
                 <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
             </div>
             <div class="own-rating-row" data-season-own-rating></div>
             <table class="episodes-table">
-                <thead><tr><th>#</th><th>Title</th><th>Rating</th></tr></thead>
+                <thead><tr><th>#</th><th>Title</th><th>Watched</th><th>Rating</th></tr></thead>
                 <tbody class="episodes-tbody">${
                     season.episodes.map((ep, i) => `
-                        <tr>
+                        <tr class="${ep.watched ? 'episode-watched' : ''}">
                             <td>${i + 1}</td>
                             <td>${escHtml(ep.title)}</td>
+                            <td class="watched-cell" data-ep-index="${i}"></td>
                             <td class="rating-cell" data-ep-index="${i}"></td>
                         </tr>
                     `).join('')
@@ -284,6 +294,12 @@ export default class extends Controller {
                 season.rating = value;
             })
         );
+
+        // Hydrate each Watched cell into a checkbox toggle bound to its episode.
+        block.querySelectorAll('.watched-cell').forEach(td => {
+            const ep = season.episodes[Number(td.dataset.epIndex)];
+            this.renderWatchedCell(td, seriesId, season, ep, onUpdate);
+        });
 
         // Hydrate each Rating cell into a clickable control (display ↔ inline
         // selector). Built post-innerHTML so each cell binds to its episode object.
@@ -302,6 +318,34 @@ export default class extends Controller {
         });
 
         return block;
+    }
+
+    // Watched toggle for an episode (HMAI-188). Flipping it PATCHes the flag;
+    // on success the model updates and onUpdate() re-renders so the season's
+    // "X/Y watched" counter refreshes. On failure the checkbox reverts.
+    renderWatchedCell(td, seriesId, season, ep, onUpdate) {
+        td.innerHTML = '';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'js-episode-watched';
+        checkbox.checked = !!ep.watched;
+        checkbox.title = ep.watched ? 'Mark as not watched' : 'Mark as watched';
+        checkbox.addEventListener('change', async () => {
+            const next = checkbox.checked;
+            checkbox.disabled = true;
+            this.hideError();
+            try {
+                await API.setEpisodeWatched(seriesId, season.id, ep.id, next);
+                ep.watched = next;
+                ep.watchedAt = next ? new Date().toISOString() : null;
+                onUpdate();
+            } catch (err) {
+                checkbox.checked = !next;
+                checkbox.disabled = false;
+                this.showError(err.message || 'Failed to update watched status.');
+            }
+        });
+        td.appendChild(checkbox);
     }
 
     // Display mode for an episode's Rating cell: a button showing the current

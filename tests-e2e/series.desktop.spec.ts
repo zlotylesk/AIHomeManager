@@ -66,6 +66,29 @@ test('adding a rated episode updates season and series average immediately', asy
   await expect(page.locator('.meta strong')).toContainText('★ 8');
 });
 
+test('marking an episode watched updates the season counter (HMAI-188)', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Watched');
+  const seriesRes = await request.post('/api/series', { data: { title } });
+  const { id: seriesId } = await seriesRes.json();
+  const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
+  const { id: seasonId } = await seasonRes.json();
+  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Pilot' } });
+  expect(epRes.ok()).toBeTruthy();
+
+  await gotoSeriesList(page);
+  await openSeriesDetail(page, title);
+
+  // Episode starts unwatched: counter reads 0/1, checkbox unchecked.
+  await expect(page.locator('.season-block .season-header small')).toContainText('0/1 watched');
+  const checkbox = page.locator('.episodes-table .js-episode-watched');
+  await expect(checkbox).not.toBeChecked();
+
+  // Toggle watched — the row gets the watched class and the counter follows.
+  await checkbox.check();
+  await expect(page.locator('.season-block .season-header small')).toContainText('1/1 watched');
+  await expect(page.locator('.episodes-table tr.episode-watched')).toHaveCount(1);
+});
+
 test('rating an existing episode updates season and series average immediately', async ({ page, request }) => {
   const title = uniqueTitle('E2E RateExisting');
   const seriesRes = await request.post('/api/series', { data: { title } });
