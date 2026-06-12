@@ -239,6 +239,30 @@ final class SeriesAggregateTest extends TestCase
         $series->setEpisodeWatched(self::SEASON_ID, 'unknown-episode', true);
     }
 
+    public function testTraktIdStartsAsNull(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        self::assertNull($series->traktId());
+    }
+
+    public function testLinkTraktSetsTraktId(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $series->linkTrakt('1390');
+
+        self::assertSame('1390', $series->traktId());
+    }
+
+    public function testLinkTraktRejectsEmptyId(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->linkTrakt('   ');
+    }
+
     private function seriesWithSeason(): Series
     {
         $series = new Series(self::SERIES_ID, 'Breaking Bad');

@@ -44,6 +44,20 @@ final readonly class DoctrineSeriesRepository implements SeriesRepositoryInterfa
         return $series;
     }
 
+    public function findByTraktId(string $traktId): ?Series
+    {
+        $series = $this->entityManager->getRepository(Series::class)
+            ->findOneBy(['traktId' => $traktId]);
+
+        if (null === $series) {
+            return null;
+        }
+
+        $this->attachSeasonsAndEpisodes([$series]);
+
+        return $series;
+    }
+
     /** @return Series[] */
     public function findAll(): array
     {
