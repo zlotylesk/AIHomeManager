@@ -280,6 +280,18 @@ services:
             $limiterFactory: '@limiter.youtube_api'
             $limiterName: 'youtube_api'
 
+    app.trakt_http_client:
+        class: App\Http\RateLimitedHttpClient
+        arguments:
+            $inner: '@http_client'
+            $limiterFactory: '@limiter.trakt_api'
+            $limiterName: 'trakt_api'
+
+    App\Module\Series\Infrastructure\External\TraktApiClient:
+        arguments:
+            $httpClient: '@app.trakt_http_client'
+            $clientId: '%env(TRAKT_CLIENT_ID)%'
+
 when@test:
     services:
         # Spy logger lets ApiRateLimitTest assert the listener emits the expected

@@ -38,6 +38,13 @@ framework:
             rate: { interval: '1 minute', amount: 60 }
             cache_pool: 'cache.rate_limiter'
 
+        # Trakt API v2: ~1000 GET calls / 5 min (https://trakt.docs.apiary.io/#introduction/rate-limiting).
+        trakt_api:
+            policy: 'token_bucket'
+            limit: 1000
+            rate: { interval: '5 minutes', amount: 1000 }
+            cache_pool: 'cache.rate_limiter'
+
 when@test:
     services:
         # InMemoryStorage isn't tagged kernel.reset, so state survives across requests
@@ -61,4 +68,6 @@ when@test:
             national_library_api:
                 policy: 'no_limit'
             youtube_api:
+                policy: 'no_limit'
+            trakt_api:
                 policy: 'no_limit'
