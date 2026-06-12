@@ -171,6 +171,36 @@ final class Series
         }
     }
 
+    /**
+     * Detach a season (with its episodes) from the series and return it so the
+     * repository can delete the rows. Throws when the season is unknown so the
+     * delete endpoint surfaces a clean 404.
+     */
+    public function removeSeason(string $seasonId): Season
+    {
+        $season = $this->seasons[$seasonId] ?? null;
+        if (null === $season) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        unset($this->seasons[$seasonId]);
+
+        return $season;
+    }
+
+    /**
+     * Detach a single episode and return it for deletion. Validates both the
+     * season and the episode, throwing for either miss (→ 404).
+     */
+    public function removeEpisode(string $seasonId, string $episodeId): Episode
+    {
+        if (!isset($this->seasons[$seasonId])) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        return $this->seasons[$seasonId]->removeEpisode($episodeId);
+    }
+
     /** @return object[] */
     public function releaseEvents(): array
     {

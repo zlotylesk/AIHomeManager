@@ -157,6 +157,30 @@ test('setting own series and season ratings persists independently of the averag
   await expect(page.locator('.season-block [data-season-own-rating] .rating-cell-btn')).toHaveText('★ 6');
 });
 
+test('deleting an episode removes it from the season table (HMAI-185)', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Delete');
+  const seriesRes = await request.post('/api/series', { data: { title } });
+  const { id: seriesId } = await seriesRes.json();
+  const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
+  const { id: seasonId } = await seasonRes.json();
+  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Doomed Pilot' } });
+  expect(epRes.ok()).toBeTruthy();
+
+  // The delete button raises a confirm() dialog — auto-accept it.
+  page.on('dialog', (dialog) => dialog.accept());
+
+  await gotoSeriesList(page);
+  await openSeriesDetail(page, title);
+
+  await expect(page.locator('.episodes-table tbody tr')).toHaveCount(1);
+  await expect(page.locator('.episodes-table td', { hasText: 'Doomed Pilot' })).toBeVisible();
+
+  await page.locator('.episodes-table .js-delete-episode').click();
+
+  // After the model re-renders the row is gone.
+  await expect(page.locator('.episodes-table tbody tr')).toHaveCount(0);
+});
+
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 

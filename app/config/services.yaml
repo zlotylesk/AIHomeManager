@@ -44,6 +44,19 @@ services:
         arguments:
             $redis: '@app.redis'
 
+    # Delete handlers invalidate the cached series/season averages after removal.
+    App\Module\Series\Application\Handler\DeleteSeriesHandler:
+        arguments:
+            $redis: '@app.redis'
+
+    App\Module\Series\Application\Handler\DeleteSeasonHandler:
+        arguments:
+            $redis: '@app.redis'
+
+    App\Module\Series\Application\Handler\DeleteEpisodeHandler:
+        arguments:
+            $redis: '@app.redis'
+
     # HMAI-176: the bare UDP transport throws the instant a log line is shipped to
     # an unreachable Graylog (e.g. getaddrinfo for "graylog" fails when the monitoring
     # stack is down). Because the `series` and `auth` Monolog channels log on the

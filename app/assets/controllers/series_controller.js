@@ -52,6 +52,13 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({rating}),
     }),
+    // DELETE — cascades on the server (series → seasons → episodes). 204 → null
+    // on success, 404 if already gone.
+    deleteSeries: (seriesId) => apiCall(`/api/series/${seriesId}`, {method: 'DELETE'}),
+    deleteSeason: (seriesId, seasonId) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}`, {method: 'DELETE'}),
+    deleteEpisode: (seriesId, seasonId, episodeId) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}`, {method: 'DELETE'}),
 };
 
 function avg(nums) {
@@ -281,7 +288,7 @@ export default class extends Controller {
         return form;
     }
 
-    renderSeasonBlock(seriesId, season, onUpdate) {
+    renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
         const seasonAvg = avg(season.episodes.map(e => e.rating));
         const watchedCount = season.episodes.filter(e => e.watched).length;
         const block = document.createElement('div');
@@ -291,7 +298,10 @@ export default class extends Controller {
         block.innerHTML = `
             <div class="season-header">
                 <h3>Season ${season.number} <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} watched${seasonAvg !== null ? ` · avg ${seasonAvg}` : ''}</small></h3>
-                <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
+                <div class="season-header-actions">
+                    <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
+                    <button type="button" class="btn btn-danger btn-sm js-delete-season" title="Delete season">🗑</button>
+                </div>
             </div>
             <div class="own-rating-row" data-season-own-rating></div>
             <table class="episodes-table">
@@ -303,6 +313,7 @@ export default class extends Controller {
                             <td>${escHtml(ep.title)}</td>
                             <td class="watched-cell" data-ep-index="${i}"></td>
                             <td class="rating-cell" data-ep-index="${i}"></td>
+                            <td class="episode-actions" data-ep-index="${i}"></td>
                         </tr>
                     `).join('')
                 }</tbody>
@@ -329,6 +340,42 @@ export default class extends Controller {
         block.querySelectorAll('.rating-cell').forEach(td => {
             const ep = season.episodes[Number(td.dataset.epIndex)];
             this.renderRatingCell(td, seriesId, season, ep, onUpdate);
+        });
+
+        // Per-episode delete button. On success the episode is dropped from the
+        // model and onUpdate() re-renders so the table + averages refresh.
+        block.querySelectorAll('.episode-actions').forEach(td => {
+            const ep = season.episodes[Number(td.dataset.epIndex)];
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'btn-icon-danger js-delete-episode';
+            del.textContent = '🗑';
+            del.title = 'Delete episode';
+            del.addEventListener('click', async () => {
+                if (!confirm(`Delete episode "${ep.title}"?`)) return;
+                del.disabled = true;
+                this.hideError();
+                try {
+                    await API.deleteEpisode(seriesId, season.id, ep.id);
+                    season.episodes = season.episodes.filter(e => e.id !== ep.id);
+                    onUpdate();
+                } catch (err) {
+                    this.showError(err.message || 'Failed to delete episode.');
+                    del.disabled = false;
+                }
+            });
+            td.appendChild(del);
+        });
+
+        block.querySelector('.js-delete-season').addEventListener('click', async () => {
+            if (!confirm(`Delete Season ${season.number} and all its episodes?`)) return;
+            this.hideError();
+            try {
+                await API.deleteSeason(seriesId, season.id);
+                onDelete();
+            } catch (err) {
+                this.showError(err.message || 'Failed to delete season.');
+            }
         });
 
         block.querySelector('.js-add-episode').addEventListener('click', () => {
@@ -440,6 +487,7 @@ export default class extends Controller {
             </div>
             <div class="section-actions">
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-add-season">+ Add Season</button>
+                <button type="button" class="btn btn-danger btn-sm" id="btn-delete-series">🗑 Delete series</button>
             </div>
             <div id="seasons-container"></div>
         `;
@@ -452,17 +500,27 @@ export default class extends Controller {
             })
         );
 
+        const updateMeta = () => {
+            const detailAvg = avg(series.seasons.flatMap(s => s.episodes.map(e => e.rating)));
+            container.querySelector('.meta').innerHTML =
+                `${detailAvg !== null ? `Average rating: <strong>★ ${detailAvg}</strong>` : 'No ratings yet'} · ${series.seasons.length} season(s)`;
+        };
+
         const seasonsContainer = container.querySelector('#seasons-container');
         const renderSeasons = () => {
             seasonsContainer.innerHTML = '';
             series.seasons.forEach(season => {
                 seasonsContainer.appendChild(
-                    this.renderSeasonBlock(series.id, season, () => {
-                        const detailAvg = avg(series.seasons.flatMap(s => s.episodes.map(e => e.rating)));
-                        container.querySelector('.meta').innerHTML =
-                            `${detailAvg !== null ? `Average rating: <strong>★ ${detailAvg}</strong>` : 'No ratings yet'} · ${series.seasons.length} season(s)`;
-                        renderSeasons();
-                    })
+                    this.renderSeasonBlock(
+                        series.id,
+                        season,
+                        () => { updateMeta(); renderSeasons(); },
+                        () => {
+                            series.seasons = series.seasons.filter(s => s.id !== season.id);
+                            updateMeta();
+                            renderSeasons();
+                        }
+                    )
                 );
             });
         };
@@ -472,6 +530,19 @@ export default class extends Controller {
             if (container.querySelector('.add-season-form')) return;
             const form = this.buildAddSeasonForm(series, () => renderSeasons());
             container.querySelector('.section-actions').after(form);
+        });
+
+        container.querySelector('#btn-delete-series').addEventListener('click', async () => {
+            if (!confirm(`Delete "${series.title}" and all its seasons and episodes?`)) return;
+            this.hideError();
+            try {
+                await API.deleteSeries(series.id);
+                this.hide(this.$('series-detail-view'));
+                this.show(this.$('series-list-view'));
+                this.loadSeriesList();
+            } catch (err) {
+                this.showError(err.message || 'Failed to delete series.');
+            }
         });
     }
 

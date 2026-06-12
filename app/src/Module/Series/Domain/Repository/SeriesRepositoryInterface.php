@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Domain\Repository;
 
+use App\Module\Series\Domain\Entity\Episode;
+use App\Module\Series\Domain\Entity\Season;
 use App\Module\Series\Domain\Entity\Series;
 
 interface SeriesRepositoryInterface
@@ -21,4 +23,12 @@ interface SeriesRepositoryInterface
 
     /** @return Series[] */
     public function findAll(): array;
+
+    /** Deletes the series together with all its seasons and episodes. */
+    public function delete(Series $series): void;
+
+    /** Deletes a single season together with its episodes. */
+    public function deleteSeason(Season $season): void;
+
+    public function deleteEpisode(Episode $episode): void;
 }
