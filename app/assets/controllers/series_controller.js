@@ -59,6 +59,25 @@ const API = {
         `/api/series/${seriesId}/seasons/${seasonId}`, {method: 'DELETE'}),
     deleteEpisode: (seriesId, seasonId, episodeId) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}`, {method: 'DELETE'}),
+    // PATCH — edit metadata. 204 → null on success; 422 (bad title/number),
+    // 404 (missing), 409 (season number already used in the series).
+    renameSeries: (seriesId, title) => apiCall(`/api/series/${seriesId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title}),
+    }),
+    renumberSeason: (seriesId, seasonId, number) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({number}),
+    }),
+    renameEpisode: (seriesId, seasonId, episodeId, title) => apiCall(
+        `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title}),
+    }),
 };
 
 function avg(nums) {
@@ -242,6 +261,71 @@ export default class extends Controller {
         return wrap;
     }
 
+    // Inline text/number editor (HMAI-186). Renders `value` as a clickable
+    // control; clicking swaps it for an <input>. Enter or blur saves, Esc
+    // cancels. onSave(newValue) must resolve before the display updates; a
+    // rejection surfaces via showError and restores the previous value.
+    buildInlineEditable(value, {inputType = 'text', min = 1, ariaLabel, onSave}) {
+        const wrap = document.createElement('span');
+        wrap.className = 'inline-editable';
+
+        const normalize = (raw) => inputType === 'number' ? parseInt(raw, 10) : String(raw).trim();
+        const isValid = (v) => inputType === 'number' ? Number.isInteger(v) && v >= min : v !== '';
+
+        const showDisplay = () => {
+            wrap.innerHTML = '';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'inline-editable-value js-inline-edit';
+            btn.textContent = value;
+            btn.title = ariaLabel ? `Edit ${ariaLabel}` : 'Click to edit';
+            btn.addEventListener('click', showEditor);
+            wrap.appendChild(btn);
+        };
+
+        const showEditor = () => {
+            wrap.innerHTML = '';
+            const input = document.createElement('input');
+            input.type = inputType;
+            input.className = 'inline-editable-input';
+            input.value = value;
+            if (inputType === 'number') input.min = String(min);
+
+            // Enter→save re-renders and removes the input, which fires blur and
+            // would save again — `settled` collapses both into one action.
+            let settled = false;
+            const cancel = () => { if (!settled) { settled = true; showDisplay(); } };
+            const save = async () => {
+                if (settled) return;
+                const next = normalize(input.value);
+                if (next === value || !isValid(next)) { cancel(); return; }
+                settled = true;
+                input.disabled = true;
+                this.hideError();
+                try {
+                    await onSave(next);
+                    value = next;
+                } catch (err) {
+                    this.showError(err.message || 'Failed to save.');
+                }
+                showDisplay();
+            };
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); save(); }
+                else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            });
+            input.addEventListener('blur', save);
+
+            wrap.appendChild(input);
+            input.focus();
+            input.select();
+        };
+
+        showDisplay();
+        return wrap;
+    }
+
     buildAddEpisodeForm(seriesId, season, onAdded) {
         const form = document.createElement('form');
         form.className = 'add-episode-form';
@@ -297,7 +381,7 @@ export default class extends Controller {
 
         block.innerHTML = `
             <div class="season-header">
-                <h3>Season ${season.number} <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} watched${seasonAvg !== null ? ` · avg ${seasonAvg}` : ''}</small></h3>
+                <h3>Season <span class="js-season-number"></span> <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} watched${seasonAvg !== null ? ` · avg ${seasonAvg}` : ''}</small></h3>
                 <div class="season-header-actions">
                     <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
                     <button type="button" class="btn btn-danger btn-sm js-delete-season" title="Delete season">🗑</button>
@@ -310,7 +394,7 @@ export default class extends Controller {
                     season.episodes.map((ep, i) => `
                         <tr class="${ep.watched ? 'episode-watched' : ''}">
                             <td>${i + 1}</td>
-                            <td>${escHtml(ep.title)}</td>
+                            <td class="episode-title" data-ep-index="${i}"></td>
                             <td class="watched-cell" data-ep-index="${i}"></td>
                             <td class="rating-cell" data-ep-index="${i}"></td>
                             <td class="episode-actions" data-ep-index="${i}"></td>
@@ -319,6 +403,32 @@ export default class extends Controller {
                 }</tbody>
             </table>
         `;
+
+        // Inline-editable season number (HMAI-186) — renumber persists; a clash
+        // with another season's number surfaces a 409 via showError.
+        block.querySelector('.js-season-number').appendChild(
+            this.buildInlineEditable(season.number, {
+                inputType: 'number',
+                min: 1,
+                ariaLabel: 'season number',
+                onSave: async (number) => {
+                    await API.renumberSeason(seriesId, season.id, number);
+                    season.number = number;
+                },
+            })
+        );
+
+        // Inline-editable episode titles.
+        block.querySelectorAll('.episode-title').forEach(td => {
+            const ep = season.episodes[Number(td.dataset.epIndex)];
+            td.appendChild(this.buildInlineEditable(ep.title, {
+                ariaLabel: 'episode title',
+                onSave: async (title) => {
+                    await API.renameEpisode(seriesId, season.id, ep.id, title);
+                    ep.title = title;
+                },
+            }));
+        });
 
         // Season's own (manual) rating control — independent of the avg above.
         // Saving updates the model in place; no full re-render needed.
@@ -478,7 +588,7 @@ export default class extends Controller {
 
         container.innerHTML = `
             <div class="series-detail-header">
-                <h2>${escHtml(series.title)}</h2>
+                <h2 id="series-title-edit"></h2>
                 <div class="meta">
                     ${seriesAvg !== null ? `Average rating: <strong>★ ${seriesAvg}</strong>` : 'No ratings yet'}
                     · ${series.seasons.length} season(s)
@@ -491,6 +601,17 @@ export default class extends Controller {
             </div>
             <div id="seasons-container"></div>
         `;
+
+        // Inline-editable series title (HMAI-186).
+        container.querySelector('#series-title-edit').appendChild(
+            this.buildInlineEditable(series.title, {
+                ariaLabel: 'series title',
+                onSave: async (title) => {
+                    await API.renameSeries(series.id, title);
+                    series.title = title;
+                },
+            })
+        );
 
         // Series' own (manual) rating control — independent of the average above.
         container.querySelector('#series-own-rating').appendChild(

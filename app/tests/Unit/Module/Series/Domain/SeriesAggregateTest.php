@@ -8,6 +8,7 @@ use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\Entity\Season;
 use App\Module\Series\Domain\Entity\Series;
 use App\Module\Series\Domain\Event\EpisodeRated;
+use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
 use App\Module\Series\Domain\ValueObject\Rating;
 use DomainException;
 use PHPUnit\Framework\TestCase;
@@ -323,6 +324,77 @@ final class SeriesAggregateTest extends TestCase
 
         $this->expectException(DomainException::class);
         $series->removeEpisode(self::SEASON_ID, 'unknown-episode');
+    }
+
+    public function testRenameChangesSeriesTitle(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $series->rename('Better Call Saul');
+
+        self::assertSame('Better Call Saul', $series->title());
+    }
+
+    public function testRenumberSeasonChangesItsNumber(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $series->renumberSeason(self::SEASON_ID, 4);
+
+        self::assertSame(4, $series->seasons()[self::SEASON_ID]->number());
+    }
+
+    public function testRenumberSeasonToNumberUsedByAnotherSeasonThrows(): void
+    {
+        $series = $this->seriesWithSeason();
+        $series->addSeason(new Season('season-2', self::SERIES_ID, 2));
+
+        $this->expectException(SeasonNumberAlreadyTaken::class);
+        $series->renumberSeason(self::SEASON_ID, 2);
+    }
+
+    public function testRenumberSeasonToItsOwnNumberIsAllowed(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $series->renumberSeason(self::SEASON_ID, 1);
+
+        self::assertSame(1, $series->seasons()[self::SEASON_ID]->number());
+    }
+
+    public function testRenumberUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->renumberSeason('unknown-season', 2);
+    }
+
+    public function testRenameEpisodeChangesItsTitle(): void
+    {
+        $series = $this->seriesWithEpisode();
+
+        $series->renameEpisode(self::SEASON_ID, self::EPISODE_ID, 'Cat in the Bag');
+
+        $episode = $series->seasons()[self::SEASON_ID]->findEpisode(self::EPISODE_ID);
+        self::assertNotNull($episode);
+        self::assertSame('Cat in the Bag', $episode->title());
+    }
+
+    public function testRenameEpisodeOnUnknownSeasonThrows(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $this->expectException(DomainException::class);
+        $series->renameEpisode('unknown-season', self::EPISODE_ID, 'New title');
+    }
+
+    public function testRenameEpisodeOnUnknownEpisodeThrows(): void
+    {
+        $series = $this->seriesWithSeason();
+
+        $this->expectException(DomainException::class);
+        $series->renameEpisode(self::SEASON_ID, 'unknown-episode', 'New title');
     }
 
     private function seriesWithSeason(): Series

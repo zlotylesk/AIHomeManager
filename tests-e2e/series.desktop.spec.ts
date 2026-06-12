@@ -181,6 +181,31 @@ test('deleting an episode removes it from the season table (HMAI-185)', async ({
   await expect(page.locator('.episodes-table tbody tr')).toHaveCount(0);
 });
 
+test('editing the series title inline persists it (HMAI-186)', async ({ page, request }) => {
+  const title = uniqueTitle('E2E EditTitle');
+  const seriesRes = await request.post('/api/series', { data: { title } });
+  expect(seriesRes.ok()).toBeTruthy();
+
+  await gotoSeriesList(page);
+  await openSeriesDetail(page, title);
+
+  // Click the inline title, change it, save with Enter.
+  const newTitle = `${title} Edited`;
+  await page.locator('#series-title-edit .inline-editable-value').click();
+  const input = page.locator('#series-title-edit .inline-editable-input');
+  await input.fill(newTitle);
+  await input.press('Enter');
+
+  // Display reflects the new title in place…
+  await expect(page.locator('#series-title-edit .inline-editable-value')).toHaveText(newTitle);
+
+  // …and it persisted — reload from the API and reopen by the new title.
+  await page.reload();
+  await expect(page.locator('#series-list .loading')).toHaveCount(0, { timeout: 10_000 });
+  await openSeriesDetail(page, newTitle);
+  await expect(page.locator('#series-title-edit .inline-editable-value')).toHaveText(newTitle);
+});
+
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Series\Domain\Entity;
 
 use App\Module\Series\Domain\Event\EpisodeRated;
+use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
 use App\Module\Series\Domain\ValueObject\Rating;
 use DateTimeImmutable;
 use DomainException;
@@ -32,7 +33,7 @@ final class Series
 
     public function __construct(
         private readonly string $id,
-        private readonly string $title,
+        private string $title,
         private readonly DateTimeImmutable $createdAt = new DateTimeImmutable(),
     ) {
     }
@@ -199,6 +200,45 @@ final class Series
         }
 
         return $this->seasons[$seasonId]->removeEpisode($episodeId);
+    }
+
+    public function rename(string $title): void
+    {
+        $this->title = $title;
+    }
+
+    /**
+     * Change a season's number. Rejects a value already used by another season
+     * in this series (uniqueness is a whole-aggregate invariant, so it lives on
+     * the root) — surfaced as 409, distinct from the 404 for an unknown season.
+     */
+    public function renumberSeason(string $seasonId, int $number): void
+    {
+        if (!isset($this->seasons[$seasonId])) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        foreach ($this->seasons as $otherId => $season) {
+            if ($otherId !== $seasonId && $season->number() === $number) {
+                throw new SeasonNumberAlreadyTaken(sprintf('Season number %d is already used in series "%s".', $number, $this->id));
+            }
+        }
+
+        $this->seasons[$seasonId]->renumber($number);
+    }
+
+    public function renameEpisode(string $seasonId, string $episodeId, string $title): void
+    {
+        if (!isset($this->seasons[$seasonId])) {
+            throw new DomainException(sprintf('Season "%s" not found in series "%s".', $seasonId, $this->id));
+        }
+
+        $episode = $this->seasons[$seasonId]->findEpisode($episodeId);
+        if (null === $episode) {
+            throw new DomainException(sprintf('Episode "%s" not found in season "%s" of series "%s".', $episodeId, $seasonId, $this->id));
+        }
+
+        $episode->rename($title);
     }
 
     /** @return object[] */
