@@ -25,6 +25,18 @@
 
     <main class="app-main">
         <section id="series-list-view">
+            <div id="series-toolbar" class="series-toolbar hidden">
+                <input type="search" id="series-search" class="series-search"
+                       placeholder="Search series…" aria-label="Search series by title" autocomplete="off">
+                <label class="series-sort-label">Sort:
+                    <select id="series-sort" class="series-sort" aria-label="Sort series">
+                        <option value="title">Title A–Z</option>
+                        <option value="rating-desc">Average ★ ↓</option>
+                        <option value="own-desc">My rating ★ ↓</option>
+                        <option value="created-desc">Recently added</option>
+                    </select>
+                </label>
+            </div>
             <div id="series-list" class="series-grid">
                 <div class="loading">Loading…</div>
             </div>

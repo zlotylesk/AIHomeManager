@@ -86,15 +86,19 @@ function avg(nums) {
     return Math.round((filtered.reduce((a, b) => a + b, 0) / filtered.length) * 100) / 100;
 }
 
-function ratingBadge(value) {
-    if (value === null || value === undefined) return '<span class="no-rating">no rating</span>';
-    return `<span class="rating-badge">★ ${value}</span>`;
+// A single labelled score chip for a list card — "My ★ 8" / "Avg ★ 7.5", or a
+// muted em-dash when unset. Own and average ratings are shown side by side so
+// they read as distinct values (HMAI-189).
+function cardRating(label, value) {
+    const has = value !== null && value !== undefined;
+    return `<span class="card-rating${has ? '' : ' card-rating-empty'}">${label} ${has ? `★ ${value}` : '—'}</span>`;
 }
 
 export default class extends Controller {
     connect() {
         this.initAddSeriesModal();
         this.initNavigation();
+        this.initListControls();
         this.loadSeriesList();
     }
 
@@ -127,16 +131,88 @@ export default class extends Controller {
 
     // ── series list ──
 
-    renderSeriesList(seriesArr) {
+    // Wires the search box and sort selector (static Twig elements) and seeds
+    // the list state. The full, unfiltered set lives in this.allSeries so
+    // filtering/sorting is non-destructive and purely client-side (HMAI-189).
+    initListControls() {
+        this.allSeries = [];
+        this.searchTerm = '';
+        this.sortKey = 'title';
+
+        const search = this.$('series-search');
+        if (search) {
+            search.addEventListener('input', () => {
+                this.searchTerm = search.value;
+                this.applyListView();
+            });
+        }
+        const sort = this.$('series-sort');
+        if (sort) {
+            sort.addEventListener('change', () => {
+                this.sortKey = sort.value;
+                this.applyListView();
+            });
+        }
+    }
+
+    // Derives the visible cards from the full set: filter by title, then sort.
+    // Empty full set → onboarding hint (toolbar hidden); non-empty set with no
+    // matches → "no results" (toolbar stays, so the user can clear the filter).
+    applyListView() {
+        const toolbar = this.$('series-toolbar');
         const container = this.$('series-list');
-        if (!seriesArr.length) {
+
+        if (!this.allSeries.length) {
+            if (toolbar) this.hide(toolbar);
             container.innerHTML = '<div class="empty-state">No series yet. Add your first one!</div>';
             return;
         }
+
+        if (toolbar) this.show(toolbar);
+
+        const term = this.searchTerm.trim().toLowerCase();
+        const filtered = term
+            ? this.allSeries.filter(s => s.title.toLowerCase().includes(term))
+            : [...this.allSeries];
+
+        if (!filtered.length) {
+            container.innerHTML = '<div class="empty-state">No series match your search.</div>';
+            return;
+        }
+
+        this.renderSeriesList(this.sortSeries(filtered, this.sortKey));
+    }
+
+    // Returns a sorted copy. Unrated series sort last under the rating keys so
+    // a long unrated tail never buries the scored shows.
+    sortSeries(list, key) {
+        const desc = (a, b) => (b ?? -Infinity) - (a ?? -Infinity);
+        const sorted = [...list];
+        switch (key) {
+            case 'rating-desc':
+                sorted.sort((a, b) => desc(a.averageRating, b.averageRating));
+                break;
+            case 'own-desc':
+                sorted.sort((a, b) => desc(a.rating, b.rating));
+                break;
+            case 'created-desc':
+                sorted.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+                break;
+            default:
+                sorted.sort((a, b) => a.title.localeCompare(b.title));
+        }
+        return sorted;
+    }
+
+    renderSeriesList(seriesArr) {
+        const container = this.$('series-list');
         container.innerHTML = seriesArr.map(s => `
             <div class="series-card" data-id="${s.id}">
                 <h3>${escHtml(s.title)}</h3>
-                ${ratingBadge(s.averageRating)}
+                <div class="series-card-ratings">
+                    ${cardRating('My', s.rating)}
+                    ${cardRating('Avg', s.averageRating)}
+                </div>
             </div>
         `).join('');
 
@@ -149,8 +225,8 @@ export default class extends Controller {
         const container = this.$('series-list');
         container.innerHTML = '<div class="loading">Loading…</div>';
         try {
-            const data = await API.series();
-            this.renderSeriesList(data);
+            this.allSeries = await API.series();
+            this.applyListView();
         } catch {
             this.showError('Failed to load series. Is the backend running?');
             container.innerHTML = '';
