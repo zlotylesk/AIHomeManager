@@ -98,6 +98,35 @@ class SeriesRepositoryTest extends KernelTestCase
         self::assertSame(9, $foundEpisode->rating()->value());
     }
 
+    public function testSaveAndFindByTraktId(): void
+    {
+        $series = new Series(id: 'id-1', title: 'Breaking Bad');
+        $series->linkTrakt('1388');
+        $this->repository->save($series);
+        $this->em->clear();
+
+        $found = $this->repository->findByTraktId('1388');
+
+        self::assertNotNull($found);
+        self::assertSame('id-1', $found->id());
+        self::assertSame('1388', $found->traktId());
+    }
+
+    public function testFindByTraktIdReturnsNullForUnknownId(): void
+    {
+        self::assertNull($this->repository->findByTraktId('does-not-exist'));
+    }
+
+    public function testFindByTraktIdNeverMatchesManuallyAddedSeries(): void
+    {
+        // Manually-added series carry NULL trakt_id and must never be hit by an
+        // import lookup — otherwise the import would graft onto the wrong show.
+        $this->repository->save(new Series(id: 'id-1', title: 'Breaking Bad'));
+        $this->em->clear();
+
+        self::assertNull($this->repository->findByTraktId('1388'));
+    }
+
     public function testFindAllLoadsSeasonsAndEpisodes(): void
     {
         $first = new Series(id: 's-1', title: 'Breaking Bad');

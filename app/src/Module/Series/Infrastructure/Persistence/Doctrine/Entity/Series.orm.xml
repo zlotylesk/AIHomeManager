@@ -5,11 +5,15 @@
                                       https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
 
     <entity name="App\Module\Series\Domain\Entity\Series" table="series">
+        <unique-constraints>
+            <unique-constraint columns="trakt_id" name="uniq_series_trakt_id"/>
+        </unique-constraints>
         <indexes>
             <index name="idx_series_created_at" columns="created_at"/>
         </indexes>
         <id name="id" type="string" column="id" length="36"/>
         <field name="title" type="string" column="title" length="255" nullable="false"/>
+        <field name="traktId" type="string" column="trakt_id" length="64" nullable="true"/>
         <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
         <embedded name="rating" class="App\Module\Series\Domain\ValueObject\Rating" use-column-prefix="false"/>
     </entity>

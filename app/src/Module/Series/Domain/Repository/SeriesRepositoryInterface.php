@@ -12,6 +12,13 @@ interface SeriesRepositoryInterface
 
     public function findById(string $id): ?Series;
 
+    /**
+     * Looks up a series by its Trakt dedup key (HMAI-182). Used by the import to
+     * decide create-vs-update; returns null for unknown ids and never matches
+     * manually-added series (whose trakt_id is NULL).
+     */
+    public function findByTraktId(string $traktId): ?Series;
+
     /** @return Series[] */
     public function findAll(): array;
 }

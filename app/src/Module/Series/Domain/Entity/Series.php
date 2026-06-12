@@ -23,6 +23,13 @@ final class Series
      */
     private ?Rating $rating = null;
 
+    /**
+     * Stable dedup key from Trakt (the show's numeric id, stored as a string).
+     * Null for manually-added series; set only by the Trakt import so a re-import
+     * matches on this id rather than on fragile title comparison (HMAI-182).
+     */
+    private ?string $traktId = null;
+
     public function __construct(
         private readonly string $id,
         private readonly string $title,
@@ -43,6 +50,24 @@ final class Series
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function traktId(): ?string
+    {
+        return $this->traktId;
+    }
+
+    /**
+     * Link this series to its Trakt show. Idempotent re-imports rely on this id;
+     * an empty value would defeat dedup, so reject it.
+     */
+    public function linkTrakt(string $traktId): void
+    {
+        if ('' === trim($traktId)) {
+            throw new DomainException('Trakt id cannot be empty.');
+        }
+
+        $this->traktId = $traktId;
     }
 
     public function rating(): ?Rating
