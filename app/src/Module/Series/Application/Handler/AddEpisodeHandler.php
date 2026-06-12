@@ -35,7 +35,7 @@ final readonly class AddEpisodeHandler
         }
 
         $id = Uuid::v4()->toRfc4122();
-        $series->addEpisode($command->seasonId, new Episode($id, $command->seasonId, $command->title));
+        $series->addEpisode($command->seasonId, new Episode($id, $command->seasonId, $command->title, $command->number));
 
         if (null !== $command->rating) {
             $series->rateEpisode($command->seasonId, $id, new Rating($command->rating));

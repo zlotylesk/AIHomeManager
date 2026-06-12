@@ -16,11 +16,11 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({number}),
     }),
-    addEpisode: (seriesId, seasonId, title, rating) => apiCall(
+    addEpisode: (seriesId, seasonId, title, number, rating) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/episodes`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title, rating: rating || null}),
+        body: JSON.stringify({title, number, rating: rating || null}),
     }),
     // PATCH — sets/changes the rating of an existing episode. Returns 204
     // (apiCall → null) on success, 422 for a rating outside 1–10, 404 if missing.
@@ -332,8 +332,15 @@ export default class extends Controller {
         let selectedRating = null;
 
         const ratingSelector = this.renderRatingSelector(null, v => { selectedRating = v; });
+        // Default to the next free number; numbers may have gaps, so use max+1
+        // rather than the episode count (HMAI-187).
+        const nextNumber = season.episodes.length
+            ? Math.max(...season.episodes.map(e => e.number)) + 1
+            : 1;
 
         form.innerHTML = `
+            <label>Episode number</label>
+            <input type="number" min="1" class="js-episode-number" value="${nextNumber}" required>
             <label>Episode title</label>
             <input type="text" placeholder="e.g. Pilot" required>
             <div class="rating-row">
@@ -350,8 +357,9 @@ export default class extends Controller {
 
         form.addEventListener('submit', async e => {
             e.preventDefault();
-            const title = form.querySelector('input').value.trim();
-            if (!title) return;
+            const title = form.querySelector('input[type=text]').value.trim();
+            const number = parseInt(form.querySelector('.js-episode-number').value, 10);
+            if (!title || !number || number < 1) return;
 
             const submitBtn = form.querySelector('[type=submit]');
             submitBtn.disabled = true;
@@ -359,8 +367,8 @@ export default class extends Controller {
             this.hideError();
 
             try {
-                const {id} = await API.addEpisode(seriesId, season.id, title, selectedRating);
-                season.episodes.push({id, title, rating: selectedRating});
+                const {id} = await API.addEpisode(seriesId, season.id, title, number, selectedRating);
+                season.episodes.push({id, title, number, rating: selectedRating});
                 onAdded();
             } catch (err) {
                 this.showError(err.message || 'Failed to add episode.');
@@ -373,6 +381,8 @@ export default class extends Controller {
     }
 
     renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
+        // Display in stored-number order, not insertion order (HMAI-187).
+        season.episodes.sort((a, b) => a.number - b.number);
         const seasonAvg = avg(season.episodes.map(e => e.rating));
         const watchedCount = season.episodes.filter(e => e.watched).length;
         const block = document.createElement('div');
@@ -393,7 +403,7 @@ export default class extends Controller {
                 <tbody class="episodes-tbody">${
                     season.episodes.map((ep, i) => `
                         <tr class="${ep.watched ? 'episode-watched' : ''}">
-                            <td>${i + 1}</td>
+                            <td>${ep.number}</td>
                             <td class="episode-title" data-ep-index="${i}"></td>
                             <td class="watched-cell" data-ep-index="${i}"></td>
                             <td class="rating-cell" data-ep-index="${i}"></td>

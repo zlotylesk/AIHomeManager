@@ -10,6 +10,7 @@ final readonly class AddEpisode
         public string $seriesId,
         public string $seasonId,
         public string $title,
+        public int $number,
         public ?int $rating = null,
     ) {
     }

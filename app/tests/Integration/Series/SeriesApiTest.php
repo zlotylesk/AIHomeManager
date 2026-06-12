@@ -155,7 +155,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: json_encode(['number' => 1]));
         $seasonId = json_decode($this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode(['title' => 'Pilot', 'number' => 1]));
 
         self::assertResponseStatusCodeSame(201);
         $data = json_decode($this->client->getResponse()->getContent(), true);
@@ -188,7 +188,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/rating", content: (string) json_encode(['rating' => 8]));
@@ -211,7 +211,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/rating", content: (string) json_encode(['rating' => 11]));
@@ -229,7 +229,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}/rating", content: (string) json_encode(['rating' => '8']));
@@ -268,7 +268,7 @@ class SeriesApiTest extends WebTestCase
 
     public function testAddEpisodeForUnknownSeriesReturns404(): void
     {
-        $this->client->request('POST', '/api/series/non-existent/seasons/non-existent/episodes', content: json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', '/api/series/non-existent/seasons/non-existent/episodes', content: json_encode(['title' => 'Pilot', 'number' => 1]));
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -281,8 +281,8 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: json_encode(['number' => 1]));
         $seasonId = json_decode($this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode(['title' => 'Pilot', 'rating' => 8]));
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode(['title' => 'Episode 2', 'rating' => 10]));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode(['title' => 'Pilot', 'number' => 1, 'rating' => 8]));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: json_encode(['title' => 'Episode 2', 'number' => 2, 'rating' => 10]));
 
         $this->client->request('GET', "/api/series/{$seriesId}");
 
@@ -322,7 +322,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'rating' => 4]));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1, 'rating' => 4]));
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/rating", content: (string) json_encode(['rating' => 9]));
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/rating", content: (string) json_encode(['rating' => 7]));
@@ -491,7 +491,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilto']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilto', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}", content: (string) json_encode(['title' => 'Pilot']));
@@ -510,7 +510,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes/{$episodeId}", content: (string) json_encode(['title' => '']));
@@ -652,7 +652,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         return [$seriesId, $seasonId, $episodeId];
@@ -751,7 +751,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
         $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
-        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
         $episodeId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
         return [$seriesId, $seasonId, $episodeId];
@@ -766,5 +766,56 @@ class SeriesApiTest extends WebTestCase
             'series_episodes' => (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM series_episodes'),
             default => (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM series'),
         };
+    }
+
+    public function testAddEpisodeWithoutNumberReturns422(): void
+    {
+        [$seriesId, $seasonId] = $this->seedSeriesWithSeason();
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot']));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Episode number must be a positive integer.', $data['error']);
+    }
+
+    public function testAddEpisodeWithDuplicateNumberInSeasonReturns422(): void
+    {
+        [$seriesId, $seasonId] = $this->seedSeriesWithSeason();
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Pilot', 'number' => 1]));
+        self::assertResponseStatusCodeSame(201);
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Another', 'number' => 1]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testGetSeriesDetailReturnsEpisodeNumbersSortedByNumber(): void
+    {
+        [$seriesId, $seasonId] = $this->seedSeriesWithSeason();
+
+        // Add out of order — the read must come back sorted by number.
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Third', 'number' => 3]));
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'First', 'number' => 1]));
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        $episodes = $data['seasons'][0]['episodes'];
+        self::assertSame([1, 3], array_column($episodes, 'number'));
+        self::assertSame(['First', 'Third'], array_column($episodes, 'title'));
+    }
+
+    /** @return array{0: string, 1: string} [seriesId, seasonId] */
+    private function seedSeriesWithSeason(): array
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        $seasonId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        return [$seriesId, $seasonId];
     }
 }

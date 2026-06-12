@@ -6,6 +6,7 @@ namespace App\Module\Series\Domain\Entity;
 
 use App\Module\Series\Domain\ValueObject\Rating;
 use DomainException;
+use InvalidArgumentException;
 
 final class Season
 {
@@ -68,6 +69,15 @@ final class Season
 
     public function addEpisode(Episode $episode): void
     {
+        // Episode numbers are unique within a season (HMAI-187). A different
+        // episode already holding this number is rejected; re-adding under the
+        // same id (a replacement) is allowed.
+        foreach ($this->episodes as $existing) {
+            if ($existing->id() !== $episode->id() && $existing->number() === $episode->number()) {
+                throw new InvalidArgumentException(sprintf('Episode number %d already exists in this season.', $episode->number()));
+            }
+        }
+
         $this->episodes[$episode->id()] = $episode;
     }
 

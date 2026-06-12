@@ -45,7 +45,7 @@ final class SeriesFixtures extends Fixture
 
                 foreach ($entry['episodes'] as $episodeIndex => $episodeTitle) {
                     $episodeId = sprintf('%s-e%d', $seasonId, $episodeIndex + 1);
-                    $series->addEpisode($seasonId, new Episode($episodeId, $seasonId, $episodeTitle));
+                    $series->addEpisode($seasonId, new Episode($episodeId, $seasonId, $episodeTitle, $episodeIndex + 1));
                     $series->rateEpisode($seasonId, $episodeId, new Rating($ratings[$episodeIndex]));
                 }
             }

@@ -45,12 +45,12 @@ final class SeriesRowHydratorTest extends TestCase
             [
                 'series_id' => 's1', 'series_title' => 'Breaking Bad', 'series_created_at' => '2026-05-01',
                 'season_id' => 'se1', 'season_number' => 1,
-                'episode_id' => 'e1', 'episode_title' => 'Pilot', 'episode_rating' => '8',
+                'episode_id' => 'e1', 'episode_title' => 'Pilot', 'episode_number' => 1, 'episode_rating' => '8',
             ],
             [
                 'series_id' => 's1', 'series_title' => 'Breaking Bad', 'series_created_at' => '2026-05-01',
                 'season_id' => 'se1', 'season_number' => 1,
-                'episode_id' => 'e2', 'episode_title' => 'Cat in the Bag', 'episode_rating' => null,
+                'episode_id' => 'e2', 'episode_title' => 'Cat in the Bag', 'episode_number' => 2, 'episode_rating' => null,
             ],
             [
                 'series_id' => 's2', 'series_title' => 'Better Call Saul', 'series_created_at' => '2026-05-02',
@@ -65,6 +65,8 @@ final class SeriesRowHydratorTest extends TestCase
         self::assertCount(1, $result[0]->seasons);
         self::assertSame(1, $result[0]->seasons[0]->number);
         self::assertCount(2, $result[0]->seasons[0]->episodes);
+        self::assertSame(1, $result[0]->seasons[0]->episodes[0]->number);
+        self::assertSame(2, $result[0]->seasons[0]->episodes[1]->number);
         self::assertSame(8, $result[0]->seasons[0]->episodes[0]->rating);
         self::assertNull($result[0]->seasons[0]->episodes[1]->rating);
         self::assertSame([], $result[1]->seasons);
@@ -80,7 +82,7 @@ final class SeriesRowHydratorTest extends TestCase
                 'series_id' => 's1', 'series_title' => 'Breaking Bad', 'series_created_at' => '2026-05-01',
                 'series_rating' => '10',
                 'season_id' => 'se1', 'season_number' => 1, 'season_rating' => '7',
-                'episode_id' => 'e1', 'episode_title' => 'Pilot', 'episode_rating' => '8',
+                'episode_id' => 'e1', 'episode_title' => 'Pilot', 'episode_number' => 1, 'episode_rating' => '8',
             ],
         ];
 
@@ -98,7 +100,7 @@ final class SeriesRowHydratorTest extends TestCase
                 'series_id' => 's1', 'series_title' => 'Breaking Bad', 'series_created_at' => '2026-05-01',
                 'series_rating' => null,
                 'season_id' => 'se1', 'season_number' => 1, 'season_rating' => null,
-                'episode_id' => 'e1', 'episode_title' => 'Pilot', 'episode_rating' => null,
+                'episode_id' => 'e1', 'episode_title' => 'Pilot', 'episode_number' => 1, 'episode_rating' => null,
             ],
         ];
 

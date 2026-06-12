@@ -23,6 +23,7 @@ final class Episode
         private readonly string $id,
         private readonly string $seasonId,
         private string $title,
+        private readonly int $number,
     ) {
     }
 
@@ -39,6 +40,11 @@ final class Episode
     public function title(): string
     {
         return $this->title;
+    }
+
+    public function number(): int
+    {
+        return $this->number;
     }
 
     public function rating(): ?Rating
