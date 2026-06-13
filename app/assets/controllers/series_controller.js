@@ -78,6 +78,13 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title}),
     }),
+    // POST — fires the async Trakt → AIHM watched-shows import (HMAI-184).
+    // Resolves with the 202 body on success; apiCall throws with .status 409
+    // when Trakt is not connected, so the caller can prompt for /auth/trakt.
+    importFromTrakt: () => apiCall('/api/series/import/trakt', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    }),
 };
 
 function avg(nums) {
@@ -97,6 +104,7 @@ function cardRating(label, value) {
 export default class extends Controller {
     connect() {
         this.initAddSeriesModal();
+        this.initImportTrakt();
         this.initNavigation();
         this.initListControls();
         this.loadSeriesList();
@@ -127,6 +135,54 @@ export default class extends Controller {
     hideError() {
         const banner = document.getElementById('error-banner');
         if (banner) banner.classList.add('hidden');
+    }
+
+    // Neutral counterpart to showError for "it worked" feedback — e.g. the
+    // Trakt import kicking off in the background (HMAI-184).
+    showInfo(msg) {
+        const banner = document.getElementById('info-banner');
+        if (!banner) return;
+        banner.textContent = msg;
+        banner.classList.remove('hidden');
+        setTimeout(() => banner.classList.add('hidden'), TOAST_TIMEOUT_MS);
+    }
+
+    // ── trakt import ──
+
+    // Wires the header "Import from Trakt" button (HMAI-184). The import runs
+    // async server-side, so a click only kicks it off and reports "started".
+    initImportTrakt() {
+        const btn = this.$('btn-import-trakt');
+        if (!btn) return;
+        btn.addEventListener('click', () => this.importFromTrakt(btn));
+    }
+
+    async importFromTrakt(btn) {
+        this.hideError();
+        btn.disabled = true;
+        try {
+            await API.importFromTrakt();
+            this.showInfo('Trakt import started in the background. Your watched shows will appear shortly.');
+        } catch (err) {
+            // 409 = Trakt never connected; anything else is an unexpected failure.
+            if (err.status === 409) {
+                this.showTraktConnectPrompt();
+            } else {
+                this.showError(err.message || 'Failed to start the Trakt import.');
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // 409 path: point the user at the public OAuth flow. The markup is static
+    // (no user input), so innerHTML is XSS-safe, and we skip the auto-hide so
+    // the link stays put until the user acts on it.
+    showTraktConnectPrompt() {
+        const banner = document.getElementById('error-banner');
+        if (!banner) return;
+        banner.innerHTML = 'Connect your Trakt account first: <a href="/auth/trakt">Connect Trakt</a>';
+        banner.classList.remove('hidden');
     }
 
     // ── series list ──

@@ -11,6 +11,7 @@ use App\Module\Series\Application\Command\CreateSeries;
 use App\Module\Series\Application\Command\DeleteEpisode;
 use App\Module\Series\Application\Command\DeleteSeason;
 use App\Module\Series\Application\Command\DeleteSeries;
+use App\Module\Series\Application\Command\ImportWatchedShowsFromTrakt;
 use App\Module\Series\Application\Command\RateSeason;
 use App\Module\Series\Application\Command\RateSeries;
 use App\Module\Series\Application\Command\RenameEpisode;
@@ -21,6 +22,7 @@ use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
 use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
+use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
 use DomainException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -45,6 +47,7 @@ final class SeriesController extends AbstractController
         private readonly MessageBusInterface $queryBus,
         #[Target('series')]
         private readonly LoggerInterface $logger,
+        private readonly TraktTokenRepositoryInterface $traktTokens,
     ) {
     }
 
@@ -87,6 +90,33 @@ final class SeriesController extends AbstractController
         $this->logger->info('Series created', ['id' => $id, 'title' => $title]);
 
         return new JsonResponse(['id' => $id], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Kicks off a Trakt → AIHM import of watched shows (HMAI-184, closes the
+     * HMAI-178 epic). The work is rate-limited + I/O bound so it runs async
+     * (RabbitMQ) — this returns 202 Accepted immediately and never waits for
+     * the import to finish. Feedback is "started", not "imported N".
+     *
+     * A 409 short-circuits before dispatch when no Trakt token is stored, so the
+     * UI can prompt the user to connect rather than silently queueing a job the
+     * worker can only fail. authUrl points at the public OAuth init route.
+     */
+    #[Route('/import/trakt', methods: ['POST'])]
+    public function importFromTrakt(): JsonResponse
+    {
+        if (!$this->isTraktConnected()) {
+            return new JsonResponse(
+                ['error' => 'Trakt is not connected. Authorize at /auth/trakt first.', 'authUrl' => '/auth/trakt'],
+                Response::HTTP_CONFLICT
+            );
+        }
+
+        $this->commandBus->dispatch(new ImportWatchedShowsFromTrakt());
+
+        $this->logger->info('Trakt watched-shows import dispatched');
+
+        return new JsonResponse(['status' => 'import_started'], Response::HTTP_ACCEPTED);
     }
 
     #[Route('/{seriesId}/seasons', methods: ['POST'])]
@@ -450,6 +480,18 @@ final class SeriesController extends AbstractController
             return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
         throw $e;
+    }
+
+    /**
+     * True when a Trakt OAuth token is stored. A pure DB read — the heavy import
+     * (and any token refresh) happens in the async worker, so the synchronous
+     * endpoint never blocks on the network here.
+     */
+    private function isTraktConnected(): bool
+    {
+        $token = $this->traktTokens->get();
+
+        return null !== $token && isset($token['access_token']);
     }
 
     private function serializeDTO(SeriesDetailDTO $dto): array

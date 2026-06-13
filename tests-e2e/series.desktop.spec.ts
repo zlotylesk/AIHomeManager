@@ -240,6 +240,52 @@ test('list search filters and sort reorders the visible cards (HMAI-189)', async
   await expect(page.locator('.series-card').first().locator('h3')).toHaveText(zeta);
 });
 
+test('Import from Trakt button kicks off the async import and shows a started banner (HMAI-184)', async ({ page }) => {
+  await gotoSeriesList(page);
+
+  // Stub the import endpoint so the smoke test never touches the real Trakt
+  // OAuth flow — a connected account answers 202 "import_started".
+  let importCalled = false;
+  await page.route('**/api/series/import/trakt', async (route) => {
+    importCalled = true;
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'import_started' }),
+    });
+  });
+
+  const button = page.locator('#btn-import-trakt');
+  await expect(button).toBeVisible();
+  await button.click();
+
+  // The 202 surfaces as the info banner, and the endpoint was actually hit.
+  const banner = page.locator('#info-banner');
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveText(/import started/i);
+  expect(importCalled).toBeTruthy();
+});
+
+test('Import from Trakt prompts to connect when no token is stored (HMAI-184)', async ({ page }) => {
+  await gotoSeriesList(page);
+
+  // A disconnected account answers 409 — the front must offer the OAuth link
+  // instead of silently failing.
+  await page.route('**/api/series/import/trakt', async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Trakt is not connected.', authUrl: '/auth/trakt' }),
+    });
+  });
+
+  await page.locator('#btn-import-trakt').click();
+
+  const banner = page.locator('#error-banner');
+  await expect(banner).toBeVisible();
+  await expect(banner.locator('a[href="/auth/trakt"]')).toBeVisible();
+});
+
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 
