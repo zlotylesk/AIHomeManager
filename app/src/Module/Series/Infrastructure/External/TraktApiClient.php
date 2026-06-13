@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Infrastructure\External;
 
+use App\Module\Series\Domain\Port\WatchedShowsProviderInterface;
 use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -18,13 +19,13 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * The /sync/watched/shows payload carries the show (title, year, trakt id) and a
  * nested seasons[].episodes[] tree of *watched* episodes — episode numbers and
  * play timestamps, but no episode titles (Trakt omits those here). The import
- * layer (HMAI-183) consumes the structured shape below.
+ * layer (HMAI-183) consumes the structured shape defined on the port.
  *
- * @phpstan-type WatchedEpisode array{number: int, lastWatchedAt: string|null}
- * @phpstan-type WatchedSeason array{number: int, episodes: list<WatchedEpisode>}
- * @phpstan-type WatchedShow array{traktId: int, title: string, year: int|null, seasons: list<WatchedSeason>}
+ * @phpstan-import-type WatchedShow from WatchedShowsProviderInterface
+ * @phpstan-import-type WatchedSeason from WatchedShowsProviderInterface
+ * @phpstan-import-type WatchedEpisode from WatchedShowsProviderInterface
  */
-final readonly class TraktApiClient
+final readonly class TraktApiClient implements WatchedShowsProviderInterface
 {
     private const string BASE_URL = 'https://api.trakt.tv';
     private const string PROVIDER = 'trakt';
