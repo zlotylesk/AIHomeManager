@@ -93,9 +93,11 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 
 /* ── Series ── */
 .series-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
-.series-card { background: var(--color-surface); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); cursor: pointer; transition: box-shadow .15s, transform .15s; }
+/* min-width:0 collapses the grid item's automatic min-size (= title min-content),
+   so a long unbreakable title can't blow the 1fr track past the mobile viewport. */
+.series-card { min-width: 0; background: var(--color-surface); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .series-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateY(-2px); }
-.series-card h3 { font-size: 1rem; margin-bottom: .4rem; }
+.series-card h3 { font-size: 1rem; margin-bottom: .4rem; overflow-wrap: anywhere; }
 .rating-badge { display: inline-block; background: var(--color-rating); color: #fff; border-radius: 4px; padding: .1rem .5rem; font-size: .85rem; font-weight: 600; }
 .no-rating { color: var(--color-text-muted); font-size: .85rem; }
 .series-card-ratings { display: flex; gap: .4rem; flex-wrap: wrap; }
