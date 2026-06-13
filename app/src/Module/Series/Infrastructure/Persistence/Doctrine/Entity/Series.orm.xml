@@ -15,6 +15,10 @@
         <field name="title" type="string" column="title" length="255" nullable="false"/>
         <field name="traktId" type="string" column="trakt_id" length="64" nullable="true"/>
         <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
+        <field name="coverUrl" type="string" column="cover_url" length="1000" nullable="true"/>
+        <field name="year" type="integer" column="year" nullable="true"/>
+        <field name="status" type="series_status" column="status" length="20" nullable="true"/>
+        <field name="description" type="text" column="description" nullable="true"/>
         <embedded name="rating" class="App\Module\Series\Domain\ValueObject\Rating" use-column-prefix="false"/>
     </entity>
 

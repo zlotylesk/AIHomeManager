@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Domain\Entity;
 
+use App\Module\Series\Domain\Enum\SeriesStatus;
 use App\Module\Series\Domain\Event\EpisodeRated;
 use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
 use App\Module\Series\Domain\ValueObject\Rating;
@@ -30,6 +31,20 @@ final class Series
      * matches on this id rather than on fragile title comparison (HMAI-182).
      */
     private ?string $traktId = null;
+
+    /**
+     * Optional catalog metadata (HMAI-190) — all nullable, all independent of
+     * one another. coverUrl is stored as a validated string (the CoverUrl VO
+     * does the validation at the boundary, same as Books); status is a domain
+     * enum; year/description are plain scalars.
+     */
+    private ?string $coverUrl = null;
+
+    private ?int $year = null;
+
+    private ?SeriesStatus $status = null;
+
+    private ?string $description = null;
 
     public function __construct(
         private readonly string $id,
@@ -205,6 +220,40 @@ final class Series
     public function rename(string $title): void
     {
         $this->title = $title;
+    }
+
+    public function coverUrl(): ?string
+    {
+        return $this->coverUrl;
+    }
+
+    public function year(): ?int
+    {
+        return $this->year;
+    }
+
+    public function status(): ?SeriesStatus
+    {
+        return $this->status;
+    }
+
+    public function description(): ?string
+    {
+        return $this->description;
+    }
+
+    /**
+     * Full replace of the optional catalog metadata (HMAI-190). Each argument
+     * sets its field outright — a `null` clears it. Callers (the create + edit
+     * endpoints) are responsible for validating values first (coverUrl through
+     * the CoverUrl VO, year range, status enum), so this only stores.
+     */
+    public function updateMetadata(?string $coverUrl, ?int $year, ?SeriesStatus $status, ?string $description): void
+    {
+        $this->coverUrl = $coverUrl;
+        $this->year = $year;
+        $this->status = $status;
+        $this->description = $description;
     }
 
     /**

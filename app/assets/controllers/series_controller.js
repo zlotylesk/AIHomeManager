@@ -1,15 +1,17 @@
 import { Controller } from '@hotwired/stimulus';
-import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
+import { TOAST_TIMEOUT_MS, apiCall, escHtml, safeUrl } from '../util.js';
 
 const API = {
     series: () => apiCall('/api/series'),
     seriesDetail: (id) => apiCall(`/api/series/${id}`),
     // Mutations go through apiCall so the X-API-Key meta header is attached —
     // a bare fetch() skips it and the stateless api firewall answers 401 (HMAI-176).
-    createSeries: (title) => apiCall('/api/series', {
+    // `payload` carries the title plus optional metadata (coverUrl/year/status/
+    // description), each null when left blank (HMAI-190).
+    createSeries: (payload) => apiCall('/api/series', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title}),
+        body: JSON.stringify(payload),
     }),
     addSeason: (seriesId, number) => apiCall(`/api/series/${seriesId}/seasons`, {
         method: 'POST',
@@ -66,6 +68,14 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title}),
     }),
+    // PATCH — the full edit-details save: title plus the four metadata fields,
+    // which the server replaces wholesale (HMAI-190). Sending all four keys is
+    // what distinguishes this from the title-only inline edit above.
+    updateSeries: (seriesId, payload) => apiCall(`/api/series/${seriesId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    }),
     renumberSeason: (seriesId, seasonId, number) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}`, {
         method: 'PATCH',
@@ -99,6 +109,12 @@ function avg(nums) {
 function cardRating(label, value) {
     const has = value !== null && value !== undefined;
     return `<span class="card-rating${has ? '' : ' card-rating-empty'}">${label} ${has ? `★ ${value}` : '—'}</span>`;
+}
+
+// Human label for the series status enum (HMAI-190). Unknown/empty → null so
+// callers can omit the badge entirely.
+function statusLabel(status) {
+    return {ongoing: 'Ongoing', ended: 'Ended'}[status] ?? null;
 }
 
 export default class extends Controller {
@@ -262,15 +278,28 @@ export default class extends Controller {
 
     renderSeriesList(seriesArr) {
         const container = this.$('series-list');
-        container.innerHTML = seriesArr.map(s => `
+        container.innerHTML = seriesArr.map(s => {
+            const poster = safeUrl(s.coverUrl);
+            const status = statusLabel(s.status);
+            const metaBits = [s.year, status].filter(Boolean);
+            return `
             <div class="series-card" data-id="${s.id}">
-                <h3>${escHtml(s.title)}</h3>
-                <div class="series-card-ratings">
-                    ${cardRating('My', s.rating)}
-                    ${cardRating('Avg', s.averageRating)}
+                <div class="series-card-poster">
+                    ${poster
+                        ? `<img src="${escHtml(poster)}" alt="" loading="lazy">`
+                        : '<span class="series-card-poster-empty">No poster</span>'}
+                </div>
+                <div class="series-card-body">
+                    <h3>${escHtml(s.title)}</h3>
+                    ${metaBits.length ? `<div class="series-card-meta">${escHtml(metaBits.join(' · '))}</div>` : ''}
+                    <div class="series-card-ratings">
+                        ${cardRating('My', s.rating)}
+                        ${cardRating('Avg', s.averageRating)}
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         container.querySelectorAll('.series-card').forEach(card => {
             card.addEventListener('click', () => this.loadDetail(card.dataset.id));
@@ -727,17 +756,29 @@ export default class extends Controller {
         const seriesAvg = avg(
             series.seasons.flatMap(s => s.episodes.map(e => e.rating))
         );
+        const poster = safeUrl(series.coverUrl);
+        const catalogBits = [series.year, statusLabel(series.status)].filter(Boolean);
 
         container.innerHTML = `
             <div class="series-detail-header">
-                <h2 id="series-title-edit"></h2>
-                <div class="meta">
-                    ${seriesAvg !== null ? `Average rating: <strong>★ ${seriesAvg}</strong>` : 'No ratings yet'}
-                    · ${series.seasons.length} season(s)
+                <div class="series-detail-poster">
+                    ${poster
+                        ? `<img src="${escHtml(poster)}" alt="" loading="lazy">`
+                        : '<span class="series-card-poster-empty">No poster</span>'}
                 </div>
-                <div class="own-rating-row" id="series-own-rating"></div>
+                <div class="series-detail-info">
+                    <h2 id="series-title-edit"></h2>
+                    ${catalogBits.length ? `<div class="series-catalog-meta">${escHtml(catalogBits.join(' · '))}</div>` : ''}
+                    <div class="meta">
+                        ${seriesAvg !== null ? `Average rating: <strong>★ ${seriesAvg}</strong>` : 'No ratings yet'}
+                        · ${series.seasons.length} season(s)
+                    </div>
+                    <div class="own-rating-row" id="series-own-rating"></div>
+                    ${series.description ? `<p class="series-description">${escHtml(series.description)}</p>` : ''}
+                </div>
             </div>
             <div class="section-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-details">✎ Edit details</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-add-season">+ Add Season</button>
                 <button type="button" class="btn btn-danger btn-sm" id="btn-delete-series">🗑 Delete series</button>
             </div>
@@ -788,6 +829,14 @@ export default class extends Controller {
             });
         };
         renderSeasons();
+
+        container.querySelector('#btn-edit-details').addEventListener('click', () => {
+            if (container.querySelector('.edit-details-form')) return;
+            // Reload the detail on save so poster/year/status/description re-render
+            // from the persisted state (HMAI-190).
+            const form = this.buildEditDetailsForm(series, () => this.loadDetail(series.id));
+            container.querySelector('.section-actions').after(form);
+        });
 
         container.querySelector('#btn-add-season').addEventListener('click', () => {
             if (container.querySelector('.add-season-form')) return;
@@ -841,6 +890,73 @@ export default class extends Controller {
         return form;
     }
 
+    // Catalog-metadata editor (HMAI-190). Pre-filled from the loaded series and
+    // submitted as a full replace (title + the four fields) — leaving a field
+    // blank clears it server-side. onSaved() reloads the detail.
+    buildEditDetailsForm(series, onSaved) {
+        const form = document.createElement('form');
+        form.className = 'edit-details-form';
+        form.innerHTML = `
+            <label>Poster URL</label>
+            <input type="url" class="js-meta-cover" placeholder="https://…">
+            <label>Year</label>
+            <input type="number" min="1900" class="js-meta-year" placeholder="e.g. 2008">
+            <label>Status</label>
+            <select class="js-meta-status">
+                <option value="">—</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="ended">Ended</option>
+            </select>
+            <label>Description</label>
+            <textarea class="js-meta-description" rows="3" placeholder="Short synopsis…"></textarea>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Save details</button>
+                <button type="button" class="btn btn-secondary btn-sm js-cancel">Cancel</button>
+            </div>
+        `;
+
+        form.querySelector('.js-meta-cover').value = series.coverUrl ?? '';
+        form.querySelector('.js-meta-year').value = series.year ?? '';
+        form.querySelector('.js-meta-status').value = series.status ?? '';
+        form.querySelector('.js-meta-description').value = series.description ?? '';
+
+        form.querySelector('.js-cancel').addEventListener('click', () => form.remove());
+
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const submitBtn = form.querySelector('[type=submit]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving…';
+            this.hideError();
+            try {
+                await API.updateSeries(series.id, {title: series.title, ...this.readMetadataInputs(form)});
+                onSaved();
+            } catch (err) {
+                this.showError(err.message || 'Failed to save details.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save details';
+            }
+        });
+
+        return form;
+    }
+
+    // Reads the shared metadata inputs (.js-meta-*) from a create modal or edit
+    // form into a normalized payload: blank → null, year → int (HMAI-190).
+    readMetadataInputs(root) {
+        const cover = (root.querySelector('.js-meta-cover')?.value || '').trim();
+        const yearRaw = (root.querySelector('.js-meta-year')?.value || '').trim();
+        const status = root.querySelector('.js-meta-status')?.value || '';
+        const description = (root.querySelector('.js-meta-description')?.value || '').trim();
+
+        return {
+            coverUrl: cover || null,
+            year: yearRaw ? parseInt(yearRaw, 10) : null,
+            status: status || null,
+            description: description || null,
+        };
+    }
+
     async loadDetail(id) {
         this.hide(this.$('series-list-view'));
         this.show(this.$('series-detail-view'));
@@ -864,7 +980,7 @@ export default class extends Controller {
         const input = this.$('input-series-title');
 
         this.$('btn-add-series').addEventListener('click', () => {
-            input.value = '';
+            form.reset();
             this.show(modal);
             input.focus();
         });
@@ -881,7 +997,7 @@ export default class extends Controller {
             this.hideError();
 
             try {
-                await API.createSeries(title);
+                await API.createSeries({title, ...this.readMetadataInputs(form)});
                 this.hide(modal);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Create';

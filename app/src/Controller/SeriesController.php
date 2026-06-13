@@ -18,10 +18,13 @@ use App\Module\Series\Application\Command\RenameEpisode;
 use App\Module\Series\Application\Command\RenameSeries;
 use App\Module\Series\Application\Command\RenumberSeason;
 use App\Module\Series\Application\Command\SetEpisodeWatched;
+use App\Module\Series\Application\Command\UpdateSeriesMetadata;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
+use App\Module\Series\Domain\Enum\SeriesStatus;
 use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
+use App\Module\Series\Domain\ValueObject\CoverUrl;
 use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
 use DomainException;
 use InvalidArgumentException;
@@ -40,6 +43,8 @@ use Symfony\Component\Routing\Attribute\Route;
 final class SeriesController extends AbstractController
 {
     private const int MAX_TITLE_LENGTH = 255;
+    private const int MAX_DESCRIPTION_LENGTH = 2000;
+    private const int MIN_YEAR = 1900;
 
     public function __construct(
         private readonly MessageBusInterface $commandBus,
@@ -85,7 +90,19 @@ final class SeriesController extends AbstractController
             return $title;
         }
 
-        $id = $this->commandBus->dispatch(new CreateSeries($title))->last(HandledStamp::class)->getResult();
+        $data = json_decode($request->getContent(), true);
+        $metadata = $this->parseMetadata(is_array($data) ? $data : []);
+        if ($metadata instanceof JsonResponse) {
+            return $metadata;
+        }
+
+        $id = $this->commandBus->dispatch(new CreateSeries(
+            title: $title,
+            coverUrl: $metadata['coverUrl'],
+            year: $metadata['year'],
+            status: $metadata['status'],
+            description: $metadata['description'],
+        ))->last(HandledStamp::class)->getResult();
 
         $this->logger->info('Series created', ['id' => $id, 'title' => $title]);
 
@@ -348,8 +365,36 @@ final class SeriesController extends AbstractController
             return $title;
         }
 
+        $data = json_decode($request->getContent(), true);
+        $data = is_array($data) ? $data : [];
+
+        // Validate before any dispatch so an invalid metadata field returns 422
+        // without first half-applying the rename (HMAI-190).
+        $metadata = $this->parseMetadata($data);
+        if ($metadata instanceof JsonResponse) {
+            return $metadata;
+        }
+
+        // A bare {title} (the inline title-edit) carries no metadata keys and
+        // must leave the catalog fields untouched; a full edit-form save sends
+        // the four keys and replaces them wholesale.
+        $hasMetadata = array_key_exists('coverUrl', $data)
+            || array_key_exists('year', $data)
+            || array_key_exists('status', $data)
+            || array_key_exists('description', $data);
+
         try {
             $this->commandBus->dispatch(new RenameSeries($id, $title));
+
+            if ($hasMetadata) {
+                $this->commandBus->dispatch(new UpdateSeriesMetadata(
+                    seriesId: $id,
+                    coverUrl: $metadata['coverUrl'],
+                    year: $metadata['year'],
+                    status: $metadata['status'],
+                    description: $metadata['description'],
+                ));
+            }
         } catch (HandlerFailedException $e) {
             if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
@@ -431,6 +476,85 @@ final class SeriesController extends AbstractController
         }
 
         return $title;
+    }
+
+    /**
+     * Validates the optional catalog-metadata fields (HMAI-190) from an already
+     * JSON-decoded body. Returns a normalized bag (coverUrl VO, year int, status
+     * enum, description string — each nullable) or a ready-to-send 422. Absent
+     * keys yield null; this validates only what is present, so a caller that
+     * sends none gets all-null back.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array{coverUrl: CoverUrl|null, year: int|null, status: SeriesStatus|null, description: string|null}|JsonResponse
+     */
+    private function parseMetadata(array $data): array|JsonResponse
+    {
+        try {
+            $coverUrl = $this->parseCoverUrl($data['coverUrl'] ?? null);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $year = null;
+        if (array_key_exists('year', $data) && null !== $data['year']) {
+            $year = $data['year'];
+            if (!is_int($year) || $year < self::MIN_YEAR || $year > $this->maxYear()) {
+                return new JsonResponse(
+                    ['error' => sprintf('Field "year" must be an integer between %d and %d.', self::MIN_YEAR, $this->maxYear())],
+                    Response::HTTP_UNPROCESSABLE_ENTITY
+                );
+            }
+        }
+
+        $status = null;
+        if (array_key_exists('status', $data) && null !== $data['status']) {
+            $status = is_string($data['status']) ? SeriesStatus::tryFrom($data['status']) : null;
+            if (null === $status) {
+                return new JsonResponse(
+                    ['error' => 'Field "status" must be one of: ongoing, ended.'],
+                    Response::HTTP_UNPROCESSABLE_ENTITY
+                );
+            }
+        }
+
+        $description = null;
+        if (array_key_exists('description', $data) && null !== $data['description']) {
+            $description = trim((string) $data['description']);
+            if (mb_strlen($description) > self::MAX_DESCRIPTION_LENGTH) {
+                return new JsonResponse(
+                    ['error' => sprintf('Description must be at most %d characters.', self::MAX_DESCRIPTION_LENGTH)],
+                    Response::HTTP_UNPROCESSABLE_ENTITY
+                );
+            }
+            $description = '' === $description ? null : $description;
+        }
+
+        return ['coverUrl' => $coverUrl, 'year' => $year, 'status' => $status, 'description' => $description];
+    }
+
+    /**
+     * Builds the CoverUrl VO from a raw JSON value (HMAI-190), mirroring
+     * BooksController::parseCoverUrl: null or an empty/whitespace string means
+     * "no cover", anything else is validated by the VO (which throws on a bad
+     * URL → caught as 422 by parseMetadata).
+     */
+    private function parseCoverUrl(mixed $raw): ?CoverUrl
+    {
+        if (null === $raw) {
+            return null;
+        }
+
+        $trimmed = trim((string) $raw);
+
+        return '' === $trimmed ? null : new CoverUrl($trimmed);
+    }
+
+    /** Upper bound for the year field — a few years ahead for not-yet-aired shows. */
+    private function maxYear(): int
+    {
+        return (int) date('Y') + 5;
     }
 
     /**
@@ -530,6 +654,10 @@ final class SeriesController extends AbstractController
             'id' => $dto->id,
             'title' => $dto->title,
             'createdAt' => $dto->createdAt,
+            'coverUrl' => $dto->coverUrl,
+            'year' => $dto->year,
+            'status' => $dto->status,
+            'description' => $dto->description,
             'rating' => $dto->rating,
             'averageRating' => $seriesAvg,
             'watchedCount' => count(array_filter($allEpisodes, fn ($e) => $e->watched)),

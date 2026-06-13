@@ -807,6 +807,204 @@ class SeriesApiTest extends WebTestCase
         self::assertSame(['First', 'Third'], array_column($episodes, 'title'));
     }
 
+    public function testCreateSeriesWithMetadataAndGetReturnsIt(): void
+    {
+        // HMAI-190: create accepts coverUrl/year/status/description; GET echoes them.
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => 'https://image.tmdb.org/t/p/w500/poster.jpg',
+            'year' => 2008,
+            'status' => 'ended',
+            'description' => 'A high-school chemistry teacher turns to cooking meth.',
+        ]));
+        self::assertResponseStatusCodeSame(201);
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        self::assertSame('https://image.tmdb.org/t/p/w500/poster.jpg', $data['coverUrl']);
+        self::assertSame(2008, $data['year']);
+        self::assertSame('ended', $data['status']);
+        self::assertSame('A high-school chemistry teacher turns to cooking meth.', $data['description']);
+    }
+
+    public function testCreateSeriesWithoutMetadataReturnsNullFields(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        self::assertNull($data['coverUrl']);
+        self::assertNull($data['year']);
+        self::assertNull($data['status']);
+        self::assertNull($data['description']);
+    }
+
+    public function testCreateSeriesWithInvalidCoverUrlReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => 'not-a-url',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateSeriesWithDisallowedSchemeCoverUrlReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => 'javascript:alert(1)',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateSeriesWithOutOfRangeYearReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'year' => 1800,
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertStringContainsString('year', $data['error']);
+    }
+
+    public function testCreateSeriesWithNonIntYearReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'year' => '2008',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateSeriesWithUnknownStatusReturns422(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'status' => 'cancelled',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Field "status" must be one of: ongoing, ended.', $data['error']);
+    }
+
+    public function testPatchUpdatesSeriesMetadata(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}", content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => 'https://example.com/cover.jpg',
+            'year' => 2008,
+            'status' => 'ongoing',
+            'description' => 'Updated synopsis.',
+        ]));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('https://example.com/cover.jpg', $data['coverUrl']);
+        self::assertSame(2008, $data['year']);
+        self::assertSame('ongoing', $data['status']);
+        self::assertSame('Updated synopsis.', $data['description']);
+    }
+
+    public function testPatchTitleOnlyLeavesMetadataUntouched(): void
+    {
+        // The inline title-edit sends only {title}. It must not wipe the
+        // metadata set at creation (HMAI-190 partial-update guard).
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Braking Bad',
+            'coverUrl' => 'https://example.com/cover.jpg',
+            'year' => 2008,
+            'status' => 'ended',
+        ]));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}", content: (string) json_encode(['title' => 'Breaking Bad']));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Breaking Bad', $data['title']);
+        self::assertSame('https://example.com/cover.jpg', $data['coverUrl']);
+        self::assertSame(2008, $data['year']);
+        self::assertSame('ended', $data['status']);
+    }
+
+    public function testPatchCanClearMetadataWithNulls(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => 'https://example.com/cover.jpg',
+            'year' => 2008,
+            'status' => 'ended',
+            'description' => 'Synopsis.',
+        ]));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}", content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => null,
+            'year' => null,
+            'status' => null,
+            'description' => null,
+        ]));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertNull($data['coverUrl']);
+        self::assertNull($data['year']);
+        self::assertNull($data['status']);
+        self::assertNull($data['description']);
+    }
+
+    public function testPatchWithInvalidMetadataReturns422AndDoesNotRename(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request('PATCH', "/api/series/{$seriesId}", content: (string) json_encode([
+            'title' => 'Changed Title',
+            'status' => 'bogus',
+        ]));
+        self::assertResponseStatusCodeSame(422);
+
+        // Validation runs before any dispatch — the title must be unchanged.
+        $this->client->request('GET', "/api/series/{$seriesId}");
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertSame('Breaking Bad', $data['title']);
+    }
+
+    public function testListReturnsMetadata(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode([
+            'title' => 'Breaking Bad',
+            'coverUrl' => 'https://example.com/cover.jpg',
+            'year' => 2008,
+            'status' => 'ended',
+        ]));
+
+        $this->client->request('GET', '/api/series');
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        self::assertCount(1, $data);
+        self::assertSame('https://example.com/cover.jpg', $data[0]['coverUrl']);
+        self::assertSame(2008, $data[0]['year']);
+        self::assertSame('ended', $data[0]['status']);
+    }
+
     /** @return array{0: string, 1: string} [seriesId, seasonId] */
     private function seedSeriesWithSeason(): array
     {

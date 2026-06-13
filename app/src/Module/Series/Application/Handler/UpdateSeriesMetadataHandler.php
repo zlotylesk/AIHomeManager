@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Application\Handler;
 
-use App\Module\Series\Application\Command\CreateSeries;
-use App\Module\Series\Domain\Entity\Series;
+use App\Module\Series\Application\Command\UpdateSeriesMetadata;
 use App\Module\Series\Domain\Repository\SeriesRepositoryInterface;
+use DomainException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
-use Symfony\Component\Uid\Uuid;
 
 #[AsMessageHandler(bus: 'command.bus')]
-final readonly class CreateSeriesHandler
+final readonly class UpdateSeriesMetadataHandler
 {
     public function __construct(
         private SeriesRepositoryInterface $repository,
@@ -22,22 +21,21 @@ final readonly class CreateSeriesHandler
     ) {
     }
 
-    public function __invoke(CreateSeries $command): string
+    public function __invoke(UpdateSeriesMetadata $command): void
     {
-        $id = Uuid::v4()->toRfc4122();
+        $series = $this->repository->findById($command->seriesId);
+        if (null === $series) {
+            throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
+        }
 
-        $series = new Series(id: $id, title: $command->title);
         $series->updateMetadata(
             $command->coverUrl?->value(),
             $command->year,
             $command->status,
             $command->description,
         );
-
         $this->repository->save($series);
 
-        $this->logger->info('Series created', ['id' => $id, 'title' => $command->title]);
-
-        return $id;
+        $this->logger->info('Series metadata updated', ['seriesId' => $command->seriesId]);
     }
 }

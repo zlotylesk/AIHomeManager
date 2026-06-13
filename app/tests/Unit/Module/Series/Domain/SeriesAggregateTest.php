@@ -7,6 +7,7 @@ namespace App\Tests\Unit\Module\Series\Domain;
 use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\Entity\Season;
 use App\Module\Series\Domain\Entity\Series;
+use App\Module\Series\Domain\Enum\SeriesStatus;
 use App\Module\Series\Domain\Event\EpisodeRated;
 use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
 use App\Module\Series\Domain\ValueObject\Rating;
@@ -333,6 +334,42 @@ final class SeriesAggregateTest extends TestCase
         $series->rename('Better Call Saul');
 
         self::assertSame('Better Call Saul', $series->title());
+    }
+
+    public function testMetadataStartsAsNull(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        self::assertNull($series->coverUrl());
+        self::assertNull($series->year());
+        self::assertNull($series->status());
+        self::assertNull($series->description());
+    }
+
+    public function testUpdateMetadataSetsAllFields(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+
+        $series->updateMetadata('https://example.com/p.jpg', 2008, SeriesStatus::ENDED, 'A chemistry teacher turns to crime.');
+
+        self::assertSame('https://example.com/p.jpg', $series->coverUrl());
+        self::assertSame(2008, $series->year());
+        self::assertSame(SeriesStatus::ENDED, $series->status());
+        self::assertSame('A chemistry teacher turns to crime.', $series->description());
+    }
+
+    public function testUpdateMetadataReplacesWholesaleIncludingNulls(): void
+    {
+        $series = new Series(self::SERIES_ID, 'Breaking Bad');
+        $series->updateMetadata('https://example.com/p.jpg', 2008, SeriesStatus::ONGOING, 'desc');
+
+        // A second call is a full replace — passing null clears each field.
+        $series->updateMetadata(null, null, null, null);
+
+        self::assertNull($series->coverUrl());
+        self::assertNull($series->year());
+        self::assertNull($series->status());
+        self::assertNull($series->description());
     }
 
     public function testRenumberSeasonChangesItsNumber(): void
