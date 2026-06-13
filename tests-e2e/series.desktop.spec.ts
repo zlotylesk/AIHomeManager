@@ -72,7 +72,7 @@ test('marking an episode watched updates the season counter (HMAI-188)', async (
   const { id: seriesId } = await seriesRes.json();
   const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
   const { id: seasonId } = await seasonRes.json();
-  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Pilot' } });
+  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Pilot', number: 1 } });
   expect(epRes.ok()).toBeTruthy();
 
   await gotoSeriesList(page);
@@ -95,7 +95,7 @@ test('rating an existing episode updates season and series average immediately',
   const { id: seriesId } = await seriesRes.json();
   const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
   const { id: seasonId } = await seasonRes.json();
-  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Unrated Pilot' } });
+  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Unrated Pilot', number: 1 } });
   expect(epRes.ok()).toBeTruthy();
 
   await gotoSeriesList(page);
@@ -163,7 +163,7 @@ test('deleting an episode removes it from the season table (HMAI-185)', async ({
   const { id: seriesId } = await seriesRes.json();
   const seasonRes = await request.post(`/api/series/${seriesId}/seasons`, { data: { number: 1 } });
   const { id: seasonId } = await seasonRes.json();
-  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Doomed Pilot' } });
+  const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Doomed Pilot', number: 1 } });
   expect(epRes.ok()).toBeTruthy();
 
   // The delete button raises a confirm() dialog — auto-accept it.
@@ -214,6 +214,10 @@ test('list search filters and sort reorders the visible cards (HMAI-189)', async
   const zeta = `ZZZ ${stamp}`;
   // alpha is created first → zeta is the more recent of the two.
   expect((await request.post('/api/series', { data: { title: alpha } })).ok()).toBeTruthy();
+  // created_at is stored at second resolution, so two back-to-back inserts share
+  // a timestamp and "Recently added" can't separate them — the tie sorts
+  // arbitrarily (flaky in CI). Wait past a full second so zeta is strictly newer.
+  await new Promise((resolve) => setTimeout(resolve, 1100));
   expect((await request.post('/api/series', { data: { title: zeta } })).ok()).toBeTruthy();
 
   await gotoSeriesList(page);
