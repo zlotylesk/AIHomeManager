@@ -13,6 +13,10 @@ final readonly class SeriesDetailDTO
         public string $createdAt,
         public array $seasons,
         public ?int $rating = null,
+        public ?string $coverUrl = null,
+        public ?int $year = null,
+        public ?string $status = null,
+        public ?string $description = null,
     ) {
     }
 }

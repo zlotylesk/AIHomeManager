@@ -23,6 +23,7 @@ final readonly class GetSeriesDetailHandler
     {
         $rows = $this->connection->fetchAllAssociative(
             'SELECT s.id AS series_id, s.title AS series_title, s.created_at AS series_created_at, s.rating_value AS series_rating,
+                    s.cover_url AS series_cover_url, s.year AS series_year, s.status AS series_status, s.description AS series_description,
                     se.id AS season_id, se.number AS season_number, se.rating_value AS season_rating,
                     e.id AS episode_id, e.title AS episode_title, e.number AS episode_number, e.rating_value AS episode_rating,
                     e.watched AS episode_watched, e.watched_at AS episode_watched_at

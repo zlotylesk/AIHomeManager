@@ -18,6 +18,18 @@
             <form id="form-add-series">
                 <label for="input-series-title">Title</label>
                 <input id="input-series-title" type="text" placeholder="e.g. Breaking Bad" required autofocus>
+                <label for="input-series-cover">Poster URL <small>(optional)</small></label>
+                <input id="input-series-cover" class="js-meta-cover" type="url" placeholder="https://…">
+                <label for="input-series-year">Year <small>(optional)</small></label>
+                <input id="input-series-year" class="js-meta-year" type="number" min="1900" placeholder="e.g. 2008">
+                <label for="input-series-status">Status <small>(optional)</small></label>
+                <select id="input-series-status" class="js-meta-status">
+                    <option value="">—</option>
+                    <option value="ongoing">Ongoing</option>
+                    <option value="ended">Ended</option>
+                </select>
+                <label for="input-series-description">Description <small>(optional)</small></label>
+                <textarea id="input-series-description" class="js-meta-description" rows="3" placeholder="Short synopsis…"></textarea>
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Create</button>
                     <button type="button" class="btn btn-secondary" id="btn-cancel-series">Cancel</button>

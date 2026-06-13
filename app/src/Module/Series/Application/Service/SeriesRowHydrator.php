@@ -30,7 +30,7 @@ final readonly class SeriesRowHydrator
      */
     public function hydrate(array $rows): array
     {
-        /** @var array<string, array{id: string, title: string, createdAt: string, rating: int|null}> $seriesMap */
+        /** @var array<string, array{id: string, title: string, createdAt: string, rating: int|null, coverUrl: string|null, year: int|null, status: string|null, description: string|null}> $seriesMap */
         $seriesMap = [];
         /** @var array<string, array<string, array{id: string, number: int, rating: int|null}>> $seasonMap */
         $seasonMap = [];
@@ -47,6 +47,10 @@ final readonly class SeriesRowHydrator
                     'title' => (string) $row['series_title'],
                     'createdAt' => (string) $row['series_created_at'],
                     'rating' => isset($row['series_rating']) ? (int) $row['series_rating'] : null,
+                    'coverUrl' => isset($row['series_cover_url']) ? (string) $row['series_cover_url'] : null,
+                    'year' => isset($row['series_year']) ? (int) $row['series_year'] : null,
+                    'status' => isset($row['series_status']) ? (string) $row['series_status'] : null,
+                    'description' => isset($row['series_description']) ? (string) $row['series_description'] : null,
                 ];
                 $seasonMap[$seriesId] = [];
             }
@@ -89,6 +93,10 @@ final readonly class SeriesRowHydrator
                 createdAt: $s['createdAt'],
                 seasons: $seasonDTOs,
                 rating: $s['rating'],
+                coverUrl: $s['coverUrl'],
+                year: $s['year'],
+                status: $s['status'],
+                description: $s['description'],
             );
         }
 
