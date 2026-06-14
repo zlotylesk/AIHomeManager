@@ -145,4 +145,57 @@ final class TraktApiClientTest extends TestCase
 
         $client->fetchWatchedShows();
     }
+
+    public function testParsesRatingsIntoStructuredShape(): void
+    {
+        $client = new TraktApiClient($this->ratingsHttpClient(), $this->tokenRepo(), self::CLIENT_ID);
+
+        $ratings = $client->fetchRatings();
+
+        self::assertSame([['traktId' => 1, 'rating' => 9]], $ratings['shows']);
+        self::assertSame([['traktId' => 1, 'seasonNumber' => 1, 'rating' => 8]], $ratings['seasons']);
+        self::assertSame([['traktId' => 1, 'seasonNumber' => 1, 'episodeNumber' => 2, 'rating' => 10]], $ratings['episodes']);
+    }
+
+    public function testSkipsRatingsWithoutTraktIdOrOutOfRange(): void
+    {
+        $httpClient = new MockHttpClient(static function (string $method, string $url): MockResponse {
+            $body = str_contains($url, '/sync/ratings/shows')
+                ? json_encode([
+                    ['rating' => 9, 'show' => ['ids' => ['slug' => 'no-trakt-id']]], // no trakt id → skip
+                    ['rating' => 0, 'show' => ['ids' => ['trakt' => 5]]],            // rating out of range → skip
+                    ['rating' => 7, 'show' => ['ids' => ['trakt' => 6]]],            // valid
+                ])
+                : '[]';
+
+            return new MockResponse((string) $body);
+        });
+        $client = new TraktApiClient($httpClient, $this->tokenRepo(), self::CLIENT_ID);
+
+        $ratings = $client->fetchRatings();
+
+        self::assertSame([['traktId' => 6, 'rating' => 7]], $ratings['shows']);
+        self::assertSame([], $ratings['seasons']);
+        self::assertSame([], $ratings['episodes']);
+    }
+
+    private function ratingsHttpClient(): MockHttpClient
+    {
+        return new MockHttpClient(static function (string $method, string $url): MockResponse {
+            $body = match (true) {
+                str_contains($url, '/sync/ratings/shows') => json_encode([
+                    ['rating' => 9, 'show' => ['title' => 'Breaking Bad', 'ids' => ['trakt' => 1]]],
+                ]),
+                str_contains($url, '/sync/ratings/seasons') => json_encode([
+                    ['rating' => 8, 'season' => ['number' => 1], 'show' => ['ids' => ['trakt' => 1]]],
+                ]),
+                str_contains($url, '/sync/ratings/episodes') => json_encode([
+                    ['rating' => 10, 'episode' => ['season' => 1, 'number' => 2], 'show' => ['ids' => ['trakt' => 1]]],
+                ]),
+                default => '[]',
+            };
+
+            return new MockResponse((string) $body);
+        });
+    }
 }

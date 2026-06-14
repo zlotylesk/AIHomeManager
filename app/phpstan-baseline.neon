@@ -175,12 +175,6 @@ parameters:
 			path: src/Module/Music/Infrastructure/Persistence/DiscogsTokenRepositoryInterface.php
 
 		-
-			message: '#^Property App\\Module\\Series\\Domain\\ValueObject\\Rating\:\:\$value type mapping mismatch\: database can contain int\|null but property expects int\.$#'
-			identifier: doctrine.columnType
-			count: 1
-			path: src/Module/Series/Domain/ValueObject/Rating.php
-
-		-
 			message: '#^Method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleOAuthTokenRepository\:\:get\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
