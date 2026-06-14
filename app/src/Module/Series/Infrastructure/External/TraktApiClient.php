@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Infrastructure\External;
 
+use App\Module\Series\Domain\Port\RatingsProviderInterface;
 use App\Module\Series\Domain\Port\WatchedShowsProviderInterface;
 use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
 use Psr\Log\LoggerInterface;
@@ -24,8 +25,12 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * @phpstan-import-type WatchedShow from WatchedShowsProviderInterface
  * @phpstan-import-type WatchedSeason from WatchedShowsProviderInterface
  * @phpstan-import-type WatchedEpisode from WatchedShowsProviderInterface
+ * @phpstan-import-type TraktRatings from RatingsProviderInterface
+ * @phpstan-import-type ShowRating from RatingsProviderInterface
+ * @phpstan-import-type SeasonRating from RatingsProviderInterface
+ * @phpstan-import-type EpisodeRating from RatingsProviderInterface
  */
-final readonly class TraktApiClient implements WatchedShowsProviderInterface
+final readonly class TraktApiClient implements WatchedShowsProviderInterface, RatingsProviderInterface
 {
     private const string BASE_URL = 'https://api.trakt.tv';
     private const string PROVIDER = 'trakt';
@@ -48,6 +53,35 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface
      */
     public function fetchWatchedShows(): array
     {
+        return $this->parseWatchedShows($this->get('/sync/watched/shows', ['extended' => 'full']));
+    }
+
+    /**
+     * Fetches the user's Trakt ratings (1–10) for shows, seasons and episodes
+     * across the three sync endpoints. Not cached — the import reads current truth.
+     *
+     * @return TraktRatings
+     */
+    public function fetchRatings(): array
+    {
+        return [
+            'shows' => $this->parseShowRatings($this->get('/sync/ratings/shows')),
+            'seasons' => $this->parseSeasonRatings($this->get('/sync/ratings/seasons')),
+            'episodes' => $this->parseEpisodeRatings($this->get('/sync/ratings/episodes')),
+        ];
+    }
+
+    /**
+     * Authenticated GET against the Trakt sync API, decoded to an array. Shared by
+     * the watched + ratings imports: guards the client id and stored token, records
+     * the call, and maps transport errors onto a readable RuntimeException.
+     *
+     * @param array<string, string> $query
+     *
+     * @return array<array-key, mixed>
+     */
+    private function get(string $path, array $query = []): array
+    {
         // trim() catches a whitespace-only client id (copy-paste misconfig) the
         // same way the other clients guard their keys.
         if ('' === trim($this->clientId)) {
@@ -60,31 +94,33 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface
             throw new RuntimeException('Trakt account not connected.');
         }
 
+        $options = [
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'trakt-api-version' => self::API_VERSION,
+                'trakt-api-key' => $this->clientId,
+                'Authorization' => 'Bearer '.$accessToken,
+            ],
+        ];
+        if ([] !== $query) {
+            $options['query'] = $query;
+        }
+
         $start = microtime(true);
-        $status = null;
 
         try {
-            $response = $this->httpClient->request('GET', self::BASE_URL.'/sync/watched/shows', [
-                'query' => ['extended' => 'full'],
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'trakt-api-version' => self::API_VERSION,
-                    'trakt-api-key' => $this->clientId,
-                    'Authorization' => 'Bearer '.$accessToken,
-                ],
-            ]);
-
+            $response = $this->httpClient->request('GET', self::BASE_URL.$path, $options);
             $status = $response->getStatusCode();
             $data = $response->toArray();
         } catch (TransportExceptionInterface $e) {
-            $this->recordCall('/sync/watched/shows', $start, null, 'transport_error');
+            $this->recordCall($path, $start, null, 'transport_error');
 
             throw new RuntimeException('Trakt API unavailable.', 0, $e);
         }
 
-        $this->recordCall('/sync/watched/shows', $start, $status);
+        $this->recordCall($path, $start, $status);
 
-        return $this->parseWatchedShows($data);
+        return $data;
     }
 
     /**
@@ -181,6 +217,100 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<array-key, mixed> $data
+     *
+     * @return list<ShowRating>
+     */
+    private function parseShowRatings(array $data): array
+    {
+        $result = [];
+        foreach ($data as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $rating = $this->validRating($item['rating'] ?? null);
+            $traktId = $this->showTraktId($item);
+            if (null === $rating || null === $traktId) {
+                continue;
+            }
+            $result[] = ['traktId' => $traktId, 'rating' => $rating];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<array-key, mixed> $data
+     *
+     * @return list<SeasonRating>
+     */
+    private function parseSeasonRatings(array $data): array
+    {
+        $result = [];
+        foreach ($data as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $rating = $this->validRating($item['rating'] ?? null);
+            $traktId = $this->showTraktId($item);
+            $season = is_array($item['season'] ?? null) ? $item['season'] : null;
+            $seasonNumber = is_array($season) && is_int($season['number'] ?? null) ? $season['number'] : null;
+            if (null === $rating || null === $traktId || null === $seasonNumber) {
+                continue;
+            }
+            $result[] = ['traktId' => $traktId, 'seasonNumber' => $seasonNumber, 'rating' => $rating];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<array-key, mixed> $data
+     *
+     * @return list<EpisodeRating>
+     */
+    private function parseEpisodeRatings(array $data): array
+    {
+        $result = [];
+        foreach ($data as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $rating = $this->validRating($item['rating'] ?? null);
+            $traktId = $this->showTraktId($item);
+            $episode = is_array($item['episode'] ?? null) ? $item['episode'] : null;
+            $seasonNumber = is_array($episode) && is_int($episode['season'] ?? null) ? $episode['season'] : null;
+            $episodeNumber = is_array($episode) && is_int($episode['number'] ?? null) ? $episode['number'] : null;
+            if (null === $rating || null === $traktId || null === $seasonNumber || null === $episodeNumber) {
+                continue;
+            }
+            $result[] = ['traktId' => $traktId, 'seasonNumber' => $seasonNumber, 'episodeNumber' => $episodeNumber, 'rating' => $rating];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<array-key, mixed> $item
+     */
+    private function showTraktId(array $item): ?int
+    {
+        $show = $item['show'] ?? null;
+        if (!is_array($show)) {
+            return null;
+        }
+        $ids = $show['ids'] ?? null;
+        $traktId = is_array($ids) ? ($ids['trakt'] ?? null) : null;
+
+        return is_int($traktId) ? $traktId : null;
+    }
+
+    private function validRating(mixed $rating): ?int
+    {
+        return is_int($rating) && $rating >= 1 && $rating <= 10 ? $rating : null;
     }
 
     private function recordCall(string $endpoint, float $startMicrotime, ?int $statusCode, ?string $error = null): void

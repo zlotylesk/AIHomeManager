@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Series;
 
+use App\Module\Series\Application\Command\ImportRatingsFromTrakt;
 use App\Module\Series\Application\Command\ImportWatchedShowsFromTrakt;
 use App\Module\Series\Application\Handler\ImportWatchedShowsFromTraktHandler;
 use App\Module\Series\Domain\Entity\Episode;
@@ -15,6 +16,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
 {
@@ -117,12 +120,28 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
     {
         $provider = $this->createStub(WatchedShowsProviderInterface::class);
         $provider->method('fetchWatchedShows')->willThrowException(new RuntimeException('Trakt account not connected.'));
-        $handler = new ImportWatchedShowsFromTraktHandler($provider, $this->repository, new NullLogger());
+        $handler = new ImportWatchedShowsFromTraktHandler($provider, $this->repository, new NullLogger(), $this->busStub());
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Trakt account not connected.');
 
         $handler(new ImportWatchedShowsFromTrakt());
+    }
+
+    public function testChainsRatingsImportAfterWatchedShows(): void
+    {
+        // The watched import must hand off to the ratings import (HMAI-220) so a
+        // single "Import from Trakt" click brings both watched state and ratings.
+        $provider = $this->createStub(WatchedShowsProviderInterface::class);
+        $provider->method('fetchWatchedShows')->willReturn($this->sampleShows());
+
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->expects(self::once())
+            ->method('dispatch')
+            ->with(self::isInstanceOf(ImportRatingsFromTrakt::class))
+            ->willReturn(new Envelope(new ImportRatingsFromTrakt()));
+
+        (new ImportWatchedShowsFromTraktHandler($provider, $this->repository, new NullLogger(), $bus))(new ImportWatchedShowsFromTrakt());
     }
 
     /**
@@ -133,7 +152,15 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
         $provider = $this->createStub(WatchedShowsProviderInterface::class);
         $provider->method('fetchWatchedShows')->willReturn($shows);
 
-        return new ImportWatchedShowsFromTraktHandler($provider, $this->repository, new NullLogger());
+        return new ImportWatchedShowsFromTraktHandler($provider, $this->repository, new NullLogger(), $this->busStub());
+    }
+
+    private function busStub(): MessageBusInterface
+    {
+        $bus = $this->createStub(MessageBusInterface::class);
+        $bus->method('dispatch')->willReturn(new Envelope(new ImportRatingsFromTrakt()));
+
+        return $bus;
     }
 
     /**

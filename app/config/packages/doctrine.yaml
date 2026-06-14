@@ -6,6 +6,7 @@ doctrine:
             task_status: App\Module\Tasks\Infrastructure\Persistence\Doctrine\Type\TaskStatusType
             book_status: App\Module\Books\Infrastructure\Persistence\Doctrine\Type\BookStatusType
             series_status: App\Module\Series\Infrastructure\Persistence\Doctrine\Type\SeriesStatusType
+            series_rating: App\Module\Series\Infrastructure\Persistence\Doctrine\Type\RatingType
             listening_source: App\Module\Music\Infrastructure\Persistence\Doctrine\Type\ListeningSourceType
 
         # IMPORTANT: You MUST configure your server version,
@@ -22,11 +23,6 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Series/Infrastructure/Persistence/Doctrine/Entity'
                 prefix: 'App\Module\Series\Domain\Entity'
-            SeriesDomainValueObjects:
-                is_bundle: false
-                type: xml
-                dir: '%kernel.project_dir%/src/Module/Series/Infrastructure/Persistence/Doctrine/ValueObject'
-                prefix: 'App\Module\Series\Domain\ValueObject'
             ArticlesDomainEntities:
                 is_bundle: false
                 type: xml

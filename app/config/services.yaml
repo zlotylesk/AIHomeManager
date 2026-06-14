@@ -308,6 +308,9 @@ services:
     App\Module\Series\Domain\Port\WatchedShowsProviderInterface:
         alias: App\Module\Series\Infrastructure\External\TraktApiClient
 
+    App\Module\Series\Domain\Port\RatingsProviderInterface:
+        alias: App\Module\Series\Infrastructure\External\TraktApiClient
+
 when@test:
     services:
         # Spy logger lets ApiRateLimitTest assert the listener emits the expected

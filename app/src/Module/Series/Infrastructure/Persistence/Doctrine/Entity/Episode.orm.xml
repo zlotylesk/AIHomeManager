@@ -18,7 +18,7 @@
             </options>
         </field>
         <field name="watchedAt" type="datetime_immutable" column="watched_at" nullable="true"/>
-        <embedded name="rating" class="App\Module\Series\Domain\ValueObject\Rating" use-column-prefix="false"/>
+        <field name="rating" type="series_rating" column="rating_value" nullable="true"/>
     </entity>
 
 </doctrine-mapping>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Application\Handler;
 
+use App\Module\Series\Application\Command\ImportRatingsFromTrakt;
 use App\Module\Series\Application\Command\ImportWatchedShowsFromTrakt;
 use App\Module\Series\Domain\Entity\Episode;
 use App\Module\Series\Domain\Entity\Season;
@@ -15,6 +16,7 @@ use Exception;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -38,6 +40,7 @@ final readonly class ImportWatchedShowsFromTraktHandler
         private SeriesRepositoryInterface $repository,
         #[Target('series')]
         private LoggerInterface $logger,
+        private MessageBusInterface $commandBus,
     ) {
     }
 
@@ -59,6 +62,10 @@ final readonly class ImportWatchedShowsFromTraktHandler
             'shows' => \count($shows),
             'changed' => $changedShows,
         ]);
+
+        // Chain the ratings import (HMAI-220): routed async, so it runs after the
+        // watched shows are persisted and the rated entities exist to attach to.
+        $this->commandBus->dispatch(new ImportRatingsFromTrakt());
     }
 
     /**
