@@ -117,6 +117,56 @@ function statusLabel(status) {
     return {ongoing: 'Ongoing', ended: 'Ended'}[status] ?? null;
 }
 
+// ── rating-state highlight (HMAI-221) ──
+
+// Classifies a series or season by how its own rating relates to the episode
+// average, for the card/header background. 'incomplete' (not every episode
+// watched yet → the average is still partial) wins over 'mismatch' (own rating
+// ≠ rounded average), because a partial average isn't a conclusive comparison.
+// Returns 'incomplete' | 'mismatch' | null.
+function ratingHighlight(entity) {
+    if (entity.episodeCount > 0 && entity.watchedCount < entity.episodeCount) {
+        return 'incomplete';
+    }
+    if (entity.averageRating === null || entity.averageRating === undefined) {
+        return null;
+    }
+    if (entity.rating === null || entity.rating === undefined) {
+        return 'mismatch'; // an average exists but the user hasn't rated it yet
+    }
+    return Math.round(entity.averageRating) !== entity.rating ? 'mismatch' : null;
+}
+
+// {cls, title} for a single entity's header (series detail / season). Empty when
+// there is nothing to flag.
+function ratingFlag(entity) {
+    const state = ratingHighlight(entity);
+    if (state === 'incomplete') {
+        return {cls: 'is-rating-incomplete', title: `W toku — obejrzane ${entity.watchedCount}/${entity.episodeCount} odcinków`};
+    }
+    if (state === 'mismatch') {
+        const avgRounded = Math.round(entity.averageRating);
+        const title = entity.rating === null || entity.rating === undefined
+            ? `Brak Twojej oceny (średnia ${avgRounded})`
+            : `Twoja ocena ${entity.rating} ≠ średnia ${avgRounded}`;
+        return {cls: 'is-rating-mismatch', title};
+    }
+    return {cls: '', title: ''};
+}
+
+// {cls, title} for a list card. The card is series-level, but a season's mismatch
+// must surface here too (seasons aren't visible on the list), so once the series
+// is fully watched we also flag any season whose own rating differs.
+function cardRatingFlag(s) {
+    if (s.episodeCount > 0 && s.watchedCount < s.episodeCount) {
+        return {cls: 'is-rating-incomplete', title: `W toku — obejrzane ${s.watchedCount}/${s.episodeCount} odcinków`};
+    }
+    if (ratingHighlight(s) === 'mismatch' || (s.seasons ?? []).some(se => ratingHighlight(se) === 'mismatch')) {
+        return {cls: 'is-rating-mismatch', title: 'Twoja ocena ≠ średnia z odcinków (serial lub sezon)'};
+    }
+    return {cls: '', title: ''};
+}
+
 export default class extends Controller {
     connect() {
         this.initAddSeriesModal();
@@ -282,8 +332,9 @@ export default class extends Controller {
             const poster = safeUrl(s.coverUrl);
             const status = statusLabel(s.status);
             const metaBits = [s.year, status].filter(Boolean);
+            const flag = cardRatingFlag(s);
             return `
-            <div class="series-card" data-id="${s.id}">
+            <div class="series-card${flag.cls ? ` ${flag.cls}` : ''}" data-id="${s.id}"${flag.title ? ` title="${escHtml(flag.title)}"` : ''}>
                 <div class="series-card-poster">
                     ${poster
                         ? `<img src="${escHtml(poster)}" alt="" loading="lazy">`
@@ -546,12 +597,13 @@ export default class extends Controller {
         season.episodes.sort((a, b) => a.number - b.number);
         const seasonAvg = avg(season.episodes.map(e => e.rating));
         const watchedCount = season.episodes.filter(e => e.watched).length;
+        const seasonFlag = ratingFlag({rating: season.rating, averageRating: seasonAvg, watchedCount, episodeCount: season.episodes.length});
         const block = document.createElement('div');
         block.className = 'season-block';
         block.dataset.seasonId = season.id;
 
         block.innerHTML = `
-            <div class="season-header">
+            <div class="season-header${seasonFlag.cls ? ` ${seasonFlag.cls}` : ''}"${seasonFlag.title ? ` title="${escHtml(seasonFlag.title)}"` : ''}>
                 <h3>Season <span class="js-season-number"></span> <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} watched${seasonAvg !== null ? ` · avg ${seasonAvg}` : ''}</small></h3>
                 <div class="season-header-actions">
                     <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
@@ -756,11 +808,14 @@ export default class extends Controller {
         const seriesAvg = avg(
             series.seasons.flatMap(s => s.episodes.map(e => e.rating))
         );
+        const seriesWatched = series.seasons.reduce((n, s) => n + s.episodes.filter(e => e.watched).length, 0);
+        const seriesEpisodes = series.seasons.reduce((n, s) => n + s.episodes.length, 0);
+        const headerFlag = ratingFlag({rating: series.rating, averageRating: seriesAvg, watchedCount: seriesWatched, episodeCount: seriesEpisodes});
         const poster = safeUrl(series.coverUrl);
         const catalogBits = [series.year, statusLabel(series.status)].filter(Boolean);
 
         container.innerHTML = `
-            <div class="series-detail-header">
+            <div class="series-detail-header${headerFlag.cls ? ` ${headerFlag.cls}` : ''}"${headerFlag.title ? ` title="${escHtml(headerFlag.title)}"` : ''}>
                 <div class="series-detail-poster">
                     ${poster
                         ? `<img src="${escHtml(poster)}" alt="" loading="lazy">`
