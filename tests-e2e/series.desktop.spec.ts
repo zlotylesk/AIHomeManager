@@ -312,3 +312,53 @@ test('API 422 surfaces an error message visible to the user', async ({ page }) =
   await expect(banner).toBeVisible();
   await expect(banner).toHaveText(/title is too long/i);
 });
+
+test('cards flag rating mismatch (red) and incomplete watched state (amber) — incomplete wins (HMAI-221)', async ({ page }) => {
+  // Pure rendering test — stub the list so we control exact rating + watched state.
+  const season = (over: Record<string, unknown>) => ({
+    id: 's', number: 1, rating: null, averageRating: null,
+    watchedCount: 0, episodeCount: 0, episodes: [], ...over,
+  });
+  const series = (title: string, over: Record<string, unknown>) => ({
+    id: title, title, coverUrl: null, year: null, status: null,
+    createdAt: '2026-01-01T00:00:00+00:00', description: null,
+    rating: null, averageRating: null, watchedCount: 0, episodeCount: 0,
+    seasons: [], ...over,
+  });
+
+  const payload = [
+    // Fully watched, own 5 ≠ round(avg 8) → red mismatch.
+    series('Divergent Show', {
+      rating: 5, averageRating: 8, watchedCount: 10, episodeCount: 10,
+      seasons: [season({ rating: 5, averageRating: 8, watchedCount: 10, episodeCount: 10 })],
+    }),
+    // Only 3/10 watched → amber incomplete; it would also mismatch, so amber must win.
+    series('Partial Show', {
+      rating: 5, averageRating: 8, watchedCount: 3, episodeCount: 10,
+      seasons: [season({ rating: 5, averageRating: 8, watchedCount: 3, episodeCount: 10 })],
+    }),
+    // Fully watched, own 7 == round(avg 7) → neutral.
+    series('Aligned Show', {
+      rating: 7, averageRating: 7, watchedCount: 10, episodeCount: 10,
+      seasons: [season({ rating: 7, averageRating: 7, watchedCount: 10, episodeCount: 10 })],
+    }),
+  ];
+
+  await page.route('**/api/series', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await gotoSeriesList(page);
+
+  await expect(page.locator('.series-card', { hasText: 'Divergent Show' })).toHaveClass(/is-rating-mismatch/);
+
+  const incomplete = page.locator('.series-card', { hasText: 'Partial Show' });
+  await expect(incomplete).toHaveClass(/is-rating-incomplete/);
+  await expect(incomplete).not.toHaveClass(/is-rating-mismatch/);
+
+  await expect(page.locator('.series-card', { hasText: 'Aligned Show' })).not.toHaveClass(/is-rating-(incomplete|mismatch)/);
+});
