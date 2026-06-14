@@ -46,8 +46,9 @@ fi
 
 # TokenCipher (libsodium secretbox) requires exactly 32 decoded bytes per
 # key. A wrong-length key surfaces as a 500 on first OAuth init request —
-# usually a base64 typo or a manually pasted shorter string.
-for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY; do
+# usually a base64 typo, a manually pasted shorter string, or a hex-encoded
+# key (64 hex chars base64-decode to 48 bytes — the HMAI-219 Trakt regression).
+for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY; do
     val=$(grep -E "^${key_name}=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
     if [ -z "$val" ]; then
         check_warn "$key_name not set"
