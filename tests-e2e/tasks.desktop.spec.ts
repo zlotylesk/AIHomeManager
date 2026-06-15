@@ -35,6 +35,23 @@ test('task list renders a seeded task with its status badge', async ({ page, req
   await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
 });
 
+test('a task created through the New Task form appears in the list', async ({ page }) => {
+  const title = uniqueTitle('E2E Created');
+
+  await gotoTasks(page);
+
+  await page.fill('#task-title', title);
+  await page.fill('#task-start', '2026-07-01T09:00');
+  await page.fill('#task-end', '2026-07-01T10:30');
+  await page.click('#form-create-task [type=submit]');
+
+  // On success the form resets, the info banner shows, and loadTasks() re-runs.
+  await expect(page.locator('#info-banner')).toHaveText(/task created/i);
+  const row = page.locator('#tasks-table tbody tr', { hasText: title });
+  await expect(row).toBeVisible();
+  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+});
+
 test('empty list renders the empty-state placeholder, not a spinner', async ({ page }) => {
   await page.route('**/api/tasks', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),

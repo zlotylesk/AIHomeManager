@@ -9,6 +9,29 @@
     </header>
 
     <section class="card">
+        <h2 class="section-title">New Task</h2>
+        <form id="form-create-task" class="time-report-form">
+            <div class="form-group">
+                <label for="task-title">Title</label>
+                <input id="task-title" type="text" maxlength="255" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="task-start">Start</label>
+                    <input id="task-start" type="datetime-local" required>
+                </div>
+                <div class="form-group">
+                    <label for="task-end">End</label>
+                    <input id="task-end" type="datetime-local" required>
+                </div>
+                <div class="form-group form-group--action">
+                    <button type="submit" class="btn btn-primary">Create Task</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="card">
         <h2 class="section-title">All tasks</h2>
         <div id="tasks-loading" class="loading">Loading tasks…</div>
         <table class="data-table hidden" id="tasks-table">
