@@ -4,6 +4,76 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.13.0] — 2026-06-15
+
+Domknięcie epica **HMAI-178** (Series — domknięcie braków MVP modułu) — 16 podzadań + bug **HMAI-219** + dwa follow-upy (**HMAI-220** import ocen z Trakt, **HMAI-221** kolorowanie kart). Moduł Series wychodzi z MVP do dojrzałego trackera seriali: pełny CRUD (usuwanie + edycja serial/sezon/odcinek z kaskadą), realny numer odcinka, flaga „obejrzane", własna ocena sezonu/serialu + jej czyszczenie, metadane katalogowe (poster/rok/status/opis), wzbogacona lista (wyszukiwarka + sortowanie + oceny na kartach + kolorowanie rozbieżności/niekompletności) oraz jednokierunkowy import biblioteki z Trakt.tv (OAuth2 + szyfrowany token, obejrzane odcinki z realną datą, oceny 1–10) offloadowany na Messenger. **915/915 PHP** (+149 vs 1.12.0) + **23/23 Playwright** (+9) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).
+
+### Added
+
+#### Series — CRUD i model danych
+
+- **Usuwanie serialu / sezonu / odcinka (HMAI-185).** `DELETE /api/series/{id}`, `.../seasons/{seasonId}`, `.../episodes/{episodeId}` (wszystkie 204, 404 gdy brak). Kaskada jawnie w repo (`EntityManager::remove` + flush — agregat nie ma asocjacji ORM, encje persystowane ręcznie przez string-FK). Handlery inwalidują Redis `series:avg:{id}` / `season:avg:{id}`. UI: przyciski kosza (🗑) z `confirm()`.
+- **Edycja tytułu serialu / numeru sezonu / tytułu odcinka (HMAI-186).** `PATCH` per byt (204; 422 dla pustego/`>255` tytułu lub numeru `<1`). Renumber sezonu na numer już zajęty → **409 Conflict** (dedykowany `SeasonNumberAlreadyTaken extends DomainException`). UI: inline-edit (klik → input, Enter/blur zapis, Esc anuluj).
+- **Realny numer odcinka (HMAI-187).** `Episode::number` (kolumna `number`, unikatowy w sezonie, walidacja w `Season::addEpisode()` → 422 przy duplikacie). Migracja backfilluje istniejące odcinki `ROW_NUMBER() OVER (PARTITION BY season_id ORDER BY id)`, potem `MODIFY ... NOT NULL`. Odczyt sortuje po `number`, UI renderuje realny numer (nie indeks pętli).
+- **Flaga „obejrzane" odcinka (HMAI-188).** `Episode.watched` (bool NOT NULL DEFAULT 0) + nullable `watchedAt`. `PATCH .../episodes/{id}/watched` (204; 422 dla nie-boola). `GET /api/series/{id}` zwraca per-odcinek `watched`/`watchedAt` + liczniki `watchedCount`/`episodeCount` na poziomie sezonu i serialu. UI: kolumna „Watched" + licznik `x/y watched` w nagłówku sezonu.
+
+#### Series — ocenianie i panel
+
+- **Ocena istniejącego odcinka z web UI (HMAI-177).** Selektor 10 przycisków w wierszu odcinka.
+- **Własna ocena sezonu i całego serialu (HMAI-179).** `Series`/`Season` mają własny, opcjonalny `?Rating` (kolumna `rating_value`), niezależny od średniej z odcinków. Komendy `RateSeries`/`RateSeason`, `PATCH .../rating`. Kontrolki „My rating" w nagłówku serialu i sezonu.
+- **Czyszczenie własnej oceny (HMAI-191).** `PATCH .../rating` z `{rating:null}` → 204 czyści (`Series::clearRating()` / `clearSeasonRating()`). UI: przycisk „✕" przy ustawionej ocenie.
+- **Lista: wyszukiwarka + sortowanie + własna ocena na karcie (HMAI-189).** Frontend-only — `GET /api/series` zwraca komplet. Toolbar (input + select), filtr po tytule na żywo, sort (`title` / `rating-desc` / `own-desc` / `created-desc`). Karta pokazuje rozłączne „My" i „Avg".
+- **Metadane katalogowe (HMAI-190).** `Series` zyskuje opcjonalne `coverUrl` (VO `CoverUrl`), `year`, `status` (enum `ongoing`/`ended` przez custom DBAL type `series_status`), `description`. Miniatura postera na karcie + poster/rok/status/opis w nagłówku detalu, formularz „✎ Edit details" (PATCH partial-safe).
+- **Kolorowanie kart/sezonów wg ocen (HMAI-221).** Frontend-only: **bursztyn** gdy serial/sezon niekompletny (nie wszystkie odcinki obejrzane → średnia cząstkowa), **czerwony** gdy własna ocena ≠ zaokrąglona średnia z odcinków (pierwszeństwo: bursztyn > czerwony). Tooltipy `title` (a11y — kolor nie jest jedynym nośnikiem).
+
+#### Series — import z Trakt.tv (jednokierunkowy Trakt → AIHM, offload na Messenger)
+
+- **OAuth2 + szyfrowany token (HMAI-180).** Flow `/auth/trakt` + `/auth/trakt/callback`, `TraktOAuthTokenRepository` szyfruje cały `token_json` przez `app.trakt_token_cipher` (osobny klucz `TRAKT_TOKEN_KEY`). `TraktTokenProvider` robi refresh-on-expiry. Tabela `trakt_oauth_tokens` (DBAL, nie-ORM).
+- **`TraktApiClient` + limiter `trakt_api` (HMAI-181).** `fetchWatchedShows()` za dekoratorem `app.trakt_http_client` (token_bucket 1000/5min).
+- **Dedup-klucz `trakt_id` na Series (HMAI-182).** Nullable unique `trakt_id` (migracja + ORM XML) — klucz idempotencji importu.
+- **`ImportWatchedShowsFromTrakt` command + handler (HMAI-183).** Async (RabbitMQ), idempotentny: dedup serialu po `trakt_id`, sezonu po `number`, odcinka po `number`. Mapuje obejrzane odcinki z realną `watchedAt` (`last_watched_at`); pustych seriali/sezonów nie materializuje.
+- **Przycisk „Import from Trakt" + endpoint (HMAI-184).** `POST /api/series/import/trakt` → **202** `import_started` (dispatch async), **409** `{authUrl:/auth/trakt}` gdy brak tokenu (przed dispatchem). UI: banner info/error.
+- **Import ocen z Trakt (HMAI-220).** `TraktApiClient::fetchRatings()` (3× `/sync/ratings/{shows,seasons,episodes}`) + port `RatingsProviderInterface`. Komenda `ImportRatingsFromTrakt` (async) **chainowana na końcu** importu obejrzanych: mapuje oceny 1–10 na własne oceny agregatu, **skip-if-missing** + idempotentnie. Oceny odcinków świadomie **nie** dispatchują `EpisodeRated` (bulk = tysiące eventów; średnie liczone live).
+
+#### Series — odporność
+
+- **`/series` resilient (HMAI-176).** GELF logging graceful-degrade (`IgnoreErrorTransportWrapper` — brak Graylog ≠ 500) + wymóg API key na mutacjach Series.
+
+### Changed
+
+- **Bug HMAI-219 — `Import from Trakt` zwracał 500.** Przyczyna konfiguracyjna: `TRAKT_TOKEN_KEY` w `.env.local` był hex zamiast base64 → `TokenCipher` (libsodium, wymaga 32B) rzucał już przy odczycie tokenu. Fix commitowalny: `scripts/doctor.sh` waliduje `TRAKT_TOKEN_KEY` w pętli kluczy cipherów (preflight łapie zły format przed runtime). Endpoint zwraca teraz 409, nie 500.
+- **Mapowanie `?Rating` — nullable embeddable → custom DBAL type `series_rating` (`RatingType`, HMAI-220).** Nullable embeddable hydruje się jako non-null obiekt z niezainicjalizowanym `$value` przy kolumnie NULL — wywalało każdy odczyt zhydratyzowanego VO (import ocen). Custom type round-tripuje `null` czysto. Kolumna bez zmian (`INTEGER` nullable) → **brak migracji**.
+- **CLAUDE.md**: rozbudowane sekcje Series (CRUD, watched, realny numer, metadane, lista, import obejrzanych + ocen, kolorowanie), nowy custom type `series_rating`, sekcje Trakt OAuth + import w „Encryption" / „Rate limiting"; „Status" → 1.13.0.
+- **chore**: nowy skill `/create-task` (struktura zadań Jira: 5 sekcji + fixVersion/epic), skill `/start-task` (problem-analysis comment dla bugów), nginx healthcheck probe `127.0.0.1` (unika flakiness DNS/IPv6 w VM).
+
+### Coverage
+
+- **915 PHP tests** (vs 766 at 1.12.0) — +149 w pełnym pokryciu epiku Series: agregat (CRUD/watched/rating/metadane), VO (`CoverUrl`, `SeriesStatus`, `RatingType`), `TraktApiClient` (watched + ratings z mockiem HTTP), handlery importu (świeży/idempotencja/skip-missing/chain), kontroler API, routing piny (`ImportWatchedShowsRoutingTest`, `ImportRatingsRoutingTest`), `TraktTokenProviderTest`, `TraktAuthControllerTest`.
+- **23 Playwright** (vs 14) — +9 w `series.desktop.spec.ts`: import 202/409 (info banner / connect link), lista filtr+sort, kolorowanie mismatch/incomplete, edycja inline, watched toggle, delete, realny numer.
+- **43 Newman** requests (bez zmian) — dociągnięte do kontraktu (wymagany `number` odcinka, HMAI-187).
+- PHPStan level 8 clean (zero nowych baseline entries). Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` zielone.
+
+### Documentation
+
+- Confluence: Series Domain v3 (#50069505), Application/CQRS v3 (#49479682), nowa strona „Import z Trakt" (#71925762).
+
+### Migration
+
+1. `make migrate` + `make migrate-test` — 6 migracji:
+    - `Version20260611000001` — `rating_value` (własna ocena) na `series` + `series_seasons`.
+    - `Version20260612000001` — tabela `trakt_oauth_tokens` (Trakt OAuth2).
+    - `Version20260612000002` — nullable unique `trakt_id` na `series` (dedup importu).
+    - `Version20260612000003` — `watched` (TINYINT NOT NULL DEFAULT 0) + `watched_at` na `series_episodes`.
+    - `Version20260612000004` — `number` na `series_episodes` (backfill per sezon `ROW_NUMBER`, potem `NOT NULL`).
+    - `Version20260613000001` — `cover_url` / `year` / `status` / `description` (metadane) na `series`.
+2. **ENV (`.env.local`):** `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_REDIRECT_URI` + `TRAKT_TOKEN_KEY` (base64 32B — `php -r "echo base64_encode(sodium_crypto_secretbox_keygen());"`). User raz przechodzi `/auth/trakt` by połączyć konto.
+3. **Po każdej zmianie `*_TOKEN_KEY` — restart workerów** (`docker compose restart messenger_worker scheduler_worker`; długo-żyjący proces cache'uje env przy starcie).
+4. `make assets-prod` — rebuild `series_controller.js` (Stimulus).
+
+### Closed Jira
+
+Epic **HMAI-178** + HMAI-176, HMAI-177, HMAI-179, HMAI-180, HMAI-181, HMAI-182, HMAI-183, HMAI-184, HMAI-185, HMAI-186, HMAI-187, HMAI-188, HMAI-189, HMAI-190, HMAI-191, HMAI-219 (Błąd), HMAI-220, HMAI-221.
+
 ## [1.12.0] — 2026-06-10
 
 Domknięcie epica **HMAI-160** (YouTubeProgress — manager watchlisty z auto-podziałem na sesje 30-min) — 13/13 podzadań. Szósty moduł aplikacji: synchronizuje playlistę "AIHM Watchlist" z YouTube do lokalnej tabeli `videos`, deterministycznie pakuje nieobejrzane filmy w sesje ≤30 min pogrupowane po kanale (`WatchSessionSplitter`), śledzi postęp (`started`/`watched`) i potrafi wypchnąć wygenerowaną sesję z powrotem na YouTube jako nową playlistę. Pełna heksagonalna ścieżka (Domain → Application CQRS → Infrastructure) z dwoma agregatami (`Video`, `WatchSession`), poszerzeniem scope'u Google OAuth o `youtube` (read/write), klientem YouTube Data API v3 (read + write) za rate-limiterem, oraz panelem frontowym `/youtube-progress` (Webpack Encore + Stimulus). **766/766 PHP** (+121 vs 1.11.1) + **14/14 Playwright** (+5) + **43 Newman** requests / 87 assertions (vs 36/66). PHPStan level 8 clean.
