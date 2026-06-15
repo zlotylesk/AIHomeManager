@@ -9,6 +9,13 @@ function showError(msg) {
     setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
 }
 
+function showInfo(msg) {
+    const b = $('info-banner');
+    b.textContent = msg;
+    b.classList.remove('hidden');
+    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
+}
+
 function escHtml(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -107,6 +114,35 @@ async function loadReport(from, to) {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
+
+    $('form-create-task').addEventListener('submit', async e => {
+        e.preventDefault();
+        const title = $('task-title').value.trim();
+        const start = $('task-start').value;
+        const end = $('task-end').value;
+        if (!title || !start || !end) return;
+        if (end <= start) {
+            showError('End time must be after start time.');
+            return;
+        }
+        const btn = e.target.querySelector('[type=submit]');
+        btn.disabled = true;
+        btn.textContent = 'Creating…';
+        try {
+            await window.apiCall('/api/tasks', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title, start, end}),
+            });
+            e.target.reset();
+            showInfo('Task created.');
+            await loadTasks();
+        } catch (err) {
+            showError(err.message || 'Failed to create task.');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Create Task';
+    });
 
     const today = new Date().toISOString().slice(0, 10);
     const firstOfMonth = today.slice(0, 8) + '01';
