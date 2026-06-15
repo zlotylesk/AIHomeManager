@@ -4,6 +4,8 @@ Workflow Jira: **$ARGUMENTS**. Wykonuj kroki ściśle po kolei.
 
 > **Środowisko Windows:** Host to Windows 11 (`C:\Users\poczt\PhpstormProjects\AIHM`). Tool `Bash` w Claude Code uruchamia WSL/Git-Bash — większość poleceń POSIX-owych (`git`, `docker exec`, `sed`, `xargs`, `grep`) działa stamtąd. Polecenia czysto-PowerShellowe (`Invoke-RestMethod`, `$env:VAR`, `[IO.File]::ReadAllText`) używaj wyłącznie przez tool `PowerShell` — nie mieszaj składni. `make` działa w WSL; gdy pada z `env: can't execute 'php'` (PATH issue wokół docker compose CLI), użyj: `docker exec aihm-php-1 sh -c "cd /var/www/html && php …"` — to działa zarówno z Bash jak i PowerShell. Dotyczy też `bin/console`, `vendor/bin/phpunit`, `vendor/bin/phpstan`, `vendor/bin/php-cs-fixer`, `vendor/bin/rector`.
 
+> **⚠️ Brak numeru zadania?** Jeśli `$ARGUMENTS` jest **puste** (wywołano `/start-task` bez klucza), NIE wykonuj kroków 0–14 ani ścieżki B. Przejdź od razu do [trybu sugestii](#suggest): zaproponuj trzy zadania (najszerszy scope / najwęższy scope / blokujące najwięcej innych) i **zatrzymaj się**, aż user wskaże konkretny klucz. Workflow startuje dopiero z `/start-task HMAI-XX`.
+
 ## Wspólne (0–3)
 
 **0. Preflight — budżet tokenów sesji.** Przed czymkolwiek innym oceń, czy obecna sesja udźwignie cały workflow do zamknięcia worklogu. User nie chce przerywać pracy na odświeżenie limitu i wracać do połowicznego stanu (uncommitted diff, branch bez PR, status Jira "W toku" bez worklogu).
@@ -153,6 +155,31 @@ Gdy `issuetype` ticketu to **Błąd/Bug**, po wdrożeniu fixu dodaj `addCommentT
 - **PR** — link.
 
 Komentarz to rejestr decyzji, nie changelog — zwięźle, ale nie pomijaj „dlaczego". Odrębny od worklogu (Krok 13, który jest **bez** `commentBody`).
+
+## Brak numeru zadania — tryb sugestii {#suggest}
+
+**Trigger:** `/start-task` wywołane **bez** klucza (`$ARGUMENTS` puste). NIE wykonuj wtedy kroków 0–14 ani ścieżki B — zaproponuj zadania i **zatrzymaj się**, aż user wskaże klucz (sam wpisze `/start-task HMAI-XX` albo poda numer w odpowiedzi). Workflow startuje dopiero z konkretnym kluczem. Nic nie zmieniaj w repo ani w Jirze w tym trybie.
+
+**S1. Ustal scope `fixVersion`** (priorytet malejąco — gdy ustalony, **wszystkie trzy** rekomendacje wybierasz wyłącznie z tej wersji, nigdy spoza):
+1. **`fixVersion` omawiany w bieżącej rozmowie** — jeśli wątek dotyczy konkretnej wersji (user ją nazwał lub właśnie o niej rozmawialiście), użyj jej.
+2. **`fixVersion` „w trakcie realizacji"** — wykryj automatycznie: najniższy (semver) **niewydany** (`released = false`) fixVersion, który ma jednocześnie ≥1 podzadanie `Gotowe` i ≥1 `statusCategory != Done` (mieszany stan = zaczęty, niedokończony). Gdy żaden nie jest zaczęty — najniższy niewydany fixVersion z otwartymi zadaniami.
+   ```
+   searchJiraIssuesUsingJql:
+     project = HMAI AND statusCategory != Done AND issuetype != Epik
+     ORDER BY fixVersion ASC, priority DESC, key ASC
+     fields: ["summary","status","priority","fixVersions","issuelinks","description","parent"]
+   ```
+   (mieszany stan potwierdź osobnym `... AND fixVersion = "{VER}" AND statusCategory = Done` gdy trzeba odróżnić „zaczęty" od „nietknięty").
+3. **Brak czytelnego `fixVersion`** — dopiero gdy nie da się ustalić jednej wersji, zapytaj usera (`AskUserQuestion`) o `fixVersion`, albo (jeśli woli) pracuj na całym otwartym backlogu HMAI.
+
+**S2. Pobierz kandydatów** w ustalonym scope: `issuetype != Epik AND statusCategory != Done`. W `fields` koniecznie `issuelinks` (liczenie blokad) i `description` (ocena scope).
+
+**S3. Wylicz trzy wymiary** (jeden ticket może wygrać w >1 — zaznacz pokrycie, nie ukrywaj nakładki):
+- **Najszerszy scope** — ticket dotykający najwięcej: liczba endpointów/operacji/punktów akceptacji w opisie, nowa migracja, nowy moduł, zmiana cross-cutting, „fundament" na którym wiszą inne.
+- **Najwęższy scope** — odwrotność: pojedyncza akcja/endpoint, brak migracji, izolowana zmiana (to samo kryterium co [#next](#next) po skończonym tasku).
+- **Blokuje najwięcej zadań** — policz wychodzące linki typu **blocks** (`issuelinks`, outward „blocks") — ticket z najwyższym licznikiem blokowanych. Gdy brak formalnych linków „blocks", użyj zależności logicznej (fundament typu „lista", od której zależą akcje CRUD/filtr/eksport).
+
+**S4. Prezentacja** — wypisz dokładnie te trzy rekomendacje, każda jako `HMAI-XX — {tytuł}` + 1 zdanie *dlaczego* (dla wymiaru 3 dodaj licznik blokowanych), z jawnie podanym scope (`fixVersion=X.Y.Z`). Dołóż sugestię `/start-task HMAI-XX`. Jeśli któryś wymiar wskazuje na epik (np. najszerszy = cały epik) — zaznacz, że to ścieżka B (epic review) i wymaga domkniętych podzadań. **Stop** — czekaj na wybór usera; gdy poda klucz, rusza normalny workflow od Kroku 0.
 
 ## Po zakończeniu zadania — co dalej {#next}
 
