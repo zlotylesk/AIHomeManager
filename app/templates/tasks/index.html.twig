@@ -5,10 +5,23 @@
 {% block body %}
 <div class="app">
     <header class="app-header">
-        <h1 class="app-title">Tasks — Time Report</h1>
+        <h1 class="app-title">Tasks</h1>
     </header>
 
     <section class="card">
+        <h2 class="section-title">All tasks</h2>
+        <div id="tasks-loading" class="loading">Loading tasks…</div>
+        <table class="data-table hidden" id="tasks-table">
+            <thead>
+                <tr><th>Title</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div id="tasks-empty" class="empty-state hidden">No tasks yet.</div>
+    </section>
+
+    <section class="card">
+        <h2 class="section-title">Time Report</h2>
         <form id="form-time-report" class="time-report-form">
             <div class="form-row">
                 <div class="form-group">

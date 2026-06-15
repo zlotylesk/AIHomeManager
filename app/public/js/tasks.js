@@ -21,6 +21,55 @@ function formatMinutes(m) {
     return h > 0 ? `${h}h ${min}m` : `${min}m`;
 }
 
+function formatDateTime(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'});
+}
+
+const STATUS_LABELS = {pending: 'Pending', completed: 'Completed', cancelled: 'Cancelled'};
+
+async function loadTasks() {
+    const loading = $('tasks-loading');
+    const table = $('tasks-table');
+    const empty = $('tasks-empty');
+    loading.classList.remove('hidden');
+    table.classList.add('hidden');
+    empty.classList.add('hidden');
+
+    let tasks;
+    try {
+        tasks = await window.apiCall('/api/tasks');
+    } catch (err) {
+        loading.classList.add('hidden');
+        showError(err.message || 'Failed to load tasks.');
+        return;
+    }
+
+    loading.classList.add('hidden');
+
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+    }
+
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = tasks.map(t => {
+        const status = String(t.status);
+        const label = STATUS_LABELS[status] ?? status;
+        return `
+        <tr>
+            <td>${escHtml(t.title)}</td>
+            <td>${escHtml(formatDateTime(t.start))}</td>
+            <td>${escHtml(formatDateTime(t.end))}</td>
+            <td>${formatMinutes(t.durationMinutes)}</td>
+            <td><span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span></td>
+        </tr>`;
+    }).join('');
+
+    table.classList.remove('hidden');
+}
+
 async function loadReport(from, to) {
     const result = $('report-result');
     const empty = $('report-empty');
@@ -57,6 +106,8 @@ async function loadReport(from, to) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    loadTasks();
+
     const today = new Date().toISOString().slice(0, 10);
     const firstOfMonth = today.slice(0, 8) + '01';
     $('input-from').value = firstOfMonth;
