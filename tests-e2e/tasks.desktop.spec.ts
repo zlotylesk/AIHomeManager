@@ -71,6 +71,26 @@ test('completing a pending task flips its badge and removes the Complete button'
   await expect(completedRow.locator('.js-task-complete')).toHaveCount(0);
 });
 
+test('cancelling a pending task flips its badge and removes the action buttons', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Cancel');
+  await seedTask(request, title);
+
+  await gotoTasks(page);
+
+  const row = page.locator('#tasks-table tbody tr', { hasText: title });
+  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+
+  // Cancel goes through a confirm() dialog — auto-accept it before clicking.
+  page.on('dialog', (dialog) => dialog.accept());
+  await row.locator('.js-task-cancel').click();
+
+  await expect(page.locator('#info-banner')).toHaveText(/task cancelled/i);
+  const cancelledRow = page.locator('#tasks-table tbody tr', { hasText: title });
+  await expect(cancelledRow.locator('.status-badge--cancelled')).toHaveText('Cancelled');
+  await expect(cancelledRow.locator('.js-task-cancel')).toHaveCount(0);
+  await expect(cancelledRow.locator('.js-task-complete')).toHaveCount(0);
+});
+
 test('empty list renders the empty-state placeholder, not a spinner', async ({ page }) => {
   await page.route('**/api/tasks', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
