@@ -38,11 +38,6 @@ final class GoogleAuthController extends AbstractController
 
         $this->logger->info('OAuth authorize initiated', ['provider' => self::PROVIDER]);
 
-        // HMAI-106: createAuthUrl() throws on missing/invalid client config
-        // (clientId, redirectUri). GoogleClientFactory now validates these at
-        // boot (HMAI-90), but third-party SDK upgrades can introduce new
-        // failure modes — surface them as a friendly redirect with an error
-        // flag instead of a kernel 500.
         try {
             $this->client->setState($state);
             $authUrl = $this->client->createAuthUrl();

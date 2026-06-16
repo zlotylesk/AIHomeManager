@@ -175,9 +175,9 @@ final class GoogleCalendarServiceTest extends TestCase
             ->method('fetchAccessTokenWithRefreshToken')
             ->with('old-refresh')
             ->willReturn($newToken);
-        // Google SDK Resource layer calls Client::getLogger() before issuing the request.
+
         $client->method('getLogger')->willReturn(new NullLogger());
-        // Throws on subsequent API call to avoid hitting the real Google Calendar HTTP.
+
         $client->method('execute')->willThrowException(new GoogleServiceException('no-network'));
 
         $service = new GoogleCalendarService($client, $tokenRepo, $this->logger);

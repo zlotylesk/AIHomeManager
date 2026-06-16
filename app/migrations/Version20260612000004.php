@@ -16,10 +16,10 @@ final class Version20260612000004 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // Add nullable first, backfill each season's episodes with a sequential
-        // number matching their current display order (the read query ordered by
-        // e.id), then enforce NOT NULL. The per-season ROW_NUMBER keeps numbers
-        // unique within a season — the invariant Season::addEpisode() guards.
+        
+        
+        
+        
         $this->addSql('ALTER TABLE series_episodes ADD number INT DEFAULT NULL');
         $this->addSql(
             'UPDATE series_episodes e

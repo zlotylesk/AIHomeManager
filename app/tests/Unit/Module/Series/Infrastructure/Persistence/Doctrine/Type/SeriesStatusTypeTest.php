@@ -51,7 +51,6 @@ final class SeriesStatusTypeTest extends TestCase
 
     public function testConvertsStringPhpValueToDatabaseStringFallback(): void
     {
-        // A raw string (not a SeriesStatus instance) falls back to a plain cast.
         self::assertSame('ongoing', $this->type->convertToDatabaseValue('ongoing', $this->platform));
     }
 

@@ -44,7 +44,6 @@ final class MusicController extends AbstractController
         private readonly VinylCollectionInterface $vinylCollection,
         #[Target('query.bus')]
         private readonly MessageBusInterface $queryBus,
-        // No #[Target]: command.bus is the default bus, so it has no named target.
         private readonly MessageBusInterface $commandBus,
         private readonly string $lastfmUsername,
         private readonly string $discogsUsername,
@@ -242,8 +241,6 @@ final class MusicController extends AbstractController
         try {
             $this->commandBus->dispatch(new LogListeningSession($artist, $title, $playedAt, $source, $playCount));
         } catch (HandlerFailedException $e) {
-            // Empty/oversized artist or title fails VO construction inside the
-            // handler — surfaces here wrapped, translate to 422 not a 500.
             if ($e->getPrevious() instanceof InvalidArgumentException) {
                 return new JsonResponse(['error' => $e->getPrevious()->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }

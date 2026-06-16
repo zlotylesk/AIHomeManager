@@ -59,8 +59,6 @@ final class VideoAggregateTest extends TestCase
 
     public function testMarkStartedAfterMarkWatchedIsNoOp(): void
     {
-        // Watched is a stronger signal than started — once a video is watched
-        // we don't downgrade it back to "merely started" on a stale event.
         $video = $this->newVideo();
         $watchedAt = new DateTimeImmutable('2026-06-02 10:00:00');
         $video->markWatched($watchedAt);

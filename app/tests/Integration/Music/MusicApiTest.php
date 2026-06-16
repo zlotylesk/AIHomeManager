@@ -57,9 +57,6 @@ class MusicApiTest extends WebTestCase
         self::getContainer()->set(MusicListeningHistoryInterface::class, $lastfm);
         self::getContainer()->set(VinylCollectionInterface::class, $discogs);
 
-        // The comparison handler caches by username — clear the test-env key
-        // (empty usernames in .env.test) so a prior run's payload can't satisfy
-        // this request before our port mocks are consulted.
         /** @var Redis $redis */
         $redis = self::getContainer()->get('app.redis');
         foreach ($redis->keys('music:comparison:*') as $key) {
@@ -118,7 +115,6 @@ class MusicApiTest extends WebTestCase
     {
         $this->client->request('GET', '/api/music/top-albums');
 
-        // 503 because no API key configured — but not 422 (period is valid default)
         self::assertNotSame(422, $this->client->getResponse()->getStatusCode());
     }
 
@@ -174,9 +170,6 @@ class MusicApiTest extends WebTestCase
      */
     public static function invalidLimitProvider(): iterable
     {
-        // HMAI-65: ctype_digit must reject each of these. The old
-        // `max(1, min(MAX, (int) $raw))` silently clamped them to 1 — recording
-        // a result the caller did not request. Now they 422 early.
         yield 'negative' => ['-1'];
         yield 'zero' => ['0'];
         yield 'non-numeric' => ['abc'];
@@ -224,9 +217,6 @@ class MusicApiTest extends WebTestCase
 
     public function testComparisonWithOwnedAndListenedReturnsCorrectStructure(): void
     {
-        // The handler calls getTopAlbums twice (the requested window + the
-        // 1month/500-limit dustyShelf pull). The mock returns the same list
-        // for both since `willReturn` is invocation-agnostic.
         $this->installMusicPortMocks(
             topAlbums: [
                 new AlbumDTO('Pink Floyd', 'The Wall', 200, null),
@@ -247,15 +237,13 @@ class MusicApiTest extends WebTestCase
             ['matchScore', 'ownedAndListened', 'wantList', 'dustyShelf', 'recentlyPlayedNotOwned'],
             array_keys($data)
         );
-        // 1 of the 2 requested albums (The Wall) is in the collection → 50%.
-        // JSON-decoded as int when the float has no fractional part — compare loosely.
+
         self::assertEquals(50.0, $data['matchScore']);
         self::assertCount(1, $data['ownedAndListened']);
         self::assertSame('The Wall', $data['ownedAndListened'][0]['title']);
         self::assertCount(1, $data['wantList']);
         self::assertSame('OK Computer', $data['wantList'][0]['title']);
-        // Forgotten Album is in the collection but not in the lastfm 1month top —
-        // it lands on the dustyShelf.
+
         self::assertCount(1, $data['dustyShelf']);
         self::assertSame('Forgotten Album', $data['dustyShelf'][0]['title']);
     }
@@ -288,8 +276,6 @@ class MusicApiTest extends WebTestCase
 
     public function testCreateSessionRejectsEmptyArtist(): void
     {
-        // Empty artist fails AlbumArtist VO construction inside the handler — the
-        // controller must translate that wrapped exception to a 422, not a 500.
         $this->postSession([
             'artist' => '   ',
             'title' => 'The Wall',

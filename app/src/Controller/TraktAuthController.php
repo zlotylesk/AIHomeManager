@@ -96,9 +96,6 @@ final class TraktAuthController extends AbstractController
             ],
         ]);
 
-        // A non-200 from Trakt surfaces as a user-facing 502 with a log entry,
-        // mirroring the Discogs controller — never leak the exchange error into
-        // the kernel's generic 500 handler.
         if (200 !== $response->getStatusCode()) {
             $this->logger->warning('Trakt token exchange returned non-200', [
                 'provider' => self::PROVIDER,

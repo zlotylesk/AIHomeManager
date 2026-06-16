@@ -27,7 +27,6 @@ final class WatchSessionSplitterTest extends TestCase
 
     private function makeVideo(string $channel, int $durationSeconds, ?DateTimeImmutable $startedAt = null, ?DateTimeImmutable $watchedAt = null): Video
     {
-        // YouTube IDs are 11 chars; we just need unique values per test run.
         $id = str_pad((string) ++$this->idCounter, 11, 'x', STR_PAD_LEFT);
 
         $video = Video::fromYouTube(
@@ -93,7 +92,6 @@ final class WatchSessionSplitterTest extends TestCase
 
     public function testTwoChannelsLargerFirstWinsOrder(): void
     {
-        // Channel A has 3 videos; B has 1 — A's videos must come first.
         $a1 = $this->makeVideo('A', 300);
         $a2 = $this->makeVideo('A', 400);
         $a3 = $this->makeVideo('A', 500);
@@ -103,8 +101,7 @@ final class WatchSessionSplitterTest extends TestCase
 
         self::assertCount(1, $sessions);
         $values = $this->videoIdValues($sessions[0]);
-        // A's three videos (sorted ASC by duration: 300/400/500) come first,
-        // then B's solo video.
+
         self::assertSame(
             [$a1->id()->value(), $a2->id()->value(), $a3->id()->value(), $b1->id()->value()],
             $values,
@@ -113,8 +110,6 @@ final class WatchSessionSplitterTest extends TestCase
 
     public function testWithinChannelShortestFirst(): void
     {
-        // Sum 300+600+800 = 1700 stays under the 1800 budget — guarantees a
-        // single session so the assertion isolates the sort order alone.
         $long = $this->makeVideo('A', 800);
         $short = $this->makeVideo('A', 300);
         $mid = $this->makeVideo('A', 600);
@@ -142,8 +137,6 @@ final class WatchSessionSplitterTest extends TestCase
 
     public function testOverflowVideoClosesPreviousSession(): void
     {
-        // Sorted ASC: 500, 600, 2400. The 2400 overflows and must flush the
-        // partial session it interrupts.
         $small = $this->makeVideo('A', 500);
         $mid = $this->makeVideo('A', 600);
         $oversize = $this->makeVideo('A', 2400);
@@ -151,8 +144,7 @@ final class WatchSessionSplitterTest extends TestCase
         $sessions = $this->splitter->split([$small, $mid, $oversize], WatchSessionSplitter::DEFAULT_TARGET_SECONDS, $this->fixedNow);
 
         self::assertCount(2, $sessions);
-        // Greedy packs 500+600 into one session (1100s), then the 2400 stands
-        // alone.
+
         self::assertSame([$small->id()->value(), $mid->id()->value()], $this->videoIdValues($sessions[0]));
         self::assertSame(1100, $sessions[0]->totalDurationSeconds());
         self::assertSame([$oversize->id()->value()], $this->videoIdValues($sessions[1]));
@@ -167,7 +159,6 @@ final class WatchSessionSplitterTest extends TestCase
 
         $sessions = $this->splitter->split([$a, $b, $c], WatchSessionSplitter::DEFAULT_TARGET_SECONDS, $this->fixedNow);
 
-        // 800+800=1600 ≤ 1800 fits; adding another 800 would overflow → split.
         self::assertCount(2, $sessions);
         self::assertSame(1600, $sessions[0]->totalDurationSeconds());
         self::assertSame(800, $sessions[1]->totalDurationSeconds());
@@ -175,10 +166,6 @@ final class WatchSessionSplitterTest extends TestCase
 
     public function testRealisticMixedScenarioMatchesDocumentedAlgorithm(): void
     {
-        // 3 channels — A:5, B:2, C:1. Algorithm chooses order A→B→C and within
-        // each sorts ASC by duration. The expected packing is documented in the
-        // ticket and reproduced here as the canonical regression for the
-        // greedy packer.
         $a300 = $this->makeVideo('A', 300);
         $a400 = $this->makeVideo('A', 400);
         $a600 = $this->makeVideo('A', 600);
@@ -189,7 +176,6 @@ final class WatchSessionSplitterTest extends TestCase
         $c500 = $this->makeVideo('C', 500);
 
         $sessions = $this->splitter->split(
-            // Shuffle input so the algorithm has to do the sorting itself.
             [$c500, $a1900, $b800, $a300, $b1200, $a700, $a400, $a600],
             WatchSessionSplitter::DEFAULT_TARGET_SECONDS,
             $this->fixedNow,
@@ -197,23 +183,18 @@ final class WatchSessionSplitterTest extends TestCase
 
         self::assertCount(5, $sessions);
 
-        // 1: [A:300, A:400, A:600] = 1300 (next A:700 would overflow)
         self::assertSame([$a300->id()->value(), $a400->id()->value(), $a600->id()->value()], $this->videoIdValues($sessions[0]));
         self::assertSame(1300, $sessions[0]->totalDurationSeconds());
 
-        // 2: [A:700] = 700 (A:1900 overflows next, so this seeds & closes)
         self::assertSame([$a700->id()->value()], $this->videoIdValues($sessions[1]));
         self::assertSame(700, $sessions[1]->totalDurationSeconds());
 
-        // 3: [A:1900] = 1900 — overflow session, own bucket
         self::assertSame([$a1900->id()->value()], $this->videoIdValues($sessions[2]));
         self::assertSame(1900, $sessions[2]->totalDurationSeconds());
 
-        // 4: [B:800] = 800 (B:1200 would overflow combined)
         self::assertSame([$b800->id()->value()], $this->videoIdValues($sessions[3]));
         self::assertSame(800, $sessions[3]->totalDurationSeconds());
 
-        // 5: [B:1200, C:500] = 1700 — C tags onto last channel's leftover
         self::assertSame([$b1200->id()->value(), $c500->id()->value()], $this->videoIdValues($sessions[4]));
         self::assertSame(1700, $sessions[4]->totalDurationSeconds());
     }
@@ -223,8 +204,6 @@ final class WatchSessionSplitterTest extends TestCase
         $a = $this->makeVideo('A', 400);
         $b = $this->makeVideo('A', 400);
 
-        // With target=600 the first video fits (400) but the second overflows
-        // the budget → 2 sessions of 400 each.
         $sessions = $this->splitter->split([$a, $b], 600, $this->fixedNow);
 
         self::assertCount(2, $sessions);

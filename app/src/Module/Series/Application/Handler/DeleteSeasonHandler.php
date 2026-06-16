@@ -30,12 +30,10 @@ final readonly class DeleteSeasonHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        // Throws DomainException (→ 404) when the season is unknown.
         $season = $series->removeSeason($command->seasonId);
 
         $this->repository->deleteSeason($season);
 
-        // Dropping a season changes the series average too, so invalidate both.
         $this->redis->del("season:avg:{$command->seasonId}");
         $this->redis->del("series:avg:{$command->seriesId}");
 

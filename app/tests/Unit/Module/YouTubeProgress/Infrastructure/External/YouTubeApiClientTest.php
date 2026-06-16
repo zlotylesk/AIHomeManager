@@ -86,7 +86,7 @@ final class YouTubeApiClientTest extends TestCase
         $client = $this->client([$this->playlistItemsResponse([])]);
 
         self::assertSame([], $client->fetchPlaylistVideos('PL_empty'));
-        // No videos.list call when the playlist is empty.
+
         self::assertSame(0, $this->countCalls('/videos'));
     }
 
@@ -118,8 +118,7 @@ final class YouTubeApiClientTest extends TestCase
         $videos = $client->fetchPlaylistVideos('PL_paged');
 
         self::assertCount(2, $videos);
-        // Both playlistItems pages must be fetched (the second only happens if the
-        // nextPageToken from page 1 is followed).
+
         self::assertSame(2, $this->countCalls('/playlistItems'));
     }
 
@@ -139,7 +138,7 @@ final class YouTubeApiClientTest extends TestCase
         $videos = $client->fetchPlaylistVideos('PL_big');
 
         self::assertCount(75, $videos);
-        // 75 IDs must be split into two videos.list batches (50 + 25).
+
         self::assertSame(2, $this->countCalls('/videos'));
     }
 

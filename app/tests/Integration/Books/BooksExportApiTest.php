@@ -52,9 +52,7 @@ class BooksExportApiTest extends WebTestCase
 
         self::assertSame("\xEF\xBB\xBF", substr($body, 0, 3));
         self::assertStringContainsString('isbn,title,author,status,percentage,totalPages', $body);
-        // 150/300 = 50.0% — confirm percentage is rendered as a number, not the
-        // raw column ratio. Off-by-one in the SQL → divide-by-zero handling
-        // would break this exact line.
+
         self::assertStringContainsString('9780306406157,"Clean Code","Robert C. Martin",reading,50,300', $body);
     }
 

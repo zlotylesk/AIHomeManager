@@ -105,8 +105,6 @@ final class SeriesAggregateTest extends TestCase
 
     public function testOwnSeriesRatingStartsAsNull(): void
     {
-        // The series' own (manual) score is separate from the episode-derived
-        // average and unset until the user rates the whole series (HMAI-179).
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
 
         self::assertNull($series->rating());
@@ -124,8 +122,6 @@ final class SeriesAggregateTest extends TestCase
 
     public function testRateSeriesRecordsNoDomainEvent(): void
     {
-        // No subscriber consumes a "series rated" signal — YAGNI, so the
-        // aggregate stays event-free on manual rating (HMAI-179).
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
 
         $series->rate(new Rating(10));
@@ -163,8 +159,6 @@ final class SeriesAggregateTest extends TestCase
 
     public function testClearRatingResetsOwnSeriesRating(): void
     {
-        // HMAI-191: clearing reverts to "no manual score"; the episode-derived
-        // average (unrelated state) is unaffected.
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
         $series->rate(new Rating(8));
 
@@ -363,7 +357,6 @@ final class SeriesAggregateTest extends TestCase
         $series = new Series(self::SERIES_ID, 'Breaking Bad');
         $series->updateMetadata('https://example.com/p.jpg', 2008, SeriesStatus::ONGOING, 'desc');
 
-        // A second call is a full replace — passing null clears each field.
         $series->updateMetadata(null, null, null, null);
 
         self::assertNull($series->coverUrl());

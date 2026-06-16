@@ -10,8 +10,6 @@ use InvalidArgumentException;
 
 final class Article
 {
-    // Mirrors Article.orm.xml VARCHAR(500)/VARCHAR(255). Keep in sync if the
-    // schema column lengths ever change.
     private const int MAX_TITLE_LENGTH = 500;
     private const int MAX_CATEGORY_LENGTH = 255;
 
@@ -77,10 +75,7 @@ final class Article
 
         if (null !== $category) {
             $category = trim($category);
-            // Blank-after-trim is rejected (not silently coerced to null) so the
-            // caller commits to either a real value or an explicit null — silent
-            // coercion is the kind of "ghost mutation" that HMAI-110 exists to
-            // prevent.
+
             if ('' === $category) {
                 throw new InvalidArgumentException(sprintf('Article %s: category cannot be a blank string — pass null to clear it.', $this->id));
             }

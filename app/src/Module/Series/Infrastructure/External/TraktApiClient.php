@@ -82,8 +82,6 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface, Ra
      */
     private function get(string $path, array $query = []): array
     {
-        // trim() catches a whitespace-only client id (copy-paste misconfig) the
-        // same way the other clients guard their keys.
         if ('' === trim($this->clientId)) {
             throw new RuntimeException('Trakt client ID not configured.');
         }
@@ -145,7 +143,6 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface, Ra
             $ids = $show['ids'] ?? null;
             $traktId = is_array($ids) ? ($ids['trakt'] ?? null) : null;
             if (!is_int($traktId)) {
-                // A show without a stable trakt id can't be deduplicated on import — skip it.
                 continue;
             }
 

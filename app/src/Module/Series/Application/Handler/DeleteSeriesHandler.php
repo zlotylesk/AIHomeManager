@@ -30,9 +30,6 @@ final readonly class DeleteSeriesHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        // Capture the cached-average keys before deletion so we can drop them —
-        // EpisodeRatedHandler only refreshes these on rating events, so without
-        // invalidation a re-created id could read a stale average.
         $seasonIds = array_keys($series->seasons());
 
         $this->repository->delete($series);

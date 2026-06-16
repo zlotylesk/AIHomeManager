@@ -56,13 +56,13 @@ class ImportRatingsFromTraktHandlerTest extends KernelTestCase
         $this->seedWatchedSeries();
 
         ($this->handlerReturning([
-            'shows' => [['traktId' => 9999, 'rating' => 9]],                                       // series not imported
-            'seasons' => [['traktId' => 1388, 'seasonNumber' => 5, 'rating' => 8]],                // season absent
-            'episodes' => [['traktId' => 1388, 'seasonNumber' => 1, 'episodeNumber' => 99, 'rating' => 10]], // episode absent
+            'shows' => [['traktId' => 9999, 'rating' => 9]],
+            'seasons' => [['traktId' => 1388, 'seasonNumber' => 5, 'rating' => 8]],
+            'episodes' => [['traktId' => 1388, 'seasonNumber' => 1, 'episodeNumber' => 99, 'rating' => 10]],
         ]))(new ImportRatingsFromTrakt());
         $this->em->clear();
 
-        self::assertSame(1, $this->countRows('series')); // no phantom series materialised
+        self::assertSame(1, $this->countRows('series'));
 
         $series = $this->repository->findByTraktId('1388');
         self::assertNotNull($series);

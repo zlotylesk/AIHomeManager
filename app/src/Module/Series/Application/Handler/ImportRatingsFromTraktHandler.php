@@ -48,10 +48,8 @@ final readonly class ImportRatingsFromTraktHandler
 
         $changedSeries = 0;
         foreach ($this->groupByShow($ratings) as $traktId => $bucket) {
-            // PHP coerces numeric-string array keys to int — cast back for the repo.
             $series = $this->repository->findByTraktId((string) $traktId);
             if (null === $series) {
-                // Skip-if-missing: a rated show the watched import never created.
                 continue;
             }
 

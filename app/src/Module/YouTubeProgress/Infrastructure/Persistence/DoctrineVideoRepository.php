@@ -29,9 +29,6 @@ final readonly class DoctrineVideoRepository implements VideoRepositoryInterface
     /** @return Video[] */
     public function findAllInSplitPool(): array
     {
-        // Active split pool — videos still eligible to be batched into 30-min
-        // watch sessions (T8 splitter). DB indexes on started_at + watched_at
-        // make these IS NULL checks cheap even on the full watchlist.
         return $this->entityManager->createQuery(
             'SELECT v FROM '.Video::class.' v WHERE v.startedAt IS NULL AND v.watchedAt IS NULL'
         )->getResult();

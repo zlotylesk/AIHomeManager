@@ -20,10 +20,6 @@ final readonly class RegenerateSessionsHandler
         private VideoRepositoryInterface $videos,
         private WatchSessionRepositoryInterface $sessions,
         private WatchSessionSplitter $splitter,
-        // Transaction control over multiple repository calls forces an explicit
-        // EntityManager dependency here — atypical for a handler, but the
-        // delete-all + N-save must be atomic so a mid-operation crash never
-        // leaves the user with zero sessions (worse UX than stale ones).
         private EntityManagerInterface $em,
         private LoggerInterface $logger,
     ) {

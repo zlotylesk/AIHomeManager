@@ -24,8 +24,6 @@ use Throwable;
  */
 readonly class HealthChecker
 {
-    // HMAI-155: disk usage thresholds. 95% = down because MySQL needs headroom
-    // for buffer pool flush + binlog before write failures cascade.
     private const float DISK_DEGRADED_RATIO = 0.80;
     private const float DISK_DOWN_RATIO = 0.95;
 
@@ -94,8 +92,6 @@ readonly class HealthChecker
     {
         $result = $this->redis->ping();
 
-        // `PING` returns string '+PONG' or bool true depending on phpredis mode.
-        // Anything falsy means the connection round-trip did not complete.
         if (false === $result || '' === $result) {
             throw new RedisException('Redis PING returned no response');
         }

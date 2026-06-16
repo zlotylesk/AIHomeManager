@@ -50,7 +50,6 @@ final readonly class TraktTokenProvider
         $refreshToken = $token['refresh_token'] ?? null;
 
         if (!is_string($refreshToken) || '' === $refreshToken) {
-            // Expired with no way to refresh — caller must re-run /auth/trakt.
             return null;
         }
 
@@ -74,7 +73,6 @@ final readonly class TraktTokenProvider
         $expiresIn = isset($token['expires_in']) ? (int) $token['expires_in'] : 0;
 
         if (0 === $createdAt || 0 === $expiresIn) {
-            // Unknown lifetime — treat as expired so we refresh rather than send a stale token.
             return true;
         }
 

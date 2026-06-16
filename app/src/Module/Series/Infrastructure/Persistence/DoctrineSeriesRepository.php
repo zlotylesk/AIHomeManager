@@ -60,10 +60,6 @@ final readonly class DoctrineSeriesRepository implements SeriesRepositoryInterfa
 
     public function delete(Series $series): void
     {
-        // No ORM cascade is mapped (the aggregate persists each entity manually
-        // via string FKs), so deletions are issued explicitly. The aggregate was
-        // hydrated with all seasons + episodes by findById, so removing them here
-        // leaves no orphan rows.
         foreach ($series->seasons() as $season) {
             foreach ($season->episodes() as $episode) {
                 $this->entityManager->remove($episode);

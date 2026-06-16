@@ -111,9 +111,6 @@ final class LastFmApiClientTest extends TestCase
 
     public function testThrowsWhenApiKeyIsWhitespace(): void
     {
-        // Regression for HMAI-84: a whitespace-only key (typical copy-paste
-        // misconfig like `LASTFM_API_KEY=" "` in .env.local) must be treated as
-        // "not configured", not silently passed to Last.fm as a malformed query.
         $httpClient = new MockHttpClient();
         $client = new LastFmApiClient($httpClient, $this->redis, "  \t\n");
 
@@ -168,10 +165,6 @@ final class LastFmApiClientTest extends TestCase
 
     public function testRecordsDurationOnSuccessfulCall(): void
     {
-        // HMAI-112: every external HTTP call must produce a structured timing
-        // entry on the music channel so Graylog can chart p50/p95/p99 latency.
-        // Verifies provider, endpoint, status, and a non-negative duration_ms
-        // — the duration value itself is wall-clock so we only assert shape.
         $json = $this->makeApiResponse([$this->makeAlbum('Artist', 'Album', 1)]);
         $httpClient = new MockHttpClient(new MockResponse($json, ['http_code' => 200]));
 
@@ -193,8 +186,6 @@ final class LastFmApiClientTest extends TestCase
 
     public function testRecordsDurationWithErrorTagOnTransportFailure(): void
     {
-        // On transport failure the call still produces a metric so a spike in
-        // `error=transport_error` is visible alongside the success rate.
         $httpClient = new MockHttpClient(new MockResponse('', ['error' => 'Connection refused']));
 
         $logger = $this->createMock(LoggerInterface::class);
@@ -213,7 +204,6 @@ final class LastFmApiClientTest extends TestCase
             $client->getTopAlbums('testuser', '1month', 10);
             self::fail('Expected RuntimeException');
         } catch (RuntimeException) {
-            // expected — metric must fire before the throw
         }
     }
 }

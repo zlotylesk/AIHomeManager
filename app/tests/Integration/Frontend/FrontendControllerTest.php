@@ -96,9 +96,6 @@ class FrontendControllerTest extends WebTestCase
 
     public function testBaseLayoutContainsCSPMetaTag(): void
     {
-        // HMAI-100: Content-Security-Policy meta locks down script/img/connect
-        // sources. Guards against accidental removal — a missing CSP would
-        // re-open the XSS blast radius the epic closed.
         $this->client->request('GET', '/series');
 
         self::assertSelectorExists('meta[http-equiv="Content-Security-Policy"]');
@@ -106,11 +103,6 @@ class FrontendControllerTest extends WebTestCase
 
     public function testBaseLayoutLoadsEncoreEntryAssets(): void
     {
-        // HMAI-41: encore_entry_link_tags('app') / encore_entry_script_tags('app')
-        // read public/build/entrypoints.json and emit <link> + <script> tags.
-        // Without the manifest (no npm run build) Twig throws on render, so the
-        // assertions both prove the helpers are wired and guard against
-        // accidental removal of either block.
         $this->client->request('GET', '/series');
 
         self::assertSelectorExists('script[src^="/build/"]');

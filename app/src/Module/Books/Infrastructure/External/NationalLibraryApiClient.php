@@ -37,18 +37,11 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             try {
                 return $this->decodeMetadataFromCache($cached);
             } catch (JsonException) {
-                // Stale or corrupted cache entry — fall through to refetch.
             }
         }
 
         try {
             $response = $this->httpClient->request('GET', self::API_URL, [
-                // BN's filter param is camelCase `isbnIssn`. Lowercase `isbnissn`
-                // is silently ignored — BN then returns arbitrary catalogue
-                // records, so the wrong book (or one with no page count → 422) is
-                // returned for every ISBN. Regression from the HMAI-175 migration.
-                // No `kind` filter: BN categorises books as `książka` (Polish), so
-                // `kind=book` matched nothing and emptied the result set.
                 'query' => ['isbnIssn' => $isbn, 'limit' => 1],
                 'timeout' => 5,
             ]);
@@ -58,19 +51,10 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             throw new BookMetadataUnavailableException('National Library API is unavailable.', 0, $e);
         }
 
-        // XXE hardening (HMAI-96): BN.org's bibliographic API never legitimately
-        // sends a DOCTYPE, so reject any response that does — this short-circuits
-        // entity-expansion attacks (billion laughs, SYSTEM file://, etc.) before
-        // libxml sees them. LIBXML_NONET adds defense-in-depth: even if a DTD
-        // slipped past, the parser cannot fetch external entities over the network.
-        // stripos handles whitespace and case variations like "<!doctype" / "<!  DOCTYPE".
         if (false !== stripos($content, '<!DOCTYPE')) {
             throw new RuntimeException('Failed to parse National Library API response.');
         }
 
-        // Use simplexml_load_string + libxml internal errors instead of `new SimpleXMLElement`
-        // so a malformed payload returns false (handled below) instead of throwing a base
-        // \Exception that a broad catch would also swallow programmer errors with.
         $previousErrors = libxml_use_internal_errors(true);
         try {
             $xml = simplexml_load_string($content, SimpleXMLElement::class, LIBXML_NONET);
@@ -152,13 +136,6 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
 
     private function extractTotalPagesFromMarc(SimpleXMLElement $bib): ?int
     {
-        // BN 2024+ payloads embed full MARC21 records under a dedicated
-        // namespace. The bibliographic "physical description" element (tag 300,
-        // subfield 'a') is the only place page count lives now — the old
-        // dc:format field is gone. XPath sidesteps SimpleXML's quirky default-
-        // namespace handling, which silently breaks property-style traversal
-        // ($marc->datafield) when the root and its children share a non-empty
-        // namespace.
         $bib->registerXPathNamespace('m', self::MARC_NAMESPACE);
         $subfields = $bib->xpath('m:marc/m:datafield[@tag="300"]/m:subfield[@code="a"]');
         if (!is_array($subfields) || [] === $subfields) {
@@ -166,9 +143,6 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
         }
 
         foreach ($subfields as $subfield) {
-            // Tolerate variations like "320 s.", "320 s. ;", "200, [4] s.",
-            // "150 stron". Bail (return null) on non-page descriptions like
-            // "1 dysk optyczny (CD-ROM)" — those are e-books/CDs.
             if (1 === preg_match('/(\d+)\s*(?:,\s*\[\d+\])?\s*s(?:tron|\.)?/u', (string) $subfield, $matches)) {
                 return (int) $matches[1];
             }

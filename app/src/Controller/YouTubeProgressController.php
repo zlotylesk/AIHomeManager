@@ -55,8 +55,6 @@ final class YouTubeProgressController extends AbstractController
     #[Route('/sessions', methods: ['GET'])]
     public function sessions(): JsonResponse
     {
-        // A session aggregate carries only ordered video IDs, so resolve their
-        // metadata once into a lookup map rather than N queries per session.
         $videoMap = [];
         foreach ($this->videos->findAll() as $video) {
             $videoMap[$video->id()->value()] = $video;
@@ -80,9 +78,6 @@ final class YouTubeProgressController extends AbstractController
             );
         }
 
-        // Pull the playlist into the local split pool, then rebuild the watch
-        // sessions off the refreshed pool. Both are synchronous handlers, so the
-        // counts below reflect the post-sync state.
         $this->commandBus->dispatch(new SyncWatchlist($this->watchlistPlaylistId));
         $this->commandBus->dispatch(new RegenerateSessions());
 

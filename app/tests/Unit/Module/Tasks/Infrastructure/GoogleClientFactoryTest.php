@@ -17,15 +17,12 @@ final class GoogleClientFactoryTest extends TestCase
         $client = $factory->create();
 
         self::assertSame('client-id', $client->getClientId());
-        // Calendar scope must be wired so the OAuth consent screen requests it.
+
         self::assertContains('https://www.googleapis.com/auth/calendar.events', $client->getScopes());
     }
 
     public function testWiresYouTubeScopeSoOneTokenServesCalendarAndYouTube(): void
     {
-        // YouTubeProgress (HMAI-163) reuses this OAuth client; the full-access
-        // youtube scope must be requested so the cumulative refresh token can
-        // call the YouTube Data API (write included) alongside Calendar.
         $factory = new GoogleClientFactory('client-id', 'client-secret', 'https://example.com/auth/google/callback');
 
         $client = $factory->create();
@@ -45,9 +42,6 @@ final class GoogleClientFactoryTest extends TestCase
 
     public function testRequestsOfflineAccessWithConsentPromptSoRefreshTokenIsIssued(): void
     {
-        // access_type=offline + prompt=consent are required for Google to issue a
-        // refresh token on first authorization. Verify via the generated auth URL,
-        // which is the only publicly observable surface for these settings.
         $factory = new GoogleClientFactory('client-id', 'client-secret', 'https://example.com/auth/google/callback');
 
         $authUrl = $factory->create()->createAuthUrl();
@@ -58,8 +52,6 @@ final class GoogleClientFactoryTest extends TestCase
 
     public function testThrowsWhenClientSecretIsWhitespaceOnly(): void
     {
-        // Mirror of the clientId whitespace guard — both are equally easy to
-        // mis-paste into an .env file.
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('GOOGLE_OAUTH_CLIENT_SECRET is empty');
 
@@ -76,7 +68,6 @@ final class GoogleClientFactoryTest extends TestCase
 
     public function testThrowsWhenClientIdIsWhitespaceOnly(): void
     {
-        // Catches a common misconfig: GOOGLE_OAUTH_CLIENT_ID=" " after a copy-paste.
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('GOOGLE_OAUTH_CLIENT_ID is empty');
 
@@ -101,8 +92,6 @@ final class GoogleClientFactoryTest extends TestCase
 
     public function testThrowsWhenRedirectUriIsEmpty(): void
     {
-        // Empty string fails FILTER_VALIDATE_URL, so it's caught by the URL check
-        // rather than needing a separate empty guard.
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('GOOGLE_OAUTH_REDIRECT_URI is not a valid URL');
 

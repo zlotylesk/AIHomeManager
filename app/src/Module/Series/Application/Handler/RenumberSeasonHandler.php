@@ -28,8 +28,6 @@ final readonly class RenumberSeasonHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        // Throws DomainException (→404) for an unknown season or
-        // SeasonNumberAlreadyTaken (→409) when the number collides.
         $series->renumberSeason($command->seasonId, $command->number);
         $this->repository->save($series);
 

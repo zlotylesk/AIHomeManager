@@ -36,9 +36,6 @@ final class SyncWatchlistHandlerTest extends KernelTestCase
      */
     private function handlerReturning(array $metadata): SyncWatchlistHandler
     {
-        // Fake reader test double — returns canned metadata regardless of the
-        // requested playlist ID. The real YouTubeApiClient (T4) is exercised in
-        // its own unit test; here we only verify the upsert/idempotency wiring.
         $reader = new readonly class($metadata) implements YouTubePlaylistReaderInterface {
             /** @param list<VideoMetadata> $metadata */
             public function __construct(private array $metadata)
@@ -107,7 +104,7 @@ final class SyncWatchlistHandlerTest extends KernelTestCase
         self::assertNotNull($loaded);
         self::assertSame('New title', $loaded->title());
         self::assertSame(1200, $loaded->duration()->toSeconds());
-        // Timestamps preserved — the video stays out of the split pool.
+
         self::assertEquals($startedAt, $loaded->startedAt());
         self::assertFalse($loaded->isInSplitPool());
     }

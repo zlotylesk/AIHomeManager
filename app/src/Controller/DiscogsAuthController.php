@@ -66,10 +66,6 @@ final class DiscogsAuthController extends AbstractController
 
         $this->driftDetector->inspect($response);
 
-        // HMAI-105: explicit status check so a 401/500 from Discogs surfaces as a
-        // user-facing 502 with a log entry, instead of letting getContent() bubble
-        // a HttpExceptionInterface into the kernel's generic 500 handler. Sample
-        // the body so the operator can see Discogs' error message in the log.
         if (200 !== $response->getStatusCode()) {
             $this->logger->warning('Discogs request_token returned non-200', [
                 'status' => $response->getStatusCode(),
@@ -136,7 +132,6 @@ final class DiscogsAuthController extends AbstractController
 
         $this->driftDetector->inspect($response);
 
-        // HMAI-105: see authorize() — same fail-friendly path for access_token.
         if (200 !== $response->getStatusCode()) {
             $this->logger->warning('Discogs access_token returned non-200', [
                 'status' => $response->getStatusCode(),

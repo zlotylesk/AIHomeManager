@@ -226,22 +226,12 @@ final class BooksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        // is_int rejects floats (1.5), strings ("5"), and missing keys (null).
-        // is_numeric used to pass 1.5 — the (int) cast silently truncated it
-        // to 1, recording fewer pages than the user typed.
         $pagesRead = $data['pages_read'] ?? null;
 
         if (!is_int($pagesRead) || $pagesRead <= 0) {
             return new JsonResponse(['error' => 'Field "pages_read" is required and must be a positive integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // array_key_exists differentiates a missing field (default to today)
-        // from an explicit `null` in the payload (treat as invalid, matching
-        // the pages_read contract). createFromFormat('!Y-m-d', ...) parses
-        // strictly with time reset to 00:00:00; the round-trip check rejects
-        // overflow values like "2026-13-01" (which PHP silently rolls to
-        // "2027-01-01"), values without zero-padding like "2026-1-1", and
-        // ISO datetime strings.
         if (array_key_exists('date', $data)) {
             $dateInput = $data['date'];
             $parsed = is_string($dateInput) ? DateTimeImmutable::createFromFormat('!Y-m-d', $dateInput) : false;

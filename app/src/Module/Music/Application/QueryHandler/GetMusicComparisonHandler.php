@@ -40,9 +40,6 @@ final readonly class GetMusicComparisonHandler
 
     public function __invoke(GetMusicComparison $query): MusicComparisonDTO
     {
-        // discogsUsername MUST be in the key — without it, switching the configured
-        // Discogs account would serve stale data computed against the previous
-        // collection (HMAI-85). lastfmUsername is in the key for the same reason.
         $cacheKey = sprintf(
             'music:comparison:%s:%s:%s:%s:%d',
             self::CACHE_VERSION,

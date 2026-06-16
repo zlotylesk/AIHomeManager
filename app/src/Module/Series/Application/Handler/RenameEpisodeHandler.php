@@ -28,7 +28,6 @@ final readonly class RenameEpisodeHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        // Throws DomainException (→404) for an unknown season or episode.
         $series->renameEpisode($command->seasonId, $command->episodeId, $command->title);
         $this->repository->save($series);
 

@@ -98,7 +98,6 @@ final class RegenerateSessionsHandlerTest extends KernelTestCase
         self::assertNotContains($stale2->id()->toString(), $ids);
         self::assertNotEmpty($ids);
 
-        // Every fresh video ended up in exactly one regenerated session.
         $videoIds = [];
         foreach ($this->sessions->findAll() as $session) {
             foreach ($session->videoIds() as $videoId) {
@@ -111,9 +110,6 @@ final class RegenerateSessionsHandlerTest extends KernelTestCase
 
     public function testRegenerateRespectsSplitterAlgorithm(): void
     {
-        // Two channels, all videos fitting one 1800s session. Splitter orders
-        // channels by video count DESC (Beta: 2 before Alpha: 1) and videos
-        // within a channel by duration ASC.
         $this->saveVideoInPool('beta0000600', 'Beta', 600);
         $this->saveVideoInPool('beta0000300', 'Beta', 300);
         $this->saveVideoInPool('alfa0000400', 'Alpha', 400);
@@ -136,9 +132,6 @@ final class RegenerateSessionsHandlerTest extends KernelTestCase
 
         $this->saveVideoInPool('freshvideo1', 'Channel A', 600);
 
-        // The splitter is final and cannot be mocked, so inject the failure at
-        // the save boundary instead: deleteAll still runs inside the handler's
-        // transaction, so a rollback must restore the two pre-existing sessions.
         $failingSessions = new readonly class($this->sessions) implements WatchSessionRepositoryInterface {
             public function __construct(private WatchSessionRepositoryInterface $inner)
             {

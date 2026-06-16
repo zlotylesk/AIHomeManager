@@ -73,11 +73,6 @@ final class NationalLibraryApiClientTest extends TestCase
 
     public function testQueriesBnWithCamelCaseIsbnIssnParamAndNoKindFilter(): void
     {
-        // Regression: BN's filter param is camelCase `isbnIssn`. The HMAI-175
-        // migration sent lowercase `isbnissn`, which BN ignores — returning an
-        // arbitrary record (wrong book, or 422 when it had no page count). The
-        // `kind=book` filter also has to stay gone: BN tags books `książka`, so
-        // it emptied the result set.
         $capturedUrl = null;
         $httpClient = new MockHttpClient(function (string $method, string $url) use (&$capturedUrl): MockResponse {
             $capturedUrl = $url;
@@ -123,9 +118,6 @@ final class NationalLibraryApiClientTest extends TestCase
 
     public function testHandlesPartialMetadataWithoutMarcBlock(): void
     {
-        // Without a <marc> child, totalPages defaults to null and the handler
-        // surfaces the "fill it in manually" message to the user — the API
-        // call itself still succeeds.
         $xml = $this->makeXml(['title' => 'Partial Book']);
         $httpClient = new MockHttpClient(new MockResponse($xml));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
@@ -152,9 +144,6 @@ final class NationalLibraryApiClientTest extends TestCase
 
     public function testThrowsNotFoundWhenBibHasNoTitle(): void
     {
-        // BN occasionally returns a <bib> with author/publisher but no <title>
-        // (placeholder / in-progress catalogue entry). Without a title the DTO
-        // is useless for our purposes — treat it the same as "not found".
         $xml = $this->makeXml(['author' => 'Anonymous']);
         $httpClient = new MockHttpClient(new MockResponse($xml));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);
@@ -177,10 +166,6 @@ final class NationalLibraryApiClientTest extends TestCase
 
     public function testRejectsXxePayloadWithDoctype(): void
     {
-        // Regression for HMAI-96: a classic XXE attempt — external SYSTEM entity
-        // pointing at /etc/passwd. Even if BN.org were compromised or MitM'd,
-        // the DOCTYPE pre-check must reject the response outright, so the
-        // attacker's entity never reaches libxml.
         $xxe = <<<'XML'
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
@@ -198,9 +183,6 @@ final class NationalLibraryApiClientTest extends TestCase
 
     public function testRejectsDoctypeRegardlessOfCase(): void
     {
-        // Belt-and-suspenders: stripos() ensures lowercase "<!doctype" and
-        // whitespace-padded variants are caught — a naive substr() match could
-        // be bypassed by such trivial obfuscation.
         $payload = '<?xml version="1.0"?><!doctype resp><resp><bibs><bib><title>Innocent</title></bib></bibs></resp>';
         $httpClient = new MockHttpClient(new MockResponse($payload));
         $client = new NationalLibraryApiClient($httpClient, $this->redis);

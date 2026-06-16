@@ -65,8 +65,6 @@ final class ImportArticlesCommand extends Command
         try {
             $result = $this->importer->import($file, $encoding, $dryRun);
         } catch (InvalidArgumentException $e) {
-            // Surface the allowlist error from ArticleImporter as a user-friendly
-            // CLI message — without this the user sees a raw PHP exception trace.
             $output->writeln(sprintf('<error>%s</error>', $e->getMessage()));
 
             return Command::FAILURE;

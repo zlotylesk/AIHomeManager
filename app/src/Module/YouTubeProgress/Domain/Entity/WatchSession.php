@@ -34,8 +34,7 @@ final class WatchSession
         }
 
         $this->id = $id->value;
-        // Re-index defensively so external callers can't sneak in an array with
-        // gaps or non-sequential keys that would surprise downstream consumers.
+
         $this->videoIds = array_values($videoIds);
     }
 
@@ -67,10 +66,6 @@ final class WatchSession
 
     public function markPushedToYouTube(string $playlistId): void
     {
-        // Idempotent: once we record a successful push, a retry must not bump
-        // the playlist ID. The first push is the authoritative one — the second
-        // would either be a no-op success or a duplicate playlist on YT (caller's
-        // problem, not the aggregate's).
         if (null !== $this->youtubePlaylistId) {
             return;
         }

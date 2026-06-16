@@ -76,8 +76,7 @@ final class DiscogsApiClientTest extends TestCase
     private function assertHttpErrorTranslatesTo(int $httpStatus, string $expectedException, string $expectedMessageFragment): void
     {
         $redis = $this->createMock(Redis::class);
-        // setex must NOT be called when the upstream request fails — guards against
-        // silently caching empty results from an error response.
+
         $redis->expects(self::never())->method('setex');
 
         $httpClient = new MockHttpClient(new MockResponse('{"error":"upstream"}', ['http_code' => $httpStatus]));
@@ -274,10 +273,6 @@ final class DiscogsApiClientTest extends TestCase
 
     public function testRecordsDurationOnSuccessfulCollectionFetch(): void
     {
-        // HMAI-112: every Discogs API call must produce a timing metric on the
-        // music channel — one per page. Single-page fetch must emit exactly
-        // one info entry with provider=discogs, the endpoint slug, status 200,
-        // and a non-negative duration_ms.
         $json = $this->makeReleasePage([$this->makeRelease('A', 'B', 2000, 'Vinyl', 1)]);
         $httpClient = new MockHttpClient(new MockResponse($json, ['http_code' => 200]));
 
@@ -312,9 +307,6 @@ final class DiscogsApiClientTest extends TestCase
 
     public function testRecordsDurationWithErrorTagWhenUpstreamReturns429(): void
     {
-        // Rate-limit failure must still leave a metric so a 429 spike is
-        // distinguishable from a transport outage. Distinguishing 4xx vs 5xx
-        // is downstream of `error=client_error` + status=429 in the payload.
         $httpClient = new MockHttpClient(new MockResponse('{"message":"limited"}', ['http_code' => 429]));
 
         $redis = $this->createMock(Redis::class);

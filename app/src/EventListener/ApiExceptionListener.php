@@ -42,10 +42,6 @@ final readonly class ApiExceptionListener
 
         $exception = $event->getThrowable();
 
-        // Messenger wraps handler exceptions; surface the original so type
-        // checks (HttpExceptionInterface, custom domain exceptions) work as
-        // expected for any future caller that lets a HandlerFailedException
-        // escape the controller.
         if ($exception instanceof HandlerFailedException) {
             $previous = $exception->getPrevious();
             if (null !== $previous) {

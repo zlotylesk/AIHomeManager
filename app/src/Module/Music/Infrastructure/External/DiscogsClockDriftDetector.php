@@ -35,8 +35,6 @@ final readonly class DiscogsClockDriftDetector
         try {
             $headers = $response->getHeaders(false);
         } catch (TransportExceptionInterface) {
-            // No usable response — skip the check rather than mask a real
-            // transport failure with a noisy drift warning.
             return;
         }
 

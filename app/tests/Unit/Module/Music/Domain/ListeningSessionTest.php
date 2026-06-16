@@ -87,8 +87,6 @@ final class ListeningSessionTest extends TestCase
 
     public function testDedupHashIsTimezoneIndependent(): void
     {
-        // Same instant expressed in two timezones must hash identically — the
-        // dedup key normalizes to UTC so a tz mismatch can't create a duplicate.
         $utc = $this->makeSession('Pink Floyd', 'The Wall', '2026-05-20 10:00:00', new DateTimeZone('UTC'));
         $warsaw = $this->makeSession('Pink Floyd', 'The Wall', '2026-05-20 12:00:00', new DateTimeZone('Europe/Warsaw'));
 
