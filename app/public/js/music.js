@@ -47,10 +47,6 @@ async function loadMusic(period) {
 
         const errors = [];
 
-        // Promise.allSettled isolates each fetch — a Last.fm 5xx no longer
-        // wipes out the Discogs collection panel and vice versa. apiCall
-        // unwraps JSON and rejects on !res.ok, so a rejected result is the
-        // single signal for "this section failed".
         function readSection(result, label) {
             if (result.status === 'rejected') {
                 errors.push(`${label}: ${result.reason.message ?? 'network error'}`);

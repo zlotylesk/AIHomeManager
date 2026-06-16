@@ -1,10 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 
-// The Tasks panel is plain Twig + vanilla JS (not Stimulus). On load it calls
-// GET /api/tasks and renders the rows into #tasks-table. The render test seeds a
-// real task through POST /api/tasks (the create endpoint carries the X-API-Key
-// from playwright.config); the empty/error tests route-mock the read so they
-// stay hermetic and independent of DB state — same pattern as the Books specs.
 
 const uniqueTitle = (prefix: string) => `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -20,7 +15,6 @@ async function seedTask(request: APIRequestContext, title: string): Promise<stri
 async function gotoTasks(page: Page): Promise<void> {
   await page.goto('/tasks');
   await expect(page.locator('.app-title')).toHaveText('Tasks');
-  // loadTasks() flips the spinner off once the read resolves.
   await expect(page.locator('#tasks-loading')).toBeHidden({ timeout: 10_000 });
 }
 
@@ -45,7 +39,6 @@ test('a task created through the New Task form appears in the list', async ({ pa
   await page.fill('#task-end', '2026-07-01T10:30');
   await page.click('#form-create-task [type=submit]');
 
-  // On success the form resets, the info banner shows, and loadTasks() re-runs.
   await expect(page.locator('#info-banner')).toHaveText(/task created/i);
   const row = page.locator('#tasks-table tbody tr', { hasText: title });
   await expect(row).toBeVisible();
@@ -63,8 +56,6 @@ test('completing a pending task flips its badge and removes the Complete button'
 
   await row.locator('.js-task-complete').click();
 
-  // On success loadTasks() re-runs: the badge becomes Completed and the
-  // pending-only action button is gone.
   await expect(page.locator('#info-banner')).toHaveText(/task completed/i);
   const completedRow = page.locator('#tasks-table tbody tr', { hasText: title });
   await expect(completedRow.locator('.status-badge--completed')).toHaveText('Completed');

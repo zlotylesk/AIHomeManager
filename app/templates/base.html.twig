@@ -2,19 +2,11 @@
 <html lang="pl">
     <head>
         <meta charset="UTF-8">
-        {# CSP must appear before any <link>/<script> so it applies to them.
-           Allows the dev-mode FrankenPHP hot-reload bundle from jsDelivr; prod
-           keeps script-src locked to 'self'. style-src keeps 'unsafe-inline'
-           for a handful of decorative inline styles (margin overrides) — drop
-           it once those move to CSS classes. #}
         <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'{% if app.environment == 'dev' %} https://cdn.jsdelivr.net{% endif %}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; base-uri 'self'; object-src 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="api-key" content="{{ api_key }}">
         <title>{% block title %}AIHomeManager{% endblock %}</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🏠</text></svg>">
-        {# HMAI-41: Webpack Encore manifest-driven asset tags. Series UI runs
-           through assets/controllers/series_controller.js; other modules still
-           load their own <script src="js/*.js"> blocks until they migrate. #}
         {{ encore_entry_link_tags('app') }}
         {{ encore_entry_script_tags('app') }}
         {% block stylesheets %}{% endblock %}

@@ -133,7 +133,6 @@ async function loadReport(from, to) {
 document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
 
-    // Single delegated listener — survives every loadTasks() innerHTML reset.
     document.body.addEventListener('click', e => {
         const btn = e.target.closest('.js-task-complete');
         if (btn) {

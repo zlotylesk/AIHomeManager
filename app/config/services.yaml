@@ -1,31 +1,16 @@
-# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
 
-# This file is the entry point to configure your own services.
-# Files in the packages/ subdirectory configure your dependencies.
-# See also https://symfony.com/doc/current/service_container/import.html
 
-# Put parameters here that don't need to change on each machine where the app is deployed
-# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
-    # HMAI-114: Discogs OAuth1 replay protection rejects requests whose
-    # timestamp deviates too far from the server clock. 300s matches OAuth1's
-    # de facto reject threshold; tighten or loosen here if Discogs publishes
-    # different guidance without touching application code.
     app.discogs_clock_drift.threshold_seconds: 300
 
 services:
-    # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
 
-    # makes classes in src/ available to be used as services
-    # this creates a service per class whose id is the fully-qualified class name
     App\:
         resource: '../src/'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
 
     App\Infrastructure\Backup\DatabaseBackupService:
         arguments:
@@ -44,7 +29,6 @@ services:
         arguments:
             $redis: '@app.redis'
 
-    # Delete handlers invalidate the cached series/season averages after removal.
     App\Module\Series\Application\Handler\DeleteSeriesHandler:
         arguments:
             $redis: '@app.redis'
@@ -57,12 +41,6 @@ services:
         arguments:
             $redis: '@app.redis'
 
-    # HMAI-176: the bare UDP transport throws the instant a log line is shipped to
-    # an unreachable Graylog (e.g. getaddrinfo for "graylog" fails when the monitoring
-    # stack is down). Because the `series` and `auth` Monolog channels log on the
-    # request path, that exception bubbled out and turned core endpoints like
-    # /api/series into a 500. IgnoreErrorTransportWrapper swallows transport-level
-    # errors so a dead log sink degrades silently instead of breaking the request.
     gelf.transport.udp:
         class: Gelf\Transport\UdpTransport
         arguments:
@@ -102,8 +80,6 @@ services:
     App\Module\Music\Domain\Port\VinylCollectionLoaderInterface:
         alias: App\Module\Music\Infrastructure\External\DiscogsApiClient
 
-    # HMAI-113: ctor takes a single VO so DI debug output (debug:container
-    # --show-arguments) and stack traces redact the consumer secret.
     App\Module\Music\Infrastructure\External\DiscogsCredentials:
         arguments:
             $consumerKey: '%env(DISCOGS_CONSUMER_KEY)%'
@@ -121,7 +97,6 @@ services:
     App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface:
         alias: App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository
 
-    # Per-provider key isolates blast radius — use named instances, not the typehint.
     App\Security\TokenCipher:
         abstract: true
 
@@ -148,7 +123,6 @@ services:
         arguments:
             $cipher: '@app.google_token_cipher'
 
-    # Trakt OAuth2 (HMAI-180) — separate cipher key isolates blast radius.
     App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository:
         arguments:
             $cipher: '@app.trakt_token_cipher'
@@ -257,7 +231,6 @@ services:
         arguments:
             $expectedApiKey: '%env(API_KEY)%'
 
-    # Rate limiting: per-IP throttle for /api/* endpoints (HMAI-38)
     App\EventListener\ApiRateLimitListener:
         arguments:
             $apiPerIpLimiter: '@limiter.api_per_ip'
@@ -313,25 +286,15 @@ services:
 
 when@test:
     services:
-        # Spy logger lets ApiRateLimitTest assert the listener emits the expected
-        # warning + rate_limit_triggered=true context (Graylog AC).
         App\Tests\Support\SpyLogger:
             public: true
 
-        # Override must keep autoconfigure: true so the #[AsEventListener] attribute
-        # still wires the listener into kernel.event_listener — without it the listener
-        # is never invoked and rate limiting silently disables in tests.
         App\EventListener\ApiRateLimitListener:
             autoconfigure: true
             arguments:
                 $apiPerIpLimiter: '@limiter.api_per_ip'
                 $logger: '@App\Tests\Support\SpyLogger'
 
-        # HMAI-176: the test env routes the series/auth channels to null handlers, so
-        # the GELF services have no consumer and would be pruned from the container.
-        # Public aliases keyed by class name keep them reachable for
-        # GelfTransportResilienceTest, fetched via ::class (same pattern as SpyLogger)
-        # so phpstan-symfony resolves them without a dev-container lookup.
         Gelf\Transport\IgnoreErrorTransportWrapper:
             alias: gelf.transport
             public: true

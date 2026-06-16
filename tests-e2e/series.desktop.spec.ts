@@ -28,7 +28,6 @@ test('list loads and renders titles for created series', async ({ page, request 
 test('create form adds a new series without a full page reload', async ({ page }) => {
   await gotoSeriesList(page);
 
-  // Stamp window with a random sentinel; a full page reload would discard it.
   const sentinel = Math.random().toString(36).slice(2);
   await page.evaluate((s) => { (window as unknown as Record<string, string>).__e2eSentinel = s; }, sentinel);
 
@@ -78,12 +77,10 @@ test('marking an episode watched updates the season counter (HMAI-188)', async (
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  // Episode starts unwatched: counter reads 0/1, checkbox unchecked.
   await expect(page.locator('.season-block .season-header small')).toContainText('0/1 watched');
   const checkbox = page.locator('.episodes-table .js-episode-watched');
   await expect(checkbox).not.toBeChecked();
 
-  // Toggle watched — the row gets the watched class and the counter follows.
   await checkbox.check();
   await expect(page.locator('.season-block .season-header small')).toContainText('1/1 watched');
   await expect(page.locator('.episodes-table tr.episode-watched')).toHaveCount(1);
@@ -101,12 +98,10 @@ test('rating an existing episode updates season and series average immediately',
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  // Existing episode starts unrated — the cell offers a "Rate" affordance.
   await expect(page.locator('.meta')).toContainText('No ratings yet');
   const rateCell = page.locator('.episodes-table .rating-cell-btn');
   await expect(rateCell).toHaveText('Rate');
 
-  // Open the inline selector and pick 7.
   await rateCell.click();
   await page.locator('.rating-editor .rating-btn', { hasText: '7' }).first().click();
 
@@ -114,7 +109,6 @@ test('rating an existing episode updates season and series average immediately',
   await expect(page.locator('.meta strong')).toContainText('★ 7');
   await expect(page.locator('.episodes-table .rating-cell-btn')).toHaveText('★ 7');
 
-  // Re-rate the same episode to 9 — averages must follow without re-adding it.
   await page.locator('.episodes-table .rating-cell-btn').click();
   await page.locator('.rating-editor .rating-btn', { hasText: '9' }).first().click();
 
@@ -123,9 +117,6 @@ test('rating an existing episode updates season and series average immediately',
 });
 
 test('setting own series and season ratings persists independently of the average', async ({ page, request }) => {
-  // HMAI-179: the manual "My rating" controls are separate from the
-  // episode-derived average — here there are no episodes, so only the manual
-  // scores change.
   const title = uniqueTitle('E2E OwnRating');
   const seriesRes = await request.post('/api/series', { data: { title } });
   const { id: seriesId } = await seriesRes.json();
@@ -135,21 +126,18 @@ test('setting own series and season ratings persists independently of the averag
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  // Series' own rating starts unset.
   const seriesOwn = page.locator('#series-own-rating .rating-cell-btn');
   await expect(seriesOwn).toHaveText('Rate');
   await seriesOwn.click();
   await page.locator('#series-own-rating .rating-editor .rating-btn', { hasText: '9' }).first().click();
   await expect(page.locator('#series-own-rating .rating-cell-btn')).toHaveText('★ 9');
 
-  // Season's own rating, likewise independent of any episode average.
   const seasonOwn = page.locator('.season-block [data-season-own-rating] .rating-cell-btn');
   await expect(seasonOwn).toHaveText('Rate');
   await seasonOwn.click();
   await page.locator('[data-season-own-rating] .rating-editor .rating-btn', { hasText: '6' }).first().click();
   await expect(page.locator('.season-block [data-season-own-rating] .rating-cell-btn')).toHaveText('★ 6');
 
-  // Reload from the API — both manual scores must have persisted.
   await page.reload();
   await expect(page.locator('#series-list .loading')).toHaveCount(0, { timeout: 10_000 });
   await openSeriesDetail(page, title);
@@ -166,7 +154,6 @@ test('deleting an episode removes it from the season table (HMAI-185)', async ({
   const epRes = await request.post(`/api/series/${seriesId}/seasons/${seasonId}/episodes`, { data: { title: 'Doomed Pilot', number: 1 } });
   expect(epRes.ok()).toBeTruthy();
 
-  // The delete button raises a confirm() dialog — auto-accept it.
   page.on('dialog', (dialog) => dialog.accept());
 
   await gotoSeriesList(page);
@@ -177,7 +164,6 @@ test('deleting an episode removes it from the season table (HMAI-185)', async ({
 
   await page.locator('.episodes-table .js-delete-episode').click();
 
-  // After the model re-renders the row is gone.
   await expect(page.locator('.episodes-table tbody tr')).toHaveCount(0);
 });
 
@@ -189,17 +175,14 @@ test('editing the series title inline persists it (HMAI-186)', async ({ page, re
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  // Click the inline title, change it, save with Enter.
   const newTitle = `${title} Edited`;
   await page.locator('#series-title-edit .inline-editable-value').click();
   const input = page.locator('#series-title-edit .inline-editable-input');
   await input.fill(newTitle);
   await input.press('Enter');
 
-  // Display reflects the new title in place…
   await expect(page.locator('#series-title-edit .inline-editable-value')).toHaveText(newTitle);
 
-  // …and it persisted — reload from the API and reopen by the new title.
   await page.reload();
   await expect(page.locator('#series-list .loading')).toHaveCount(0, { timeout: 10_000 });
   await openSeriesDetail(page, newTitle);
@@ -207,34 +190,24 @@ test('editing the series title inline persists it (HMAI-186)', async ({ page, re
 });
 
 test('list search filters and sort reorders the visible cards (HMAI-189)', async ({ page, request }) => {
-  // Two series sharing a unique stamp (to isolate them from other rows in the
-  // shared dev DB), with titles that sort differently from their creation order.
   const stamp = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
   const alpha = `AAA ${stamp}`;
   const zeta = `ZZZ ${stamp}`;
-  // alpha is created first → zeta is the more recent of the two.
   expect((await request.post('/api/series', { data: { title: alpha } })).ok()).toBeTruthy();
-  // created_at is stored at second resolution, so two back-to-back inserts share
-  // a timestamp and "Recently added" can't separate them — the tie sorts
-  // arbitrarily (flaky in CI). Wait past a full second so zeta is strictly newer.
   await new Promise((resolve) => setTimeout(resolve, 1100));
   expect((await request.post('/api/series', { data: { title: zeta } })).ok()).toBeTruthy();
 
   await gotoSeriesList(page);
 
-  // Filtering by the shared stamp isolates exactly our two cards.
   await page.locator('#series-search').fill(stamp);
   await expect(page.locator('.series-card')).toHaveCount(2);
 
-  // Default sort is Title A–Z → AAA precedes ZZZ.
   await expect(page.locator('.series-card').first().locator('h3')).toHaveText(alpha);
 
-  // A narrower term hides the non-matching card entirely.
   await page.locator('#series-search').fill(`AAA ${stamp}`);
   await expect(page.locator('.series-card')).toHaveCount(1);
   await expect(page.locator('.series-card h3')).toHaveText(alpha);
 
-  // Back to both, then sort by "Recently added" → ZZZ (newer) jumps to first.
   await page.locator('#series-search').fill(stamp);
   await page.locator('#series-sort').selectOption('created-desc');
   await expect(page.locator('.series-card').first().locator('h3')).toHaveText(zeta);
@@ -243,8 +216,6 @@ test('list search filters and sort reorders the visible cards (HMAI-189)', async
 test('Import from Trakt button kicks off the async import and shows a started banner (HMAI-184)', async ({ page }) => {
   await gotoSeriesList(page);
 
-  // Stub the import endpoint so the smoke test never touches the real Trakt
-  // OAuth flow — a connected account answers 202 "import_started".
   let importCalled = false;
   await page.route('**/api/series/import/trakt', async (route) => {
     importCalled = true;
@@ -259,7 +230,6 @@ test('Import from Trakt button kicks off the async import and shows a started ba
   await expect(button).toBeVisible();
   await button.click();
 
-  // The 202 surfaces as the info banner, and the endpoint was actually hit.
   const banner = page.locator('#info-banner');
   await expect(banner).toBeVisible();
   await expect(banner).toHaveText(/import started/i);
@@ -269,8 +239,6 @@ test('Import from Trakt button kicks off the async import and shows a started ba
 test('Import from Trakt prompts to connect when no token is stored (HMAI-184)', async ({ page }) => {
   await gotoSeriesList(page);
 
-  // A disconnected account answers 409 — the front must offer the OAuth link
-  // instead of silently failing.
   await page.route('**/api/series/import/trakt', async (route) => {
     await route.fulfill({
       status: 409,
@@ -289,9 +257,6 @@ test('Import from Trakt prompts to connect when no token is stored (HMAI-184)', 
 test('API 422 surfaces an error message visible to the user', async ({ page }) => {
   await gotoSeriesList(page);
 
-  // Stub the POST so the JS hits the actual error branch.
-  // The JS short-circuits empty/whitespace titles before sending, so we need a
-  // real-looking title that the (mocked) server rejects.
   await page.route('**/api/series', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
@@ -314,7 +279,6 @@ test('API 422 surfaces an error message visible to the user', async ({ page }) =
 });
 
 test('cards flag rating mismatch (red) and incomplete watched state (amber) — incomplete wins (HMAI-221)', async ({ page }) => {
-  // Pure rendering test — stub the list so we control exact rating + watched state.
   const season = (over: Record<string, unknown>) => ({
     id: 's', number: 1, rating: null, averageRating: null,
     watchedCount: 0, episodeCount: 0, episodes: [], ...over,
@@ -327,17 +291,14 @@ test('cards flag rating mismatch (red) and incomplete watched state (amber) — 
   });
 
   const payload = [
-    // Fully watched, own 5 ≠ round(avg 8) → red mismatch.
     series('Divergent Show', {
       rating: 5, averageRating: 8, watchedCount: 10, episodeCount: 10,
       seasons: [season({ rating: 5, averageRating: 8, watchedCount: 10, episodeCount: 10 })],
     }),
-    // Only 3/10 watched → amber incomplete; it would also mismatch, so amber must win.
     series('Partial Show', {
       rating: 5, averageRating: 8, watchedCount: 3, episodeCount: 10,
       seasons: [season({ rating: 5, averageRating: 8, watchedCount: 3, episodeCount: 10 })],
     }),
-    // Fully watched, own 7 == round(avg 7) → neutral.
     series('Aligned Show', {
       rating: 7, averageRating: 7, watchedCount: 10, episodeCount: 10,
       seasons: [season({ rating: 7, averageRating: 7, watchedCount: 10, episodeCount: 10 })],

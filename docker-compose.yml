@@ -24,9 +24,6 @@ services:
     depends_on:
       - php
     healthcheck:
-      # HMAI-37: end-to-end probe — nginx → php-fpm → /api/health checks MySQL,
-      # Redis, RabbitMQ. wget is preinstalled in nginx:alpine; --spider exits 0
-      # on 2xx and non-zero on 5xx, matching docker's expected semantics.
       test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/api/health"]
       interval: 30s
       timeout: 10s
@@ -94,10 +91,6 @@ services:
         condition: service_healthy
 
   node:
-    # HMAI-41: Webpack Encore build container. Stays on a sleep loop so
-    # `make assets` / `make assets-watch` can shell into a long-lived
-    # node:24-alpine without rebuilding the image each run. Mounts the same
-    # ./app tree as php so public/build/ written here is served by nginx.
     image: node:24-alpine
     working_dir: /var/www/html
     volumes:
@@ -106,9 +99,6 @@ services:
     restart: unless-stopped
 
   scheduler_worker:
-    # HMAI-35: Runs Symfony Scheduler recurring messages — midnight cache reset,
-    # weekly activity report, 6h Discogs cache warmup, daily MySQL backup (HMAI-136).
-    # Same image as the messenger worker; consumes the dedicated `scheduler_default` transport.
     build:
       context: docker/php
     volumes:
