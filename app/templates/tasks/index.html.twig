@@ -85,6 +85,22 @@
     <div id="report-empty" class="empty-state hidden">No tasks found in selected period.</div>
 </div>
 
+<div id="task-detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="modal-box">
+        <h2 id="detail-title">Task details</h2>
+        <dl class="detail-list">
+            <dt>Status</dt><dd id="detail-status">—</dd>
+            <dt>Start</dt><dd id="detail-start">—</dd>
+            <dt>End</dt><dd id="detail-end">—</dd>
+            <dt>Duration</dt><dd id="detail-duration">—</dd>
+            <dt>Google Calendar</dt><dd id="detail-google">—</dd>
+        </dl>
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary js-detail-close">Close</button>
+        </div>
+    </div>
+</div>
+
 <script src="{{ asset('js/util.js') }}"></script>
 <script src="{{ asset('js/tasks.js') }}"></script>
 {% endblock %}
