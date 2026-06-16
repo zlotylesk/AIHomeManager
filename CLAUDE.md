@@ -67,6 +67,8 @@ Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-pro
 
 `public/build/` + `node_modules/` w `.gitignore`. CI buduje assets w jobach `tests` i `e2e-playwright` (`npm ci && npm run build` w `app/`) przed PHPUnit/Playwright — bez tego Twig `encore_entry_*` wywala 500.
 
+**`webpack-cli` przypięty do linii 6.x (HMAI-222):** `@symfony/webpack-encore@6` deklaruje `peer webpack-cli@^6`, więc major-bump (np. 7.x) wywala `npm ci` na `ERESOLVE` jeszcze przed buildem assetów (oba joby CI budujące Encore lecą na czerwono). `.github/dependabot.yml` ma regułę `ignore` na `webpack-cli` z `update-types: [version-update:semver-major]` w ekosystemie npm `/app` — Dependabot nie zaproponuje 7.x dopóki Encore nie zostanie podniesiony do wersji wspierającej webpack-cli 7. NIE mergować ręcznie majora `webpack-cli` przed tym bumpem Encore (precedens: feralny auto-merge na `master`/`develop` → hotfix PR #212 + ten ticket).
+
 **npm audit gate:** każdy `npm ci` deps frontend (`tests` job + `e2e-playwright`, oba w `app/`) ma zaraz po sobie `npm audit --audit-level=high`. Low/moderate są noise dla devDeps i przepuszczane; high+critical blokują merge. Fix = bump paczki (`npm install pkg@latest`), nie suppress — advisory na zainstalowanej wersji to legit signal. Lokalnie: `make node-audit`.
 
 Root `package.json` (Playwright + Newman) **świadomie poza gate**: newman 6.x (latest stable) ciągnie deep-transitive CVE w `handlebars`/`lodash`/`postman-*` bez forward-fixu od vendora; `audit fix --force` cofnąłby do newman 2.1.2 i wywalił kolekcję Postman. Re-evaluacja gdy newman 7.x wyjdzie z czystym drzewem zależności — wtedy gate wraca na root.
