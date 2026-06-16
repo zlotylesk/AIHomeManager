@@ -99,9 +99,6 @@ async function loadArticles() {
         window.apiCall('/api/articles/today'),
     ]);
 
-    // List is mandatory — without it there's nothing to render. apiCall
-    // rejects on !res.ok, so a rejected listResult means either network or
-    // 4xx/5xx — both fatal for this view.
     if (listResult.status !== 'fulfilled') {
         showError('Failed to load articles.');
         $('articles-list').innerHTML = '';
@@ -109,9 +106,6 @@ async function loadArticles() {
     }
     allArticles = listResult.value;
 
-    // Today is optional — a transient 500 on /api/articles/today must not
-    // block the main list. apiCall rejects on failure and resolves to null
-    // on 204; either way we skip the panel.
     if (todayResult.status === 'fulfilled' && todayResult.value) {
         $('today-section').classList.remove('hidden');
         $('today-article').innerHTML = renderArticle(todayResult.value);
@@ -125,8 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadArticles();
     $('filter-category').addEventListener('change', e => renderList(e.target.value));
 
-    // Single delegated listener — survives every renderList() innerHTML reset
-    // and covers both #articles-list and #today-article without re-binding.
     document.body.addEventListener('click', e => {
         const btn = e.target.closest('.btn-mark-read');
         if (btn) {

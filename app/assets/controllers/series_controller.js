@@ -4,10 +4,6 @@ import { TOAST_TIMEOUT_MS, apiCall, escHtml, safeUrl } from '../util.js';
 const API = {
     series: () => apiCall('/api/series'),
     seriesDetail: (id) => apiCall(`/api/series/${id}`),
-    // Mutations go through apiCall so the X-API-Key meta header is attached —
-    // a bare fetch() skips it and the stateless api firewall answers 401 (HMAI-176).
-    // `payload` carries the title plus optional metadata (coverUrl/year/status/
-    // description), each null when left blank (HMAI-190).
     createSeries: (payload) => apiCall('/api/series', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -24,53 +20,39 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title, number, rating: rating || null}),
     }),
-    // PATCH — sets/changes the rating of an existing episode. Returns 204
-    // (apiCall → null) on success, 422 for a rating outside 1–10, 404 if missing.
     rateEpisode: (seriesId, seasonId, episodeId, rating) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}/rating`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({rating}),
     }),
-    // PATCH — toggles an episode's watched flag (HMAI-188). 204 on success,
-    // 422 for a non-boolean body, 404 if the episode is missing.
     setEpisodeWatched: (seriesId, seasonId, episodeId, watched) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}/watched`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({watched}),
     }),
-    // PATCH — the user's own (manual) whole-series score, independent of the
-    // episode-derived average. Same 204/422/404 contract as rateEpisode.
     rateSeries: (seriesId, rating) => apiCall(`/api/series/${seriesId}/rating`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({rating}),
     }),
-    // PATCH — the user's own (manual) season score, independent of the average.
     rateSeason: (seriesId, seasonId, rating) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/rating`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({rating}),
     }),
-    // DELETE — cascades on the server (series → seasons → episodes). 204 → null
-    // on success, 404 if already gone.
     deleteSeries: (seriesId) => apiCall(`/api/series/${seriesId}`, {method: 'DELETE'}),
     deleteSeason: (seriesId, seasonId) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}`, {method: 'DELETE'}),
     deleteEpisode: (seriesId, seasonId, episodeId) => apiCall(
         `/api/series/${seriesId}/seasons/${seasonId}/episodes/${episodeId}`, {method: 'DELETE'}),
-    // PATCH — edit metadata. 204 → null on success; 422 (bad title/number),
-    // 404 (missing), 409 (season number already used in the series).
     renameSeries: (seriesId, title) => apiCall(`/api/series/${seriesId}`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title}),
     }),
-    // PATCH — the full edit-details save: title plus the four metadata fields,
-    // which the server replaces wholesale (HMAI-190). Sending all four keys is
-    // what distinguishes this from the title-only inline edit above.
     updateSeries: (seriesId, payload) => apiCall(`/api/series/${seriesId}`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
@@ -88,9 +70,6 @@ const API = {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title}),
     }),
-    // POST — fires the async Trakt → AIHM watched-shows import (HMAI-184).
-    // Resolves with the 202 body on success; apiCall throws with .status 409
-    // when Trakt is not connected, so the caller can prompt for /auth/trakt.
     importFromTrakt: () => apiCall('/api/series/import/trakt', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -103,27 +82,16 @@ function avg(nums) {
     return Math.round((filtered.reduce((a, b) => a + b, 0) / filtered.length) * 100) / 100;
 }
 
-// A single labelled score chip for a list card — "My ★ 8" / "Avg ★ 7.5", or a
-// muted em-dash when unset. Own and average ratings are shown side by side so
-// they read as distinct values (HMAI-189).
 function cardRating(label, value) {
     const has = value !== null && value !== undefined;
     return `<span class="card-rating${has ? '' : ' card-rating-empty'}">${label} ${has ? `★ ${value}` : '—'}</span>`;
 }
 
-// Human label for the series status enum (HMAI-190). Unknown/empty → null so
-// callers can omit the badge entirely.
 function statusLabel(status) {
     return {ongoing: 'Ongoing', ended: 'Ended'}[status] ?? null;
 }
 
-// ── rating-state highlight (HMAI-221) ──
 
-// Classifies a series or season by how its own rating relates to the episode
-// average, for the card/header background. 'incomplete' (not every episode
-// watched yet → the average is still partial) wins over 'mismatch' (own rating
-// ≠ rounded average), because a partial average isn't a conclusive comparison.
-// Returns 'incomplete' | 'mismatch' | null.
 function ratingHighlight(entity) {
     if (entity.episodeCount > 0 && entity.watchedCount < entity.episodeCount) {
         return 'incomplete';
@@ -132,13 +100,11 @@ function ratingHighlight(entity) {
         return null;
     }
     if (entity.rating === null || entity.rating === undefined) {
-        return 'mismatch'; // an average exists but the user hasn't rated it yet
+        return 'mismatch';
     }
     return Math.round(entity.averageRating) !== entity.rating ? 'mismatch' : null;
 }
 
-// {cls, title} for a single entity's header (series detail / season). Empty when
-// there is nothing to flag.
 function ratingFlag(entity) {
     const state = ratingHighlight(entity);
     if (state === 'incomplete') {
@@ -154,9 +120,6 @@ function ratingFlag(entity) {
     return {cls: '', title: ''};
 }
 
-// {cls, title} for a list card. The card is series-level, but a season's mismatch
-// must surface here too (seasons aren't visible on the list), so once the series
-// is fully watched we also flag any season whose own rating differs.
 function cardRatingFlag(s) {
     if (s.episodeCount > 0 && s.watchedCount < s.episodeCount) {
         return {cls: 'is-rating-incomplete', title: `W toku — obejrzane ${s.watchedCount}/${s.episodeCount} odcinków`};
@@ -176,7 +139,6 @@ export default class extends Controller {
         this.loadSeriesList();
     }
 
-    // ── shared dom helpers — scoped to the controller's element subtree ──
 
     $(id) {
         return this.element.querySelector(`#${id}`);
@@ -203,8 +165,6 @@ export default class extends Controller {
         if (banner) banner.classList.add('hidden');
     }
 
-    // Neutral counterpart to showError for "it worked" feedback — e.g. the
-    // Trakt import kicking off in the background (HMAI-184).
     showInfo(msg) {
         const banner = document.getElementById('info-banner');
         if (!banner) return;
@@ -213,10 +173,7 @@ export default class extends Controller {
         setTimeout(() => banner.classList.add('hidden'), TOAST_TIMEOUT_MS);
     }
 
-    // ── trakt import ──
 
-    // Wires the header "Import from Trakt" button (HMAI-184). The import runs
-    // async server-side, so a click only kicks it off and reports "started".
     initImportTrakt() {
         const btn = this.$('btn-import-trakt');
         if (!btn) return;
@@ -230,7 +187,6 @@ export default class extends Controller {
             await API.importFromTrakt();
             this.showInfo('Trakt import started in the background. Your watched shows will appear shortly.');
         } catch (err) {
-            // 409 = Trakt never connected; anything else is an unexpected failure.
             if (err.status === 409) {
                 this.showTraktConnectPrompt();
             } else {
@@ -241,9 +197,6 @@ export default class extends Controller {
         }
     }
 
-    // 409 path: point the user at the public OAuth flow. The markup is static
-    // (no user input), so innerHTML is XSS-safe, and we skip the auto-hide so
-    // the link stays put until the user acts on it.
     showTraktConnectPrompt() {
         const banner = document.getElementById('error-banner');
         if (!banner) return;
@@ -251,11 +204,7 @@ export default class extends Controller {
         banner.classList.remove('hidden');
     }
 
-    // ── series list ──
 
-    // Wires the search box and sort selector (static Twig elements) and seeds
-    // the list state. The full, unfiltered set lives in this.allSeries so
-    // filtering/sorting is non-destructive and purely client-side (HMAI-189).
     initListControls() {
         this.allSeries = [];
         this.searchTerm = '';
@@ -277,9 +226,6 @@ export default class extends Controller {
         }
     }
 
-    // Derives the visible cards from the full set: filter by title, then sort.
-    // Empty full set → onboarding hint (toolbar hidden); non-empty set with no
-    // matches → "no results" (toolbar stays, so the user can clear the filter).
     applyListView() {
         const toolbar = this.$('series-toolbar');
         const container = this.$('series-list');
@@ -305,8 +251,6 @@ export default class extends Controller {
         this.renderSeriesList(this.sortSeries(filtered, this.sortKey));
     }
 
-    // Returns a sorted copy. Unrated series sort last under the rating keys so
-    // a long unrated tail never buries the scored shows.
     sortSeries(list, key) {
         const desc = (a, b) => (b ?? -Infinity) - (a ?? -Infinity);
         const sorted = [...list];
@@ -369,7 +313,6 @@ export default class extends Controller {
         }
     }
 
-    // ── series detail ──
 
     renderRatingSelector(selected, onChange) {
         const wrap = document.createElement('div');
@@ -390,10 +333,6 @@ export default class extends Controller {
         return wrap;
     }
 
-    // Inline "My rating" control (display ↔ editor) for a series or season
-    // header. `current` is the user's own manual score (or null); `onSave`
-    // PATCHes it and must resolve before the display updates. Shown alongside —
-    // and fully independent of — the episode-derived average (HMAI-179).
     buildOwnRatingControl(current, onSave) {
         const wrap = document.createElement('span');
         wrap.className = 'own-rating';
@@ -412,8 +351,6 @@ export default class extends Controller {
             btn.addEventListener('click', renderEditor);
             wrap.append(label, ' ', btn);
 
-            // Clear affordance — only when a manual rating exists (HMAI-191).
-            // PATCHes {rating: null} and reverts the control to "Rate".
             if (rated) {
                 const clear = document.createElement('button');
                 clear.type = 'button';
@@ -473,10 +410,6 @@ export default class extends Controller {
         return wrap;
     }
 
-    // Inline text/number editor (HMAI-186). Renders `value` as a clickable
-    // control; clicking swaps it for an <input>. Enter or blur saves, Esc
-    // cancels. onSave(newValue) must resolve before the display updates; a
-    // rejection surfaces via showError and restores the previous value.
     buildInlineEditable(value, {inputType = 'text', min = 1, ariaLabel, onSave}) {
         const wrap = document.createElement('span');
         wrap.className = 'inline-editable';
@@ -503,8 +436,6 @@ export default class extends Controller {
             input.value = value;
             if (inputType === 'number') input.min = String(min);
 
-            // Enter→save re-renders and removes the input, which fires blur and
-            // would save again — `settled` collapses both into one action.
             let settled = false;
             const cancel = () => { if (!settled) { settled = true; showDisplay(); } };
             const save = async () => {
@@ -544,8 +475,6 @@ export default class extends Controller {
         let selectedRating = null;
 
         const ratingSelector = this.renderRatingSelector(null, v => { selectedRating = v; });
-        // Default to the next free number; numbers may have gaps, so use max+1
-        // rather than the episode count (HMAI-187).
         const nextNumber = season.episodes.length
             ? Math.max(...season.episodes.map(e => e.number)) + 1
             : 1;
@@ -593,7 +522,6 @@ export default class extends Controller {
     }
 
     renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
-        // Display in stored-number order, not insertion order (HMAI-187).
         season.episodes.sort((a, b) => a.number - b.number);
         const seasonAvg = avg(season.episodes.map(e => e.rating));
         const watchedCount = season.episodes.filter(e => e.watched).length;
@@ -627,8 +555,6 @@ export default class extends Controller {
             </table>
         `;
 
-        // Inline-editable season number (HMAI-186) — renumber persists; a clash
-        // with another season's number surfaces a 409 via showError.
         block.querySelector('.js-season-number').appendChild(
             this.buildInlineEditable(season.number, {
                 inputType: 'number',
@@ -641,7 +567,6 @@ export default class extends Controller {
             })
         );
 
-        // Inline-editable episode titles.
         block.querySelectorAll('.episode-title').forEach(td => {
             const ep = season.episodes[Number(td.dataset.epIndex)];
             td.appendChild(this.buildInlineEditable(ep.title, {
@@ -653,8 +578,6 @@ export default class extends Controller {
             }));
         });
 
-        // Season's own (manual) rating control — independent of the avg above.
-        // Saving updates the model in place; no full re-render needed.
         block.querySelector('[data-season-own-rating]').appendChild(
             this.buildOwnRatingControl(season.rating, async value => {
                 await API.rateSeason(seriesId, season.id, value);
@@ -662,21 +585,16 @@ export default class extends Controller {
             })
         );
 
-        // Hydrate each Watched cell into a checkbox toggle bound to its episode.
         block.querySelectorAll('.watched-cell').forEach(td => {
             const ep = season.episodes[Number(td.dataset.epIndex)];
             this.renderWatchedCell(td, seriesId, season, ep, onUpdate);
         });
 
-        // Hydrate each Rating cell into a clickable control (display ↔ inline
-        // selector). Built post-innerHTML so each cell binds to its episode object.
         block.querySelectorAll('.rating-cell').forEach(td => {
             const ep = season.episodes[Number(td.dataset.epIndex)];
             this.renderRatingCell(td, seriesId, season, ep, onUpdate);
         });
 
-        // Per-episode delete button. On success the episode is dropped from the
-        // model and onUpdate() re-renders so the table + averages refresh.
         block.querySelectorAll('.episode-actions').forEach(td => {
             const ep = season.episodes[Number(td.dataset.epIndex)];
             const del = document.createElement('button');
@@ -723,9 +641,6 @@ export default class extends Controller {
         return block;
     }
 
-    // Watched toggle for an episode (HMAI-188). Flipping it PATCHes the flag;
-    // on success the model updates and onUpdate() re-renders so the season's
-    // "X/Y watched" counter refreshes. On failure the checkbox reverts.
     renderWatchedCell(td, seriesId, season, ep, onUpdate) {
         td.innerHTML = '';
         const checkbox = document.createElement('input');
@@ -751,8 +666,6 @@ export default class extends Controller {
         td.appendChild(checkbox);
     }
 
-    // Display mode for an episode's Rating cell: a button showing the current
-    // score (or "Rate"); clicking swaps the cell into the inline selector.
     renderRatingCell(td, seriesId, season, ep, onUpdate) {
         const rated = ep.rating !== null && ep.rating !== undefined;
         td.innerHTML = '';
@@ -765,10 +678,6 @@ export default class extends Controller {
         td.appendChild(btn);
     }
 
-    // Edit mode: the 10-button selector (current score highlighted) plus a
-    // cancel affordance. Picking a value PATCHes the episode; on success the
-    // model is updated and onUpdate() re-renders so season/series averages
-    // refresh immediately. Re-picking the current score is a no-op close.
     openRatingEditor(td, seriesId, season, ep, onUpdate) {
         td.innerHTML = '';
         const editor = document.createElement('div');
@@ -840,7 +749,6 @@ export default class extends Controller {
             <div id="seasons-container"></div>
         `;
 
-        // Inline-editable series title (HMAI-186).
         container.querySelector('#series-title-edit').appendChild(
             this.buildInlineEditable(series.title, {
                 ariaLabel: 'series title',
@@ -851,7 +759,6 @@ export default class extends Controller {
             })
         );
 
-        // Series' own (manual) rating control — independent of the average above.
         container.querySelector('#series-own-rating').appendChild(
             this.buildOwnRatingControl(series.rating, async value => {
                 await API.rateSeries(series.id, value);
@@ -887,8 +794,6 @@ export default class extends Controller {
 
         container.querySelector('#btn-edit-details').addEventListener('click', () => {
             if (container.querySelector('.edit-details-form')) return;
-            // Reload the detail on save so poster/year/status/description re-render
-            // from the persisted state (HMAI-190).
             const form = this.buildEditDetailsForm(series, () => this.loadDetail(series.id));
             container.querySelector('.section-actions').after(form);
         });
@@ -945,9 +850,6 @@ export default class extends Controller {
         return form;
     }
 
-    // Catalog-metadata editor (HMAI-190). Pre-filled from the loaded series and
-    // submitted as a full replace (title + the four fields) — leaving a field
-    // blank clears it server-side. onSaved() reloads the detail.
     buildEditDetailsForm(series, onSaved) {
         const form = document.createElement('form');
         form.className = 'edit-details-form';
@@ -996,8 +898,6 @@ export default class extends Controller {
         return form;
     }
 
-    // Reads the shared metadata inputs (.js-meta-*) from a create modal or edit
-    // form into a normalized payload: blank → null, year → int (HMAI-190).
     readMetadataInputs(root) {
         const cover = (root.querySelector('.js-meta-cover')?.value || '').trim();
         const yearRaw = (root.querySelector('.js-meta-year')?.value || '').trim();
@@ -1027,7 +927,6 @@ export default class extends Controller {
         }
     }
 
-    // ── add series modal ──
 
     initAddSeriesModal() {
         const modal = this.$('modal-add-series');
@@ -1065,7 +964,6 @@ export default class extends Controller {
         });
     }
 
-    // ── navigation ──
 
     initNavigation() {
         this.$('btn-back').addEventListener('click', () => {

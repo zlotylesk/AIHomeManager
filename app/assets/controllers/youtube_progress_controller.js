@@ -88,7 +88,6 @@ export default class extends Controller {
         this.loadAll();
     }
 
-    // ── shared helpers ──
 
     showError(msg) {
         const banner = document.getElementById('error-banner');
@@ -102,7 +101,6 @@ export default class extends Controller {
         await Promise.all([this.loadSessions(), this.loadWatchlist()]);
     }
 
-    // ── reads ──
 
     async loadSessions() {
         this.sessionsTarget.innerHTML = '<div class="loading">Loading…</div>';
@@ -130,7 +128,6 @@ export default class extends Controller {
         }
     }
 
-    // ── commands ──
 
     async sync() {
         const btn = this.syncButtonTarget;

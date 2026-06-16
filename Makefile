@@ -1,12 +1,8 @@
 .PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore doctor
 
-# Full stack including the monitoring profile (Graylog). The series/auth Monolog
-# channels log over GELF/UDP on the request path, so starting Graylog by default
-# keeps the `graylog` host resolvable and avoids the degraded path (HMAI-176).
 up:
 	docker compose --profile monitoring up -d
 
-# Lean app-only stack (no Graylog) — faster boot when you don't need monitoring.
 min-up:
 	docker compose up -d
 
@@ -61,10 +57,6 @@ shell:
 logs:
 	docker compose logs -f
 
-# HMAI-156: per-service log shortcuts. `make logs` tails every container,
-# which makes single-service debugging painful. Service names mirror
-# docker-compose.yml (logs-worker -> messenger_worker since that's how it
-# reads aloud, same for logs-scheduler).
 logs-php:
 	docker compose logs -f php
 
@@ -138,30 +130,17 @@ rector:
 deptrac:
 	docker compose exec php vendor/bin/deptrac analyse --no-progress
 
-# Regenerate baseline after fixing legitimate violations. Output goes to
-# deptrac-baseline.yaml — move the skip_violations block into deptrac.yaml
-# (single source of truth) and delete the standalone file.
 deptrac-baseline:
 	docker compose exec php vendor/bin/deptrac analyse --formatter=baseline --output=deptrac-baseline.yaml
 
-# HMAI-149: composer audit queries FriendsOfPHP/security-advisories for known
-# CVEs in installed deps. --abandoned=report keeps abandoned packages as a
-# warning (not a hard fail) — abandonment ≠ vulnerability.
 audit:
 	docker compose exec php composer audit --abandoned=report
 
 analyse: cs-check phpstan deptrac audit
 
-# HMAI-41: Webpack Encore build targets — run inside aihm-node-1 (node:24-alpine).
 node-install:
 	docker compose exec node npm install
 
-# HMAI-150: npm audit gate. Mirrors the CI step that runs after every `npm ci`
-# for the frontend deps (tests + e2e-playwright jobs, both in app/).
-# --audit-level=high ignores low/moderate noise; high+critical block merge.
-# Fix by bumping the package, not by suppressing the advisory. Root
-# package.json (Playwright/Newman) is intentionally out of scope — see
-# CLAUDE.md Webpack Encore section.
 node-audit:
 	docker compose exec node npm audit --audit-level=high
 
@@ -181,9 +160,5 @@ restore:
 	@test -n "$(BACKUP)" || (echo "Usage: make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz" && exit 1)
 	gunzip -c $(BACKUP) | docker compose exec -T mysql mysql -uhomemanager -phomemanager homemanager
 
-# HMAI-157: preflight env health check. Read-only — verifies docker daemon,
-# container states, .env.local presence, and TokenCipher key length (base64 32B).
-# Surfaces the known signatures of a broken local setup so onboarding skips
-# the usual chain of "why doesn't X start" guesses.
 doctor:
 	bash scripts/doctor.sh

@@ -1,9 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 const uniqueIsbn = () => {
-  // Build a checksum-valid ISBN-13 — the Books module's ISBN value object
-  // rejects bad check digits (returns 422). 978-prefix + 9 unique digits +
-  // computed check digit.
   const body = `978${String(Date.now()).slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`.slice(0, 12);
   let sum = 0;
   for (let i = 0; i < 12; i++) {
@@ -34,10 +31,6 @@ test('books page renders without horizontal overflow at 393px (Pixel 5)', async 
 
   const layout = await page.evaluate(() => {
     const clientWidth = document.documentElement.clientWidth;
-    // Element-level check: find the element whose right edge sticks out furthest.
-    // `overflow-x: clip` keeps the document from scrolling, but layout geometry
-    // is preserved — a genuinely-wide element still reports its real rect, so
-    // this stays a meaningful regression check, not a no-op.
     let worst = { sel: '', right: 0 };
     for (const el of document.querySelectorAll<HTMLElement>('body *')) {
       const r = el.getBoundingClientRect();
@@ -55,7 +48,5 @@ test('books page renders without horizontal overflow at 393px (Pixel 5)', async 
   });
 
   expect(layout.scrollWidth, 'document must not scroll horizontally').toBeLessThanOrEqual(layout.clientWidth);
-  // 2px tolerance absorbs sub-pixel rounding of fractional `1fr` grid tracks
-  // — same tolerance the series mobile spec uses; real breakouts land well past.
   expect(layout.worstRight, `"${layout.worstSel}" extends past the ${layout.clientWidth}px viewport`).toBeLessThanOrEqual(layout.clientWidth + 2);
 });
