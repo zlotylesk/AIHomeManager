@@ -52,6 +52,25 @@ test('a task created through the New Task form appears in the list', async ({ pa
   await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
 });
 
+test('completing a pending task flips its badge and removes the Complete button', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Complete');
+  await seedTask(request, title);
+
+  await gotoTasks(page);
+
+  const row = page.locator('#tasks-table tbody tr', { hasText: title });
+  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+
+  await row.locator('.js-task-complete').click();
+
+  // On success loadTasks() re-runs: the badge becomes Completed and the
+  // pending-only action button is gone.
+  await expect(page.locator('#info-banner')).toHaveText(/task completed/i);
+  const completedRow = page.locator('#tasks-table tbody tr', { hasText: title });
+  await expect(completedRow.locator('.status-badge--completed')).toHaveText('Completed');
+  await expect(completedRow.locator('.js-task-complete')).toHaveCount(0);
+});
+
 test('empty list renders the empty-state placeholder, not a spinner', async ({ page }) => {
   await page.route('**/api/tasks', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
