@@ -64,6 +64,9 @@ async function loadTasks() {
     tbody.innerHTML = tasks.map(t => {
         const status = String(t.status);
         const label = STATUS_LABELS[status] ?? status;
+        const actions = status === 'pending'
+            ? `<button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button>`
+            : '';
         return `
         <tr>
             <td>${escHtml(t.title)}</td>
@@ -71,10 +74,25 @@ async function loadTasks() {
             <td>${escHtml(formatDateTime(t.end))}</td>
             <td>${formatMinutes(t.durationMinutes)}</td>
             <td><span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span></td>
+            <td>${actions}</td>
         </tr>`;
     }).join('');
 
     table.classList.remove('hidden');
+}
+
+async function completeTask(id, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Completing…';
+    try {
+        await window.apiCall(`/api/tasks/${id}/complete`, {method: 'POST'});
+        showInfo('Task completed.');
+        await loadTasks();
+    } catch (err) {
+        showError(err.message || 'Failed to complete task.');
+        btn.disabled = false;
+        btn.textContent = 'Complete';
+    }
 }
 
 async function loadReport(from, to) {
@@ -114,6 +132,14 @@ async function loadReport(from, to) {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
+
+    // Single delegated listener — survives every loadTasks() innerHTML reset.
+    document.body.addEventListener('click', e => {
+        const btn = e.target.closest('.js-task-complete');
+        if (btn) {
+            completeTask(btn.dataset.id, btn);
+        }
+    });
 
     $('form-create-task').addEventListener('submit', async e => {
         e.preventDefault();
