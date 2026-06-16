@@ -65,7 +65,7 @@ async function loadTasks() {
         const status = String(t.status);
         const label = STATUS_LABELS[status] ?? status;
         const actions = status === 'pending'
-            ? `<button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button>`
+            ? `<button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Cancel</button>`
             : '';
         return `
         <tr>
@@ -92,6 +92,23 @@ async function completeTask(id, btn) {
         showError(err.message || 'Failed to complete task.');
         btn.disabled = false;
         btn.textContent = 'Complete';
+    }
+}
+
+async function cancelTask(id, btn) {
+    if (!confirm('Cancel this task?')) {
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Cancelling…';
+    try {
+        await window.apiCall(`/api/tasks/${id}/cancel`, {method: 'POST'});
+        showInfo('Task cancelled.');
+        await loadTasks();
+    } catch (err) {
+        showError(err.message || 'Failed to cancel task.');
+        btn.disabled = false;
+        btn.textContent = 'Cancel';
     }
 }
 
@@ -135,9 +152,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Single delegated listener — survives every loadTasks() innerHTML reset.
     document.body.addEventListener('click', e => {
-        const btn = e.target.closest('.js-task-complete');
-        if (btn) {
-            completeTask(btn.dataset.id, btn);
+        const completeBtn = e.target.closest('.js-task-complete');
+        if (completeBtn) {
+            completeTask(completeBtn.dataset.id, completeBtn);
+            return;
+        }
+        const cancelBtn = e.target.closest('.js-task-cancel');
+        if (cancelBtn) {
+            cancelTask(cancelBtn.dataset.id, cancelBtn);
         }
     });
 
