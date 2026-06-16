@@ -120,9 +120,6 @@ class TaskRepositoryTest extends KernelTestCase
 
     public function testFindByDateRangeIncludesTaskAtLowerBoundary(): void
     {
-        // BETWEEN is inclusive on both sides. Pin that contract via the embedded
-        // VO column path (`t.timeSlot.startDateTime`) — a mapping regression on
-        // the embeddable would either drop boundary matches or fail outright.
         $boundary = new DateTimeImmutable('2025-07-01 00:00:00');
         $this->repository->save(new Task(
             id: 'b0000004-0000-0000-0000-000000000001',
@@ -161,8 +158,6 @@ class TaskRepositoryTest extends KernelTestCase
 
     public function testFindByDateRangeExcludesTaskStartingOneSecondPastUpperBoundary(): void
     {
-        // Negative boundary: one second past the upper bound must be excluded.
-        // Catches off-by-one regressions if the query ever switches to '<=' + custom comparison.
         $upper = new DateTimeImmutable('2025-07-31 23:59:59');
         $this->repository->save(new Task(
             id: 'b0000004-0000-0000-0000-000000000003',

@@ -37,13 +37,12 @@ class RateLimitedHttpClientTest extends TestCase
         }
 
         self::assertSame(3, $callCount);
-        // No real wall-clock waits should have happened — we only consumed initial bucket.
+
         self::assertLessThan(0.5, microtime(true) - $start, 'Initial bucket should not block the caller');
     }
 
     public function testFourthRequestWaitsForToken(): void
     {
-        // Bucket of 3 with refill 1/second → 4th request must wait roughly 1s.
         $factory = new RateLimiterFactory(
             ['id' => 'test', 'policy' => 'token_bucket', 'limit' => 3, 'rate' => ['interval' => '1 second', 'amount' => 1]],
             new InMemoryStorage(),
@@ -56,7 +55,6 @@ class RateLimitedHttpClientTest extends TestCase
             $client->request('GET', 'https://example.com/');
         }
 
-        // Reservation for the 4th request reports a wait > 0 — the bucket is empty.
         $reservation = $factory->create()->reserve();
         $waitDuration = $reservation->getWaitDuration();
 

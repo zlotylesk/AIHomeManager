@@ -36,8 +36,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testAuthorizeRedirectsToGoogleOnHappyPath(): void
     {
-        // Belt against accidental regression of the happy path when adding the
-        // try/catch — we still need a 302 to the URL produced by the SDK.
         $client = $this->createMock(Client::class);
         $client->expects(self::once())->method('setState');
         $client->expects(self::once())
@@ -52,11 +50,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testAuthorizeRedirectsToTasksWithErrorWhenCreateAuthUrlThrows(): void
     {
-        // Regression for HMAI-106: a misconfigured Google SDK previously
-        // bubbled an uncaught exception out of authorize(), giving the user a
-        // generic 500. The controller must trap the throwable, log it, and
-        // send the user back to /tasks with a flag the UI can render as a
-        // friendly notice.
         $client = $this->createStub(Client::class);
         $client->method('createAuthUrl')->willThrowException(new RuntimeException('clientId is empty'));
 
@@ -76,10 +69,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testAuthorizeTrapsSetStateFailureToo(): void
     {
-        // setState() lives inside the same try block on purpose — the SDK
-        // could plausibly throw from there if the consumer feeds it a value
-        // the underlying transport rejects. Verifies the guard covers the
-        // full SDK call sequence, not just createAuthUrl().
         $client = $this->createStub(Client::class);
         $client->method('setState')->willThrowException(new RuntimeException('bad state value'));
 
@@ -91,10 +80,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testAuthorizeEmitsAuditInfoOnHappyPath(): void
     {
-        // HMAI-107: every authorize attempt must leave a trail on the `auth`
-        // channel so we can correlate a downstream callback to its initiator
-        // even when the token-exchange path is clean. The payload carries the
-        // provider so Graylog filters can split Google vs Discogs.
         $client = $this->createStub(Client::class);
         $client->method('createAuthUrl')->willReturn('https://accounts.google.com/o/oauth2/v2/auth');
 
@@ -108,9 +93,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testCallbackLogsInvalidStateAsAuditWarning(): void
     {
-        // HMAI-107: a forged or replayed state must produce a structured
-        // `reason=invalid_state` warning, not just an HTTP 400. The warning
-        // is the only signal we have that someone is poking at the callback.
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())
             ->method('warning')
@@ -125,8 +107,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testCallbackLogsMissingCodeAsAuditWarning(): void
     {
-        // The state passes but Google sent no `code` — typically a botched
-        // consent screen. Distinguished from invalid_state by reason key.
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())
             ->method('warning')
@@ -145,9 +125,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testCallbackLogsTokenExchangeFailureAsAuditWarning(): void
     {
-        // Google returns 200 + {error: ...} when the auth code is bogus
-        // (replayed, expired, wrong client). Surface the upstream error string
-        // in the audit log so we can spot patterns.
         $client = $this->createStub(Client::class);
         $client->method('fetchAccessTokenWithAuthCode')->willReturn(['error' => 'invalid_grant']);
 
@@ -174,9 +151,6 @@ final class GoogleAuthControllerTest extends TestCase
 
     public function testCallbackLogsSuccessAsAuditInfo(): void
     {
-        // The success path is the most important audit event: a token landed
-        // in the repository. Verifies it fires AFTER the repository save so a
-        // mid-flight exception wouldn't claim a token was issued.
         $client = $this->createStub(Client::class);
         $client->method('fetchAccessTokenWithAuthCode')->willReturn([
             'access_token' => 'tok',

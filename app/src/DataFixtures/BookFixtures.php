@@ -28,7 +28,6 @@ final class BookFixtures extends Fixture
 
     public function load(ObjectManager $manager): void
     {
-        // [id, isbn-13, title, author, publisher, year, totalPages, pagesAlreadyRead]
         $seeds = [
             ['fixture-book-1', '9780451524935', '1984', 'George Orwell', 'Signet Classic', 1950, 328, 0],
             ['fixture-book-2', '9780061120084', 'To Kill a Mockingbird', 'Harper Lee', 'Harper Perennial', 2006, 281, 120],

@@ -35,9 +35,6 @@ final class GoogleClientYouTubeScopeTest extends KernelTestCase
 
     public function testGoogleClientPromptsConsentForReauthorization(): void
     {
-        // The auth URL is the publicly observable surface for the prompt setting;
-        // prompt=consent is what makes Google re-show the consent screen so the
-        // newly added youtube scope actually lands in the refresh token.
         $authUrl = $this->client->createAuthUrl();
 
         self::assertStringContainsString('prompt=consent', $authUrl);

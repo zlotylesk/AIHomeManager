@@ -30,8 +30,7 @@ final class ImportFromTraktApiTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        // One request then transport inspection — keep the kernel alive so the
-        // InMemoryTransport that recorded the dispatch survives into the asserts.
+
         $this->client->disableReboot();
 
         static::getContainer()

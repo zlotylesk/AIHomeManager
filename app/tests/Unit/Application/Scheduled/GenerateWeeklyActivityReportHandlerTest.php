@@ -14,15 +14,12 @@ final class GenerateWeeklyActivityReportHandlerTest extends TestCase
 {
     public function testLogsAggregatedCountsToScheduledTaskChannel(): void
     {
-        // HMAI-35: the report must produce a single info entry tagged with
-        // `scheduled_task=weekly_report` and the four metrics as discrete
-        // fields — that's what Graylog filters / saved searches will key on.
         $connection = $this->createMock(Connection::class);
         $connection->method('fetchOne')->willReturnOnConsecutiveCalls(
-            5,      // read_articles
-            420,    // pages_read
-            12,     // completed_tasks
-            73,     // rated_episodes_total
+            5,
+            420,
+            12,
+            73,
         );
 
         $logger = $this->createMock(LoggerInterface::class);
@@ -43,8 +40,6 @@ final class GenerateWeeklyActivityReportHandlerTest extends TestCase
 
     public function testReportsZeroWhenNoActivity(): void
     {
-        // A quiet week must still produce the log entry — silence on this
-        // channel would mean a missed schedule, not "nothing happened".
         $connection = $this->createMock(Connection::class);
         $connection->method('fetchOne')->willReturn(0);
 

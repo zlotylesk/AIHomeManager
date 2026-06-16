@@ -30,12 +30,10 @@ final readonly class DeleteEpisodeHandler
             throw new DomainException(sprintf('Series "%s" not found.', $command->seriesId));
         }
 
-        // Throws DomainException (→ 404) when the season or episode is unknown.
         $episode = $series->removeEpisode($command->seasonId, $command->episodeId);
 
         $this->repository->deleteEpisode($episode);
 
-        // Removing an episode shifts both averages, so invalidate both caches.
         $this->redis->del("season:avg:{$command->seasonId}");
         $this->redis->del("series:avg:{$command->seriesId}");
 

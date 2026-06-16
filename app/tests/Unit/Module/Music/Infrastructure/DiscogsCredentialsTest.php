@@ -12,8 +12,6 @@ final class DiscogsCredentialsTest extends TestCase
 {
     public function testExposesConsumerKeyAndSecretAsReadOnlyProperties(): void
     {
-        // Sanity-check the happy path before exercising the debug-safety
-        // contracts — if the basic accessors regress, every consumer breaks.
         $credentials = new DiscogsCredentials('public-key', 'plaintext-secret-DO-NOT-LEAK');
 
         self::assertSame('public-key', $credentials->consumerKey);
@@ -22,10 +20,6 @@ final class DiscogsCredentialsTest extends TestCase
 
     public function testDebugInfoRedactsConsumerSecretButKeepsKey(): void
     {
-        // Core HMAI-113 guarantee: __debugInfo() is what Symfony's VarDumper
-        // (used by `debug:container --show-arguments`) consults when rendering
-        // an object. The key is non-sensitive (public client identifier), the
-        // secret must never appear in the rendered form.
         $credentials = new DiscogsCredentials('public-key', 'plaintext-secret-DO-NOT-LEAK');
 
         $debug = $credentials->__debugInfo();
@@ -36,9 +30,6 @@ final class DiscogsCredentialsTest extends TestCase
 
     public function testVarDumpOutputDoesNotContainPlaintextSecret(): void
     {
-        // End-to-end verification of the redaction contract. We capture the
-        // exact bytes var_dump would print so a future change that drops
-        // __debugInfo() (or adds the secret to its return value) fails here.
         $credentials = new DiscogsCredentials('public-key', 'plaintext-secret-DO-NOT-LEAK');
 
         ob_start();

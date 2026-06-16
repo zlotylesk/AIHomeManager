@@ -53,7 +53,6 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
             self::assertNotNull($episode->watchedAt());
         }
 
-        // The real Trakt watched-at date is preserved, not defaulted to "now".
         $firstEpisode = $this->episodeByNumber($seasons[1], 1);
         self::assertNotNull($firstEpisode->watchedAt());
         self::assertSame('2026-01-02', $firstEpisode->watchedAt()->format('Y-m-d'));
@@ -64,7 +63,6 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
         ($this->handlerReturning($this->sampleShows()))(new ImportWatchedShowsFromTrakt());
         $this->em->clear();
 
-        // Second run on identical Trakt data simulates a later worker invocation.
         ($this->handlerReturning($this->sampleShows()))(new ImportWatchedShowsFromTrakt());
         $this->em->clear();
 
@@ -75,8 +73,6 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
 
     public function testImportMatchesExistingSeriesByTraktIdAndFlipsWatched(): void
     {
-        // A series already linked to this Trakt id, with an unwatched episode that
-        // Trakt now reports watched — the import must graft onto it, not clone it.
         $existing = new Series('s-existing', 'Breaking Bad');
         $existing->linkTrakt('1388');
         $existing->addSeason(new Season('se-1', 's-existing', 1));
@@ -101,7 +97,7 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
 
         $episode = $this->episodeByNumber($this->seasonsByNumber($reloaded)[1], 1);
         self::assertTrue($episode->isWatched());
-        self::assertSame('Pilot', $episode->title()); // existing title is not overwritten
+        self::assertSame('Pilot', $episode->title());
     }
 
     public function testShowWithNoWatchedEpisodesIsSkipped(): void
@@ -130,8 +126,6 @@ class ImportWatchedShowsFromTraktHandlerTest extends KernelTestCase
 
     public function testChainsRatingsImportAfterWatchedShows(): void
     {
-        // The watched import must hand off to the ratings import (HMAI-220) so a
-        // single "Import from Trakt" click brings both watched state and ratings.
         $provider = $this->createStub(WatchedShowsProviderInterface::class);
         $provider->method('fetchWatchedShows')->willReturn($this->sampleShows());
 

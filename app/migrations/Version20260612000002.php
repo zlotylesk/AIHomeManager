@@ -17,8 +17,8 @@ final class Version20260612000002 extends AbstractMigration
     public function up(Schema $schema): void
     {
         $this->addSql('ALTER TABLE series ADD trakt_id VARCHAR(64) DEFAULT NULL');
-        // Nullable unique: MySQL allows many NULLs, so manually-added series
-        // (trakt_id = NULL) never collide; only Trakt-imported ids must be unique.
+        
+        
         $this->addSql('CREATE UNIQUE INDEX uniq_series_trakt_id ON series (trakt_id)');
     }
 

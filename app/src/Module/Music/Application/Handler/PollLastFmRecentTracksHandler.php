@@ -21,7 +21,6 @@ final readonly class PollLastFmRecentTracksHandler
 {
     public function __construct(
         private MusicListeningHistoryInterface $listeningHistory,
-        // No #[Target]: command.bus is the default bus, so it has no named target.
         private MessageBusInterface $commandBus,
     ) {
     }

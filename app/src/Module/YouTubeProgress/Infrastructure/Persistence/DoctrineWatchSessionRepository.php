@@ -53,9 +53,7 @@ final readonly class DoctrineWatchSessionRepository implements WatchSessionRepos
 
             if ($exists) {
                 $conn->update(self::TABLE_SESSIONS, $row, ['id' => $id]);
-                // Wipe the junction so position/order changes on the aggregate
-                // are honoured. FK ON DELETE CASCADE doesn't help here (parent
-                // row stays), so we delete explicitly.
+
                 $conn->executeStatement(
                     'DELETE FROM '.self::TABLE_VIDEOS.' WHERE watch_session_id = ?',
                     [$id],
@@ -100,9 +98,6 @@ final readonly class DoctrineWatchSessionRepository implements WatchSessionRepos
 
     public function deleteAll(): void
     {
-        // FK ON DELETE CASCADE on the junction means clearing the parent table
-        // is enough — but we wipe both explicitly so the order is deterministic
-        // and the intent is unambiguous when reading the SQL log.
         $this->connection->executeStatement('DELETE FROM '.self::TABLE_VIDEOS);
         $this->connection->executeStatement('DELETE FROM '.self::TABLE_SESSIONS);
     }

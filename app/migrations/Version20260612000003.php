@@ -16,9 +16,9 @@ final class Version20260612000003 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // watched defaults to 0 (unwatched) at the DB level: backfills existing
-        // rows and lets the tracker start clean. The mapping declares the same
-        // default so the schema stays in sync.
+        
+        
+        
         $this->addSql('ALTER TABLE series_episodes ADD watched TINYINT(1) NOT NULL DEFAULT 0, ADD watched_at DATETIME DEFAULT NULL');
     }
 

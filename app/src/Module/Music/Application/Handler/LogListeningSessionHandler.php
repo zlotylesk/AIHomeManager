@@ -27,15 +27,11 @@ final readonly class LogListeningSessionHandler
             id: Uuid::v4()->toRfc4122(),
             artist: new AlbumArtist($command->artist),
             title: new AlbumTitle($command->title),
-            // Normalize to UTC so storage, dedup hashing, and the read path all
-            // agree regardless of the timezone the caller passed in (HMAI-144).
             playedAt: $command->playedAt->setTimezone(new DateTimeZone('UTC')),
             source: $command->source,
             playCount: $command->playCount,
         );
 
-        // Idempotent: repeated Last.fm polls re-deliver the same scrobbles, so a
-        // duplicate dedup hash is an expected no-op, not an error.
         if ($this->repository->existsByDedupHash($session->dedupHash())) {
             return;
         }

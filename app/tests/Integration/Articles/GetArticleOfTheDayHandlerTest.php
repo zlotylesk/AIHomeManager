@@ -68,14 +68,12 @@ class GetArticleOfTheDayHandlerTest extends KernelTestCase
         self::assertNotNull($first);
         self::assertNotNull($second);
         self::assertSame($first->id, $second->id);
-        // One pick recorded across both calls — cache hit short-circuits before insert.
+
         self::assertCount(1, $this->pickRepository->findRecentlyPickedIds(1));
     }
 
     public function testExcludesRecentlyPickedIds(): void
     {
-        // Regression guard for HMAI-88: excludeIds binds via ArrayParameterType::STRING
-        // alongside other named parameters in the same query.
         $this->insertArticle('a-old', 'Already Picked', 'https://example.com/old');
         $this->insertArticle('a-new', 'Fresh Article', 'https://example.com/new');
 

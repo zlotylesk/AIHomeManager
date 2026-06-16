@@ -77,8 +77,6 @@ final class TraktApiClientTest extends TestCase
 
     public function testSkipsShowsWithoutTraktId(): void
     {
-        // A show with no stable trakt id can't be deduplicated on import — drop it,
-        // keep the well-formed one.
         $noId = $this->watchedShow();
         unset($noId['show']['ids']['trakt']);
 
@@ -162,9 +160,9 @@ final class TraktApiClientTest extends TestCase
         $httpClient = new MockHttpClient(static function (string $method, string $url): MockResponse {
             $body = str_contains($url, '/sync/ratings/shows')
                 ? json_encode([
-                    ['rating' => 9, 'show' => ['ids' => ['slug' => 'no-trakt-id']]], // no trakt id → skip
-                    ['rating' => 0, 'show' => ['ids' => ['trakt' => 5]]],            // rating out of range → skip
-                    ['rating' => 7, 'show' => ['ids' => ['trakt' => 6]]],            // valid
+                    ['rating' => 9, 'show' => ['ids' => ['slug' => 'no-trakt-id']]],
+                    ['rating' => 0, 'show' => ['ids' => ['trakt' => 5]]],
+                    ['rating' => 7, 'show' => ['ids' => ['trakt' => 6]]],
                 ])
                 : '[]';
 

@@ -140,10 +140,6 @@ final class ArticlesController extends AbstractController
         } catch (HandlerFailedException $e) {
             $original = $e->getPrevious();
             if ($original instanceof InvalidArgumentException) {
-                // Domain VO messages (ArticleUrl scheme checks, etc.) get logged
-                // server-side with the full exception context, but the client
-                // sees a generic error — prevents leaking implementation paths,
-                // SQL fragments, or future error-message drift back to callers.
                 $this->logger->warning('POST /api/articles validation failed', [
                     'message' => $original->getMessage(),
                     'exception' => $original,
@@ -179,12 +175,7 @@ final class ArticlesController extends AbstractController
             if ($original instanceof DomainException) {
                 return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
             }
-            // Article::updateMetadata() rejects blank category, over-length
-            // fields, and zero/negative estimatedReadTime with
-            // InvalidArgumentException carrying the article id. Surface those as
-            // 422 — without this catch they'd hit the global ApiExceptionListener
-            // and become an opaque "Internal server error.", which is wrong
-            // because the input is the cause.
+
             if ($original instanceof InvalidArgumentException) {
                 return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }

@@ -46,9 +46,6 @@ final readonly class ImportWatchedShowsFromTraktHandler
 
     public function __invoke(ImportWatchedShowsFromTrakt $command): void
     {
-        // Lets the provider's RuntimeException ("Trakt account not connected.",
-        // "… client ID not configured.", "… API unavailable.") propagate — the
-        // worker retries/DLQs it and layer 5 (HMAI-184) handles UX.
         $shows = $this->provider->fetchWatchedShows();
 
         $changedShows = 0;
@@ -63,8 +60,6 @@ final readonly class ImportWatchedShowsFromTraktHandler
             'changed' => $changedShows,
         ]);
 
-        // Chain the ratings import (HMAI-220): routed async, so it runs after the
-        // watched shows are persisted and the rated entities exist to attach to.
         $this->commandBus->dispatch(new ImportRatingsFromTrakt());
     }
 
@@ -75,8 +70,6 @@ final readonly class ImportWatchedShowsFromTraktHandler
      */
     private function importShow(array $show): bool
     {
-        // ≥1 watched episode is the import criterion — never materialise an empty
-        // show/season the user has not actually started.
         if (!$this->hasWatchedEpisode($show['seasons'])) {
             return false;
         }
@@ -143,9 +136,6 @@ final readonly class ImportWatchedShowsFromTraktHandler
             return true;
         }
 
-        // Existing episode (manual or prior import) Trakt now reports watched —
-        // flip it but keep the row. Already-watched episodes stay untouched so a
-        // re-run neither duplicates nor rewrites a previously recorded date.
         if (!$episode->isWatched()) {
             $series->setEpisodeWatched($season->id(), $episode->id(), true, $watchedAt);
 
@@ -194,7 +184,6 @@ final readonly class ImportWatchedShowsFromTraktHandler
         try {
             return new DateTimeImmutable($value);
         } catch (Exception) {
-            // Malformed Trakt timestamp — fall back to "now" (markWatched default).
             return null;
         }
     }

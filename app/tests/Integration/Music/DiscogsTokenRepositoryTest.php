@@ -85,10 +85,6 @@ final class DiscogsTokenRepositoryTest extends KernelTestCase
 
     public function testGetPropagatesFailureWhenStoredCiphertextIsTampered(): void
     {
-        // If the ciphertext column is mutated outside the repository (manual SQL,
-        // backup restore, DB tampering), get() must surface an exception rather
-        // than silently returning a corrupted token that would then be sent to
-        // Discogs as a forged credential.
         $this->repository->save('valid_token', 'valid_secret');
         $this->connection->executeStatement(
             "UPDATE discogs_oauth_tokens SET oauth_token = 'not-a-valid-ciphertext'"

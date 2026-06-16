@@ -32,11 +32,9 @@ final class TraktTokenProviderTest extends TestCase
             'created_at' => time(),
             'expires_in' => 7776000,
         ]);
-        // No refresh, no persistence when the token is fresh.
+
         $repository->expects(self::never())->method('save');
 
-        // An empty MockHttpClient throws if a request is attempted — proving no
-        // refresh call was made.
         $provider = $this->provider($repository, new MockHttpClient([]));
 
         self::assertSame('still-valid', $provider->getValidAccessToken());

@@ -79,9 +79,6 @@ class TasksExportApiTest extends WebTestCase
 
     public function testExportFiltersByDateRange(): void
     {
-        // Acceptance criteria: from/to filter applies to time_start so the
-        // export reflects "tasks I did during this period", not "tasks created
-        // during this period."
         $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
         $conn->insert('tasks', [
             'id' => 'a0000001-0000-0000-0000-000000000000',

@@ -69,9 +69,6 @@ final class Season
 
     public function addEpisode(Episode $episode): void
     {
-        // Episode numbers are unique within a season (HMAI-187). A different
-        // episode already holding this number is rejected; re-adding under the
-        // same id (a replacement) is allowed.
         foreach ($this->episodes as $existing) {
             if ($existing->id() !== $episode->id() && $existing->number() === $episode->number()) {
                 throw new InvalidArgumentException(sprintf('Episode number %d already exists in this season.', $episode->number()));

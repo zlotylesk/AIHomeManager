@@ -310,8 +310,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsFloatPagesReadAs422(): void
     {
-        // HMAI-67: is_numeric used to pass 1.5; the (int) cast silently
-        // truncated it to 1. Now the controller must reject floats outright.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -348,8 +346,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsStringPagesReadAs422(): void
     {
-        // JSON numeric strings ("5") used to pass is_numeric. The contract
-        // documents "positive integer" — strings are rejected.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -362,9 +358,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsMissingPagesReadAs422(): void
     {
-        // Missing key takes the `$data['pages_read'] ?? null` path — guards
-        // against a future refactor swapping `?? null` for `?? 0` (where
-        // 0 <= 0 still 422s, but via a different branch we want explicit).
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -376,9 +369,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsInvalidDateStringAs422(): void
     {
-        // HMAI-68: "not-a-date" used to reach DateTimeImmutable in the handler
-        // and propagate as a 500 with a full stack trace. Now the controller
-        // rejects it upfront.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -391,8 +381,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsMonthOverflowAs422(): void
     {
-        // createFromFormat('Y-m-d', '2026-13-01') silently produces '2027-01-01'
-        // without strict checking. The round-trip equality guard catches this.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -417,7 +405,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsIsoDateTimeAs422(): void
     {
-        // ISO 8601 datetime (with time component) is not the contract — Y-m-d only.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -430,7 +417,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionUsesTodayWhenDateMissing(): void
     {
-        // Missing date is allowed — controller defaults to today.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
@@ -442,8 +428,6 @@ class BooksApiTest extends WebTestCase
 
     public function testLogReadingSessionRejectsExplicitNullDateAs422(): void
     {
-        // Explicit null in the payload is rejected for symmetry with
-        // pages_read — only an absent key triggers the today default.
         $id = $this->createBook(['total_pages' => 200])['id'];
 
         $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([

@@ -29,9 +29,6 @@ final class Video
         VideoDuration $duration,
         DateTimeImmutable $addedAt,
     ): self {
-        // Store value-object primitives directly so Doctrine ORM can persist
-        // them as scalar columns without embeddables. Getters below rehydrate
-        // the VOs on read — domain code never sees the raw scalars.
         return new self(
             $id->value(),
             $title,
@@ -43,9 +40,6 @@ final class Video
 
     public function markStarted(DateTimeImmutable $at): void
     {
-        // Idempotent: once a video leaves the split pool (either started or
-        // watched), markStarted is a no-op. Prevents double-click in the UI
-        // and any retry from overwriting the original engagement timestamp.
         if (null !== $this->startedAt || null !== $this->watchedAt) {
             return;
         }
@@ -55,9 +49,6 @@ final class Video
 
     public function markWatched(DateTimeImmutable $at): void
     {
-        // Idempotent: re-marking a watched video does not bump the timestamp.
-        // markStarted may have run first — that's fine, we keep startedAt and
-        // just add watchedAt.
         if (null !== $this->watchedAt) {
             return;
         }

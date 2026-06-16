@@ -74,9 +74,6 @@ final class SeriesRowHydratorTest extends TestCase
 
     public function testHydratesOwnSeriesAndSeasonRatingsSeparatelyFromEpisodes(): void
     {
-        // The user's own (manual) series/season scores ride alongside the
-        // episode rating in each row and must land on the DTOs independently of
-        // the episode-derived average (HMAI-179).
         $rows = [
             [
                 'series_id' => 's1', 'series_title' => 'Breaking Bad', 'series_created_at' => '2026-05-01',

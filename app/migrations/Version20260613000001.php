@@ -16,8 +16,8 @@ final class Version20260613000001 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // All nullable — existing series predate the metadata and stay valid
-        // with NULLs. status mirrors the book_status VARCHAR(20) enum column.
+        
+        
         $this->addSql('ALTER TABLE series
             ADD cover_url VARCHAR(1000) DEFAULT NULL,
             ADD year INT DEFAULT NULL,

@@ -35,10 +35,6 @@ final readonly class TimeSlot
 
     public function equals(self $other): bool
     {
-        // Compare by timestamp (UTC seconds) rather than DateTimeImmutable
-        // equality so two slots constructed in different timezones but
-        // representing the same instant compare equal — what the domain
-        // actually cares about is "the same moment in time."
         return $this->startDateTime->getTimestamp() === $other->startDateTime->getTimestamp()
             && $this->endDateTime->getTimestamp() === $other->endDateTime->getTimestamp();
     }

@@ -74,7 +74,6 @@ final class DiscogsOAuth1SignerTest extends TestCase
             overrideTimestamp: $timestamp,
         );
 
-        // Compute expected signature independently
         $oauthBaseParams = [
             'oauth_consumer_key' => $consumerKey,
             'oauth_nonce' => $nonce,

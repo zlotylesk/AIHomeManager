@@ -33,9 +33,6 @@ final class ImportArticlesCommandTest extends KernelTestCase
 
     public function testEncodingOptionIsWiredToImporter(): void
     {
-        // Windows-1250 bytes can't be auto-detected (mbstring limitation), so if
-        // the flag is wired the row imports cleanly with diacritics intact; if it
-        // isn't, the raw bytes get treated as UTF-8 and "ż"/"ó" come out garbled.
         $file = tempnam(sys_get_temp_dir(), 'cli_import_');
         file_put_contents($file, "title,url,time_added,tags,status\n"
             .iconv('UTF-8', 'Windows-1250', "Książka żółć,https://example.com/cli-pl,1641750653,,unread\n"));
@@ -56,9 +53,6 @@ final class ImportArticlesCommandTest extends KernelTestCase
 
     public function testDryRunFlagPreviewsImportWithoutPersisting(): void
     {
-        // Confirms --dry-run wiring: the flag reaches ArticleImporter::import()
-        // (no rows in DB despite Imported=1) and the CLI output carries the
-        // [DRY RUN] prefix so the operator knows nothing was committed.
         $file = tempnam(sys_get_temp_dir(), 'cli_import_');
         file_put_contents(
             $file,
@@ -76,9 +70,6 @@ final class ImportArticlesCommandTest extends KernelTestCase
 
     public function testRejectsUnsupportedEncodingWithFriendlyMessage(): void
     {
-        // The InvalidArgumentException from the importer's allowlist must be
-        // caught and turned into a CLI <error> line + FAILURE exit code — not
-        // a raw PHP stack trace bubbling up to the user.
         $file = tempnam(sys_get_temp_dir(), 'cli_import_');
         file_put_contents($file, "title,url,time_added,tags,status\nx,https://example.com/x,1,,unread\n");
 

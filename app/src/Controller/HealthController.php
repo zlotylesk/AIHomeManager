@@ -32,8 +32,6 @@ final class HealthController extends AbstractController
         $hasDown = in_array('down', $components, true);
         $hasDegraded = in_array('degraded', $components, true);
 
-        // HMAI-155: 3-state. `degraded` keeps 200 so orchestrators keep routing
-        // traffic, but the body signal lets monitoring page before things fail.
         $status = match (true) {
             $hasDown => 'unhealthy',
             $hasDegraded => 'degraded',

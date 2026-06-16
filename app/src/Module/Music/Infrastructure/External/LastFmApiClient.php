@@ -36,8 +36,6 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
     /** @return AlbumDTO[] */
     public function getTopAlbums(string $username, string $period, int $limit): array
     {
-        // trim() also catches whitespace-only keys (e.g. LASTFM_API_KEY=" " from a
-        // copy-paste mishap) — typed string already rules out null. HMAI-84.
         if ('' === trim($this->apiKey)) {
             throw new RuntimeException('Last.fm API key not configured');
         }
@@ -49,7 +47,6 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
             try {
                 return $this->decodeAlbumsFromCache($cached);
             } catch (JsonException) {
-                // Stale or corrupted cache entry — fall through to refetch.
             }
         }
 
@@ -135,8 +132,6 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         $tracks = [];
 
         foreach ($data['recenttracks']['track'] ?? [] as $item) {
-            // The currently-playing track carries no play timestamp — skip it,
-            // it isn't a completed listening session yet.
             if ('true' === ($item['@attr']['nowplaying'] ?? null) || !isset($item['date']['uts'])) {
                 continue;
             }
@@ -147,7 +142,6 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
                 continue;
             }
 
-            // Last.fm returns play time as a UNIX timestamp in UTC seconds.
             $playedAt = DateTimeImmutable::createFromFormat('U', (string) $item['date']['uts']);
             if (false === $playedAt) {
                 continue;
