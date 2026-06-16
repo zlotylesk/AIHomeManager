@@ -64,9 +64,11 @@ async function loadTasks() {
     tbody.innerHTML = tasks.map(t => {
         const status = String(t.status);
         const label = STATUS_LABELS[status] ?? status;
-        const actions = status === 'pending'
-            ? `<button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Cancel</button>`
+        const viewBtn = `<button class="btn btn-secondary btn-sm js-task-view" data-id="${escHtml(t.id)}">View</button>`;
+        const stateActions = status === 'pending'
+            ? ` <button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Cancel</button>`
             : '';
+        const actions = viewBtn + stateActions;
         return `
         <tr>
             <td>${escHtml(t.title)}</td>
@@ -112,6 +114,38 @@ async function cancelTask(id, btn) {
     }
 }
 
+function renderTaskDetail(t) {
+    const status = String(t.status);
+    const label = STATUS_LABELS[status] ?? status;
+    $('detail-title').textContent = t.title;
+    $('detail-status').innerHTML = `<span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span>`;
+    $('detail-start').textContent = formatDateTime(t.start);
+    $('detail-end').textContent = formatDateTime(t.end);
+    $('detail-duration').textContent = formatMinutes(t.durationMinutes);
+    $('detail-google').textContent = t.googleEventId ? `Synced (${t.googleEventId})` : 'Not synced';
+}
+
+function openDetailModal() {
+    $('task-detail-modal').classList.remove('hidden');
+}
+
+function closeDetailModal() {
+    $('task-detail-modal').classList.add('hidden');
+}
+
+async function viewTask(id, btn) {
+    btn.disabled = true;
+    try {
+        const task = await window.apiCall(`/api/tasks/${id}`);
+        renderTaskDetail(task);
+        openDetailModal();
+    } catch (err) {
+        showError(err.message || 'Failed to load task details.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 async function loadReport(from, to) {
     const result = $('report-result');
     const empty = $('report-empty');
@@ -151,6 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
 
     document.body.addEventListener('click', e => {
+        const viewBtn = e.target.closest('.js-task-view');
+        if (viewBtn) {
+            viewTask(viewBtn.dataset.id, viewBtn);
+            return;
+        }
         const completeBtn = e.target.closest('.js-task-complete');
         if (completeBtn) {
             completeTask(completeBtn.dataset.id, completeBtn);
@@ -159,6 +198,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelBtn = e.target.closest('.js-task-cancel');
         if (cancelBtn) {
             cancelTask(cancelBtn.dataset.id, cancelBtn);
+            return;
+        }
+        if (e.target.closest('.js-detail-close') || e.target.id === 'task-detail-modal') {
+            closeDetailModal();
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        if ('Escape' === e.key) {
+            closeDetailModal();
         }
     });
 

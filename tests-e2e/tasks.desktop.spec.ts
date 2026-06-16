@@ -108,3 +108,23 @@ test('a failing list request surfaces in the shared error banner', async ({ page
   await expect(banner).toBeVisible();
   await expect(banner).toHaveText(/internal server error/i);
 });
+
+test('viewing a task opens a detail modal with its fields and closes', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Detail');
+  await seedTask(request, title);
+
+  await gotoTasks(page);
+
+  const row = page.locator('#tasks-table tbody tr', { hasText: title });
+  await row.locator('.js-task-view').click();
+
+  const modal = page.locator('#task-detail-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('#detail-title')).toHaveText(title);
+  await expect(modal.locator('#detail-status .status-badge--pending')).toHaveText('Pending');
+  await expect(modal.locator('#detail-duration')).toHaveText('1h 30m');
+  await expect(modal.locator('#detail-google')).toHaveText('Not synced');
+
+  await modal.locator('.js-detail-close').click();
+  await expect(modal).toBeHidden();
+});
