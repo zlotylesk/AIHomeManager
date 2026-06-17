@@ -151,6 +151,25 @@ test('deleting a task removes its row from the list', async ({ page, request }) 
   await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toHaveCount(0);
 });
 
+test('filtering the task list by status shows only matching tasks', async ({ page, request }) => {
+  const pendingTitle = uniqueTitle('E2E Filter Pending');
+  const completedTitle = uniqueTitle('E2E Filter Done');
+  await seedTask(request, pendingTitle);
+  const completedId = await seedTask(request, completedTitle);
+  const completed = await request.post(`/api/tasks/${completedId}/complete`);
+  expect(completed.ok(), `complete failed: ${completed.status()}`).toBeTruthy();
+
+  await gotoTasks(page);
+
+  await page.selectOption('#task-filter-status', 'completed');
+  await expect(page.locator('#tasks-table tbody tr', { hasText: completedTitle })).toBeVisible();
+  await expect(page.locator('#tasks-table tbody tr', { hasText: pendingTitle })).toHaveCount(0);
+
+  await page.selectOption('#task-filter-status', 'pending');
+  await expect(page.locator('#tasks-table tbody tr', { hasText: pendingTitle })).toBeVisible();
+  await expect(page.locator('#tasks-table tbody tr', { hasText: completedTitle })).toHaveCount(0);
+});
+
 test('viewing a task opens a detail modal with its fields and closes', async ({ page, request }) => {
   const title = uniqueTitle('E2E Detail');
   await seedTask(request, title);
