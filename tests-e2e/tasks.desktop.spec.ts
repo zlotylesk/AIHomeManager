@@ -134,6 +134,23 @@ test('editing a pending task pre-fills the form and updates its row in place', a
   await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toHaveCount(0);
 });
 
+test('deleting a task removes its row from the list', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Delete');
+  await seedTask(request, title);
+
+  await gotoTasks(page);
+
+  const row = page.locator('#tasks-table tbody tr', { hasText: title });
+  await expect(row).toBeVisible();
+
+  // Delete goes through a confirm() dialog — auto-accept it before clicking.
+  page.on('dialog', (dialog) => dialog.accept());
+  await row.locator('.js-task-delete').click();
+
+  await expect(page.locator('#info-banner')).toHaveText(/task deleted/i);
+  await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toHaveCount(0);
+});
+
 test('viewing a task opens a detail modal with its fields and closes', async ({ page, request }) => {
   const title = uniqueTitle('E2E Detail');
   await seedTask(request, title);

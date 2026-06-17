@@ -75,7 +75,8 @@ async function loadTasks() {
         const stateActions = status === 'pending'
             ? ` <button class="btn btn-secondary btn-sm js-task-edit" data-id="${escHtml(t.id)}">Edit</button> <button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Cancel</button>`
             : '';
-        const actions = viewBtn + stateActions;
+        const deleteBtn = ` <button class="btn btn-danger btn-sm js-task-delete" data-id="${escHtml(t.id)}">Delete</button>`;
+        const actions = viewBtn + stateActions + deleteBtn;
         return `
         <tr>
             <td>${escHtml(t.title)}</td>
@@ -118,6 +119,23 @@ async function cancelTask(id, btn) {
         showError(err.message || 'Failed to cancel task.');
         btn.disabled = false;
         btn.textContent = 'Cancel';
+    }
+}
+
+async function deleteTask(id, btn) {
+    if (!confirm('Delete this task? This cannot be undone.')) {
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+        await window.apiCall(`/api/tasks/${id}`, {method: 'DELETE'});
+        showInfo('Task deleted.');
+        await loadTasks();
+    } catch (err) {
+        showError(err.message || 'Failed to delete task.');
+        btn.disabled = false;
+        btn.textContent = 'Delete';
     }
 }
 
@@ -234,6 +252,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelBtn = e.target.closest('.js-task-cancel');
         if (cancelBtn) {
             cancelTask(cancelBtn.dataset.id, cancelBtn);
+            return;
+        }
+        const deleteBtn = e.target.closest('.js-task-delete');
+        if (deleteBtn) {
+            deleteTask(deleteBtn.dataset.id, deleteBtn);
             return;
         }
         if (e.target.closest('.js-detail-close') || e.target.id === 'task-detail-modal') {
