@@ -34,6 +34,13 @@ function formatDateTime(iso) {
     return d.toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'});
 }
 
+function toLocalInputValue(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const STATUS_LABELS = {pending: 'Pending', completed: 'Completed', cancelled: 'Cancelled'};
 
 async function loadTasks() {
@@ -66,7 +73,7 @@ async function loadTasks() {
         const label = STATUS_LABELS[status] ?? status;
         const viewBtn = `<button class="btn btn-secondary btn-sm js-task-view" data-id="${escHtml(t.id)}">View</button>`;
         const stateActions = status === 'pending'
-            ? ` <button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Cancel</button>`
+            ? ` <button class="btn btn-secondary btn-sm js-task-edit" data-id="${escHtml(t.id)}">Edit</button> <button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Complete</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Cancel</button>`
             : '';
         const actions = viewBtn + stateActions;
         return `
@@ -146,6 +153,30 @@ async function viewTask(id, btn) {
     }
 }
 
+function openEditModal() {
+    $('task-edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    $('task-edit-modal').classList.add('hidden');
+}
+
+async function editTask(id, btn) {
+    btn.disabled = true;
+    try {
+        const task = await window.apiCall(`/api/tasks/${id}`);
+        $('edit-task-id').value = task.id;
+        $('edit-task-title').value = task.title;
+        $('edit-task-start').value = toLocalInputValue(task.start);
+        $('edit-task-end').value = toLocalInputValue(task.end);
+        openEditModal();
+    } catch (err) {
+        showError(err.message || 'Failed to load task for editing.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 async function loadReport(from, to) {
     const result = $('report-result');
     const empty = $('report-empty');
@@ -190,6 +221,11 @@ document.addEventListener('DOMContentLoaded', () => {
             viewTask(viewBtn.dataset.id, viewBtn);
             return;
         }
+        const editBtn = e.target.closest('.js-task-edit');
+        if (editBtn) {
+            editTask(editBtn.dataset.id, editBtn);
+            return;
+        }
         const completeBtn = e.target.closest('.js-task-complete');
         if (completeBtn) {
             completeTask(completeBtn.dataset.id, completeBtn);
@@ -203,11 +239,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('.js-detail-close') || e.target.id === 'task-detail-modal') {
             closeDetailModal();
         }
+        if (e.target.closest('.js-edit-close') || e.target.id === 'task-edit-modal') {
+            closeEditModal();
+        }
     });
 
     document.addEventListener('keydown', e => {
         if ('Escape' === e.key) {
             closeDetailModal();
+            closeEditModal();
         }
     });
 
@@ -238,6 +278,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         btn.disabled = false;
         btn.textContent = 'Create Task';
+    });
+
+    $('form-edit-task').addEventListener('submit', async e => {
+        e.preventDefault();
+        const id = $('edit-task-id').value;
+        const title = $('edit-task-title').value.trim();
+        const start = $('edit-task-start').value;
+        const end = $('edit-task-end').value;
+        if (!id || !title || !start || !end) return;
+        if (end <= start) {
+            showError('End time must be after start time.');
+            return;
+        }
+        const btn = e.target.querySelector('[type=submit]');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            await window.apiCall(`/api/tasks/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title, start, end}),
+            });
+            closeEditModal();
+            showInfo('Task updated.');
+            await loadTasks();
+        } catch (err) {
+            showError(err.message || 'Failed to update task.');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Save';
     });
 
     const today = new Date().toISOString().slice(0, 10);
