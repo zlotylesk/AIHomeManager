@@ -51,9 +51,12 @@ async function loadTasks() {
     table.classList.add('hidden');
     empty.classList.add('hidden');
 
+    const statusFilter = $('task-filter-status').value;
+    const url = statusFilter ? `/api/tasks?status=${encodeURIComponent(statusFilter)}` : '/api/tasks';
+
     let tasks;
     try {
-        tasks = await window.apiCall('/api/tasks');
+        tasks = await window.apiCall(url);
     } catch (err) {
         loading.classList.add('hidden');
         showError(err.message || 'Failed to load tasks.');
@@ -232,6 +235,8 @@ async function loadReport(from, to) {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
+
+    $('task-filter-status').addEventListener('change', () => loadTasks());
 
     document.body.addEventListener('click', e => {
         const viewBtn = e.target.closest('.js-task-view');

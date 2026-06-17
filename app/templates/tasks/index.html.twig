@@ -33,6 +33,15 @@
 
     <section class="card">
         <h2 class="section-title">All tasks</h2>
+        <div class="form-group">
+            <label for="task-filter-status">Filter by status</label>
+            <select id="task-filter-status">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+        </div>
         <div id="tasks-loading" class="loading">Loading tasks…</div>
         <table class="data-table hidden" id="tasks-table">
             <thead>
