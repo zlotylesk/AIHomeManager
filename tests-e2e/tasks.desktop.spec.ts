@@ -109,6 +109,31 @@ test('a failing list request surfaces in the shared error banner', async ({ page
   await expect(banner).toHaveText(/internal server error/i);
 });
 
+test('editing a pending task pre-fills the form and updates its row in place', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Edit');
+  await seedTask(request, title);
+
+  await gotoTasks(page);
+
+  const row = page.locator('#tasks-table tbody tr', { hasText: title });
+  await row.locator('.js-task-edit').click();
+
+  const modal = page.locator('#task-edit-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('#edit-task-title')).toHaveValue(title);
+  await expect(modal.locator('#edit-task-start')).not.toHaveValue('');
+  await expect(modal.locator('#edit-task-end')).not.toHaveValue('');
+
+  const newTitle = uniqueTitle('E2E Edited');
+  await modal.locator('#edit-task-title').fill(newTitle);
+  await modal.locator('[type=submit]').click();
+
+  await expect(page.locator('#info-banner')).toHaveText(/task updated/i);
+  await expect(modal).toBeHidden();
+  await expect(page.locator('#tasks-table tbody tr', { hasText: newTitle })).toBeVisible();
+  await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toHaveCount(0);
+});
+
 test('viewing a task opens a detail modal with its fields and closes', async ({ page, request }) => {
   const title = uniqueTitle('E2E Detail');
   await seedTask(request, title);
