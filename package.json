@@ -9,7 +9,7 @@
     "test:newman": "newman run tests-e2e/postman/AIHomeManager.postman_collection.json --ignore-redirects"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "^1.61.0",
     "newman": "^6.2.2",
     "newman-reporter-htmlextra": "^1.23.1"
   }
