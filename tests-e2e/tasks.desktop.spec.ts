@@ -170,6 +170,19 @@ test('filtering the task list by status shows only matching tasks', async ({ pag
   await expect(page.locator('#tasks-table tbody tr', { hasText: completedTitle })).toHaveCount(0);
 });
 
+test('exporting tasks as CSV triggers a file download', async ({ page, request }) => {
+  const title = uniqueTitle('E2E Export');
+  await seedTask(request, title);
+
+  await gotoTasks(page);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#btn-export-csv');
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toBe('tasks.csv');
+});
+
 test('viewing a task opens a detail modal with its fields and closes', async ({ page, request }) => {
   const title = uniqueTitle('E2E Detail');
   await seedTask(request, title);

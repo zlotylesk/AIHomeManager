@@ -198,6 +198,47 @@ async function editTask(id, btn) {
     }
 }
 
+async function downloadExport(format, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Exporting…';
+    try {
+        const meta = document.querySelector('meta[name="api-key"]');
+        const apiKey = meta ? meta.getAttribute('content') : '';
+        const headers = {};
+        if (apiKey) {
+            headers['X-API-Key'] = apiKey;
+        }
+        const res = await fetch(`/api/tasks/export?format=${encodeURIComponent(format)}`, {headers});
+        if (!res.ok) {
+            let message = `Export failed (${res.status}).`;
+            try {
+                const payload = await res.json();
+                if (payload && 'string' === typeof payload.error) {
+                    message = payload.error;
+                }
+            } catch (_) {
+            }
+            throw new Error(message);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tasks.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showInfo(`Tasks exported as ${format.toUpperCase()}.`);
+    } catch (err) {
+        showError(err.message || 'Failed to export tasks.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
 async function loadReport(from, to) {
     const result = $('report-result');
     const empty = $('report-empty');
@@ -237,6 +278,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
 
     $('task-filter-status').addEventListener('change', () => loadTasks());
+
+    $('btn-export-csv').addEventListener('click', e => downloadExport('csv', e.currentTarget));
+    $('btn-export-pdf').addEventListener('click', e => downloadExport('pdf', e.currentTarget));
 
     document.body.addEventListener('click', e => {
         const viewBtn = e.target.closest('.js-task-view');
