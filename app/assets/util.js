@@ -29,7 +29,6 @@ export async function apiCall(url, options = {}) {
         try {
             payload = JSON.parse(text);
         } catch {
-            // non-JSON body (HTML error page, plain text, etc.) — keep raw snippet
         }
 
         const message = payload && typeof payload.error === 'string'

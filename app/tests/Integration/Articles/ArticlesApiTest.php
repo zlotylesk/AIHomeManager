@@ -92,11 +92,6 @@ class ArticlesApiTest extends WebTestCase
 
     public function testCreateArticleWithInvalidUrlReturnsGenericErrorMessage(): void
     {
-        // HMAI-109: domain exception messages must not leak into the API
-        // response — the controller now logs the original and returns a
-        // generic "Invalid article data." This regression test pins both
-        // sides: the generic message is present, and the domain-specific
-        // text (mentioning the scheme that failed) is absent.
         $this->client->request('POST', '/api/articles', content: (string) json_encode([
             'title' => 'XSS Attempt',
             'url' => 'javascript:alert(1)',
@@ -159,9 +154,6 @@ class ArticlesApiTest extends WebTestCase
 
     public function testUpdateArticleRejectsBlankCategoryWith422(): void
     {
-        // Article::updateMetadata rejects whitespace-only category (HMAI-110) —
-        // without the InvalidArgumentException → 422 catch the global
-        // ApiExceptionListener would turn it into a generic 500.
         $this->client->request('POST', '/api/articles', content: (string) json_encode([
             'title' => 'Original',
             'url' => 'https://example.com/blank-cat',

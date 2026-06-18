@@ -58,8 +58,6 @@ final class NewRelicMonologHandlerTest extends TestCase
 
     public function testHandleDoesNotThrowWhenExtensionEnabledButFunctionsUndefined(): void
     {
-        // extensionAvailable: true but newrelic_* functions don't exist in test env
-        // write() uses function_exists() guards so this must not throw
         $handler = new NewRelicMonologHandler(extensionAvailable: true);
 
         $handler->handle($this->makeRecord(Level::Error, 'Critical failure'));
@@ -71,7 +69,6 @@ final class NewRelicMonologHandlerTest extends TestCase
     {
         $handler = new NewRelicMonologHandler(extensionAvailable: false);
 
-        // bubble=true means handle() returns false (does not stop propagation)
         $result = $handler->handle($this->makeRecord(Level::Info));
 
         self::assertFalse($result);

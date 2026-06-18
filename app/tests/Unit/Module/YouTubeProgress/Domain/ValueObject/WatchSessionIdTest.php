@@ -14,9 +14,6 @@ final class WatchSessionIdTest extends TestCase
     {
         $id = WatchSessionId::generate();
 
-        // Round-trip via fromString to confirm the generated payload passes
-        // our strict validator — guards against the day Symfony's Uuid::v4()
-        // ever changes shape.
         $rehydrated = WatchSessionId::fromString($id->value);
 
         self::assertSame($id->value, $rehydrated->value);
@@ -40,8 +37,6 @@ final class WatchSessionIdTest extends TestCase
 
     public function testFromStringRejectsUuidWithWrongVersion(): void
     {
-        // RFC 4122 UUID with version 1 (timestamp-based) — must be rejected
-        // because we mint v4 only.
         $this->expectException(InvalidArgumentException::class);
 
         WatchSessionId::fromString('12345678-1234-1234-1234-123456789012');
@@ -49,8 +44,6 @@ final class WatchSessionIdTest extends TestCase
 
     public function testFromStringRejectsUppercase(): void
     {
-        // Symfony's toRfc4122() emits lowercase, so we never need to accept
-        // uppercase. Locking it down keeps comparisons trivially case-sensitive.
         $this->expectException(InvalidArgumentException::class);
 
         WatchSessionId::fromString('550E8400-E29B-41D4-A716-446655440000');

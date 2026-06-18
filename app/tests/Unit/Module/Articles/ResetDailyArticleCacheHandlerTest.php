@@ -15,10 +15,6 @@ final class ResetDailyArticleCacheHandlerTest extends TestCase
 {
     public function testDeletesTodayCacheKeyAndPrunesOldPicks(): void
     {
-        // HMAI-35: the midnight reset has two side effects — delete the
-        // articles:today Redis key, and prune article_daily_picks older than
-        // 7 days. Both must fire on every run; verify the DELETE binds the
-        // retention window so a future tweak to the constant changes the SQL.
         $redis = $this->createMock(Redis::class);
         $redis->expects(self::once())
             ->method('del')
@@ -48,8 +44,6 @@ final class ResetDailyArticleCacheHandlerTest extends TestCase
 
     public function testLogsZeroPrunedWhenNoOldPicks(): void
     {
-        // When the picks table is fresh, the DELETE affects 0 rows — log
-        // should still fire with picks_pruned=0 (silence would be ambiguous).
         $redis = $this->createStub(Redis::class);
         $redis->method('del')->willReturn(1);
 

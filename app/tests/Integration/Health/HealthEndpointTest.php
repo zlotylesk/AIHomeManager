@@ -10,9 +10,6 @@ final class HealthEndpointTest extends WebTestCase
 {
     public function testHealthEndpointWorksWithoutApiKey(): void
     {
-        // Regression guard for HMAI-37: /api/health must respond even without
-        // the X-API-Key header. Orchestrators (docker healthcheck, k8s probes)
-        // never carry the project's API key.
         $client = static::createClient();
         $client->request('GET', '/api/health');
 
@@ -25,8 +22,7 @@ final class HealthEndpointTest extends WebTestCase
 
         $body = json_decode((string) $response->getContent(), true);
         self::assertIsArray($body);
-        // HMAI-155: added `degraded` to the valid status set when disk usage is
-        // 80-95% — still 200, but the body flags it for monitoring.
+
         self::assertContains($body['status'], ['healthy', 'degraded', 'unhealthy']);
         self::assertArrayHasKey('mysql', $body['components']);
         self::assertArrayHasKey('redis', $body['components']);

@@ -1,9 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 
 const uniqueIsbn = () => {
-  // Build a checksum-valid ISBN-13 — the Books module's ISBN value object
-  // rejects bad check digits (returns 422). 978-prefix (Bookland) + 9 unique
-  // digits + computed check digit. Uniqueness via Date.now() + random tail.
   const body = `978${String(Date.now()).slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`.slice(0, 12);
   let sum = 0;
   for (let i = 0; i < 12; i++) {
@@ -49,7 +46,6 @@ test('list loads and renders seeded book', async ({ page, request }) => {
 test('add book modal opens, cancel closes it without a page reload', async ({ page }) => {
   await gotoBooksList(page);
 
-  // Sentinel guards against full-page reload that would discard window state.
   const sentinel = Math.random().toString(36).slice(2);
   await page.evaluate((s) => { (window as unknown as Record<string, string>).__e2eSentinel = s; }, sentinel);
 
@@ -69,8 +65,6 @@ test('add book modal opens, cancel closes it without a page reload', async ({ pa
 test('API error surfaces in the shared error banner', async ({ page }) => {
   await gotoBooksList(page);
 
-  // Stub the POST so the JS hits the error branch; the JS short-circuits empty
-  // ISBN before sending, so we need a real-looking ISBN the (mocked) server rejects.
   await page.route('**/api/books', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({

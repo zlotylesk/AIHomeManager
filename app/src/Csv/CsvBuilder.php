@@ -26,16 +26,10 @@ final readonly class CsvBuilder
     {
         $handle = fopen('php://temp', 'r+');
         if (false === $handle) {
-            // php://temp is in-process; failure means the runtime is in a
-            // state where serving the response is hopeless anyway. Let the
-            // ApiExceptionListener convert this into a 500.
             throw new RuntimeException('Could not open php://temp for CSV build.');
         }
 
         try {
-            // UTF-8 BOM so Excel on Windows renders polish characters
-            // correctly (HMAI-36 dev notes). Without it Excel interprets the
-            // file as Windows-1252 and mangles every diacritic.
             fwrite($handle, "\xEF\xBB\xBF");
             fputcsv($handle, $headers, escape: '');
             foreach ($rows as $row) {

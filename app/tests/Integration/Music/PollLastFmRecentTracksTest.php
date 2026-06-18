@@ -51,8 +51,6 @@ class PollLastFmRecentTracksTest extends KernelTestCase
             new RecentTrackDTO('Radiohead', 'OK Computer', new DateTimeImmutable('2026-05-20 11:00:00', new DateTimeZone('UTC'))),
         ]);
 
-        // Two polls over the same Last.fm window must not double-insert — the
-        // dedup hash makes the second pass a no-op (HMAI-144).
         $this->dispatchPoll();
         $this->dispatchPoll();
 

@@ -4,6 +4,52 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.14.0] — 2026-06-18
+
+Domknięcie epica **HMAI-192** (Tasks — panel GUI zarządzania zadaniami) — 9 podzadań GUI + dwa cross-cutting chore (**HMAI-222** pin webpack-cli, **HMAI-223** docs governance) + epic review. Moduł Tasks dostaje pełny panel zarządzania nad istniejącym REST API: lista zadań, tworzenie, edycja, usuwanie, oznaczanie ukończone/anulowane, filtr statusu, podgląd szczegółów (modal) i eksport CSV/PDF — wszystko na torze Twig + vanilla JS. Epic review dołożył mobilny spec E2E (Pixel 5) i naprawił rzeczywisty defekt responsywności (tabela zadań przepełniała viewport 393px → układ etykietowanych kart na mobile). Bez zmian w modelu domenowym ani w PHP — czysty zysk GUI. **915/915 PHP** (bez zmian vs 1.13.0) + **35/35 Playwright** (+12) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).
+
+### Added
+
+#### Tasks — panel GUI (Twig + vanilla JS nad istniejącym REST)
+
+- **Lista zadań (HMAI-196).** `GET /api/tasks` renderowane w tabeli z badge statusu (pending/completed/cancelled); akcje per-wiersz zależne od statusu; pusta lista → explicit empty-state zamiast spinnera; błąd listy → wspólny error banner.
+- **Tworzenie zadania (HMAI-197).** Formularz „New Task" (tytuł + start/end) → `POST /api/tasks`; po sukcesie odświeżenie listy + info banner.
+- **Edycja zadania (HMAI-198).** Modal pre-fill z wiersza → `PATCH /api/tasks/{id}`; edytowalne tylko `pending` (completed/cancelled immutable w domenie); aktualizacja wiersza in place.
+- **Usuwanie zadania (HMAI-199).** `DELETE /api/tasks/{id}` z `confirm()`.
+- **Oznaczenie ukończone (HMAI-200).** `POST /api/tasks/{id}/complete`; flip badge, akcje stanu znikają.
+- **Oznaczenie anulowane (HMAI-201).** `POST /api/tasks/{id}/cancel` z `confirm()`.
+- **Filtr statusu (HMAI-202).** Select pending/completed/cancelled → re-query `GET /api/tasks?status=`.
+- **Podgląd szczegółów (HMAI-203).** Modal read-only (tytuł, status, start/end, czas trwania, stan sync z Google Calendar) z `GET /api/tasks/{id}`.
+- **Eksport CSV/PDF (HMAI-204).** Przyciski → `GET /api/tasks/export?format=csv|pdf` (file download).
+- **Responsywność mobilna + mobilny E2E (HMAI-192 epic review).** `tests-e2e/tasks.mobile.spec.ts` (Pixel 5 horizontal-overflow guard — Tasks był jedynym modułem GUI bez mobilnego speca). Na ≤480px `#tasks-table` składa wiersze w etykietowane karty (`data-label` + media query, scoped wyłącznie do tabeli zadań) — pełny detal nadal dostępny przez modal szczegółów.
+
+### Changed
+
+- **Pin webpack-cli 6.x (HMAI-222).** Dependabot podbił `webpack-cli` do 7.0.3 (niezgodny z peer-dep `@symfony/webpack-encore@6` → `ERESOLVE` w `npm ci`, czerwone CI w jobach budujących assety). Revert do `^6.0.1` + reguła `ignore` na major w `.github/dependabot.yml` (zapobiega nawrotowi do czasu bumpa Encore).
+- **Docs governance (HMAI-223).** Strip komentarzy prozą z całego repo (PHP/JS/E2E/config — zachowane PHPDoc z anotacjami typów wymagane przez PHPStan level 8), parafraza usuwanej wiedzy do Confluence (generycznie, bez kluczy HMAI-\*), scrub referencji HMAI-\* z CLAUDE.md (informacja o zadaniach wyłącznie w CHANGELOG).
+- **CLAUDE.md**: „Status" → 1.14.0.
+- **chore**: skill `/start-task` — tryb sugestii (3 tickety: najszerszy / najwęższy / najbardziej blokujący scope) gdy wywołany bez klucza.
+
+### Coverage
+
+- **915 PHP tests** (bez zmian vs 1.13.0) — epic Tasks GUI to warstwa frontu nad istniejącym REST; backend (agregat, VO, handlery komend, integracja CRUD/export/time-report) był już pokryty we wcześniejszych wydaniach.
+- **35 Playwright** (vs 23) — +12 w `tasks.desktop.spec.ts` (11: lista, create, complete, cancel, edit, delete, filtr statusu, export CSV, modal szczegółów + empty-state + error banner) i `tasks.mobile.spec.ts` (1: Pixel 5 overflow guard).
+- **43 Newman** requests (bez zmian — REST Tasks bez zmian kontraktu).
+- PHPStan level 8 clean (zero nowych baseline entries). Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` zielone.
+
+### Documentation
+
+- Confluence: nowa strona „Tasks — GUI panel" (#73629698).
+
+### Migration
+
+1. `make assets-prod` — rebuild globalnego `app.css` (responsywna tabela Tasks na mobile). `tasks.js` serwowany statycznie z `public/js/` (bez buildu).
+2. Brak migracji DB, brak nowych kluczy `.env.local`, brak operacji destrukcyjnych.
+
+### Closed Jira
+
+Epic **HMAI-192** + HMAI-196, HMAI-197, HMAI-198, HMAI-199, HMAI-200, HMAI-201, HMAI-202, HMAI-203, HMAI-204, HMAI-222, HMAI-223.
+
 ## [1.13.0] — 2026-06-15
 
 Domknięcie epica **HMAI-178** (Series — domknięcie braków MVP modułu) — 16 podzadań + bug **HMAI-219** + dwa follow-upy (**HMAI-220** import ocen z Trakt, **HMAI-221** kolorowanie kart). Moduł Series wychodzi z MVP do dojrzałego trackera seriali: pełny CRUD (usuwanie + edycja serial/sezon/odcinek z kaskadą), realny numer odcinka, flaga „obejrzane", własna ocena sezonu/serialu + jej czyszczenie, metadane katalogowe (poster/rok/status/opis), wzbogacona lista (wyszukiwarka + sortowanie + oceny na kartach + kolorowanie rozbieżności/niekompletności) oraz jednokierunkowy import biblioteki z Trakt.tv (OAuth2 + szyfrowany token, obejrzane odcinki z realną datą, oceny 1–10) offloadowany na Messenger. **915/915 PHP** (+149 vs 1.12.0) + **23/23 Playwright** (+9) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).

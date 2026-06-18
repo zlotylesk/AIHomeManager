@@ -89,6 +89,9 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .modal-box label small { font-weight: 400; color: var(--color-text-muted); }
 .form-actions { display: flex; gap: .75rem; margin-top: .5rem; }
 .form-hint { font-size: .8rem; color: var(--color-text-muted); margin-bottom: .75rem; }
+.detail-list { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1rem; margin-bottom: 1.25rem; }
+.detail-list dt { font-size: .85rem; color: var(--color-text-muted); }
+.detail-list dd { font-size: .9rem; word-break: break-word; }
 
 /* ── Utility ── */
 .hidden { display: none !important; }
@@ -213,6 +216,9 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .book-title { font-size: .95rem; font-weight: 600; }
 .book-author { font-size: .85rem; color: var(--color-text-muted); }
 .status-badge { display: inline-block; color: #fff; border-radius: 4px; padding: .1rem .5rem; font-size: .78rem; font-weight: 600; }
+.status-badge--pending { background: var(--color-secondary); }
+.status-badge--completed { background: var(--color-success); }
+.status-badge--cancelled { background: var(--color-danger); }
 .progress-wrap { display: flex; align-items: center; gap: .5rem; }
 .progress-wrap progress { flex: 1; min-width: 0; height: 8px; border-radius: 4px; accent-color: var(--color-primary); }
 .progress-pct { font-size: .8rem; font-weight: 600; white-space: nowrap; }
@@ -290,6 +296,14 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
     .series-grid { grid-template-columns: 1fr 1fr; }
     .books-grid { grid-template-columns: 1fr 1fr; }
     .episodes-table th:nth-child(1), .episodes-table td:nth-child(1) { display: none; }
+    #tasks-table thead { display: none; }
+    #tasks-table, #tasks-table tbody, #tasks-table tr, #tasks-table td { display: block; }
+    #tasks-table tr { margin-bottom: .75rem; border: 1px solid var(--color-border); border-radius: var(--radius); padding: .25rem .5rem; }
+    #tasks-table tr:last-child { margin-bottom: 0; }
+    #tasks-table td { border-bottom: none; padding: .35rem .25rem; overflow-wrap: anywhere; }
+    #tasks-table td::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 600; color: var(--color-text-muted); }
+    #tasks-table td:last-child { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+    #tasks-table td:last-child::before { flex-basis: 100%; }
 }
 @media (max-width: 375px) {
     .series-grid, .books-grid { grid-template-columns: 1fr; }

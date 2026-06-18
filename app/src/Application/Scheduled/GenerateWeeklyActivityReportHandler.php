@@ -44,9 +44,6 @@ final readonly class GenerateWeeklyActivityReportHandler
             ['since' => $weekStart],
         );
 
-        // series_episodes has no updated_at column (HMAI-35 review), so we report
-        // the cumulative count of rated episodes — still useful as a "library
-        // depth" indicator alongside the weekly read/completion metrics.
         $ratedEpisodesTotal = (int) $this->connection->fetchOne(
             'SELECT COUNT(*) FROM series_episodes WHERE rating_value IS NOT NULL',
         );

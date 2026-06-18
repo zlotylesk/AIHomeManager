@@ -23,9 +23,7 @@ final class TraktAuthControllerTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        // Service overrides (MockHttpClient) must survive between the
-        // authorize → callback sub-requests; without this the kernel reboots
-        // and discards the mock before the callback runs.
+
         $this->client->disableReboot();
 
         $this->connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
@@ -108,11 +106,8 @@ final class TraktAuthControllerTest extends WebTestCase
         self::assertSame(302, $response->getStatusCode());
         self::assertSame('/series', $response->headers->get('Location'));
 
-        // Round-trip: the repository decrypts back to exactly what Trakt returned.
         self::assertSame($token, $this->repository()->get());
 
-        // At rest the token must be ciphertext — the raw column never leaks the
-        // plaintext access token.
         $stored = (string) $this->connection->fetchOne('SELECT token_json FROM trakt_oauth_tokens');
         self::assertStringNotContainsString('trakt-access-xyz', $stored);
     }

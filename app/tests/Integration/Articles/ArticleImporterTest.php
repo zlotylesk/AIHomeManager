@@ -143,10 +143,6 @@ class ArticleImporterTest extends KernelTestCase
 
     public function testImportsWindows1250EncodedFileWithExplicitEncoding(): void
     {
-        // Polish Windows exports commonly produce Windows-1250. mbstring does NOT
-        // expose -1250 to mb_detect_encoding (only -1251/-1252/-1254), so the
-        // caller must pass the encoding explicitly. iconv handles the actual
-        // decode. Regression guard for HMAI-81.
         $line = iconv('UTF-8', 'Windows-1250', "Książka żółć,https://example.com/zolc,1641750653,,unread\n");
         $header = "title,url,time_added,tags,status\n";
         $file = $this->createRawFile($header.$line);
@@ -156,20 +152,13 @@ class ArticleImporterTest extends KernelTestCase
         self::assertSame(1, $result->imported);
         $row = $this->em->getConnection()->fetchAssociative('SELECT title FROM articles WHERE url = ?', ['https://example.com/zolc']);
         self::assertNotFalse($row);
-        // Asserting on individual diacritics rather than the full string —
-        // //TRANSLIT may simplify some glyphs but the core PL letters survive.
+
         self::assertStringContainsString('ż', $row['title']);
         self::assertStringContainsString('ó', $row['title']);
     }
 
     public function testExplicitEncodingOverridesAutoDetection(): void
     {
-        // Bytes are valid UTF-8 "ąć" (C4 85 C4 87). Without override auto-detect
-        // would pick UTF-8 and keep the diacritics intact. We force Windows-1252
-        // to prove the override path actually re-decodes: the same bytes read as
-        // Windows-1252 yield "Ä…Ä‡" — visibly different from "ąć". A naive
-        // implementation that ignored $encoding and always auto-detected would
-        // fail this assertion.
         $file = $this->createRawFile("title,url,time_added,tags,status\nąć,https://example.com/forced,1641750653,,unread\n");
 
         $result = $this->importer->import($file, 'Windows-1252');
@@ -183,8 +172,6 @@ class ArticleImporterTest extends KernelTestCase
 
     public function testRejectsUnsupportedExplicitEncoding(): void
     {
-        // Allowlist guard: a typo or an unsupported encoding name must fail loudly
-        // at the boundary rather than producing silently garbled data downstream.
         $file = $this->createCsvFile("title,url,time_added,tags,status\nx,https://example.com/x,1,,unread\n");
 
         $this->expectException(InvalidArgumentException::class);
@@ -229,22 +216,16 @@ class ArticleImporterTest extends KernelTestCase
 
         $result = $this->importer->import($file, null, dryRun: true);
 
-        // Counts mirror what a real run would produce — caller can preview
-        // before committing. errors=1 (bad URL), imported=2, skipped=0.
         self::assertSame(2, $result->imported);
         self::assertSame(0, $result->skipped);
         self::assertSame(1, $result->errors);
 
-        // Critical invariant: zero rows on disk despite imported=2.
         $count = $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM articles');
         self::assertSame('0', (string) $count);
     }
 
     public function testDryRunStillFlagsDuplicatesAgainstExistingRows(): void
     {
-        // Seed one row by a real import, then dry-run with a CSV that contains
-        // both the seeded URL and a fresh one. The existsByUrl check must still
-        // fire in dry-run mode so the user sees an honest preview.
         $seedFile = $this->createCsvFile(
             "title,url,time_added,tags,status\n".
             "Seeded,https://example.com/seeded,1641750653,,unread\n"
@@ -264,7 +245,7 @@ class ArticleImporterTest extends KernelTestCase
         self::assertSame(0, $result->errors);
 
         $count = $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM articles');
-        self::assertSame('1', (string) $count); // only the seeded one
+        self::assertSame('1', (string) $count);
     }
 
     private function createCsvFile(string $content): string

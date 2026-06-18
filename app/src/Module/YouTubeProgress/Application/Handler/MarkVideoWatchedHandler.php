@@ -25,8 +25,6 @@ final readonly class MarkVideoWatchedHandler
             throw new NotFoundHttpException(sprintf('Video "%s" not found in watchlist', $command->youtubeVideoId));
         }
 
-        // Idempotency and the started→watched ordering invariants live in the
-        // aggregate: a prior startedAt survives, and a re-mark is a no-op.
         $video->markWatched($command->at);
         $this->videos->save($video);
     }

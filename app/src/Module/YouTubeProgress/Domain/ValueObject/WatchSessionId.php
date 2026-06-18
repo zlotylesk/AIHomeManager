@@ -22,10 +22,6 @@ final readonly class WatchSessionId
 
     public static function fromString(string $value): self
     {
-        // Strict UUID v4 check: version nibble = 4, variant nibble in [89ab].
-        // We use RFC 4122 / v4 specifically because the session ID is generated
-        // server-side and any other shape would be a leaked test fixture or a
-        // hand-edited payload — both should fail loudly.
         if (1 !== preg_match(self::UUID_V4_PATTERN, $value)) {
             throw new InvalidArgumentException(sprintf('Not a valid UUID v4: "%s".', $value));
         }

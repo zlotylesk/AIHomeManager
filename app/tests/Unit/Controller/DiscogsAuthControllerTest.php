@@ -25,12 +25,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     private function makeController(MockHttpClient $httpClient, ?LoggerInterface $logger = null): DiscogsAuthController
     {
-        // DiscogsOAuth1Signer is final and stateless — instantiate directly
-        // rather than fight PHPUnit's no-doubling-final restriction. The
-        // returned Authorization header is opaque to the controller under test.
-        // Detector and controller share the same logger so tests that pin
-        // expects(self::once()) on the controller's HMAI-105 warning also
-        // catch an unintended drift warning leaking from MockResponse changes.
         $sharedLogger = $logger ?? new NullLogger();
 
         return new DiscogsAuthController(
@@ -54,10 +48,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testAuthorizeRedirectsOnSuccessfulRequestToken(): void
     {
-        // Regression guard: happy path still produces a 302 to discogs.com with
-        // the request_token in the query string. Without this test, a refactor
-        // could accidentally drop the redirect and the 200 status path would
-        // still pass the failure-mode tests below.
         $httpClient = new MockHttpClient(new MockResponse(
             'oauth_token=req-token&oauth_token_secret=req-secret&oauth_callback_confirmed=true',
             ['http_code' => 200],
@@ -71,11 +61,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testAuthorizeReturnsBadGatewayWhenRequestTokenFailsWith401(): void
     {
-        // Regression for HMAI-105: a 401 from Discogs (bad consumer key/secret)
-        // previously bubbled through getContent() as a HttpExceptionInterface,
-        // producing a generic 500. The status guard must convert it into a
-        // 502 with a recognisable error body so the user (and ops) know it's
-        // an upstream failure, not a bug in our code.
         $httpClient = new MockHttpClient(new MockResponse('Invalid consumer credentials', ['http_code' => 401]));
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())
@@ -92,9 +77,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testCallbackReturnsBadGatewayWhenAccessTokenFailsWith500(): void
     {
-        // Same protection for the second leg of OAuth1. Discogs occasionally 500s
-        // mid-flow during a deploy; the user must see "upstream failed" rather
-        // than a stack trace.
         $httpClient = new MockHttpClient(new MockResponse('Internal Server Error', ['http_code' => 500]));
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())
@@ -115,9 +97,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testCallbackSucceedsOnValidAccessTokenResponse(): void
     {
-        // Belt for the access_token happy path. Together with the failure-mode
-        // tests, this nails down that the 200-vs-other branch is dispatched on
-        // the actual status code, not on body content.
         $httpClient = new MockHttpClient(new MockResponse(
             'oauth_token=access&oauth_token_secret=secret',
             ['http_code' => 200],
@@ -137,9 +116,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testAuthorizeEmitsAuditInfoOnHappyPath(): void
     {
-        // HMAI-107: same audit contract as Google — every authorize attempt
-        // must produce a `provider=discogs` info entry on the auth channel,
-        // even when the request_token call succeeds.
         $httpClient = new MockHttpClient(new MockResponse(
             'oauth_token=req-token&oauth_token_secret=req-secret&oauth_callback_confirmed=true',
             ['http_code' => 200],
@@ -154,8 +130,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testCallbackLogsInvalidStateAsAuditWarning(): void
     {
-        // HMAI-107: forged state on Discogs callback must hit the audit log
-        // with reason=invalid_state, not just return a plain 400.
         $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 200]));
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())
@@ -169,8 +143,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testCallbackLogsMissingParamsAsAuditWarning(): void
     {
-        // State passes, but Discogs omitted oauth_token / oauth_verifier.
-        // Distinct reason key so log filters can split this from invalid_state.
         $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 200]));
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())
@@ -180,7 +152,6 @@ final class DiscogsAuthControllerTest extends TestCase
         $request = $this->makeRequest();
         $request->getSession()->set(self::SESSION_STATE_KEY, 'matching-state');
         $request->query->set('state', 'matching-state');
-        // oauth_token / oauth_verifier intentionally missing
 
         $response = $this->makeController($httpClient, $logger)->callback($request);
 
@@ -189,9 +160,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testCallbackLogsEmptyTokenAsAuditWarning(): void
     {
-        // Access_token endpoint returned 200 but with empty oauth_token —
-        // either a bug in Discogs or a man-in-the-middle altering the body.
-        // We don't store anything but we leave an audit trail.
         $httpClient = new MockHttpClient(new MockResponse(
             'oauth_token=&oauth_token_secret=',
             ['http_code' => 200],
@@ -214,8 +182,6 @@ final class DiscogsAuthControllerTest extends TestCase
 
     public function testCallbackLogsSuccessAsAuditInfo(): void
     {
-        // Success audit event must fire AFTER tokenRepository->save, so a save
-        // exception cannot leave behind a false "connected" record.
         $httpClient = new MockHttpClient(new MockResponse(
             'oauth_token=access&oauth_token_secret=secret',
             ['http_code' => 200],

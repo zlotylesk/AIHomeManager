@@ -1,9 +1,5 @@
 import { test, expect } from '@playwright/test';
 
-// Route-mock the two read endpoints (see the desktop spec for why seeding via
-// API is not possible here) so the panel has real content — session cards plus
-// watchlist rows with long titles/channels — to measure for horizontal overflow
-// at the Pixel 5 viewport.
 
 test('youtube-progress page renders without horizontal overflow at 393px (Pixel 5)', async ({ page }) => {
   const longTitle = 'A deliberately long video title that should wrap rather than push the layout sideways on a narrow phone screen';
@@ -45,9 +41,6 @@ test('youtube-progress page renders without horizontal overflow at 393px (Pixel 
 
   const layout = await page.evaluate(() => {
     const clientWidth = document.documentElement.clientWidth;
-    // Element-level check: find the element whose right edge sticks out furthest.
-    // `overflow-x: clip` stops the document scrolling but preserves layout
-    // geometry, so a genuinely-wide element still reports its real rect.
     let worst = { sel: '', right: 0 };
     for (const el of document.querySelectorAll<HTMLElement>('body *')) {
       const r = el.getBoundingClientRect();
@@ -65,7 +58,5 @@ test('youtube-progress page renders without horizontal overflow at 393px (Pixel 
   });
 
   expect(layout.scrollWidth, 'document must not scroll horizontally').toBeLessThanOrEqual(layout.clientWidth);
-  // 2px tolerance absorbs sub-pixel rounding of fractional `1fr` grid tracks —
-  // same tolerance the books/series mobile specs use.
   expect(layout.worstRight, `"${layout.worstSel}" extends past the ${layout.clientWidth}px viewport`).toBeLessThanOrEqual(layout.clientWidth + 2);
 });

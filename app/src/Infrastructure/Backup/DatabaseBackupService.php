@@ -95,7 +95,6 @@ readonly class DatabaseBackupService
             $candidates[$file] = $fileDate;
         }
 
-        // Sort newest-first so the 12 most recent 1st-of-month backups are kept
         uasort($candidates, static fn (DateTimeImmutable $a, DateTimeImmutable $b): int => $b <=> $a);
 
         $monthlyKept = [];

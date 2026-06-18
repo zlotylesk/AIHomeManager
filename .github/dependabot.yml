@@ -29,6 +29,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # @symfony/webpack-encore@6 pins peer webpack-cli@^6 — a major bump
+      # (e.g. 7.x) breaks `npm ci` with ERESOLVE. Block semver-major until
+      # Encore is upgraded to a release supporting webpack-cli 7 (HMAI-222).
+      - dependency-name: "webpack-cli"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /

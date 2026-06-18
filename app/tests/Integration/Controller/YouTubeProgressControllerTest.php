@@ -148,8 +148,6 @@ class YouTubeProgressControllerTest extends WebTestCase
 
     public function testSyncImportsVideosAndRegeneratesSessions(): void
     {
-        // Fake reader so the real SyncWatchlist + RegenerateSessions handlers run
-        // end-to-end without hitting the YouTube API.
         $reader = new readonly class implements YouTubePlaylistReaderInterface {
             public function fetchPlaylistVideos(string $playlistId): array
             {
@@ -195,8 +193,6 @@ class YouTubeProgressControllerTest extends WebTestCase
 
     public function testPushSessionRecordsPlaylistId(): void
     {
-        // Fake writer returns a canned playlist ID; the real handler marks the
-        // session pushed with it.
         $writer = new class implements YouTubePlaylistWriterInterface {
             public function createPlaylist(string $name, bool $private = true): string
             {
@@ -222,8 +218,6 @@ class YouTubeProgressControllerTest extends WebTestCase
 
     public function testMarkStartedReturns404ForUnknownVideo(): void
     {
-        // Real command bus: the handler resolves the (missing) video and throws
-        // NotFoundHttpException, which ApiExceptionListener unwraps into a 404.
         $this->client->request('POST', '/api/youtube-progress/videos/unknownvideo/start');
 
         self::assertResponseStatusCodeSame(404);
@@ -231,8 +225,6 @@ class YouTubeProgressControllerTest extends WebTestCase
 
     public function testSyncReturns400IfPlaylistIdNotConfigured(): void
     {
-        // The configured playlist ID is injected from env at construction, so the
-        // empty-config path needs a fresh kernel booted with the var unset.
         $original = $_ENV['YOUTUBE_WATCHLIST_PLAYLIST_ID'] ?? null;
         self::ensureKernelShutdown();
         $_ENV['YOUTUBE_WATCHLIST_PLAYLIST_ID'] = '';

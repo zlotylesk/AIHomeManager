@@ -150,8 +150,6 @@ final class ArticleTest extends TestCase
 
     public function testUpdateMetadataRejectsBlankCategoryString(): void
     {
-        // Blank-after-trim must throw — silent coercion to null would be a
-        // ghost mutation. Caller has to pass null explicitly.
         $article = $this->makeArticle();
 
         $this->expectException(InvalidArgumentException::class);
@@ -192,8 +190,6 @@ final class ArticleTest extends TestCase
 
     public function testUpdateMetadataAcceptsExactlyMaxLengths(): void
     {
-        // Boundary: 500 chars title and 255 chars category must pass. Off-by-one
-        // regression guard for the inequality operator in the length check.
         $article = $this->makeArticle();
 
         $article->updateMetadata(str_repeat('a', 500), str_repeat('b', 255), 1);
@@ -205,18 +201,6 @@ final class ArticleTest extends TestCase
 
     public function testArticleHasNoEventRecordingInfrastructure(): void
     {
-        // HMAI-59 (P1) — Article intentionally records and dispatches no
-        // domain events. CreateArticleHandler, MarkArticleAsReadHandler,
-        // DeleteArticleHandler and UpdateArticleHandler don't call
-        // releaseEvents() because there's nothing to release. HMAI-44 review
-        // flagged the previous releaseEvents()+recordedEvents pair as dead
-        // code; the entity has been cleaned but the pattern can sneak back
-        // in piecemeal (one PR adds the field, another adds the method, no
-        // single PR adds dispatch wiring). This guard fails fast on any
-        // re-introduction so the dead-code regression can't slip through.
-        //
-        // To add domain events to Articles legitimately, change this test
-        // in the same PR as the handler wiring — never one without the other.
         $reflection = new ReflectionClass(Article::class);
 
         self::assertFalse(

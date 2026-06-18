@@ -56,10 +56,6 @@ final class ApiKeyAuthCsrfTest extends WebTestCase
 
     public function testApiResponseDoesNotIssueSessionCookie(): void
     {
-        // A stateless firewall must not set Set-Cookie on responses — that
-        // is what keeps the CSRF surface zero. If this assertion ever flips,
-        // the security.yaml `stateless: true` flag has been removed and the
-        // CSRF decision needs to be revisited.
         $client = static::createClient();
         $client->setServerParameter('HTTP_X_API_KEY', 'test-api-key');
         $client->request('GET', '/api/series');

@@ -60,7 +60,6 @@ export default class extends Controller {
         this.loadList('');
     }
 
-    // ── shared helpers ──
 
     show(el) {
         el.classList.remove('hidden');
@@ -78,7 +77,6 @@ export default class extends Controller {
         setTimeout(() => banner.classList.add('hidden'), TOAST_TIMEOUT_MS);
     }
 
-    // ── list ──
 
     async loadList(status) {
         this.listTarget.innerHTML = '<div class="loading">Loading…</div>';
@@ -103,7 +101,6 @@ export default class extends Controller {
         this.loadList(event.target.value);
     }
 
-    // ── add book modal ──
 
     openAddBook() {
         this.isbnInputTarget.value = '';
@@ -142,7 +139,6 @@ export default class extends Controller {
         submitBtn.textContent = 'Add Book';
     }
 
-    // ── reading session modal ──
 
     openSession(event) {
         const btn = event.target.closest('.btn-log-session');

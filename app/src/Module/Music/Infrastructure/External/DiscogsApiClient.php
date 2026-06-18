@@ -59,7 +59,6 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
             try {
                 return $this->decodeRecordsFromCache($cached);
             } catch (JsonException) {
-                // Stale or corrupted cache entry — treat as miss.
             }
         }
 

@@ -73,8 +73,6 @@ final class YouTubeApiClientWriteTest extends TestCase
             return '';
         }
 
-        // MockHttpClient may hand headers as an assoc map or a normalized
-        // "name: value" list depending on version — flatten either shape.
         foreach ($headers as $key => $value) {
             $line = is_string($key) ? $key.': '.(is_string($value) ? $value : '') : (is_string($value) ? $value : '');
             if (false !== stripos($line, 'authorization')) {

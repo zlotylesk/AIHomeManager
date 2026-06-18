@@ -51,10 +51,6 @@ final class RequestIdListenerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        // Attach a TestHandler so we can inspect the LogRecord the Monolog
-        // processor stamps. ApiExceptionListener guarantees an `error` entry
-        // for any /api/* throwable, which is the simplest deterministic way
-        // to produce a log line inside the request lifecycle.
         /** @var Logger $logger Symfony MonologBundle aliases LoggerInterface to a Monolog Logger. */
         $logger = static::getContainer()->get(LoggerInterface::class);
         $testHandler = new TestHandler();

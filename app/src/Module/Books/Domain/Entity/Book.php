@@ -121,10 +121,6 @@ final class Book
 
         $this->readingProgress = $this->readingProgress->withCurrentPage($newCurrentPage);
 
-        // Record completion only on the transition into COMPLETED, never on a
-        // subsequent session against an already-completed book. The addReadingSession
-        // path is the single completion trigger today; re-emitting on later writes
-        // would surprise any subscriber that treats BookCompleted as a one-shot.
         if ($this->readingProgress->isCompleted() && BookStatus::COMPLETED !== $this->status) {
             $this->status = BookStatus::COMPLETED;
             $this->recordedEvents[] = new BookCompleted($this->id);

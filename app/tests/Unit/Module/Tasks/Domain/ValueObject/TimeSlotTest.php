@@ -65,9 +65,6 @@ final class TimeSlotTest extends TestCase
 
     public function testEqualsComparesByUtcTimestampNotTimezone(): void
     {
-        // 09:00 Warsaw and 08:00 UTC (during winter) point to the same instant.
-        // Equality must be timezone-blind — what matters is the moment in time,
-        // not how the wall clock was labelled when the slot was constructed.
         $a = new TimeSlot(
             new DateTimeImmutable('2025-01-15 09:00:00', new DateTimeZone('Europe/Warsaw')),
             new DateTimeImmutable('2025-01-15 10:00:00', new DateTimeZone('Europe/Warsaw')),

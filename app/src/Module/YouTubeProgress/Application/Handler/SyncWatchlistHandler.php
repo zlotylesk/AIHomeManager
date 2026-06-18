@@ -28,17 +28,12 @@ final readonly class SyncWatchlistHandler
             $existing = $this->videos->findByYoutubeId(new YoutubeVideoId($metadata->youtubeId));
 
             if (null !== $existing) {
-                // Known video — refresh title/duration (they can change on YouTube)
-                // but never touch startedAt/watchedAt. A video the user already
-                // started or watched must not be reset into the split pool just
-                // because it still sits on the playlist (epic re-sync invariant).
                 $existing->updateMetadata($metadata->title, new VideoDuration($metadata->durationSeconds));
                 $this->videos->save($existing);
 
                 continue;
             }
 
-            // New video — enters the split pool (startedAt/watchedAt null).
             $this->videos->save(Video::fromYouTube(
                 new YoutubeVideoId($metadata->youtubeId),
                 $metadata->title,

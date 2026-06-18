@@ -41,8 +41,6 @@ final class MusicControllerTest extends TestCase
             discogsUsername: 'disco-user',
         );
 
-        // Controllers extending AbstractController need a container reference even
-        // when the action under test doesn't touch it — bare TestCase has none.
         $controller->setContainer(new Container());
 
         return $controller;
@@ -72,9 +70,6 @@ final class MusicControllerTest extends TestCase
 
     public function testCollectionReturns503WhenDiscogsNotFound(): void
     {
-        // 404 is mapped to 503 by the generic RuntimeException catch — it is not an
-        // auth or rate-limit problem, and exposing "user not found" upstream would
-        // leak whether a Discogs account exists. Tightening this later is a UX call.
         $vinyl = $this->createStub(VinylCollectionInterface::class);
         $vinyl->method('getUserCollection')->willThrowException(new DiscogsNotFoundException('user not found'));
 
@@ -95,8 +90,6 @@ final class MusicControllerTest extends TestCase
 
     public function testCollectionReturns503WhenCollectionIsBeingRefreshed(): void
     {
-        // Cache-miss path: DiscogsApiClient::getUserCollection schedules an async refresh
-        // and throws a generic RuntimeException — that should still map to 503.
         $vinyl = $this->createStub(VinylCollectionInterface::class);
         $vinyl->method('getUserCollection')->willThrowException(new RuntimeException('Discogs collection is being refreshed.'));
 

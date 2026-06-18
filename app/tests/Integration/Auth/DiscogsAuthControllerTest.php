@@ -22,8 +22,7 @@ final class DiscogsAuthControllerTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        // Service overrides must survive between sub-requests; otherwise the
-        // mock is discarded when the kernel reboots before the next request.
+
         $this->client->disableReboot();
 
         $this->tokenRepository = $this->createMock(DiscogsTokenRepositoryInterface::class);

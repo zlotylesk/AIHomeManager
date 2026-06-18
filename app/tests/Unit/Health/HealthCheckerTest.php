@@ -17,9 +17,6 @@ final class HealthCheckerTest extends TestCase
 {
     public function testReportsMysqlDownWhenConnectionThrows(): void
     {
-        // Symfony Connection::executeQuery throws a wrapped DBAL Exception when
-        // the driver fails. The checker must catch any Throwable so a transient
-        // DB failure does not propagate out of the readiness endpoint.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willThrowException(new class('mysql gone') extends RuntimeException implements DriverException {
             public function getSQLState(): ?string
@@ -41,9 +38,6 @@ final class HealthCheckerTest extends TestCase
 
     public function testReportsRedisDownWhenPingThrows(): void
     {
-        // RedisException can fire on a dropped socket or auth failure. Either
-        // way the checker should treat the component as down without crashing
-        // the entire health response.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
 
@@ -60,8 +54,6 @@ final class HealthCheckerTest extends TestCase
 
     public function testReportsRedisDownWhenPingReturnsFalse(): void
     {
-        // phpredis returns `false` instead of throwing for some connection
-        // states (e.g. server returned an unexpected payload). Guard for it.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
 
@@ -77,9 +69,6 @@ final class HealthCheckerTest extends TestCase
 
     public function testReportsRabbitMqDownWhenSocketUnreachable(): void
     {
-        // Port 1 on localhost is virtually guaranteed to be closed — fsockopen
-        // returns false. The checker must surface that as `down` without
-        // breaking other component reports.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
 
@@ -95,8 +84,6 @@ final class HealthCheckerTest extends TestCase
 
     public function testReportsRabbitMqDownWhenDsnHasNoHost(): void
     {
-        // Defensive: a misconfigured DSN must surface as `down`, not a fatal
-        // parse error escaping the controller.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
 
@@ -112,10 +99,6 @@ final class HealthCheckerTest extends TestCase
 
     public function testCheckDiskReturnsOneOfThreeKnownStates(): void
     {
-        // HMAI-155: smoke test — disk_free_space('/') on a working filesystem
-        // returns a valid ratio. We can't mock the PHP built-in, so the test
-        // exercises the real I/O path and guarantees the method never escapes
-        // the {up, degraded, down} contract under normal conditions.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
 
@@ -129,8 +112,6 @@ final class HealthCheckerTest extends TestCase
 
     public function testCheckIncludesDiskComponent(): void
     {
-        // Regression: the `check()` map must always contain `disk` so the
-        // controller's component iteration never returns a partial response.
         $connection = $this->createMock(Connection::class);
         $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
 

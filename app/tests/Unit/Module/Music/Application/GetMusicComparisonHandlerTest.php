@@ -19,15 +19,10 @@ use Redis;
 
 final class GetMusicComparisonHandlerTest extends TestCase
 {
-    // 2 of the 4 lastfm top albums are present in the vinyl collection → 50% overlap.
-    // Extracted so the assertion reads as the rule it encodes, not a bare literal.
     private const float HALF_MATCH_SCORE = 50.0;
 
-    // Marker value round-tripped through the cache — not derived from inputs,
-    // just a distinct float we can detect on the way out.
     private const float CACHED_MATCH_SCORE_MARKER = 42.5;
 
-    // Empty discogs collection ⇒ no albums can match ⇒ 0% overlap, regardless of lastfm.
     private const float NO_MATCH_SCORE = 0.0;
 
     private Redis $redis;
@@ -44,8 +39,6 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $this->lastfm = $this->createStub(MusicListeningHistoryInterface::class);
         $this->discogs = $this->createStub(VinylCollectionInterface::class);
 
-        // Local listening history is empty in these comparison unit tests — the
-        // recentlyPlayedNotOwned slice is covered separately (HMAI-144).
         $emptyResult = $this->createStub(Result::class);
         $emptyResult->method('fetchAllAssociative')->willReturn([]);
         $this->connection = $this->createStub(Connection::class);
@@ -247,9 +240,6 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testCacheKeyIncludesDiscogsUsername(): void
     {
-        // Regression for HMAI-85: switching the configured discogsUsername must
-        // produce a different cache key, otherwise the second user's request
-        // would be served the first user's comparison (collection mismatch).
         $this->lastfm->method('getTopAlbums')->willReturn([]);
         $this->discogs->method('getUserCollection')->willReturn([]);
 

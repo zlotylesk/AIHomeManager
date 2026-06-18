@@ -39,9 +39,6 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
     {
         $token = $this->accessToken();
 
-        // playlistItems carries the added-to-playlist timestamp and order;
-        // videos.list carries title/channel/duration. Fetch the items first,
-        // then enrich them with the batched metadata lookup.
         $items = $this->fetchAllPlaylistItems($playlistId, $token);
         if ([] === $items) {
             return [];
@@ -53,8 +50,6 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
         foreach ($items as $item) {
             $meta = $metadataById[$item['videoId']] ?? null;
             if (null === $meta) {
-                // Video deleted or made private after being added — videos.list
-                // omits it. Skip rather than fabricate empty metadata.
                 continue;
             }
 
@@ -94,10 +89,6 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
      */
     public function addVideosToPlaylist(string $playlistId, array $videoIds): void
     {
-        // YouTube has no batch insert for playlistItems — one POST per video,
-        // sent sequentially so the playlist keeps the session's video order.
-        // accessToken() is re-read per call (cheap, in-memory) so a long
-        // sequence survives a mid-loop token refresh in the repository.
         foreach ($videoIds as $videoId) {
             $status = $this->httpClient->request('POST', self::PLAYLIST_ITEMS_URL, [
                 'headers' => ['Authorization' => 'Bearer '.$this->accessToken()],

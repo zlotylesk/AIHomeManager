@@ -43,8 +43,7 @@ class ApiExceptionListenerTest extends TestCase
         self::assertSame(500, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true);
         self::assertSame('Internal server error.', $body['error']);
-        // The original exception message must not leak to the client — that
-        // is the entire point of HMAI-79.
+
         self::assertStringNotContainsString('Internal SQL detail', (string) $response->getContent());
     }
 

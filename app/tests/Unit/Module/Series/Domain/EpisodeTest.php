@@ -23,8 +23,6 @@ final class EpisodeTest extends TestCase
 
     public function testRatingStartsAsNull(): void
     {
-        // A freshly-loaded episode is unrated — queries depend on this to
-        // distinguish "not yet watched" from "rated low".
         $episode = new Episode('ep-1', 'season-1', 'Pilot', 4);
 
         self::assertNull($episode->rating());
@@ -42,8 +40,6 @@ final class EpisodeTest extends TestCase
 
     public function testRateOverwritesPreviousRating(): void
     {
-        // Re-rating an episode replaces the prior value — the aggregate is
-        // responsible for emitting the EpisodeRated event on each change.
         $episode = new Episode('ep-1', 'season-1', 'Pilot', 4);
         $episode->rate(new Rating(5));
 
@@ -73,7 +69,6 @@ final class EpisodeTest extends TestCase
 
     public function testMarkWatchedAcceptsExplicitTimestamp(): void
     {
-        // The Trakt import (HMAI-183) passes the real watched-at date.
         $episode = new Episode('ep-1', 'season-1', 'Pilot', 1);
         $when = new DateTimeImmutable('2024-01-15 20:00:00');
 

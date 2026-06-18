@@ -40,8 +40,6 @@ final class SeasonTest extends TestCase
 
     public function testAddEpisodeWithSameIdOverwritesPrevious(): void
     {
-        // Episodes are keyed by id, so re-adding under the same id replaces
-        // the existing reference rather than producing a duplicate slot.
         $season = new Season('season-1', 'series-7', 1);
         $original = new Episode('ep-1', 'season-1', 'Pilot', 1);
         $replacement = new Episode('ep-1', 'season-1', 'Pilot (re-cut)', 1);
@@ -55,7 +53,6 @@ final class SeasonTest extends TestCase
 
     public function testAddEpisodeRejectsADuplicateNumberInTheSameSeason(): void
     {
-        // Episode numbers are unique within a season (HMAI-187).
         $season = new Season('season-1', 'series-7', 1);
         $season->addEpisode(new Episode('ep-1', 'season-1', 'Pilot', 1));
 
@@ -73,8 +70,6 @@ final class SeasonTest extends TestCase
 
     public function testOwnRatingStartsAsNull(): void
     {
-        // A season's own (manual) score is independent of episode ratings and
-        // unset until the user explicitly rates the season (HMAI-179).
         $season = new Season('season-1', 'series-7', 1);
 
         self::assertNull($season->rating());

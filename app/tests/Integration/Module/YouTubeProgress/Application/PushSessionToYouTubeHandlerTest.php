@@ -105,8 +105,6 @@ final class PushSessionToYouTubeHandlerTest extends KernelTestCase
             self::assertSame('youtube boom', $e->getMessage());
         }
 
-        // The playlist was created on YouTube, but the DB write never ran — the
-        // session must stay unmarked so a retry is safe.
         self::assertSame(1, $writer->createPlaylistCalls);
         $reloaded = $this->sessions->findById($session->id());
         self::assertNotNull($reloaded);

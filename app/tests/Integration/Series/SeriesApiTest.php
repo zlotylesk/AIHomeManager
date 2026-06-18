@@ -64,9 +64,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testCreateSeriesWithTitleOver255CharactersReturns422(): void
     {
-        // HMAI-66: VARCHAR(255) would silently truncate (or throw) — explicit 422
-        // is the contract. 256-char title (str_repeat) trips the new bound; 255
-        // exactly is still accepted in the next test.
         $longTitle = str_repeat('a', 256);
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => $longTitle]));
 
@@ -177,11 +174,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testRateEpisodeReturns204AndUpdatesAverage(): void
     {
-        // HMAI-43: PATCH endpoint exercises the existing AddEpisodeRating
-        // command/handler with the Series aggregate's rateEpisode() method.
-        // We seed an episode WITHOUT a rating, then PATCH 8 and assert the
-        // GET reflects the new series average — proving the rating actually
-        // hit the aggregate and was persisted (not just acknowledged).
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
         $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
@@ -197,8 +189,7 @@ class SeriesApiTest extends WebTestCase
 
         $this->client->request('GET', "/api/series/{$seriesId}");
         $data = json_decode((string) $this->client->getResponse()->getContent(), true);
-        // JSON-decoded as int when the float has no fractional part — compare
-        // loosely (== ignores type). Same pattern as MusicApiTest matchScore.
+
         self::assertEquals(8.0, $data['averageRating']);
         self::assertSame(8, $data['seasons'][0]['episodes'][0]['rating']);
     }
@@ -297,8 +288,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testRateSeriesReturns204AndIsReflectedSeparatelyFromAverage(): void
     {
-        // HMAI-179: the user's own series score is stored and returned as
-        // `rating`, independent of `averageRating` (no episodes → average null).
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
         $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
@@ -314,8 +303,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testRateSeriesCoexistsWithEpisodeAverage(): void
     {
-        // Own series rating and the episode-derived average must both survive,
-        // distinct from one another.
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
         $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
@@ -467,7 +454,6 @@ class SeriesApiTest extends WebTestCase
 
         $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 2]));
 
-        // Renumbering season 1 → 2 collides with the existing season 2.
         $this->client->request('PATCH', "/api/series/{$seriesId}/seasons/{$seasonId1}", content: (string) json_encode(['number' => 2]));
 
         self::assertResponseStatusCodeSame(409);
@@ -533,7 +519,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testClearSeriesRatingReturns204AndNullsRating(): void
     {
-        // HMAI-191: an explicit {"rating": null} clears the own series score.
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
         $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
@@ -567,8 +552,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testRateSeriesWithMissingRatingFieldReturns422(): void
     {
-        // An absent key is a malformed request — distinct from an explicit
-        // null clear (HMAI-191).
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
         $seriesId = json_decode((string) $this->client->getResponse()->getContent(), true)['id'];
 
@@ -596,7 +579,7 @@ class SeriesApiTest extends WebTestCase
         $episode = $data['seasons'][0]['episodes'][0];
         self::assertTrue($episode['watched']);
         self::assertNotNull($episode['watchedAt']);
-        // Counters surface "watched X/Y" for the UI.
+
         self::assertSame(1, $data['seasons'][0]['watchedCount']);
         self::assertSame(1, $data['seasons'][0]['episodeCount']);
         self::assertSame(1, $data['watchedCount']);
@@ -660,8 +643,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testDeleteSeriesReturns204AndCascadesSeasonsAndEpisodes(): void
     {
-        // HMAI-185: deleting a series must clear its seasons + episodes (no ORM
-        // cascade is mapped, so the repository issues the deletes explicitly).
         [$seriesId] = $this->seedSeriesWithEpisode();
 
         $this->client->request('DELETE', "/api/series/{$seriesId}");
@@ -795,7 +776,6 @@ class SeriesApiTest extends WebTestCase
     {
         [$seriesId, $seasonId] = $this->seedSeriesWithSeason();
 
-        // Add out of order — the read must come back sorted by number.
         $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'Third', 'number' => 3]));
         $this->client->request('POST', "/api/series/{$seriesId}/seasons/{$seasonId}/episodes", content: (string) json_encode(['title' => 'First', 'number' => 1]));
 
@@ -809,7 +789,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testCreateSeriesWithMetadataAndGetReturnsIt(): void
     {
-        // HMAI-190: create accepts coverUrl/year/status/description; GET echoes them.
         $this->client->request('POST', '/api/series', content: (string) json_encode([
             'title' => 'Breaking Bad',
             'coverUrl' => 'https://image.tmdb.org/t/p/w500/poster.jpg',
@@ -921,8 +900,6 @@ class SeriesApiTest extends WebTestCase
 
     public function testPatchTitleOnlyLeavesMetadataUntouched(): void
     {
-        // The inline title-edit sends only {title}. It must not wipe the
-        // metadata set at creation (HMAI-190 partial-update guard).
         $this->client->request('POST', '/api/series', content: (string) json_encode([
             'title' => 'Braking Bad',
             'coverUrl' => 'https://example.com/cover.jpg',
@@ -981,7 +958,6 @@ class SeriesApiTest extends WebTestCase
         ]));
         self::assertResponseStatusCodeSame(422);
 
-        // Validation runs before any dispatch — the title must be unchanged.
         $this->client->request('GET', "/api/series/{$seriesId}");
         $data = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertSame('Breaking Bad', $data['title']);

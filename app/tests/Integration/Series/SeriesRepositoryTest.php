@@ -119,8 +119,6 @@ class SeriesRepositoryTest extends KernelTestCase
 
     public function testFindByTraktIdNeverMatchesManuallyAddedSeries(): void
     {
-        // Manually-added series carry NULL trakt_id and must never be hit by an
-        // import lookup — otherwise the import would graft onto the wrong show.
         $this->repository->save(new Series(id: 'id-1', title: 'Breaking Bad'));
         $this->em->clear();
 

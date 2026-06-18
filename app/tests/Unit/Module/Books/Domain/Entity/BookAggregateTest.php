@@ -18,12 +18,10 @@ final class BookAggregateTest extends TestCase
     {
         $book = $this->makeBook(totalPages: 100);
 
-        // Partial session — must NOT record completion.
         $book->addReadingSession($this->makeSession(pagesRead: 60));
         self::assertSame([], $book->releaseEvents(), 'Partial reads must not record BookCompleted.');
         self::assertSame(BookStatus::READING, $book->status());
 
-        // Final session brings the book to 100/100 — exactly one BookCompleted.
         $book->addReadingSession($this->makeSession(pagesRead: 40));
 
         $events = $book->releaseEvents();
@@ -35,9 +33,6 @@ final class BookAggregateTest extends TestCase
 
     public function testReleaseEventsDrainsTheRecordedList(): void
     {
-        // Pin handler contract: a second releaseEvents() call after the first
-        // returns nothing. Without the drain, an event would dispatch twice if
-        // a handler ever called the method more than once on the same aggregate.
         $book = $this->makeBook(totalPages: 10);
         $book->addReadingSession($this->makeSession(pagesRead: 10));
 
@@ -50,14 +45,6 @@ final class BookAggregateTest extends TestCase
 
     public function testBookCompletedIsNotReEmittedOnSubsequentSessionsAgainstCompletedBook(): void
     {
-        // If addReadingSession is called against an already-completed book and
-        // the page count doesn't exceed the total, the entity must not re-emit
-        // BookCompleted. Subscribers (notifications, achievements) treat this
-        // as a one-shot — duplicate emits would be a real bug.
-        //
-        // Domain guard: zero-page sessions don't change pages but still go
-        // through addReadingSession; this regression test pins the no-duplicate
-        // contract on the "already-completed" arm.
         $book = $this->makeBook(totalPages: 10);
         $book->addReadingSession($this->makeSession(pagesRead: 10));
         $firstDrain = $book->releaseEvents();
@@ -70,10 +57,6 @@ final class BookAggregateTest extends TestCase
 
     public function testStartingReadingDoesNotEmitBookCompleted(): void
     {
-        // TO_READ → READING transition exists in addReadingSession but is NOT
-        // a completion event today. KISS: BookCompleted is the only event;
-        // BookStatusChanged for the start transition can be added when a
-        // subscriber actually needs it.
         $book = $this->makeBook(totalPages: 100);
         $book->addReadingSession($this->makeSession(pagesRead: 1));
 

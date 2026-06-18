@@ -37,7 +37,6 @@ final class DatabaseBackupServiceTest extends TestCase
     {
         $today = new DateTimeImmutable('2026-06-15');
 
-        // Create 35 daily backups (May 12 - June 15)
         for ($i = 34; $i >= 0; --$i) {
             $date = $today->modify(sprintf('-%d days', $i));
             touch($this->tmpDir.'/homemanager-'.$date->format('Y-m-d').'.sql.gz');
@@ -51,16 +50,11 @@ final class DatabaseBackupServiceTest extends TestCase
 
         $deleted = $service->cleanup($today);
 
-        // 35 files total, 30 days retention = 31 kept (day 0 through day 30), 4 deleted
-        // But May 12-15 are outside the 30-day window (May 16 is the cutoff)
-        // May 12, May 13, May 14, May 15 → 4 outside window. None is 1st of month.
         self::assertSame(4, $deleted);
 
-        // Verify recent files still exist
         self::assertFileExists($this->tmpDir.'/homemanager-2026-06-15.sql.gz');
         self::assertFileExists($this->tmpDir.'/homemanager-2026-05-16.sql.gz');
 
-        // Verify old files are gone
         self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2026-05-12.sql.gz');
     }
 
@@ -68,13 +62,11 @@ final class DatabaseBackupServiceTest extends TestCase
     {
         $today = new DateTimeImmutable('2026-12-15');
 
-        // Create 1st-of-month backups for the past 14 months + some daily
         for ($m = 14; $m >= 0; --$m) {
             $date = $today->modify(sprintf('-%d months', $m))->modify('first day of this month');
             touch($this->tmpDir.'/homemanager-'.$date->format('Y-m-d').'.sql.gz');
         }
 
-        // Also add a mid-month backup outside retention
         touch($this->tmpDir.'/homemanager-2025-10-15.sql.gz');
 
         $service = new DatabaseBackupService(
@@ -85,12 +77,8 @@ final class DatabaseBackupServiceTest extends TestCase
 
         $deleted = $service->cleanup($today);
 
-        // Monthly files within 30d window (Nov 15 cutoff): Dec 1 stays in daily window
-        // Monthly files outside 30d window: Oct 1 2025 through Nov 1 2026 = 14 months back
-        // Only 12 monthly slots → 2 oldest monthlies + the mid-month file get deleted
         self::assertSame(3, $deleted);
 
-        // 2025-10-01 is the oldest and exceeds 12 monthly slots
         self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2025-10-01.sql.gz');
         self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2025-10-15.sql.gz');
     }

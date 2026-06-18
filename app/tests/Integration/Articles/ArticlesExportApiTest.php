@@ -43,8 +43,6 @@ class ArticlesExportApiTest extends WebTestCase
 
         $body = (string) $response->getContent();
 
-        // BOM is the first 3 bytes — Excel on Windows uses it to detect UTF-8.
-        // Without it, polish diacritics would render as garbage in the export.
         self::assertSame("\xEF\xBB\xBF", substr($body, 0, 3));
         self::assertStringContainsString('title,url,category,readAt,isRead', $body);
         self::assertStringContainsString('ąęśćż', $body);
@@ -52,9 +50,6 @@ class ArticlesExportApiTest extends WebTestCase
 
     public function testExportReturnsHeaderOnlyForEmptyCollection(): void
     {
-        // Acceptance criteria: export on an empty table returns only headers,
-        // not an empty body — otherwise Excel opens to a blank sheet with no
-        // hint about expected columns.
         $this->client->request('GET', '/api/articles/export');
 
         self::assertResponseIsSuccessful();

@@ -34,15 +34,10 @@ final readonly class AlbumNormalizer
         $combined = $artist.' '.$title;
         $logContext = ['artist' => $artist, 'title' => $title];
 
-        // Remove parenthetical content: (Remastered 2011), [Deluxe Edition], {Special}
         $combined = $this->applyRegex('/\s*[\(\[\{][^\)\]\}]*[\)\]\}]\s*/u', ' ', $combined, $logContext);
 
         $combined = mb_strtolower(trim($combined), 'UTF-8');
 
-        // Transliterate diacritics to ASCII (works without intl extension).
-        // //IGNORE drops bytes that can't be transliterated — usually recovers
-        // from minor UTF-8 issues silently. Total failure (false return) is
-        // worth a warning so the comparison-key quality can be audited.
         $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $combined);
         if (false !== $transliterated) {
             $combined = $transliterated;
@@ -50,10 +45,8 @@ final readonly class AlbumNormalizer
             $this->logger->warning('AlbumNormalizer: iconv failed, keeping pre-transliteration input', $logContext);
         }
 
-        // Keep only alphanumeric and spaces
         $combined = $this->applyRegex('/[^a-z0-9 ]/u', '', $combined, $logContext);
 
-        // Normalize whitespace
         return $this->applyRegex('/\s+/', ' ', trim($combined), $logContext);
     }
 

@@ -3,5 +3,4 @@ framework:
 
 when@test:
     framework:
-        # Test env has no Redis dep — fall back to file-based locking.
         lock: 'flock'

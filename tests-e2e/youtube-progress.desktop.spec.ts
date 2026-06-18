@@ -1,11 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// The YouTubeProgress panel has no "create video" endpoint — videos only enter
-// the local pool through `POST /sync`, which calls the real YouTube API behind
-// OAuth. So unlike Books/Series (which seed via their POST endpoints), these
-// specs drive the rendered Stimulus UI by route-mocking the two read endpoints
-// the controller hits on connect(). Same `page.route` pattern the Books error
-// spec uses — it keeps the test hermetic and independent of YouTube/DB state.
 
 type VideoFixture = {
   youtubeId: string;
@@ -43,7 +37,6 @@ async function mockReads(
 async function gotoPanel(page: Page): Promise<void> {
   await page.goto('/youtube-progress');
   await expect(page.locator('.app-title')).toHaveText('YouTube Progress');
-  // connect() kicks off both reads; wait until neither section shows the spinner.
   await expect(page.locator('.loading')).toHaveCount(0, { timeout: 10_000 });
 }
 
@@ -65,13 +58,11 @@ test('panel renders watchlist rows and a session card from synced data', async (
 
   await gotoPanel(page);
 
-  // Watchlist section: both videos rendered, with status badges.
   const watchlist = page.locator('[data-youtube-progress-target="watchlist"]');
   await expect(watchlist.locator('.youtube-progress-video-row')).toHaveCount(2);
   await expect(watchlist.getByText('Short intro clip')).toBeVisible();
   await expect(watchlist.locator('.youtube-progress-status-badge--watched')).toHaveText('Obejrzany');
 
-  // Session section: one un-pushed card exposing the "Wyślij do YouTube" button.
   const sessions = page.locator('[data-youtube-progress-target="sessions"]');
   await expect(sessions.locator('.youtube-progress-session-card')).toHaveCount(1);
   await expect(sessions.getByRole('button', { name: 'Wyślij do YouTube' })).toBeVisible();

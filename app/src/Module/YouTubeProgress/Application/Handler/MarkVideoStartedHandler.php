@@ -25,8 +25,6 @@ final readonly class MarkVideoStartedHandler
             throw new NotFoundHttpException(sprintf('Video "%s" not found in watchlist', $command->youtubeVideoId));
         }
 
-        // Idempotency invariant lives in the aggregate: a no-op markStarted
-        // leaves the entity clean, so Doctrine emits no UPDATE on save().
         $video->markStarted($command->at);
         $this->videos->save($video);
     }

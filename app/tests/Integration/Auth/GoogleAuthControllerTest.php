@@ -23,8 +23,7 @@ final class GoogleAuthControllerTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        // Service overrides must survive between sub-requests; otherwise the
-        // mock is discarded when the kernel reboots before the next request.
+
         $this->client->disableReboot();
 
         $this->googleClient = $this->createMock(Client::class);
@@ -75,9 +74,6 @@ final class GoogleAuthControllerTest extends WebTestCase
 
     public function testCallbackRejectsMismatchedState(): void
     {
-        // Prime session by running the real authorize flow so the callback
-        // sees a non-empty expected state — without this the test would pass
-        // for the wrong reason (state simply absent from session).
         $this->googleClient->method('createAuthUrl')->willReturn(self::DUMMY_AUTH_URL);
         $this->client->request('GET', '/auth/google');
 

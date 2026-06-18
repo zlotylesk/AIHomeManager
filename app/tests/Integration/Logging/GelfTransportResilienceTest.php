@@ -27,7 +27,7 @@ final class GelfTransportResilienceTest extends KernelTestCase
     public function testGelfTransportIsWrappedToIgnoreErrors(): void
     {
         self::bootKernel();
-        // Registered only in the test env via services.yaml when@test (public alias).
+
         /** @phpstan-ignore symfonyContainer.serviceNotFound */
         $transport = self::getContainer()->get(IgnoreErrorTransportWrapper::class);
 
@@ -44,7 +44,7 @@ final class GelfTransportResilienceTest extends KernelTestCase
     public function testPublishingWhenGraylogUnreachableDoesNotThrow(): void
     {
         self::bootKernel();
-        // Registered only in the test env via services.yaml when@test (public alias).
+
         /** @phpstan-ignore symfonyContainer.serviceNotFound */
         $publisher = self::getContainer()->get(Publisher::class);
         self::assertInstanceOf(Publisher::class, $publisher);
@@ -53,16 +53,12 @@ final class GelfTransportResilienceTest extends KernelTestCase
             ->setShortMessage('HMAI-176 resilience probe')
             ->setHost('test');
 
-        // With GRAYLOG_HOST unresolvable in the test environment, the inner UDP transport
-        // throws while opening the socket; the wrapper must swallow it. Reaching the
-        // assertion below — instead of an exception escaping publish() — is the contract.
         try {
             $publisher->publish($message);
         } catch (Throwable $e) {
             self::fail('publish() must not throw when Graylog is unreachable: '.$e->getMessage());
         }
 
-        // Reaching here (no exception escaped publish) is the contract being guarded.
         $this->addToAssertionCount(1);
     }
 }

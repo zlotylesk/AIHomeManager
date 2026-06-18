@@ -43,10 +43,6 @@ final class FixturesLoadTest extends KernelTestCase
 
     public function testSeriesFixturesSeedThreeSeriesEachWithTwoSeasons(): void
     {
-        // HMAI-39: smoke-tests that the fixture's data shape matches what
-        // `/api/series` consumers expect — three series, every season nested
-        // with episodes, every episode rated. If a future refactor accidentally
-        // shifts the seed, this catches it before `make fixtures` lies.
         $repo = static::getContainer()->get(SeriesRepositoryInterface::class);
 
         new SeriesFixtures($repo)->load($this->manager);
@@ -68,8 +64,6 @@ final class FixturesLoadTest extends KernelTestCase
 
     public function testBookFixturesSeedFiveBooksAcrossAllStatuses(): void
     {
-        // The seed must exercise every BookStatus value so the UI status
-        // dropdown has at least one example per state out of the box.
         $repo = static::getContainer()->get(BookRepositoryInterface::class);
 
         new BookFixtures($repo)->load($this->manager);
@@ -86,8 +80,6 @@ final class FixturesLoadTest extends KernelTestCase
 
     public function testArticleFixturesSeedTenArticlesWithThreeRead(): void
     {
-        // 7 unread / 3 read split ensures `/api/articles/today` finds a candidate
-        // immediately AND that the read-history view has examples to render.
         $repo = static::getContainer()->get(ArticleRepositoryInterface::class);
 
         new ArticleFixtures($repo)->load($this->manager);
@@ -104,9 +96,6 @@ final class FixturesLoadTest extends KernelTestCase
 
     public function testTaskFixturesSeedFourTasksAcrossYesterdayAndToday(): void
     {
-        // The time-report view needs at least one task per day in the relevant
-        // window. Seeds 3 today + 1 yesterday so the day-grouping logic has
-        // multiple rows to bucket.
         $repo = static::getContainer()->get(TaskRepositoryInterface::class);
 
         new TaskFixtures($repo)->load($this->manager);

@@ -210,9 +210,6 @@ final class SeriesController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         $rating = $data['rating'] ?? null;
 
-        // is_int + range check matches HMAI-67's pages_read contract — pre-empts
-        // the Rating VO's InvalidArgumentException so we return a clean 422
-        // without HandlerFailedException unwrap noise on the happy invalid path.
         if (!is_int($rating) || $rating < 1 || $rating > 10) {
             return new JsonResponse(
                 ['error' => 'Field "rating" must be an integer between 1 and 10.'],
@@ -281,8 +278,6 @@ final class SeriesController extends AbstractController
         }
 
         try {
-            // $rating may be null here — an explicit `{"rating": null}` clears
-            // the user's own score (HMAI-191).
             $this->commandBus->dispatch(new RateSeries(seriesId: $seriesId, rating: $rating));
         } catch (HandlerFailedException $e) {
             return $this->mapRatingFailure($e);
@@ -300,8 +295,6 @@ final class SeriesController extends AbstractController
         }
 
         try {
-            // $rating may be null here — an explicit `{"rating": null}` clears
-            // the season's own score (HMAI-191).
             $this->commandBus->dispatch(new RateSeason(seriesId: $seriesId, seasonId: $seasonId, rating: $rating));
         } catch (HandlerFailedException $e) {
             return $this->mapRatingFailure($e);
@@ -368,16 +361,11 @@ final class SeriesController extends AbstractController
         $data = json_decode($request->getContent(), true);
         $data = is_array($data) ? $data : [];
 
-        // Validate before any dispatch so an invalid metadata field returns 422
-        // without first half-applying the rename (HMAI-190).
         $metadata = $this->parseMetadata($data);
         if ($metadata instanceof JsonResponse) {
             return $metadata;
         }
 
-        // A bare {title} (the inline title-edit) carries no metadata keys and
-        // must leave the catalog fields untouched; a full edit-form save sends
-        // the four keys and replaces them wholesale.
         $hasMetadata = array_key_exists('coverUrl', $data)
             || array_key_exists('year', $data)
             || array_key_exists('status', $data)
@@ -419,8 +407,7 @@ final class SeriesController extends AbstractController
             $this->commandBus->dispatch(new RenumberSeason($seriesId, $seasonId, $number));
         } catch (HandlerFailedException $e) {
             $original = $e->getPrevious();
-            // SeasonNumberAlreadyTaken extends DomainException — check it first so
-            // a uniqueness clash answers 409, not the generic 404.
+
             if ($original instanceof SeasonNumberAlreadyTaken) {
                 return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_CONFLICT);
             }

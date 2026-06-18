@@ -22,9 +22,6 @@ final class DoctrineWatchSessionRepositoryTest extends KernelTestCase
         $this->connection = static::getContainer()->get(Connection::class);
         $this->repository = new DoctrineWatchSessionRepository($this->connection);
 
-        // FK ON DELETE CASCADE means truncating the parent wipes the junction,
-        // but we order both explicitly so a failed prior test can't leave
-        // orphan junction rows behind.
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
         $this->connection->executeStatement('TRUNCATE TABLE watch_session_videos');
         $this->connection->executeStatement('TRUNCATE TABLE watch_sessions');
@@ -105,9 +102,6 @@ final class DoctrineWatchSessionRepositoryTest extends KernelTestCase
         $original = $this->makeSession(['aaaaaaaaaaa', 'bbbbbbbbbbb']);
         $this->repository->save($original);
 
-        // Build a fresh aggregate carrying the same ID but a brand-new video
-        // sequence — simulates a regenerate-sessions flow that rewrites the
-        // contents of an already-persisted session.
         $replacement = WatchSession::reconstitute(
             $original->id()->value,
             [

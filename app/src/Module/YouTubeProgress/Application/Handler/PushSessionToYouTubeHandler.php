@@ -30,9 +30,6 @@ final readonly class PushSessionToYouTubeHandler
         }
 
         if ($session->isPushedToYouTube()) {
-            // Double-click in the UI or a retry on an already-synced session.
-            // Bail before hitting the YouTube API so we never create a duplicate
-            // playlist; the warning surfaces the (likely) frontend race in Graylog.
             $this->logger->warning('PushSessionToYouTube: session already pushed, no-op', [
                 'session_id' => $command->sessionId,
                 'existing_playlist_id' => $session->youtubePlaylistId(),
@@ -47,9 +44,6 @@ final readonly class PushSessionToYouTubeHandler
         $playlistId = $this->writer->createPlaylist($name);
         $this->writer->addVideosToPlaylist($playlistId, $videoIds);
 
-        // No DB transaction spans the YouTube calls (external, non-transactional).
-        // We persist only after both API calls succeed: a mid-flight failure
-        // leaves the session unmarked so the user can safely retry (Dev Notes).
         $session->markPushedToYouTube($playlistId);
         $this->sessions->save($session);
 
