@@ -296,6 +296,14 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
     .series-grid { grid-template-columns: 1fr 1fr; }
     .books-grid { grid-template-columns: 1fr 1fr; }
     .episodes-table th:nth-child(1), .episodes-table td:nth-child(1) { display: none; }
+    #tasks-table thead { display: none; }
+    #tasks-table, #tasks-table tbody, #tasks-table tr, #tasks-table td { display: block; }
+    #tasks-table tr { margin-bottom: .75rem; border: 1px solid var(--color-border); border-radius: var(--radius); padding: .25rem .5rem; }
+    #tasks-table tr:last-child { margin-bottom: 0; }
+    #tasks-table td { border-bottom: none; padding: .35rem .25rem; overflow-wrap: anywhere; }
+    #tasks-table td::before { content: attr(data-label); display: block; font-size: .7rem; font-weight: 600; color: var(--color-text-muted); }
+    #tasks-table td:last-child { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+    #tasks-table td:last-child::before { flex-basis: 100%; }
 }
 @media (max-width: 375px) {
     .series-grid, .books-grid { grid-template-columns: 1fr; }
