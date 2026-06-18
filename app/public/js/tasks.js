@@ -82,12 +82,12 @@ async function loadTasks() {
         const actions = viewBtn + stateActions + deleteBtn;
         return `
         <tr>
-            <td>${escHtml(t.title)}</td>
-            <td>${escHtml(formatDateTime(t.start))}</td>
-            <td>${escHtml(formatDateTime(t.end))}</td>
-            <td>${formatMinutes(t.durationMinutes)}</td>
-            <td><span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span></td>
-            <td>${actions}</td>
+            <td data-label="Title">${escHtml(t.title)}</td>
+            <td data-label="Start">${escHtml(formatDateTime(t.start))}</td>
+            <td data-label="End">${escHtml(formatDateTime(t.end))}</td>
+            <td data-label="Duration">${formatMinutes(t.durationMinutes)}</td>
+            <td data-label="Status"><span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span></td>
+            <td data-label="Actions">${actions}</td>
         </tr>`;
     }).join('');
 
