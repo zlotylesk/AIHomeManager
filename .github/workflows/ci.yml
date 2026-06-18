@@ -190,7 +190,7 @@ jobs:
       # which require public/build/entrypoints.json from a real Encore build.
       # Without this build step the templates throw and all Frontend page
       # smoke tests return 500 → 7 false failures.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -304,7 +304,7 @@ jobs:
       - name: Make console executable
         run: chmod +x bin/console
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -463,7 +463,7 @@ jobs:
         run: chmod +x bin/console
 
       # Newman hits only /api/* and /auth/* (JSON) — no Encore assets needed.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
