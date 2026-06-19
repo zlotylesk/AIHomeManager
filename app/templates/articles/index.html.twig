@@ -87,6 +87,31 @@
             <button id="detail-close" class="btn btn-secondary">Close</button>
         </div>
     </div>
+
+    <div id="article-edit-modal" class="modal hidden">
+        <div class="modal-box">
+            <h2>Edit Article</h2>
+            <form id="form-edit-article">
+                <input type="hidden" id="edit-id">
+                <div class="form-group">
+                    <label for="edit-title">Title</label>
+                    <input id="edit-title" type="text" maxlength="255" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-category">Category</label>
+                    <input id="edit-category" type="text" maxlength="255">
+                </div>
+                <div class="form-group">
+                    <label for="edit-read-time">Read time (min)</label>
+                    <input id="edit-read-time" type="number" min="1">
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" id="edit-cancel" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script src="{{ asset('js/util.js') }}"></script>
