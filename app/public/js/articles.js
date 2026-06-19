@@ -128,6 +128,36 @@ async function createArticle(form) {
     btn.textContent = 'Add Article';
 }
 
+async function importArticles(form) {
+    const file = $('import-file').files[0];
+    if (!file) return;
+
+    const fd = new FormData();
+    fd.append('file', file);
+    const encoding = $('import-encoding').value;
+    if (encoding) fd.append('encoding', encoding);
+    if ($('import-dry-run').checked) fd.append('dry_run', '1');
+
+    const btn = form.querySelector('[type=submit]');
+    const resultBox = $('import-result');
+    resultBox.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+    try {
+        const res = await window.apiCall('/api/articles/import', {method: 'POST', body: fd});
+        resultBox.textContent = `${res.dryRun ? '[Dry run] ' : ''}Imported: ${res.imported} · Skipped (duplicates): ${res.skipped} · Errors: ${res.errors}`;
+        resultBox.classList.remove('hidden');
+        form.reset();
+        if (!res.dryRun && res.imported > 0) {
+            await loadArticles();
+        }
+    } catch (err) {
+        showError(err.message || 'Import failed.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Import';
+}
+
 async function loadArticles() {
     $('articles-list').innerHTML = '<div class="loading">Loading…</div>';
 
@@ -158,6 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('form-create-article').addEventListener('submit', e => {
         e.preventDefault();
         createArticle(e.target);
+    });
+    $('form-import-articles').addEventListener('submit', e => {
+        e.preventDefault();
+        importArticles(e.target);
     });
 
     document.body.addEventListener('click', e => {
