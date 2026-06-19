@@ -9,6 +9,13 @@ function showError(msg) {
     setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
 }
 
+function showInfo(msg) {
+    const b = $('info-banner');
+    b.textContent = msg;
+    b.classList.remove('hidden');
+    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
+}
+
 function escHtml(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -91,6 +98,36 @@ async function markAsRead(id, btn) {
     }
 }
 
+async function createArticle(form) {
+    const title = $('article-title').value.trim();
+    const url = $('article-url').value.trim();
+    if (!title || !url) return;
+
+    const category = $('article-category').value.trim();
+    const readTime = $('article-read-time').value;
+
+    const body = {title, url, category: category || null};
+    if (readTime) body.estimated_read_time = Number(readTime);
+
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    try {
+        await window.apiCall('/api/articles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        form.reset();
+        showInfo('Article added.');
+        await loadArticles();
+    } catch (err) {
+        showError(err.message || 'Failed to add article.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Add Article';
+}
+
 async function loadArticles() {
     $('articles-list').innerHTML = '<div class="loading">Loading…</div>';
 
@@ -118,6 +155,10 @@ async function loadArticles() {
 document.addEventListener('DOMContentLoaded', () => {
     loadArticles();
     $('filter-category').addEventListener('change', e => renderList(e.target.value));
+    $('form-create-article').addEventListener('submit', e => {
+        e.preventDefault();
+        createArticle(e.target);
+    });
 
     document.body.addEventListener('click', e => {
         const btn = e.target.closest('.btn-mark-read');
