@@ -35,6 +35,13 @@ updates:
       # Encore is upgraded to a release supporting webpack-cli 7 (HMAI-222).
       - dependency-name: "webpack-cli"
         update-types: ["version-update:semver-major"]
+      # Same trap: Encore 6 peer-deps @babel/core@^7.17.0, so a Babel 8 major
+      # (core 8.x / preset-env 8.x) breaks `npm ci` with ERESOLVE. Block
+      # semver-major until Encore is upgraded to a release supporting Babel 8.
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@babel/preset-env"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /
