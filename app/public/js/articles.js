@@ -52,7 +52,10 @@ function renderArticle(article, compact = false) {
                     <span>Added ${formatDate(article.addedAt)}</span>
                 </div>
             </div>
-            <div class="article-actions">${readBtn}</div>
+            <div class="article-actions">
+                <button class="btn btn-secondary btn-sm btn-view-details" data-id="${article.id}">Details</button>
+                ${readBtn}
+            </div>
         </div>
     `;
 }
@@ -78,6 +81,44 @@ function populateCategoryFilter() {
         opt.textContent = cat;
         sel.appendChild(opt);
     });
+}
+
+function renderDetail(a) {
+    const safeHref = window.safeUrl(a.url) ?? '#';
+    const status = a.isRead ? `Read${a.readAt ? ' · ' + formatDate(a.readAt) : ''}` : 'Unread';
+    return `
+        <dl class="detail-list">
+            <dt>URL</dt>
+            <dd><a href="${escHtml(safeHref)}" target="_blank" rel="noopener">${escHtml(a.url)}</a></dd>
+            <dt>Category</dt>
+            <dd>${a.category ? escHtml(a.category) : '—'}</dd>
+            <dt>Read time</dt>
+            <dd>${a.estimatedReadTime ? escHtml(String(a.estimatedReadTime)) + ' min' : '—'}</dd>
+            <dt>Added</dt>
+            <dd>${escHtml(formatDate(a.addedAt))}</dd>
+            <dt>Status</dt>
+            <dd>${escHtml(status)}</dd>
+        </dl>
+    `;
+}
+
+async function openDetail(id) {
+    const modal = $('article-detail-modal');
+    $('detail-title').textContent = 'Loading…';
+    $('detail-body').innerHTML = '';
+    modal.classList.remove('hidden');
+    try {
+        const article = await window.apiCall(`/api/articles/${id}`);
+        $('detail-title').textContent = article.title;
+        $('detail-body').innerHTML = renderDetail(article);
+    } catch (err) {
+        closeDetail();
+        showError(err.message || 'Failed to load article.');
+    }
+}
+
+function closeDetail() {
+    $('article-detail-modal').classList.add('hidden');
 }
 
 async function markAsRead(id, btn) {
@@ -195,9 +236,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.body.addEventListener('click', e => {
-        const btn = e.target.closest('.btn-mark-read');
-        if (btn) {
-            markAsRead(btn.dataset.id, btn);
+        const readBtn = e.target.closest('.btn-mark-read');
+        if (readBtn) {
+            markAsRead(readBtn.dataset.id, readBtn);
+            return;
         }
+        const detailBtn = e.target.closest('.btn-view-details');
+        if (detailBtn) {
+            openDetail(detailBtn.dataset.id);
+        }
+    });
+
+    $('detail-close').addEventListener('click', closeDetail);
+    $('article-detail-modal').addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeDetail();
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeDetail();
     });
 });

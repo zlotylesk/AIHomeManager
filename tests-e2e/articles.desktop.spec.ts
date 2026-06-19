@@ -26,3 +26,30 @@ test('an article created through the New Article form appears in the list', asyn
   await expect(row).toBeVisible();
   await expect(row.locator('.tag')).toHaveText('Tech');
 });
+
+test('opening an article detail view shows its fields and closes', async ({ page }) => {
+  const title = uniqueTitle('Detail Article');
+
+  await gotoArticles(page);
+
+  await page.fill('#article-title', title);
+  await page.fill('#article-url', `https://example.com/detail-${Date.now()}`);
+  await page.fill('#article-category', 'Reading');
+  await page.fill('#article-read-time', '12');
+  await page.click('#form-create-article [type=submit]');
+
+  const row = page.locator('#articles-list .article-row', { hasText: title });
+  await expect(row).toBeVisible();
+
+  await row.locator('.btn-view-details').click();
+
+  const modal = page.locator('#article-detail-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('#detail-title')).toHaveText(title);
+  await expect(modal.locator('.detail-list')).toContainText('Reading');
+  await expect(modal.locator('.detail-list')).toContainText('12 min');
+
+  // Esc closes the modal.
+  await page.keyboard.press('Escape');
+  await expect(modal).toBeHidden();
+});
