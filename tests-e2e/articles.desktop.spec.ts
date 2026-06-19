@@ -53,3 +53,33 @@ test('opening an article detail view shows its fields and closes', async ({ page
   await page.keyboard.press('Escape');
   await expect(modal).toBeHidden();
 });
+
+test('editing an article updates its title and category in the list', async ({ page }) => {
+  const title = uniqueTitle('Edit Article');
+
+  await gotoArticles(page);
+
+  await page.fill('#article-title', title);
+  await page.fill('#article-url', `https://example.com/edit-${Date.now()}`);
+  await page.fill('#article-category', 'Draft');
+  await page.click('#form-create-article [type=submit]');
+
+  const row = page.locator('#articles-list .article-row', { hasText: title });
+  await expect(row).toBeVisible();
+
+  await row.locator('.btn-edit').click();
+
+  const modal = page.locator('#article-edit-modal');
+  await expect(modal).toBeVisible();
+  await expect(page.locator('#edit-title')).toHaveValue(title);
+
+  const newTitle = `${title} EDITED`;
+  await page.fill('#edit-title', newTitle);
+  await page.fill('#edit-category', 'Published');
+  await page.click('#form-edit-article [type=submit]');
+
+  await expect(page.locator('#info-banner')).toHaveText(/article updated/i);
+  const updatedRow = page.locator('#articles-list .article-row', { hasText: newTitle });
+  await expect(updatedRow).toBeVisible();
+  await expect(updatedRow.locator('.tag')).toHaveText('Published');
+});

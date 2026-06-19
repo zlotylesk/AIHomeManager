@@ -54,6 +54,7 @@ function renderArticle(article, compact = false) {
             </div>
             <div class="article-actions">
                 <button class="btn btn-secondary btn-sm btn-view-details" data-id="${article.id}">Details</button>
+                <button class="btn btn-secondary btn-sm btn-edit" data-id="${article.id}">Edit</button>
                 ${readBtn}
             </div>
         </div>
@@ -119,6 +120,50 @@ async function openDetail(id) {
 
 function closeDetail() {
     $('article-detail-modal').classList.add('hidden');
+}
+
+function openEdit(id) {
+    const article = allArticles.find(a => a.id === id);
+    if (!article) return;
+    $('edit-id').value = article.id;
+    $('edit-title').value = article.title;
+    $('edit-category').value = article.category ?? '';
+    $('edit-read-time').value = article.estimatedReadTime ?? '';
+    $('article-edit-modal').classList.remove('hidden');
+}
+
+function closeEdit() {
+    $('article-edit-modal').classList.add('hidden');
+}
+
+async function saveEdit(form) {
+    const id = $('edit-id').value;
+    const title = $('edit-title').value.trim();
+    if (!title) return;
+
+    const category = $('edit-category').value.trim();
+    const readTime = $('edit-read-time').value;
+
+    const body = {title, category: category || null};
+    if (readTime) body.estimated_read_time = Number(readTime);
+
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+        await window.apiCall(`/api/articles/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        closeEdit();
+        showInfo('Article updated.');
+        await loadArticles();
+    } catch (err) {
+        showError(err.message || 'Failed to update article.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save';
 }
 
 async function markAsRead(id, btn) {
@@ -244,14 +289,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const detailBtn = e.target.closest('.btn-view-details');
         if (detailBtn) {
             openDetail(detailBtn.dataset.id);
+            return;
+        }
+        const editBtn = e.target.closest('.btn-edit');
+        if (editBtn) {
+            openEdit(editBtn.dataset.id);
         }
     });
 
+    $('form-edit-article').addEventListener('submit', e => {
+        e.preventDefault();
+        saveEdit(e.target);
+    });
+    $('edit-cancel').addEventListener('click', closeEdit);
+
     $('detail-close').addEventListener('click', closeDetail);
-    $('article-detail-modal').addEventListener('click', e => {
-        if (e.target === e.currentTarget) closeDetail();
+    [['article-detail-modal', closeDetail], ['article-edit-modal', closeEdit]].forEach(([modalId, close]) => {
+        $(modalId).addEventListener('click', e => {
+            if (e.target === e.currentTarget) close();
+        });
     });
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeDetail();
+        if (e.key === 'Escape') {
+            closeDetail();
+            closeEdit();
+        }
     });
 });
