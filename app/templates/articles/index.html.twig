@@ -40,6 +40,36 @@
         </form>
     </section>
 
+    <section class="card">
+        <h2 class="section-title">Import from CSV / Pocket</h2>
+        <form id="form-import-articles" class="time-report-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="import-file">CSV file</label>
+                    <input id="import-file" type="file" accept=".csv,text/csv" required>
+                </div>
+                <div class="form-group">
+                    <label for="import-encoding">Encoding</label>
+                    <select id="import-encoding">
+                        <option value="">Auto-detect</option>
+                        <option value="UTF-8">UTF-8</option>
+                        <option value="ISO-8859-2">ISO-8859-2</option>
+                        <option value="Windows-1250">Windows-1250 (Polish Windows)</option>
+                        <option value="Windows-1252">Windows-1252</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="import-dry-run">Dry run</label>
+                    <input id="import-dry-run" type="checkbox">
+                </div>
+                <div class="form-group form-group--action">
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </div>
+        </form>
+        <div id="import-result" class="article-meta hidden"></div>
+    </section>
+
     <div id="today-section" class="hidden">
         <h2 class="section-title">Today's Article</h2>
         <div id="today-article"></div>

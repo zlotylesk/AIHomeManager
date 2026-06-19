@@ -14,12 +14,14 @@ use App\Module\Articles\Application\Query\GetAllArticles;
 use App\Module\Articles\Application\Query\GetArticleById;
 use App\Module\Articles\Application\Query\GetArticleOfTheDay;
 use App\Module\Articles\Application\Service\ArticleCsvExporter;
+use App\Module\Articles\Application\Service\ArticleImporter;
 use App\Pdf\PdfBuilder;
 use DomainException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Target;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -91,6 +93,42 @@ final class ArticlesController extends AbstractController
                 'Content-Disposition' => 'attachment; filename=articles.pdf',
             ],
         );
+    }
+
+    #[Route('/import', methods: ['POST'])]
+    public function import(Request $request, ArticleImporter $importer): JsonResponse
+    {
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            return new JsonResponse(
+                ['error' => 'A CSV file upload (field "file") is required.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        if (!$file->isValid()) {
+            return new JsonResponse(
+                ['error' => 'File upload failed.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $encodingInput = trim($request->request->getString('encoding'));
+        $encoding = '' !== $encodingInput ? $encodingInput : null;
+        $dryRun = $request->request->getBoolean('dry_run');
+
+        try {
+            $result = $importer->import($file->getPathname(), $encoding, $dryRun);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return new JsonResponse([
+            'imported' => $result->imported,
+            'skipped' => $result->skipped,
+            'errors' => $result->errors,
+            'dryRun' => $dryRun,
+        ]);
     }
 
     #[Route('/today', methods: ['GET'])]
