@@ -4,6 +4,48 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.15.0] — 2026-06-20
+
+Domknięcie epica **HMAI-193** (Articles — uzupełnienie GUI) — 7 podzadań + epic review. Moduł Articles dostaje pełny panel zarządzania nad istniejącym REST API: dodawanie, edycja, usuwanie (z potwierdzeniem), widok szczegółów (modal), eksport CSV/PDF, import z CSV/Pocket przez upload oraz filtr read/unread (obok istniejącego filtra kategorii) — wszystko na torze Twig + vanilla JS. Jedyna zmiana po stronie PHP to nowy endpoint `POST /api/articles/import` (self-service import w GUI zamiast wyłącznie CLI); reszta podzadań to czysta warstwa frontu nad gotowym REST. Epic review dołożył mobilny spec E2E (Pixel 5 horizontal-overflow guard) — Articles był ostatnim modułem GUI bez mobilnego speca; layout okazał się już responsywny (`flex-wrap` na `.article-row`/`.header-actions`), więc bez zmian CSS. **921/921 PHP** (+6) + **42/42 Playwright** (+7) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).
+
+### Added
+
+#### Articles — panel GUI (Twig + vanilla JS nad istniejącym REST)
+
+- **Dodawanie artykułu (HMAI-205).** Formularz „New Article" → `POST /api/articles`; po sukcesie odświeżenie listy + info banner.
+- **Edycja artykułu (HMAI-206).** Modal pre-fill z wiersza → `PUT /api/articles/{id}` (tytuł/kategoria/czas czytania; URL niezmienny); walidacja 422 w error bannerze.
+- **Usuwanie artykułu (HMAI-207).** `DELETE /api/articles/{id}` z `confirm()` i odświeżeniem listy.
+- **Eksport CSV/PDF (HMAI-208).** Przyciski „Export CSV"/„Export PDF" → `GET /api/articles/export?format=` z autoryzowanym pobraniem pliku (blob download, wzorzec z panelu Tasks).
+- **Filtr read/unread (HMAI-209).** Select All/Unread/Read łączony client-side z istniejącym filtrem kategorii; po `mark as read` lista respektuje aktywny filtr.
+- **Widok szczegółów (HMAI-210).** Modal read-only (URL, kategoria, czas czytania, data dodania, status) z `GET /api/articles/{id}`; XSS-safe (`textContent`/`escHtml`).
+- **Import z CSV/Pocket w GUI (HMAI-211).** Upload pliku (`POST /api/articles/import`, multipart `file`/`encoding`/`dry_run`) z auto-detekcją kodowania i trybem dry-run; wynik (imported/skipped/errors) w panelu — self-service zamiast wyłącznie komendy CLI.
+- **Mobilny E2E + audyt responsywności (HMAI-193 epic review).** `tests-e2e/articles.mobile.spec.ts` (Pixel 5 horizontal-overflow guard — Articles był jedynym modułem GUI bez mobilnego speca). Guard przechodzi bez zmian CSS — istniejący `flex-wrap` na wierszu i nagłówku już zawija 4 przyciski akcji oraz selektory na ~393px.
+
+### Changed
+
+- **`POST /api/articles/import` (HMAI-211).** Nowy endpoint REST nad istniejącym `ArticleImporter` (Application service) — reużycie logiki parsowania/dedup z CLI w warstwie HTTP dla GUI (multipart upload, opcjonalne kodowanie, dry-run).
+- **CLAUDE.md**: „Status" → 1.15.0.
+
+### Coverage
+
+- **921 PHP tests** (vs 915) — +6 w `ArticlesImportApiTest` (endpoint import: persist+counts, brak pliku→422, duplikaty pominięte, dry-run bez persist, nieobsługiwane kodowanie→422, błędny wiersz→error). Pozostałe podzadania to front nad pokrytym już REST.
+- **42 Playwright** (vs 35) — +7 w `articles.desktop.spec.ts` (6: create, detail, edit, export, delete, filtr read/unread) i `articles.mobile.spec.ts` (1: Pixel 5 overflow guard).
+- **43 Newman** requests (bez zmian — kontrakt REST Articles bez zmian poza addytywnym endpointem import).
+- PHPStan level 8 clean (zero nowych baseline entries). Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` zielone.
+
+### Documentation
+
+- **Confluence** „Articles — Pocket CSV import, »Today« picker, REST CRUD" — dopisana sekcja „Panel GUI" (CRUD/eksport/import/filtr/szczegóły), endpointy `PUT /api/articles/{id}` i `POST /api/articles/import` w tabeli endpointów, nota o imporcie GUI vs CLI oraz responsywności mobilnej.
+
+### Migration
+
+- Brak — release czysto frontendowy plus addytywny endpoint `POST /api/articles/import`. Bez zmian schematu DB, bez nowych kluczy `.env.local`, bez operacji destrukcyjnych.
+
+### Closed Jira
+
+- **Epic HMAI-193** — Articles — uzupełnienie GUI (CRUD, eksport, filtr read/unread, szczegóły, import).
+- **HMAI-205, HMAI-206, HMAI-207, HMAI-208, HMAI-209, HMAI-210, HMAI-211** — 7 podzadań GUI.
+
 ## [1.14.0] — 2026-06-18
 
 Domknięcie epica **HMAI-192** (Tasks — panel GUI zarządzania zadaniami) — 9 podzadań GUI + dwa cross-cutting chore (**HMAI-222** pin webpack-cli, **HMAI-223** docs governance) + epic review. Moduł Tasks dostaje pełny panel zarządzania nad istniejącym REST API: lista zadań, tworzenie, edycja, usuwanie, oznaczanie ukończone/anulowane, filtr statusu, podgląd szczegółów (modal) i eksport CSV/PDF — wszystko na torze Twig + vanilla JS. Epic review dołożył mobilny spec E2E (Pixel 5) i naprawił rzeczywisty defekt responsywności (tabela zadań przepełniała viewport 393px → układ etykietowanych kart na mobile). Bez zmian w modelu domenowym ani w PHP — czysty zysk GUI. **915/915 PHP** (bez zmian vs 1.13.0) + **35/35 Playwright** (+12) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).
