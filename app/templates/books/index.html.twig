@@ -77,5 +77,11 @@
     <div id="books-grid" class="books-grid" data-books-target="list">
         <div class="loading">Loading…</div>
     </div>
+
+    <section class="book-detail hidden" data-books-target="detailView">
+        <button class="btn btn-secondary back-btn"
+                data-action="click->books#backToList">← Back to list</button>
+        <div data-books-target="detailContent"></div>
+    </section>
 </div>
 {% endblock %}

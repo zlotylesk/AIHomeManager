@@ -62,6 +62,36 @@ test('add book modal opens, cancel closes it without a page reload', async ({ pa
   expect(survived, 'sentinel must survive — full page reload would clear it').toBe(sentinel);
 });
 
+test('book detail view shows metadata and reading session history, back returns to list', async ({ page, request }) => {
+  const { id, title } = await seedBook(request, { total_pages: 300 });
+
+  const sessionRes = await request.post(`/api/books/${id}/reading-sessions`, {
+    data: { pages_read: 42, date: '2025-03-15', notes: 'Chapter one' },
+  });
+  expect(sessionRes.ok(), `session log failed: ${sessionRes.status()}`).toBeTruthy();
+
+  await gotoBooksList(page);
+
+  const card = page.locator('.book-card', { hasText: title });
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'View' }).click();
+
+  const detail = page.locator('[data-books-target="detailView"]');
+  await expect(detail).toBeVisible();
+  await expect(detail.locator('.book-detail-title')).toHaveText(title);
+
+  const sessionRow = detail.locator('.book-sessions-table tbody tr', { hasText: 'Chapter one' });
+  await expect(sessionRow).toBeVisible();
+  await expect(sessionRow).toContainText('2025-03-15');
+  await expect(sessionRow).toContainText('42');
+
+  await expect(page.locator('[data-books-target="list"]')).toBeHidden();
+
+  await detail.getByRole('button', { name: /Back to list/ }).click();
+  await expect(detail).toBeHidden();
+  await expect(page.locator('[data-books-target="list"]')).toBeVisible();
+});
+
 test('API error surfaces in the shared error banner', async ({ page }) => {
   await gotoBooksList(page);
 

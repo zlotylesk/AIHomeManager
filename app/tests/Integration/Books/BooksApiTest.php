@@ -165,6 +165,51 @@ class BooksApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
+    public function testGetBookDetailIncludesReadingSessionHistoryOrderedByDateDesc(): void
+    {
+        $id = $this->createBook(['total_pages' => 300])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 30,
+            'date' => '2025-01-10',
+            'notes' => 'First sitting',
+        ]));
+        self::assertResponseStatusCodeSame(201);
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 60,
+            'date' => '2025-01-20',
+        ]));
+        self::assertResponseStatusCodeSame(201);
+
+        $this->client->request('GET', '/api/books/'.$id);
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        self::assertArrayHasKey('sessions', $data);
+        self::assertCount(2, $data['sessions']);
+
+        self::assertSame('2025-01-20', $data['sessions'][0]['date']);
+        self::assertSame(60, $data['sessions'][0]['pagesRead']);
+        self::assertNull($data['sessions'][0]['notes']);
+
+        self::assertSame('2025-01-10', $data['sessions'][1]['date']);
+        self::assertSame(30, $data['sessions'][1]['pagesRead']);
+        self::assertSame('First sitting', $data['sessions'][1]['notes']);
+    }
+
+    public function testGetBookDetailReturnsEmptySessionsWhenNoneLogged(): void
+    {
+        $id = $this->createBook()['id'];
+
+        $this->client->request('GET', '/api/books/'.$id);
+        self::assertResponseIsSuccessful();
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+
+        self::assertArrayHasKey('sessions', $data);
+        self::assertSame([], $data['sessions']);
+    }
+
     public function testListBooksFiltersByStatus(): void
     {
         $this->createBook(['isbn' => '9780306406157', 'title' => 'Book A']);
