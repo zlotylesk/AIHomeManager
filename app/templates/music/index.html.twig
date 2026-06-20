@@ -62,6 +62,13 @@
 
     <section class="card" style="margin-top:1rem">
         <h2 class="section-title">Listening History</h2>
+        <form id="log-session-form" class="history-log-form">
+            <input type="text" id="log-artist" placeholder="Artist" required>
+            <input type="text" id="log-title" placeholder="Title" required>
+            <input type="datetime-local" id="log-played-at" required>
+            <input type="number" id="log-play-count" min="0" placeholder="Plays (optional)">
+            <button type="submit" class="btn btn-primary">Log play</button>
+        </form>
         <div class="history-filters">
             <label>From <input type="date" id="history-from"></label>
             <label>To <input type="date" id="history-to"></label>

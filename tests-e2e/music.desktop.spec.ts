@@ -21,6 +21,24 @@ test('listening history loads and renders a manually-logged session', async ({ p
   await expect(row).toContainText('Manual');
 });
 
+test('manually logging a play adds it to the listening history', async ({ page }) => {
+  await page.goto('/music');
+  await expect(page.locator('#history-list .loading')).toHaveCount(0, { timeout: 10_000 });
+
+  const title = `E2E Logged Track ${Date.now()}`;
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+  await page.locator('#log-artist').fill('E2E Log Artist');
+  await page.locator('#log-title').fill(title);
+  await page.locator('#log-played-at').fill(localNow);
+  await page.locator('#log-session-form button[type=submit]').click();
+
+  const row = page.locator('.history-row', { hasText: title });
+  await expect(row).toBeVisible();
+  await expect(row).toContainText('Manual');
+});
+
 test('source filter narrows the listening history to manual entries', async ({ page, request }) => {
   const title = `E2E Filter Track ${Date.now()}`;
   const seed = await request.post('/api/music/sessions', {
