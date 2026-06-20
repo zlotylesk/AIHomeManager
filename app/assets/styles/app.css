@@ -223,6 +223,22 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .progress-wrap progress { flex: 1; min-width: 0; height: 8px; border-radius: 4px; accent-color: var(--color-primary); }
 .progress-pct { font-size: .8rem; font-weight: 600; white-space: nowrap; }
 .progress-pages { font-size: .8rem; color: var(--color-text-muted); }
+.book-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: auto; }
+
+.book-detail-header { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.book-detail-cover { width: 160px; height: 240px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.book-detail-info { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.book-detail-title { font-size: 1.4rem; font-weight: 700; }
+.book-detail-author { color: var(--color-text-muted); }
+.book-detail-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .5rem 1.5rem; margin-top: .5rem; }
+.book-detail-meta dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-muted); }
+.book-detail-meta dd { font-size: .9rem; font-weight: 600; word-break: break-word; }
+.book-sessions-heading { margin-top: 1.5rem; font-size: 1.1rem; font-weight: 600; }
+.book-sessions-table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+.book-sessions-table th, .book-sessions-table td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--color-border); font-size: .9rem; }
+.book-sessions-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-muted); }
+.book-session-pages { font-variant-numeric: tabular-nums; }
+.book-sessions-empty { color: var(--color-text-muted); font-style: italic; text-align: center; }
 
 /* ── Articles ── */
 .articles-list { display: flex; flex-direction: column; gap: .5rem; }

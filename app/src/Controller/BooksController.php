@@ -9,7 +9,9 @@ use App\Module\Books\Application\Command\AddBook;
 use App\Module\Books\Application\Command\LogReadingSession;
 use App\Module\Books\Application\Command\RemoveBook;
 use App\Module\Books\Application\Command\UpdateBook;
+use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
+use App\Module\Books\Application\DTO\ReadingSessionDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Exception\BookNotFoundException;
@@ -99,14 +101,14 @@ final class BooksController extends AbstractController
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
     public function detail(string $id): JsonResponse
     {
-        /** @var BookDTO|null $dto */
+        /** @var BookDetailDTO|null $dto */
         $dto = $this->queryBus->dispatch(new GetBookDetail($id))->last(HandledStamp::class)->getResult();
 
         if (null === $dto) {
             return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->serializeDTO($dto));
+        return new JsonResponse($this->serializeDetailDTO($dto));
     }
 
     #[Route('', methods: ['POST'])]
@@ -278,6 +280,24 @@ final class BooksController extends AbstractController
             'currentPage' => $dto->currentPage,
             'percentage' => $dto->percentage,
             'status' => $dto->status,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeDetailDTO(BookDetailDTO $dto): array
+    {
+        return $this->serializeDTO($dto->book) + [
+            'sessions' => array_map(
+                static fn (ReadingSessionDTO $session): array => [
+                    'id' => $session->id,
+                    'date' => $session->date,
+                    'pagesRead' => $session->pagesRead,
+                    'notes' => $session->notes,
+                ],
+                $dto->sessions,
+            ),
         ];
     }
 }
