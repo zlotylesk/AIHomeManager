@@ -83,6 +83,8 @@ function renderBookDetail(book) {
                 <div class="section-actions">
                     <button type="button" class="btn btn-secondary btn-sm btn-edit-book"
                             data-action="click->books#openEditForm">✎ Edit details</button>
+                    <button type="button" class="btn btn-danger btn-sm btn-delete-book"
+                            data-action="click->books#deleteBook">🗑 Delete</button>
                 </div>
             </div>
         </div>
@@ -255,6 +257,19 @@ export default class extends Controller {
         this.editCoverUrlInputTarget.value = book.coverUrl ?? '';
         this.show(this.editBookModalTarget);
         this.editTitleInputTarget.focus();
+    }
+
+    async deleteBook() {
+        const book = this.currentBook;
+        if (!book) return;
+        if (!confirm(`Delete "${book.title}"? This cannot be undone.`)) return;
+        try {
+            await apiCall(`/api/books/${book.id}`, {method: 'DELETE'});
+            this.backToList();
+            await this.loadList(this.filterStatusTarget.value);
+        } catch (err) {
+            this.showError(err.message || 'Failed to delete book.');
+        }
     }
 
     closeEdit() {

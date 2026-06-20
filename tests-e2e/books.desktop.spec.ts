@@ -144,6 +144,23 @@ test('add book in manual mode creates a book with full details', async ({ page }
   await expect(card).toContainText('Manual Author');
 });
 
+test('delete book from the detail view removes it and returns to the list', async ({ page, request }) => {
+  const { title } = await seedBook(request);
+
+  await gotoBooksList(page);
+  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'View' }).click();
+
+  const detail = page.locator('[data-books-target="detailView"]');
+  await expect(detail.locator('.book-detail-title')).toHaveText(title);
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await detail.getByRole('button', { name: /Delete/ }).click();
+
+  await expect(detail).toBeHidden();
+  await expect(page.locator('[data-books-target="list"]')).toBeVisible();
+  await expect(page.locator('.book-card', { hasText: title })).toHaveCount(0);
+});
+
 test('export CSV downloads the books library', async ({ page, request }) => {
   await seedBook(request);
   await gotoBooksList(page);
