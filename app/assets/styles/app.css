@@ -89,6 +89,9 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .modal-box label small { font-weight: 400; color: var(--color-text-muted); }
 .form-actions { display: flex; gap: .75rem; margin-top: .5rem; }
 .form-hint { font-size: .8rem; color: var(--color-text-muted); margin-bottom: .75rem; }
+.add-mode-toggle { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.add-mode-toggle label { display: inline-flex; align-items: center; gap: .35rem; margin-bottom: 0; font-size: .9rem; }
+.add-mode-toggle input[type=radio] { width: auto; margin: 0; }
 .detail-list { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1rem; margin-bottom: 1.25rem; }
 .detail-list dt { font-size: .85rem; color: var(--color-text-muted); }
 .detail-list dd { font-size: .9rem; word-break: break-word; }
