@@ -9,6 +9,13 @@ function showError(msg) {
     setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
 }
 
+function showInfo(msg) {
+    const b = $('info-banner');
+    b.textContent = msg;
+    b.classList.remove('hidden');
+    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
+}
+
 function escHtml(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -45,16 +52,31 @@ function renderArticle(article, compact = false) {
                     <span>Added ${formatDate(article.addedAt)}</span>
                 </div>
             </div>
-            <div class="article-actions">${readBtn}</div>
+            <div class="article-actions">
+                <button class="btn btn-secondary btn-sm btn-view-details" data-id="${article.id}">Details</button>
+                <button class="btn btn-secondary btn-sm btn-edit" data-id="${article.id}">Edit</button>
+                ${readBtn}
+                <button class="btn btn-danger btn-sm btn-delete" data-id="${article.id}">Delete</button>
+            </div>
         </div>
     `;
 }
 
 let allArticles = [];
 
-function renderList(filterCat) {
+function renderList() {
     const list = $('articles-list');
-    const filtered = filterCat ? allArticles.filter(a => a.category === filterCat) : allArticles;
+    const filterCat = $('filter-category').value;
+    const filterStatus = $('filter-status').value;
+    let filtered = allArticles;
+    if (filterCat) {
+        filtered = filtered.filter(a => a.category === filterCat);
+    }
+    if ('read' === filterStatus) {
+        filtered = filtered.filter(a => a.isRead);
+    } else if ('unread' === filterStatus) {
+        filtered = filtered.filter(a => !a.isRead);
+    }
     if (!filtered.length) {
         list.innerHTML = '<div class="empty-state">No articles found.</div>';
         return;
@@ -73,6 +95,105 @@ function populateCategoryFilter() {
     });
 }
 
+function renderDetail(a) {
+    const safeHref = window.safeUrl(a.url) ?? '#';
+    const status = a.isRead ? `Read${a.readAt ? ' · ' + formatDate(a.readAt) : ''}` : 'Unread';
+    return `
+        <dl class="detail-list">
+            <dt>URL</dt>
+            <dd><a href="${escHtml(safeHref)}" target="_blank" rel="noopener">${escHtml(a.url)}</a></dd>
+            <dt>Category</dt>
+            <dd>${a.category ? escHtml(a.category) : '—'}</dd>
+            <dt>Read time</dt>
+            <dd>${a.estimatedReadTime ? escHtml(String(a.estimatedReadTime)) + ' min' : '—'}</dd>
+            <dt>Added</dt>
+            <dd>${escHtml(formatDate(a.addedAt))}</dd>
+            <dt>Status</dt>
+            <dd>${escHtml(status)}</dd>
+        </dl>
+    `;
+}
+
+async function openDetail(id) {
+    const modal = $('article-detail-modal');
+    $('detail-title').textContent = 'Loading…';
+    $('detail-body').innerHTML = '';
+    modal.classList.remove('hidden');
+    try {
+        const article = await window.apiCall(`/api/articles/${id}`);
+        $('detail-title').textContent = article.title;
+        $('detail-body').innerHTML = renderDetail(article);
+    } catch (err) {
+        closeDetail();
+        showError(err.message || 'Failed to load article.');
+    }
+}
+
+function closeDetail() {
+    $('article-detail-modal').classList.add('hidden');
+}
+
+function openEdit(id) {
+    const article = allArticles.find(a => a.id === id);
+    if (!article) return;
+    $('edit-id').value = article.id;
+    $('edit-title').value = article.title;
+    $('edit-category').value = article.category ?? '';
+    $('edit-read-time').value = article.estimatedReadTime ?? '';
+    $('article-edit-modal').classList.remove('hidden');
+}
+
+function closeEdit() {
+    $('article-edit-modal').classList.add('hidden');
+}
+
+async function saveEdit(form) {
+    const id = $('edit-id').value;
+    const title = $('edit-title').value.trim();
+    if (!title) return;
+
+    const category = $('edit-category').value.trim();
+    const readTime = $('edit-read-time').value;
+
+    const body = {title, category: category || null};
+    if (readTime) body.estimated_read_time = Number(readTime);
+
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+        await window.apiCall(`/api/articles/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        closeEdit();
+        showInfo('Article updated.');
+        await loadArticles();
+    } catch (err) {
+        showError(err.message || 'Failed to update article.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save';
+}
+
+async function deleteArticle(id, btn) {
+    if (!confirm('Delete this article? This cannot be undone.')) {
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+        await window.apiCall(`/api/articles/${id}`, {method: 'DELETE'});
+        showInfo('Article deleted.');
+        await loadArticles();
+    } catch (err) {
+        showError(err.message || 'Failed to delete article.');
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+    }
+}
+
 async function markAsRead(id, btn) {
     btn.disabled = true;
     btn.textContent = 'Saving…';
@@ -83,11 +204,112 @@ async function markAsRead(id, btn) {
             article.isRead = true;
             article.readAt = new Date().toISOString();
         }
-        renderList($('filter-category').value);
+        renderList();
     } catch (err) {
         showError(err.message || 'Failed to mark as read.');
         btn.disabled = false;
         btn.textContent = 'Mark as Read';
+    }
+}
+
+async function createArticle(form) {
+    const title = $('article-title').value.trim();
+    const url = $('article-url').value.trim();
+    if (!title || !url) return;
+
+    const category = $('article-category').value.trim();
+    const readTime = $('article-read-time').value;
+
+    const body = {title, url, category: category || null};
+    if (readTime) body.estimated_read_time = Number(readTime);
+
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    try {
+        await window.apiCall('/api/articles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        form.reset();
+        showInfo('Article added.');
+        await loadArticles();
+    } catch (err) {
+        showError(err.message || 'Failed to add article.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Add Article';
+}
+
+async function importArticles(form) {
+    const file = $('import-file').files[0];
+    if (!file) return;
+
+    const fd = new FormData();
+    fd.append('file', file);
+    const encoding = $('import-encoding').value;
+    if (encoding) fd.append('encoding', encoding);
+    if ($('import-dry-run').checked) fd.append('dry_run', '1');
+
+    const btn = form.querySelector('[type=submit]');
+    const resultBox = $('import-result');
+    resultBox.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+    try {
+        const res = await window.apiCall('/api/articles/import', {method: 'POST', body: fd});
+        resultBox.textContent = `${res.dryRun ? '[Dry run] ' : ''}Imported: ${res.imported} · Skipped (duplicates): ${res.skipped} · Errors: ${res.errors}`;
+        resultBox.classList.remove('hidden');
+        form.reset();
+        if (!res.dryRun && res.imported > 0) {
+            await loadArticles();
+        }
+    } catch (err) {
+        showError(err.message || 'Import failed.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Import';
+}
+
+async function downloadExport(format, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Exporting…';
+    try {
+        const meta = document.querySelector('meta[name="api-key"]');
+        const apiKey = meta ? meta.getAttribute('content') : '';
+        const headers = {};
+        if (apiKey) {
+            headers['X-API-Key'] = apiKey;
+        }
+        const res = await fetch(`/api/articles/export?format=${encodeURIComponent(format)}`, {headers});
+        if (!res.ok) {
+            let message = `Export failed (${res.status}).`;
+            try {
+                const payload = await res.json();
+                if (payload && 'string' === typeof payload.error) {
+                    message = payload.error;
+                }
+            } catch (_) {
+            }
+            throw new Error(message);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `articles.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showInfo(`Articles exported as ${format.toUpperCase()}.`);
+    } catch (err) {
+        showError(err.message || 'Failed to export articles.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
     }
 }
 
@@ -112,17 +334,62 @@ async function loadArticles() {
     }
 
     populateCategoryFilter();
-    renderList('');
+    renderList();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     loadArticles();
-    $('filter-category').addEventListener('change', e => renderList(e.target.value));
+    $('filter-category').addEventListener('change', () => renderList());
+    $('filter-status').addEventListener('change', () => renderList());
+    $('btn-export-csv').addEventListener('click', e => downloadExport('csv', e.currentTarget));
+    $('btn-export-pdf').addEventListener('click', e => downloadExport('pdf', e.currentTarget));
+    $('form-create-article').addEventListener('submit', e => {
+        e.preventDefault();
+        createArticle(e.target);
+    });
+    $('form-import-articles').addEventListener('submit', e => {
+        e.preventDefault();
+        importArticles(e.target);
+    });
 
     document.body.addEventListener('click', e => {
-        const btn = e.target.closest('.btn-mark-read');
-        if (btn) {
-            markAsRead(btn.dataset.id, btn);
+        const readBtn = e.target.closest('.btn-mark-read');
+        if (readBtn) {
+            markAsRead(readBtn.dataset.id, readBtn);
+            return;
+        }
+        const detailBtn = e.target.closest('.btn-view-details');
+        if (detailBtn) {
+            openDetail(detailBtn.dataset.id);
+            return;
+        }
+        const editBtn = e.target.closest('.btn-edit');
+        if (editBtn) {
+            openEdit(editBtn.dataset.id);
+            return;
+        }
+        const deleteBtn = e.target.closest('.btn-delete');
+        if (deleteBtn) {
+            deleteArticle(deleteBtn.dataset.id, deleteBtn);
+        }
+    });
+
+    $('form-edit-article').addEventListener('submit', e => {
+        e.preventDefault();
+        saveEdit(e.target);
+    });
+    $('edit-cancel').addEventListener('click', closeEdit);
+
+    $('detail-close').addEventListener('click', closeDetail);
+    [['article-detail-modal', closeDetail], ['article-edit-modal', closeEdit]].forEach(([modalId, close]) => {
+        $(modalId).addEventListener('click', e => {
+            if (e.target === e.currentTarget) close();
+        });
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            closeDetail();
+            closeEdit();
         }
     });
 });
