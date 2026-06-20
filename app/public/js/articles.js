@@ -64,9 +64,19 @@ function renderArticle(article, compact = false) {
 
 let allArticles = [];
 
-function renderList(filterCat) {
+function renderList() {
     const list = $('articles-list');
-    const filtered = filterCat ? allArticles.filter(a => a.category === filterCat) : allArticles;
+    const filterCat = $('filter-category').value;
+    const filterStatus = $('filter-status').value;
+    let filtered = allArticles;
+    if (filterCat) {
+        filtered = filtered.filter(a => a.category === filterCat);
+    }
+    if ('read' === filterStatus) {
+        filtered = filtered.filter(a => a.isRead);
+    } else if ('unread' === filterStatus) {
+        filtered = filtered.filter(a => !a.isRead);
+    }
     if (!filtered.length) {
         list.innerHTML = '<div class="empty-state">No articles found.</div>';
         return;
@@ -194,7 +204,7 @@ async function markAsRead(id, btn) {
             article.isRead = true;
             article.readAt = new Date().toISOString();
         }
-        renderList($('filter-category').value);
+        renderList();
     } catch (err) {
         showError(err.message || 'Failed to mark as read.');
         btn.disabled = false;
@@ -324,12 +334,13 @@ async function loadArticles() {
     }
 
     populateCategoryFilter();
-    renderList('');
+    renderList();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     loadArticles();
-    $('filter-category').addEventListener('change', e => renderList(e.target.value));
+    $('filter-category').addEventListener('change', () => renderList());
+    $('filter-status').addEventListener('change', () => renderList());
     $('btn-export-csv').addEventListener('click', e => downloadExport('csv', e.currentTarget));
     $('btn-export-pdf').addEventListener('click', e => downloadExport('pdf', e.currentTarget));
     $('form-create-article').addEventListener('submit', e => {
