@@ -244,6 +244,47 @@ async function importArticles(form) {
     btn.textContent = 'Import';
 }
 
+async function downloadExport(format, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Exporting…';
+    try {
+        const meta = document.querySelector('meta[name="api-key"]');
+        const apiKey = meta ? meta.getAttribute('content') : '';
+        const headers = {};
+        if (apiKey) {
+            headers['X-API-Key'] = apiKey;
+        }
+        const res = await fetch(`/api/articles/export?format=${encodeURIComponent(format)}`, {headers});
+        if (!res.ok) {
+            let message = `Export failed (${res.status}).`;
+            try {
+                const payload = await res.json();
+                if (payload && 'string' === typeof payload.error) {
+                    message = payload.error;
+                }
+            } catch (_) {
+            }
+            throw new Error(message);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `articles.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showInfo(`Articles exported as ${format.toUpperCase()}.`);
+    } catch (err) {
+        showError(err.message || 'Failed to export articles.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
 async function loadArticles() {
     $('articles-list').innerHTML = '<div class="loading">Loading…</div>';
 
@@ -271,6 +312,8 @@ async function loadArticles() {
 document.addEventListener('DOMContentLoaded', () => {
     loadArticles();
     $('filter-category').addEventListener('change', e => renderList(e.target.value));
+    $('btn-export-csv').addEventListener('click', e => downloadExport('csv', e.currentTarget));
+    $('btn-export-pdf').addEventListener('click', e => downloadExport('pdf', e.currentTarget));
     $('form-create-article').addEventListener('submit', e => {
         e.preventDefault();
         createArticle(e.target);
