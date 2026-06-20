@@ -83,3 +83,22 @@ test('editing an article updates its title and category in the list', async ({ p
   await expect(updatedRow).toBeVisible();
   await expect(updatedRow.locator('.tag')).toHaveText('Published');
 });
+
+test('exporting articles as CSV triggers a file download', async ({ page }) => {
+  const title = uniqueTitle('Export Article');
+
+  await gotoArticles(page);
+
+  await page.fill('#article-title', title);
+  await page.fill('#article-url', `https://example.com/export-${Date.now()}`);
+  await page.click('#form-create-article [type=submit]');
+
+  const row = page.locator('#articles-list .article-row', { hasText: title });
+  await expect(row).toBeVisible();
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#btn-export-csv');
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toBe('articles.csv');
+});
