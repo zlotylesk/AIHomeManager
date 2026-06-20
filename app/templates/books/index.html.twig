@@ -23,16 +23,41 @@
          data-books-target="addBookModal"
          data-action="click->books#closeAddBookBackdrop">
         <div class="modal-box">
-            <h2>Add Book by ISBN</h2>
+            <h2>Add Book</h2>
             <form data-books-target="addBookForm"
                   data-action="submit->books#submitAddBook">
+                <div class="add-mode-toggle" role="radiogroup" aria-label="Add mode">
+                    <label><input type="radio" name="add-mode" value="isbn" checked
+                                  data-books-target="modeIsbn"
+                                  data-action="change->books#toggleAddMode"> By ISBN (auto-fetch)</label>
+                    <label><input type="radio" name="add-mode" value="manual"
+                                  data-books-target="modeManual"
+                                  data-action="change->books#toggleAddMode"> Enter details manually</label>
+                </div>
+
                 <label for="input-isbn">ISBN (13 digits)</label>
                 <input id="input-isbn"
                        type="text"
                        placeholder="e.g. 9780306406157"
                        required
                        data-books-target="isbnInput">
-                <p class="form-hint">Metadata (title, author, cover) will be fetched automatically.</p>
+                <p class="form-hint" data-books-target="isbnHint">Metadata (title, author, cover) will be fetched automatically.</p>
+
+                <div class="manual-fields hidden" data-books-target="manualFields">
+                    <label for="input-title">Title</label>
+                    <input id="input-title" type="text" data-books-target="titleInput">
+                    <label for="input-author">Author</label>
+                    <input id="input-author" type="text" data-books-target="authorInput">
+                    <label for="input-publisher">Publisher</label>
+                    <input id="input-publisher" type="text" data-books-target="publisherInput">
+                    <label for="input-year">Year</label>
+                    <input id="input-year" type="number" min="0" data-books-target="yearInput">
+                    <label for="input-total-pages">Total pages</label>
+                    <input id="input-total-pages" type="number" min="1" data-books-target="totalPagesInput">
+                    <label for="input-cover-url">Cover URL (optional)</label>
+                    <input id="input-cover-url" type="url" placeholder="https://…" data-books-target="coverUrlInput">
+                </div>
+
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Add Book</button>
                     <button type="button" class="btn btn-secondary" data-action="click->books#closeAddBook">Cancel</button>

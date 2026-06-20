@@ -99,6 +99,16 @@ export default class extends Controller {
         'addBookModal',
         'addBookForm',
         'isbnInput',
+        'isbnHint',
+        'modeIsbn',
+        'modeManual',
+        'manualFields',
+        'titleInput',
+        'authorInput',
+        'publisherInput',
+        'yearInput',
+        'totalPagesInput',
+        'coverUrlInput',
         'sessionModal',
         'sessionForm',
         'sessionTitle',
@@ -178,9 +188,26 @@ export default class extends Controller {
 
 
     openAddBook() {
-        this.isbnInputTarget.value = '';
+        this.addBookFormTarget.reset();
+        this.modeIsbnTarget.checked = true;
+        this.toggleAddMode();
         this.show(this.addBookModalTarget);
         this.isbnInputTarget.focus();
+    }
+
+    toggleAddMode() {
+        const manual = this.modeManualTarget.checked;
+        if (manual) {
+            this.show(this.manualFieldsTarget);
+            this.titleInputTarget.required = true;
+            this.totalPagesInputTarget.required = true;
+            this.isbnHintTarget.textContent = 'Enter all book details manually — nothing is fetched.';
+        } else {
+            this.hide(this.manualFieldsTarget);
+            this.titleInputTarget.required = false;
+            this.totalPagesInputTarget.required = false;
+            this.isbnHintTarget.textContent = 'Metadata (title, author, cover) will be fetched automatically.';
+        }
     }
 
     closeAddBook() {
@@ -196,6 +223,23 @@ export default class extends Controller {
         event.preventDefault();
         const isbn = this.isbnInputTarget.value.trim();
         if (!isbn) return;
+
+        let payload = {isbn};
+        if (this.modeManualTarget.checked) {
+            const title = this.titleInputTarget.value.trim();
+            const totalPages = parseInt(this.totalPagesInputTarget.value, 10);
+            if (!title || !totalPages) return;
+            payload = {
+                isbn,
+                title,
+                author: this.authorInputTarget.value.trim() || null,
+                publisher: this.publisherInputTarget.value.trim() || null,
+                year: this.yearInputTarget.value ? parseInt(this.yearInputTarget.value, 10) : null,
+                total_pages: totalPages,
+                cover_url: this.coverUrlInputTarget.value.trim() || null,
+            };
+        }
+
         const submitBtn = this.addBookFormTarget.querySelector('[type=submit]');
         submitBtn.disabled = true;
         submitBtn.textContent = 'Adding…';
@@ -203,7 +247,7 @@ export default class extends Controller {
             await apiCall('/api/books', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({isbn}),
+                body: JSON.stringify(payload),
             });
             this.hide(this.addBookModalTarget);
             await this.loadList(this.filterStatusTarget.value);

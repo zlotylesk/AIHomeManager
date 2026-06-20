@@ -92,6 +92,36 @@ test('book detail view shows metadata and reading session history, back returns 
   await expect(page.locator('[data-books-target="list"]')).toBeVisible();
 });
 
+test('add book in manual mode creates a book with full details', async ({ page }) => {
+  await gotoBooksList(page);
+
+  const isbn = uniqueIsbn();
+  const title = uniqueTitle('E2E Manual Book');
+
+  await page.getByRole('button', { name: '+ Add Book' }).click();
+  const modal = page.locator('[data-books-target="addBookModal"]');
+  await expect(modal).not.toHaveClass(/hidden/);
+
+  const manualFields = page.locator('[data-books-target="manualFields"]');
+  await expect(manualFields).toHaveClass(/hidden/);
+
+  await modal.getByRole('radio', { name: /Enter details manually/ }).check();
+  await expect(manualFields).not.toHaveClass(/hidden/);
+
+  await page.locator('[data-books-target="isbnInput"]').fill(isbn);
+  await page.locator('[data-books-target="titleInput"]').fill(title);
+  await page.locator('[data-books-target="authorInput"]').fill('Manual Author');
+  await page.locator('[data-books-target="publisherInput"]').fill('Manual Publisher');
+  await page.locator('[data-books-target="yearInput"]').fill('2021');
+  await page.locator('[data-books-target="totalPagesInput"]').fill('321');
+  await page.locator('[data-books-target="addBookForm"] button[type=submit]').click();
+
+  await expect(modal).toHaveClass(/hidden/);
+  const card = page.locator('.book-card', { hasText: title });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Manual Author');
+});
+
 test('API error surfaces in the shared error banner', async ({ page }) => {
   await gotoBooksList(page);
 
