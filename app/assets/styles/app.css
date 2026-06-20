@@ -266,6 +266,8 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .album-info span, .vinyl-info span { font-size: .78rem; color: var(--color-text-muted); }
 .plays { font-size: .78rem; color: var(--color-text-muted); white-space: nowrap; flex-shrink: 0; }
 .vinyl-format { font-size: .75rem; color: var(--color-text-muted); flex-shrink: 0; }
+.history-log-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+.history-log-form input { width: auto; flex: 1 1 8rem; min-width: 0; }
 .history-filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1rem; }
 .history-filters label { display: inline-flex; flex-direction: column; gap: .2rem; font-size: .8rem; color: var(--color-text-muted); margin-bottom: 0; }
 .history-filters input, .history-filters select { width: auto; }

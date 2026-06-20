@@ -45,6 +45,41 @@ function sessionRow(s) {
     </div>`;
 }
 
+function localDateTimeNow() {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+async function submitLogSession(e) {
+    e.preventDefault();
+    const artist = $('log-artist').value.trim();
+    const title = $('log-title').value.trim();
+    const playedAtRaw = $('log-played-at').value;
+    if (!artist || !title || !playedAtRaw) return;
+
+    const payload = {artist, title, playedAt: new Date(playedAtRaw).toISOString()};
+    const playCountRaw = $('log-play-count').value;
+    if (playCountRaw !== '') payload.playCount = parseInt(playCountRaw, 10);
+
+    const btn = $('log-session-form').querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Logging…';
+    try {
+        await window.apiCall('/api/music/sessions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        $('log-session-form').reset();
+        $('log-played-at').value = localDateTimeNow();
+        await loadHistory();
+    } catch (err) {
+        showError(err.message || 'Failed to log play.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Log play';
+}
+
 async function loadHistory() {
     const list = $('history-list');
     list.innerHTML = '<div class="loading">Loading…</div>';
@@ -149,5 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMusic('1month');
 
     $('btn-load-history').addEventListener('click', loadHistory);
+    $('log-played-at').value = localDateTimeNow();
+    $('log-session-form').addEventListener('submit', submitLogSession);
     loadHistory();
 });
