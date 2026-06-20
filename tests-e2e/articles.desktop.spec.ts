@@ -102,3 +102,23 @@ test('exporting articles as CSV triggers a file download', async ({ page }) => {
 
   expect(download.suggestedFilename()).toBe('articles.csv');
 });
+
+test('deleting an article removes its row from the list', async ({ page }) => {
+  const title = uniqueTitle('Delete Article');
+
+  await gotoArticles(page);
+
+  await page.fill('#article-title', title);
+  await page.fill('#article-url', `https://example.com/delete-${Date.now()}`);
+  await page.click('#form-create-article [type=submit]');
+
+  const row = page.locator('#articles-list .article-row', { hasText: title });
+  await expect(row).toBeVisible();
+
+  // Delete goes through a confirm() dialog — auto-accept it before clicking.
+  page.on('dialog', (dialog) => dialog.accept());
+  await row.locator('.btn-delete').click();
+
+  await expect(page.locator('#info-banner')).toHaveText(/article deleted/i);
+  await expect(page.locator('#articles-list .article-row', { hasText: title })).toHaveCount(0);
+});

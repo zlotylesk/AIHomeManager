@@ -56,6 +56,7 @@ function renderArticle(article, compact = false) {
                 <button class="btn btn-secondary btn-sm btn-view-details" data-id="${article.id}">Details</button>
                 <button class="btn btn-secondary btn-sm btn-edit" data-id="${article.id}">Edit</button>
                 ${readBtn}
+                <button class="btn btn-danger btn-sm btn-delete" data-id="${article.id}">Delete</button>
             </div>
         </div>
     `;
@@ -164,6 +165,23 @@ async function saveEdit(form) {
     }
     btn.disabled = false;
     btn.textContent = 'Save';
+}
+
+async function deleteArticle(id, btn) {
+    if (!confirm('Delete this article? This cannot be undone.')) {
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+        await window.apiCall(`/api/articles/${id}`, {method: 'DELETE'});
+        showInfo('Article deleted.');
+        await loadArticles();
+    } catch (err) {
+        showError(err.message || 'Failed to delete article.');
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+    }
 }
 
 async function markAsRead(id, btn) {
@@ -337,6 +355,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const editBtn = e.target.closest('.btn-edit');
         if (editBtn) {
             openEdit(editBtn.dataset.id);
+            return;
+        }
+        const deleteBtn = e.target.closest('.btn-delete');
+        if (deleteBtn) {
+            deleteArticle(deleteBtn.dataset.id, deleteBtn);
         }
     });
 
