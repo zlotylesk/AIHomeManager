@@ -92,6 +92,28 @@ test('book detail view shows metadata and reading session history, back returns 
   await expect(page.locator('[data-books-target="list"]')).toBeVisible();
 });
 
+test('edit book details from the detail view updates the book', async ({ page, request }) => {
+  const { title } = await seedBook(request, { total_pages: 200 });
+
+  await gotoBooksList(page);
+  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'View' }).click();
+
+  const detail = page.locator('[data-books-target="detailView"]');
+  await expect(detail.locator('.book-detail-title')).toHaveText(title);
+
+  await detail.getByRole('button', { name: /Edit details/ }).click();
+  const editModal = page.locator('[data-books-target="editBookModal"]');
+  await expect(editModal).not.toHaveClass(/hidden/);
+  await expect(page.locator('[data-books-target="editAuthorInput"]')).toHaveValue('E2E Author');
+
+  const newTitle = `${title} (revised)`;
+  await page.locator('[data-books-target="editTitleInput"]').fill(newTitle);
+  await page.locator('[data-books-target="editBookForm"] button[type=submit]').click();
+
+  await expect(editModal).toHaveClass(/hidden/);
+  await expect(detail.locator('.book-detail-title')).toHaveText(newTitle);
+});
+
 test('add book in manual mode creates a book with full details', async ({ page }) => {
   await gotoBooksList(page);
 

@@ -99,6 +99,32 @@
         </div>
     </div>
 
+    <div class="modal hidden"
+         data-books-target="editBookModal"
+         data-action="click->books#closeEditBackdrop">
+        <div class="modal-box">
+            <h2>Edit Book</h2>
+            <form data-books-target="editBookForm"
+                  data-action="submit->books#submitEdit">
+                <input type="hidden" data-books-target="editBookId">
+                <label for="edit-title">Title</label>
+                <input id="edit-title" type="text" required data-books-target="editTitleInput">
+                <label for="edit-author">Author</label>
+                <input id="edit-author" type="text" required data-books-target="editAuthorInput">
+                <label for="edit-publisher">Publisher</label>
+                <input id="edit-publisher" type="text" required data-books-target="editPublisherInput">
+                <label for="edit-year">Year</label>
+                <input id="edit-year" type="number" required data-books-target="editYearInput">
+                <label for="edit-cover-url">Cover URL (optional)</label>
+                <input id="edit-cover-url" type="url" placeholder="https://…" data-books-target="editCoverUrlInput">
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeEdit">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="books-grid" class="books-grid" data-books-target="list">
         <div class="loading">Loading…</div>
     </div>
