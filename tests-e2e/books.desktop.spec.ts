@@ -144,6 +144,16 @@ test('add book in manual mode creates a book with full details', async ({ page }
   await expect(card).toContainText('Manual Author');
 });
 
+test('export CSV downloads the books library', async ({ page, request }) => {
+  await seedBook(request);
+  await gotoBooksList(page);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('books.csv');
+});
+
 test('API error surfaces in the shared error banner', async ({ page }) => {
   await gotoBooksList(page);
 
