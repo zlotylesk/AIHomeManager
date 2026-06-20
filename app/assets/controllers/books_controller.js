@@ -80,6 +80,10 @@ function renderBookDetail(book) {
                     <div><dt>ISBN</dt><dd>${escHtml(book.isbn || '—')}</dd></div>
                     <div><dt>Progress</dt><dd>${book.currentPage ?? 0} / ${book.totalPages ?? 0} pages (${pct}%)</dd></div>
                 </dl>
+                <div class="section-actions">
+                    <button type="button" class="btn btn-secondary btn-sm btn-edit-book"
+                            data-action="click->books#openEditForm">✎ Edit details</button>
+                </div>
             </div>
         </div>
         <h3 class="book-sessions-heading">Reading sessions</h3>
@@ -109,6 +113,14 @@ export default class extends Controller {
         'yearInput',
         'totalPagesInput',
         'coverUrlInput',
+        'editBookModal',
+        'editBookForm',
+        'editBookId',
+        'editTitleInput',
+        'editAuthorInput',
+        'editPublisherInput',
+        'editYearInput',
+        'editCoverUrlInput',
         'sessionModal',
         'sessionForm',
         'sessionTitle',
@@ -167,12 +179,16 @@ export default class extends Controller {
     async openDetail(event) {
         const btn = event.target.closest('.btn-view-detail');
         if (!btn) return;
-        const id = btn.dataset.id;
         this.hide(this.listTarget);
         this.show(this.detailViewTarget);
+        await this.loadDetail(btn.dataset.id);
+    }
+
+    async loadDetail(id) {
         this.detailContentTarget.innerHTML = '<div class="loading">Loading…</div>';
         try {
             const book = await apiCall(`/api/books/${id}`);
+            this.currentBook = book;
             this.detailContentTarget.innerHTML = renderBookDetail(book);
         } catch {
             this.showError('Failed to load book detail.');
@@ -184,6 +200,59 @@ export default class extends Controller {
         this.hide(this.detailViewTarget);
         this.show(this.listTarget);
         this.detailContentTarget.innerHTML = '';
+        this.currentBook = null;
+    }
+
+
+    openEditForm() {
+        const book = this.currentBook;
+        if (!book) return;
+        this.editBookIdTarget.value = book.id;
+        this.editTitleInputTarget.value = book.title ?? '';
+        this.editAuthorInputTarget.value = book.author ?? '';
+        this.editPublisherInputTarget.value = book.publisher ?? '';
+        this.editYearInputTarget.value = book.year ?? '';
+        this.editCoverUrlInputTarget.value = book.coverUrl ?? '';
+        this.show(this.editBookModalTarget);
+        this.editTitleInputTarget.focus();
+    }
+
+    closeEdit() {
+        this.hide(this.editBookModalTarget);
+    }
+
+    closeEditBackdrop(event) {
+        if (event.target !== this.editBookModalTarget) return;
+        this.hide(this.editBookModalTarget);
+    }
+
+    async submitEdit(event) {
+        event.preventDefault();
+        const id = this.editBookIdTarget.value;
+        const payload = {
+            title: this.editTitleInputTarget.value.trim(),
+            author: this.editAuthorInputTarget.value.trim(),
+            publisher: this.editPublisherInputTarget.value.trim(),
+            year: parseInt(this.editYearInputTarget.value, 10),
+            cover_url: this.editCoverUrlInputTarget.value.trim() || null,
+        };
+        const submitBtn = this.editBookFormTarget.querySelector('[type=submit]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+        try {
+            await apiCall(`/api/books/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            this.hide(this.editBookModalTarget);
+            await this.loadDetail(id);
+            await this.loadList(this.filterStatusTarget.value);
+        } catch (err) {
+            this.showError(err.message || 'Failed to update book.');
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save';
     }
 
 
