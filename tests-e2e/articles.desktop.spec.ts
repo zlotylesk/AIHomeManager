@@ -122,3 +122,35 @@ test('deleting an article removes its row from the list', async ({ page }) => {
   await expect(page.locator('#info-banner')).toHaveText(/article deleted/i);
   await expect(page.locator('#articles-list .article-row', { hasText: title })).toHaveCount(0);
 });
+
+test('filtering articles by read/unread status shows only matching articles', async ({ page }) => {
+  const readTitle = uniqueTitle('Filter Read');
+  const unreadTitle = uniqueTitle('Filter Unread');
+
+  await gotoArticles(page);
+
+  await page.fill('#article-title', readTitle);
+  await page.fill('#article-url', `https://example.com/fr-${Date.now()}`);
+  await page.click('#form-create-article [type=submit]');
+  await expect(page.locator('#articles-list .article-row', { hasText: readTitle })).toBeVisible();
+
+  await page.fill('#article-title', unreadTitle);
+  await page.fill('#article-url', `https://example.com/fu-${Date.now()}`);
+  await page.click('#form-create-article [type=submit]');
+  await expect(page.locator('#articles-list .article-row', { hasText: unreadTitle })).toBeVisible();
+
+  // Mark the first article as read.
+  const readRow = page.locator('#articles-list .article-row', { hasText: readTitle });
+  await readRow.locator('.btn-mark-read').click();
+  await expect(readRow.locator('.read-badge')).toBeVisible();
+
+  // Unread filter → only the unread article.
+  await page.selectOption('#filter-status', 'unread');
+  await expect(page.locator('#articles-list .article-row', { hasText: unreadTitle })).toBeVisible();
+  await expect(page.locator('#articles-list .article-row', { hasText: readTitle })).toHaveCount(0);
+
+  // Read filter → only the read article.
+  await page.selectOption('#filter-status', 'read');
+  await expect(page.locator('#articles-list .article-row', { hasText: readTitle })).toBeVisible();
+  await expect(page.locator('#articles-list .article-row', { hasText: unreadTitle })).toHaveCount(0);
+});
