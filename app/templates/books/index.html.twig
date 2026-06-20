@@ -15,6 +15,10 @@
                 <option value="reading">Reading</option>
                 <option value="completed">Completed</option>
             </select>
+            <button class="btn btn-secondary btn-export"
+                    data-format="csv" data-action="click->books#exportBooks">Export CSV</button>
+            <button class="btn btn-secondary btn-export"
+                    data-format="pdf" data-action="click->books#exportBooks">Export PDF</button>
             <button class="btn btn-primary" data-action="click->books#openAddBook">+ Add Book</button>
         </div>
     </header>

@@ -175,6 +175,46 @@ export default class extends Controller {
         this.loadList(event.target.value);
     }
 
+    async exportBooks(event) {
+        const btn = event.currentTarget;
+        const format = btn.dataset.format;
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Exporting…';
+        try {
+            const meta = document.querySelector('meta[name="api-key"]');
+            const headers = {};
+            const apiKey = meta ? meta.getAttribute('content') : '';
+            if (apiKey) headers['X-API-Key'] = apiKey;
+
+            const res = await fetch(`/api/books/export?format=${encodeURIComponent(format)}`, {headers});
+            if (!res.ok) {
+                let message = `Export failed (${res.status}).`;
+                try {
+                    const payload = await res.json();
+                    if (payload && typeof payload.error === 'string') message = payload.error;
+                } catch {
+                    // non-JSON error body — keep the generic message
+                }
+                throw new Error(message);
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `books.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            this.showError(err.message || 'Failed to export books.');
+        }
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+
 
     async openDetail(event) {
         const btn = event.target.closest('.btn-view-detail');
