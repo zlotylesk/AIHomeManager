@@ -4,6 +4,56 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.16.0] — 2026-06-21
+
+Domknięcie **dwóch** epików GUI: **HMAI-194** (Books — uzupełnienie GUI, 5 podzadań) i **HMAI-195** (Music — uzupełnienie GUI, 2 podzadania) — każdy z epic review. Moduły Books i Music dostają pełne panele zarządzania nad istniejącym REST API. **Books** (tor Encore + Stimulus): edycja metadanych, usuwanie (z potwierdzeniem), widok szczegółów z historią sesji czytania, eksport CSV/PDF oraz dodawanie pełnym payloadem (tryb ręczny, bez ISBN). **Music** (tor Twig + vanilla JS): widok lokalnej historii odsłuchów (filtr from/to/source) i ręczne rejestrowanie sesji odsłuchu. Wszystkie podzadania to czysta warstwa frontu nad gotowym REST — bez zmian w modelu domenowym. Epic review każdego modułu domknął higienę testów: Books — konsolidacja redundantnego `CoverUrlTest` do kanonicznej lokalizacji `Domain/ValueObject/`; Music — mobilny spec E2E `music.mobile.spec.ts` (Music był ostatnim modułem GUI bez mobilnego speca) plus testy jednostkowe VO `AlbumArtist`/`AlbumTitle`. **Tym wydaniem cały backlog uzupełnienia GUI — 4 epiki (Tasks, Articles, Books, Music) — jest domknięty**: każdy moduł domenowy ma teraz pełny panel zarządzania i mobilny E2E overflow guard. **930/930 PHP** (+9) + **52/52 Playwright** (+10) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).
+
+### Added
+
+#### Books — uzupełnienie panelu GUI (Encore + Stimulus nad istniejącym REST)
+
+- **Widok szczegółów książki (HMAI-214).** Toggle lista↔detal („View" w karcie) → `GET /api/books/{id}` z historią sesji czytania (`sessions[]` posortowane malejąco po dacie); nowe DTO `BookDetailDTO`/`ReadingSessionDTO`.
+- **Dodawanie pełnym payloadem (HMAI-216).** Modal „Add book" dostał przełącznik ISBN/ręczny; tryb ręczny wysyła pełny payload do `POST /api/books` (frontend-only — endpoint już to wspierał, GUI miało tylko ścieżkę ISBN).
+- **Edycja metadanych (HMAI-212).** Przycisk „✎ Edit details" w detalu → modal pre-fill → `PUT /api/books/{id}` → odświeżenie detalu i listy (frontend-only).
+- **Eksport biblioteki CSV/PDF (HMAI-215).** Przyciski w nagłówku Books → `GET /api/books/export?format=` z autoryzowanym pobraniem (blob download, wzorzec z eksportu Articles).
+- **Usuwanie książki (HMAI-213).** `DELETE /api/books/{id}` z `confirm()` w widoku szczegółów, powrót do listy.
+
+#### Music — uzupełnienie panelu GUI (Twig + vanilla JS nad istniejącym REST)
+
+- **Historia odsłuchów (HMAI-217).** Nowa sekcja „Listening History" w `/music` z filtrami from/to/source → `GET /api/music/history`; ładowana niezależnie od wolnych sekcji zewnętrznych (top-albumy/Discogs). Dodany `music.desktop.spec.ts`.
+- **Ręczny zapis sesji (HMAI-218).** Formularz „Log a play" w karcie historii → `POST /api/music/sessions` → przeładowanie historii (source domyślnie `manual`).
+
+#### Epic review — higiena testów
+
+- **Books (HMAI-194).** Konsolidacja dwóch redundantnych klas `CoverUrlTest` (legacy `Domain/` + kanoniczna `Domain/ValueObject/` — ta sama krótka nazwa w dwóch namespace'ach, ten sam VO) do kanonicznej lokalizacji; zachowany mocniejszy dataProvider złośliwych schematów, bez utraty pokrycia.
+- **Music (HMAI-195).** `tests-e2e/music.mobile.spec.ts` (Pixel 5 horizontal-overflow guard — Music był ostatnim modułem GUI bez mobilnego speca) + `AlbumArtistTest`/`AlbumTitleTest` (kanoniczne `Domain/ValueObject/`; realna walidacja empty/trim/max-length/equals pokryta dotąd tylko pośrednio).
+
+### Changed
+
+- **CLAUDE.md**: „Status" → 1.16.0; backlog uzupełnienia GUI zamknięty (4/4 epiki).
+
+### Coverage
+
+- **930 PHP tests** (vs 921) — netto +9: podzadania GUI Books/Music dołożyły testy integracyjne (`BooksApiTest` detail/update/delete, `BooksExportApiTest`, `MusicApiTest` history/sessions); epic review Music dodał +14 (VO `AlbumArtist`/`AlbumTitle`), epic review Books skonsolidował redundantny `CoverUrlTest` (−7 zduplikowanych przypadków).
+- **52 Playwright** (vs 42) — +10 w `books.desktop`/`books.mobile`/`music.desktop`/`music.mobile` (CRUD/detal/eksport Books, historia/log Music, dwa mobilne overflow guardy).
+- **43 Newman** requests (bez zmian — kontrakt REST Books/Music niezmieniony, wszystko addytywne po stronie GUI/testów).
+- PHPStan level 8 clean (zero nowych baseline entries). Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit` zielone.
+
+### Documentation
+
+- **Confluence** „Wymagania funkcjonalne" już dokumentuje funkcjonalnie moduły Books (edycja/usuwanie/szczegóły/eksport) i Music (historia odsłuchów/ręczny zapis) — strona aktualna, bez zmian (governance: opis zdolności funkcjonalnych, nie warstwy GUI).
+
+### Migration
+
+- Brak — release czysto frontendowy plus testy. Bez zmian schematu DB, bez nowych kluczy `.env.local`, bez operacji destrukcyjnych.
+
+### Closed Jira
+
+- **Epic HMAI-194** — Books — uzupełnienie GUI (edycja, usuwanie, szczegóły, eksport, dodawanie bez ISBN).
+- **Epic HMAI-195** — Music — uzupełnienie GUI (historia odsłuchów, ręczny zapis sesji).
+- **HMAI-212, HMAI-213, HMAI-214, HMAI-215, HMAI-216** — 5 podzadań Books GUI.
+- **HMAI-217, HMAI-218** — 2 podzadania Music GUI.
+
 ## [1.15.0] — 2026-06-20
 
 Domknięcie epica **HMAI-193** (Articles — uzupełnienie GUI) — 7 podzadań + epic review. Moduł Articles dostaje pełny panel zarządzania nad istniejącym REST API: dodawanie, edycja, usuwanie (z potwierdzeniem), widok szczegółów (modal), eksport CSV/PDF, import z CSV/Pocket przez upload oraz filtr read/unread (obok istniejącego filtra kategorii) — wszystko na torze Twig + vanilla JS. Jedyna zmiana po stronie PHP to nowy endpoint `POST /api/articles/import` (self-service import w GUI zamiast wyłącznie CLI); reszta podzadań to czysta warstwa frontu nad gotowym REST. Epic review dołożył mobilny spec E2E (Pixel 5 horizontal-overflow guard) — Articles był ostatnim modułem GUI bez mobilnego speca; layout okazał się już responsywny (`flex-wrap` na `.article-row`/`.header-actions`), więc bez zmian CSS. **921/921 PHP** (+6) + **42/42 Playwright** (+7) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).

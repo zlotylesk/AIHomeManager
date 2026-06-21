@@ -89,6 +89,9 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .modal-box label small { font-weight: 400; color: var(--color-text-muted); }
 .form-actions { display: flex; gap: .75rem; margin-top: .5rem; }
 .form-hint { font-size: .8rem; color: var(--color-text-muted); margin-bottom: .75rem; }
+.add-mode-toggle { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.add-mode-toggle label { display: inline-flex; align-items: center; gap: .35rem; margin-bottom: 0; font-size: .9rem; }
+.add-mode-toggle input[type=radio] { width: auto; margin: 0; }
 .detail-list { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1rem; margin-bottom: 1.25rem; }
 .detail-list dt { font-size: .85rem; color: var(--color-text-muted); }
 .detail-list dd { font-size: .9rem; word-break: break-word; }
@@ -223,6 +226,22 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .progress-wrap progress { flex: 1; min-width: 0; height: 8px; border-radius: 4px; accent-color: var(--color-primary); }
 .progress-pct { font-size: .8rem; font-weight: 600; white-space: nowrap; }
 .progress-pages { font-size: .8rem; color: var(--color-text-muted); }
+.book-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: auto; }
+
+.book-detail-header { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.book-detail-cover { width: 160px; height: 240px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.book-detail-info { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.book-detail-title { font-size: 1.4rem; font-weight: 700; }
+.book-detail-author { color: var(--color-text-muted); }
+.book-detail-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .5rem 1.5rem; margin-top: .5rem; }
+.book-detail-meta dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-muted); }
+.book-detail-meta dd { font-size: .9rem; font-weight: 600; word-break: break-word; }
+.book-sessions-heading { margin-top: 1.5rem; font-size: 1.1rem; font-weight: 600; }
+.book-sessions-table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+.book-sessions-table th, .book-sessions-table td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--color-border); font-size: .9rem; }
+.book-sessions-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-muted); }
+.book-session-pages { font-variant-numeric: tabular-nums; }
+.book-sessions-empty { color: var(--color-text-muted); font-style: italic; text-align: center; }
 
 /* ── Articles ── */
 .articles-list { display: flex; flex-direction: column; gap: .5rem; }
@@ -247,6 +266,15 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .album-info span, .vinyl-info span { font-size: .78rem; color: var(--color-text-muted); }
 .plays { font-size: .78rem; color: var(--color-text-muted); white-space: nowrap; flex-shrink: 0; }
 .vinyl-format { font-size: .75rem; color: var(--color-text-muted); flex-shrink: 0; }
+.history-log-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+.history-log-form input { width: auto; flex: 1 1 8rem; min-width: 0; }
+.history-filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1rem; }
+.history-filters label { display: inline-flex; flex-direction: column; gap: .2rem; font-size: .8rem; color: var(--color-text-muted); margin-bottom: 0; }
+.history-filters input, .history-filters select { width: auto; }
+.history-row { display: flex; align-items: center; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid var(--color-border); }
+.history-row:last-child { border-bottom: none; }
+.history-source { font-size: .72rem; background: var(--color-border); border-radius: 4px; padding: .1rem .4rem; white-space: nowrap; flex-shrink: 0; }
+.history-when { font-size: .78rem; color: var(--color-text-muted); white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .comparison-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: .5rem; }
 .comparison-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 .match-score { font-size: .95rem; color: var(--color-text-muted); }

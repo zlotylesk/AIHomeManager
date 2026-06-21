@@ -15,6 +15,10 @@
                 <option value="reading">Reading</option>
                 <option value="completed">Completed</option>
             </select>
+            <button class="btn btn-secondary btn-export"
+                    data-format="csv" data-action="click->books#exportBooks">Export CSV</button>
+            <button class="btn btn-secondary btn-export"
+                    data-format="pdf" data-action="click->books#exportBooks">Export PDF</button>
             <button class="btn btn-primary" data-action="click->books#openAddBook">+ Add Book</button>
         </div>
     </header>
@@ -23,16 +27,41 @@
          data-books-target="addBookModal"
          data-action="click->books#closeAddBookBackdrop">
         <div class="modal-box">
-            <h2>Add Book by ISBN</h2>
+            <h2>Add Book</h2>
             <form data-books-target="addBookForm"
                   data-action="submit->books#submitAddBook">
+                <div class="add-mode-toggle" role="radiogroup" aria-label="Add mode">
+                    <label><input type="radio" name="add-mode" value="isbn" checked
+                                  data-books-target="modeIsbn"
+                                  data-action="change->books#toggleAddMode"> By ISBN (auto-fetch)</label>
+                    <label><input type="radio" name="add-mode" value="manual"
+                                  data-books-target="modeManual"
+                                  data-action="change->books#toggleAddMode"> Enter details manually</label>
+                </div>
+
                 <label for="input-isbn">ISBN (13 digits)</label>
                 <input id="input-isbn"
                        type="text"
                        placeholder="e.g. 9780306406157"
                        required
                        data-books-target="isbnInput">
-                <p class="form-hint">Metadata (title, author, cover) will be fetched automatically.</p>
+                <p class="form-hint" data-books-target="isbnHint">Metadata (title, author, cover) will be fetched automatically.</p>
+
+                <div class="manual-fields hidden" data-books-target="manualFields">
+                    <label for="input-title">Title</label>
+                    <input id="input-title" type="text" data-books-target="titleInput">
+                    <label for="input-author">Author</label>
+                    <input id="input-author" type="text" data-books-target="authorInput">
+                    <label for="input-publisher">Publisher</label>
+                    <input id="input-publisher" type="text" data-books-target="publisherInput">
+                    <label for="input-year">Year</label>
+                    <input id="input-year" type="number" min="0" data-books-target="yearInput">
+                    <label for="input-total-pages">Total pages</label>
+                    <input id="input-total-pages" type="number" min="1" data-books-target="totalPagesInput">
+                    <label for="input-cover-url">Cover URL (optional)</label>
+                    <input id="input-cover-url" type="url" placeholder="https://…" data-books-target="coverUrlInput">
+                </div>
+
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Add Book</button>
                     <button type="button" class="btn btn-secondary" data-action="click->books#closeAddBook">Cancel</button>
@@ -74,8 +103,40 @@
         </div>
     </div>
 
+    <div class="modal hidden"
+         data-books-target="editBookModal"
+         data-action="click->books#closeEditBackdrop">
+        <div class="modal-box">
+            <h2>Edit Book</h2>
+            <form data-books-target="editBookForm"
+                  data-action="submit->books#submitEdit">
+                <input type="hidden" data-books-target="editBookId">
+                <label for="edit-title">Title</label>
+                <input id="edit-title" type="text" required data-books-target="editTitleInput">
+                <label for="edit-author">Author</label>
+                <input id="edit-author" type="text" required data-books-target="editAuthorInput">
+                <label for="edit-publisher">Publisher</label>
+                <input id="edit-publisher" type="text" required data-books-target="editPublisherInput">
+                <label for="edit-year">Year</label>
+                <input id="edit-year" type="number" required data-books-target="editYearInput">
+                <label for="edit-cover-url">Cover URL (optional)</label>
+                <input id="edit-cover-url" type="url" placeholder="https://…" data-books-target="editCoverUrlInput">
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeEdit">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="books-grid" class="books-grid" data-books-target="list">
         <div class="loading">Loading…</div>
     </div>
+
+    <section class="book-detail hidden" data-books-target="detailView">
+        <button class="btn btn-secondary back-btn"
+                data-action="click->books#backToList">← Back to list</button>
+        <div data-books-target="detailContent"></div>
+    </section>
 </div>
 {% endblock %}
