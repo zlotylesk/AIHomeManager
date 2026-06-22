@@ -1,6 +1,6 @@
 # AIHomeManager — Claude Code Context
 
-Single-user system automatyzacji codziennych czynności. Stack: PHP 8.4 + Symfony 8 + MySQL 8 + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami.
+Single-user system automatyzacji codziennych czynności. Stack: PHP 8.5 + Symfony 8 + MySQL 8 + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami.
 
 **Moduły:** Series, Tasks, Books, Articles, Music, YouTubeProgress. Frontend dual-track: Series + Books + YouTubeProgress UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music na Twig + vanilla JS (`app/public/js/`) z `window.apiCall` z `public/js/util.js`.
 
@@ -68,6 +68,10 @@ Komendy: `make assets` (dev), `make assets-watch` (watch mode), `make assets-pro
 `public/build/` + `node_modules/` w `.gitignore`. CI buduje assets w jobach `tests` i `e2e-playwright` (`npm ci && npm run build` w `app/`) przed PHPUnit/Playwright — bez tego Twig `encore_entry_*` wywala 500.
 
 **`webpack-cli` przypięty do linii 6.x:** `@symfony/webpack-encore@6` deklaruje `peer webpack-cli@^6`, więc major-bump (np. 7.x) wywala `npm ci` na `ERESOLVE` jeszcze przed buildem assetów (oba joby CI budujące Encore lecą na czerwono). `.github/dependabot.yml` ma regułę `ignore` na `webpack-cli` z `update-types: [version-update:semver-major]` w ekosystemie npm `/app` — Dependabot nie zaproponuje 7.x dopóki Encore nie zostanie podniesiony do wersji wspierającej webpack-cli 7. NIE mergować ręcznie majora `webpack-cli` przed tym bumpem Encore (precedens: feralny auto-merge na `master`/`develop` → hotfix PR #212).
+
+**Held dependency bumps (HMAI-224, PHP 8.5 maintenance):** dwa bumpy świadomie wstrzymane na docelowym stacku PHP 8.5 — oba pozostają jako jedyne `outdated` i czekają na osobny ticket:
+- **Symfony zatrzymane na 8.0.*** (nie 8.1): `symfony/framework-bundle 8.1.0` ma regresję — zrezolwowany config `event.bus → default_middleware.allow_no_handlers: true` NIE trafia do skompilowanego `HandleMessageMiddleware` (wartość ląduje w złym argumencie konstruktora po zmianie sygnatury w 8.1; `allowNoHandlers` zostaje `false`). Efekt: wszystkie fire-and-forget domain eventy bez handlera (`TaskCreated/Updated/Completed/Cancelled/Deleted`) rzucają `NoHandlerForMessageException` → 500 → 11 czerwonych testów Tasks. Odblokować gdy wyjdzie 8.1.1+ z fixem (zweryfikować, że `event.bus` middleware kompiluje się z `allowNoHandlers=true`).
+- **Encore zatrzymane na 6.x** (nie 7) **+ pochodnie `@babel/core`/`@babel/preset-env` 7.x, `webpack-cli` 6.x:** `@symfony/webpack-encore@7` to migracja build-systemu, nie drop-in bump — przeszedł na **ESM** (`export default`, `import`, async `getWebpackConfig()`, proxy API), wymaga przepisania `webpack.config.js` na ESM + `"type": "module"`, a `@babel/preset-env@8` usunął opcje `useBuiltIns`/`corejs` (trzeba `babel-plugin-polyfill-corejs3` przez `configureBabel`, co zmienia polyfille wysyłane do przeglądarek — wymaga walidacji matrycy przeglądarek, e2e na samym Chromium nie wystarcza). `newman 7` nie istnieje (latest 6.2.2) — root zostaje na newman 6.x. Encore 7 = osobny ticket z testami build + przeglądarkowymi.
 
 **npm audit gate:** każdy `npm ci` deps frontend (`tests` job + `e2e-playwright`, oba w `app/`) ma zaraz po sobie `npm audit --audit-level=high`. Low/moderate są noise dla devDeps i przepuszczane; high+critical blokują merge. Fix = bump paczki (`npm install pkg@latest`), nie suppress — advisory na zainstalowanej wersji to legit signal. Lokalnie: `make node-audit`.
 
