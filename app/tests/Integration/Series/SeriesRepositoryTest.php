@@ -88,11 +88,11 @@ class SeriesRepositoryTest extends KernelTestCase
         self::assertNotNull($found);
         self::assertCount(1, $found->seasons());
 
-        $foundSeason = array_values($found->seasons())[0];
+        $foundSeason = array_first($found->seasons());
         self::assertSame(1, $foundSeason->number());
         self::assertCount(1, $foundSeason->episodes());
 
-        $foundEpisode = array_values($foundSeason->episodes())[0];
+        $foundEpisode = array_first($foundSeason->episodes());
         self::assertSame('Pilot', $foundEpisode->title());
         self::assertNotNull($foundEpisode->rating());
         self::assertSame(9, $foundEpisode->rating()->value());
