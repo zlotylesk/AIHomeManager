@@ -1,6 +1,6 @@
 # AIHomeManager — Claude Code Context
 
-Single-user system automatyzacji codziennych czynności. Stack: PHP 8.5 + Symfony 8 + MySQL 8 + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami.
+Single-user system automatyzacji codziennych czynności. Stack: PHP 8.5 + Symfony 8 + MySQL 8.4 LTS + Redis 7 + RabbitMQ 3.12. Heksagonalna architektura, CQRS z dwoma busami.
 
 **Moduły:** Series, Tasks, Books, Articles, Music, YouTubeProgress. Frontend dual-track: Series + Books + YouTubeProgress UI przez Webpack Encore + Stimulus (`app/assets/`); Tasks/Articles/Music na Twig + vanilla JS (`app/public/js/`) z `window.apiCall` z `public/js/util.js`.
 
@@ -81,7 +81,7 @@ Root `package.json` (Playwright + Newman) **świadomie poza gate**: newman 6.x (
 
 | Serwis | Kontener / Port | Notatki |
 |---|---|---|
-| MySQL 8 | `mysql:3306` | DB `homemanager` |
+| MySQL 8.4 LTS | `mysql:3306` | Obraz przypięty do `mysql:8.4` (linia LTS) w compose **i** CI (×3 joby) — NIE floatujący `mysql:8` (jego tag aktualnie i tak rozwiązuje się do 8.4.9, ale po EOL 8.0 skoczyłby na 9.x innovation; pin = powtarzalność dev↔CI↔prod). DB `homemanager`. **`serverVersion=8.0` w DSN zostaje świadomie** (NIE 8.4): DBAL 4.4 dla `8.4` wybiera `MySQL84Platform`, która jest `@deprecated` i różni się od `MySQL80Platform` **wyłącznie** listą reserved keywords (zero zmian w generacji SQL schemy) — 8.0 platform w pełni kompatybilny z serwerem 8.4, `schema:validate` bez driftu. Zostajemy na **8.4 LTS, nie 9.x** (9.x = innovation, krótki support; LTS = przewidywalność dla single-user/single-disk) |
 | Redis 7 | `redis:6379` | Klucze `series:avg:{id}`, `season:avg:{id}` (TTL 3600) ustawiane bezpośrednio przez `\Redis` w `EpisodeRatedHandler` (nie przez Symfony cache pool — handler iniektuje `\Redis`). Pool `cache.rate_limiter` używany przez RateLimiter |
 | RabbitMQ 3.12 | `rabbitmq:5672` (AMQP), `:15672` UI (guest/guest) | Transport `async`, exchange `series_events` (topic), retry 3× (1s→2s→4s, max 30s), DLQ `failed` |
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
