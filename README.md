@@ -97,7 +97,7 @@ Decyzje architektoniczne (ADR): patrz Confluence space `H` → ADRs.
 | ORM | Doctrine ORM (XML mapping) |
 | DB | MySQL 8 |
 | Cache / KV | Redis 8 |
-| Async messaging | RabbitMQ 3.12 + Symfony Messenger |
+| Async messaging | RabbitMQ 4.x + Symfony Messenger |
 | Frontend (Series, Books, YouTubeProgress) | Webpack Encore + Stimulus (Node.js 24 LTS w kontenerze) |
 | Frontend (Tasks, Articles, Music) | Twig + vanilla JavaScript (`public/js/`) |
 | Testy backendu | PHPUnit 13 |
