@@ -119,12 +119,14 @@ services:
         condition: service_healthy
 
   mongodb:
-    image: mongo:6
+    image: mongo:7
     profiles: [monitoring]
     volumes:
       - mongodb_data:/data/db
 
   opensearch:
+    # Stays on OpenSearch 2.x: Graylog 6.3 supports OpenSearch 1.1.x–2.19.5 only,
+    # 3.0+ is NOT supported. Major-pinned `:2` tracks the latest supported 2.x line.
     image: opensearchproject/opensearch:2
     profiles: [monitoring]
     environment:
@@ -135,7 +137,7 @@ services:
       - opensearch_data:/usr/share/opensearch/data
 
   graylog:
-    image: graylog/graylog:5.2
+    image: graylog/graylog:6.3
     profiles: [monitoring]
     environment:
       GRAYLOG_PASSWORD_SECRET: somepasswordpepper

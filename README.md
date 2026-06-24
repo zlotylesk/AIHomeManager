@@ -103,7 +103,7 @@ Decyzje architektoniczne (ADR): patrz Confluence space `H` → ADRs.
 | Testy backendu | PHPUnit 13 |
 | Testy E2E | Playwright 1.49 (`tests-e2e/`) |
 | Testy smoke API | Newman / Postman v2.1 (`tests-e2e/postman/`) |
-| Logowanie | Monolog → Graylog 5.2 (GELF UDP) + opcjonalnie New Relic |
+| Logowanie | Monolog → Graylog 6.3 (GELF UDP) + opcjonalnie New Relic |
 | PDF | dompdf/dompdf ^3.1 |
 | Konteneryzacja | Docker + Docker Compose |
 
