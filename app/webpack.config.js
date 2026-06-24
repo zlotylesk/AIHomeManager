@@ -1,4 +1,4 @@
-const Encore = require('@symfony/webpack-encore');
+import Encore from '@symfony/webpack-encore';
 
 if (!Encore.isRuntimeEnvironmentConfigured()) {
     Encore.configureRuntimeEnvironment(process.env.NODE_ENV || 'dev');
@@ -23,15 +23,19 @@ Encore
     .enableVersioning(Encore.isProduction())
 
 
-    .configureBabelPresetEnv((config) => {
-        config.useBuiltIns = 'usage';
-        config.corejs = '3.38';
+    // Babel 8 dropped preset-env's `useBuiltIns`/`corejs` options; core-js
+    // polyfills are now injected by babel-plugin-polyfill-corejs3. `version`
+    // tracks the installed core-js so usage-based injection matches the lib.
+    .configureBabel((babelConfig) => {
+        babelConfig.plugins.push([
+            'polyfill-corejs3',
+            { method: 'usage-global', version: '3.38' },
+        ]);
     })
-
 
 
 
 
 ;
 
-module.exports = Encore.getWebpackConfig();
+export default await Encore.getWebpackConfig();
