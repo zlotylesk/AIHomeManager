@@ -87,7 +87,7 @@ Root `package.json` (Playwright + Newman) **świadomie poza gate**: newman 6.x (
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
 | Worker Scheduler | `scheduler_worker` | `messenger:consume scheduler_default --time-limit=3600 -vv` |
 | Node (Encore build) | `node:24-alpine`, container `aihm-node-1` | Long-running `tail -f /dev/null`. `docker compose exec node npm ...` |
-| Graylog 5.2 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | W `make up` (pełny stack); `make min-up` = lean bez monitoringu. Kanały Monolog `series`/`auth` idą przez GELF — `gelf.transport` owinięty `IgnoreErrorTransportWrapper`, więc brak Graylog ≠ 500 (graceful degrade, logi dropowane) |
+| Graylog 6.3 | profil `monitoring`, UI `:9000` (admin/admin), GELF UDP `:12201` | W `make up` (pełny stack); `make min-up` = lean bez monitoringu. Kanały Monolog `series`/`auth` idą przez GELF — `gelf.transport` owinięty `IgnoreErrorTransportWrapper`, więc brak Graylog ≠ 500 (graceful degrade, logi dropowane). Stack sprzężony: `graylog/graylog:6.3` ↔ `mongo:7` (metadata; Graylog 6.3 wspiera 5.0.7–8.x, bump 6→7 = pojedynczy major-step) ↔ `opensearchproject/opensearch:2` (search; **Graylog 6.3 wspiera OpenSearch tylko 1.1–2.19.5, NIE 3.x** — `:2` zostaje docelowo). External OpenSearch przez `GRAYLOG_ELASTICSEARCH_HOSTS` (Graylog Open, bez Data Node). `GRAYLOG_*` env bez zmian względem 5.2; `scripts/graylog-bootstrap.sh` API (`/api/system/inputs`, index_sets, streams) stabilne w 6.x — bez zmian |
 
 W testach: transport `async` i `failed` → `in-memory://` (`when@test` w `messenger.yaml`).
 

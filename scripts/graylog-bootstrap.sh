@@ -11,7 +11,10 @@ api() {
 }
 
 echo "==> Waiting for Graylog API..."
-until api "$GRAYLOG_URL/api/system/cluster" > /dev/null 2>&1; do
+# /api/system/lbstatus is the canonical readiness probe: 200 ALIVE once the node
+# is fully started (503 DEAD during boot). Stable across versions — unlike
+# /api/system/cluster, which returns 404 on Graylog 6.x.
+until api "$GRAYLOG_URL/api/system/lbstatus" > /dev/null 2>&1; do
     sleep 3
 done
 echo "    Graylog API is ready."
