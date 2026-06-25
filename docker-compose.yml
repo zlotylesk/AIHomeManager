@@ -31,7 +31,7 @@ services:
       start_period: 30s
 
   mysql:
-    image: mysql:8
+    image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -48,7 +48,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     ports:
       - "6379:6379"
     healthcheck:
@@ -58,7 +58,11 @@ services:
       retries: 5
 
   rabbitmq:
-    image: rabbitmq:3.12-management-alpine
+    # Bumped 3.12 (EOL) → 4.x: current major (Khepri metadata backend, quorum
+    # queues default). Major-pinned `:4` tracks the supported 4.x line. We use a
+    # plain topic exchange + classic queues (no mirrored queues, removed in 4.0)
+    # so the upgrade is low-risk; metadata is ephemeral (no data volume).
+    image: rabbitmq:4-management-alpine
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -119,12 +123,14 @@ services:
         condition: service_healthy
 
   mongodb:
-    image: mongo:6
+    image: mongo:7
     profiles: [monitoring]
     volumes:
       - mongodb_data:/data/db
 
   opensearch:
+    # Stays on OpenSearch 2.x: Graylog 6.3 supports OpenSearch 1.1.x–2.19.5 only,
+    # 3.0+ is NOT supported. Major-pinned `:2` tracks the latest supported 2.x line.
     image: opensearchproject/opensearch:2
     profiles: [monitoring]
     environment:
@@ -135,7 +141,7 @@ services:
       - opensearch_data:/usr/share/opensearch/data
 
   graylog:
-    image: graylog/graylog:5.2
+    image: graylog/graylog:6.3
     profiles: [monitoring]
     environment:
       GRAYLOG_PASSWORD_SECRET: somepasswordpepper

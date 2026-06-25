@@ -43,7 +43,7 @@ final class TokenCipherTest extends TestCase
     {
         $ciphertext = $this->cipher->encrypt('original');
         $decoded = base64_decode($ciphertext);
-        $tampered = base64_encode(substr($decoded, 0, -1).chr(\ord($decoded[\strlen($decoded) - 1]) ^ 1));
+        $tampered = base64_encode(substr($decoded, 0, -1).chr((\ord($decoded[\strlen($decoded) - 1]) ^ 1) & 0xFF));
 
         $this->expectException(RuntimeException::class);
         $this->cipher->decrypt($tampered);

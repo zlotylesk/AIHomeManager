@@ -27,7 +27,7 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
           coverage: none
           tools: composer:v2
@@ -95,7 +95,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: homemanager_test
@@ -110,7 +110,7 @@ jobs:
           --health-retries=10
 
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -141,7 +141,7 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
           coverage: none
           tools: composer:v2
@@ -223,7 +223,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: homemanager_test
@@ -238,7 +238,7 @@ jobs:
           --health-retries=10
 
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -275,7 +275,7 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
           coverage: none
           tools: composer:v2
@@ -391,7 +391,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: homemanager_test
@@ -406,7 +406,7 @@ jobs:
           --health-retries=10
 
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -436,7 +436,7 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
           coverage: none
           tools: composer:v2

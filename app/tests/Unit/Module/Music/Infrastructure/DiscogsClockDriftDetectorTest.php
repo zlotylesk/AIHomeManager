@@ -13,6 +13,10 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class DiscogsClockDriftDetectorTest extends TestCase
 {
+    // RFC 7231 HTTP-date format (literal GMT). Inlined because the
+    // DateTimeInterface::RFC7231 constant is deprecated since PHP 8.5.
+    private const string HTTP_DATE_FORMAT = 'D, d M Y H:i:s \G\M\T';
+
     private function inspect(?string $dateHeader, ?LoggerInterface $logger = null, ?int $thresholdSeconds = null): void
     {
         $headers = null === $dateHeader ? [] : ['Date: '.$dateHeader];
@@ -30,7 +34,7 @@ final class DiscogsClockDriftDetectorTest extends TestCase
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::never())->method('warning');
 
-        $serverTime = new DateTimeImmutable('@'.(time() - 30))->format(DateTimeImmutable::RFC7231);
+        $serverTime = new DateTimeImmutable('@'.(time() - 30))->format(self::HTTP_DATE_FORMAT);
         $this->inspect($serverTime, $logger);
     }
 
@@ -46,7 +50,7 @@ final class DiscogsClockDriftDetectorTest extends TestCase
                     && '' !== $ctx['server_date_header'],
             ));
 
-        $serverTime = new DateTimeImmutable('@'.(time() - 600))->format(DateTimeImmutable::RFC7231);
+        $serverTime = new DateTimeImmutable('@'.(time() - 600))->format(self::HTTP_DATE_FORMAT);
         $this->inspect($serverTime, $logger);
     }
 
@@ -55,7 +59,7 @@ final class DiscogsClockDriftDetectorTest extends TestCase
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())->method('warning');
 
-        $serverTime = new DateTimeImmutable('@'.(time() + 600))->format(DateTimeImmutable::RFC7231);
+        $serverTime = new DateTimeImmutable('@'.(time() + 600))->format(self::HTTP_DATE_FORMAT);
         $this->inspect($serverTime, $logger);
     }
 
@@ -84,7 +88,7 @@ final class DiscogsClockDriftDetectorTest extends TestCase
                 static fn (array $ctx): bool => 60 === $ctx['threshold_seconds'] && $ctx['drift_seconds'] > 60,
             ));
 
-        $serverTime = new DateTimeImmutable('@'.(time() - 120))->format(DateTimeImmutable::RFC7231);
+        $serverTime = new DateTimeImmutable('@'.(time() - 120))->format(self::HTTP_DATE_FORMAT);
         $this->inspect($serverTime, $logger, 60);
     }
 }
