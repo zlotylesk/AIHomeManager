@@ -4,6 +4,66 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.17.0] — 2026-06-25
+
+Wydanie utrzymaniowe (epik **HMAI-227** — aktualizacja zasobów i zależności; 6 podzadań, każde z osobnym zielonym CI). Czysta higiena runtime/infrastruktury/zależności — bez zmian w modelu domenowym i bez nowych endpointów. Runtime PHP **8.4 → 8.5**; obrazy infrastruktury podniesione lub przypięte do wspieranych linii: MySQL **8.4 LTS** (przypięcie z floatującego `:8`), Redis **8**, RabbitMQ **4.x** (3.12 było EOL), Graylog **6.3** + MongoDB **7**; build frontu zmigrowany na **Encore 7 / Babel 8 / webpack-cli 7 (ESM)**; plus in-range bumpy Composer/npm (doctrine-migrations-bundle 4, php-cs-fixer, webpack, @playwright/test). **Symfony świadomie wstrzymane na 8.0.\*** (HMAI-225 odroczone — regresja `allow_no_handlers` w `framework-bundle` 8.1.0 wciąż nienaprawiona upstream). **930/930 PHP** + **52/52 Playwright** + **43 Newman** requests — wszystko zielone, **bez zmiany liczby testów** (tylko 3 pliki testowe dotknięte fixami zgodności z PHP 8.5). PHPStan level 8 clean (zero nowych baseline entries).
+
+### Changed
+
+#### Runtime & zależności PHP (HMAI-224)
+
+- **PHP runtime 8.4 → 8.5.** `docker/php/Dockerfile` (`php:8.5-fpm-alpine`) + matryca CI (4 joby `php-version: 8.5`) + constraint `composer.json` `php: >=8.5`. Fixy zgodności z PHP 8.5 w 3 testach (`array_first()` w `SeriesRepositoryTest`, byte-mask `& 0xFF` w `TokenCipherTest`, `DiscogsClockDriftDetectorTest`) — bez nowych/usuniętych przypadków.
+- **`doctrine/doctrine-migrations-bundle` 3.7 → 4.0** — major bump; `composer.lock` zregenerowany.
+- **In-range Composer minors/patches** — `friendsofphp/php-cs-fixer 3.95.4 → 3.95.11` i pochodne tooling-bumpy.
+
+#### Obrazy infrastruktury
+
+- **MySQL `mysql:8` → `mysql:8.4` (HMAI-230)** — przypięcie do linii **LTS** (floatujący `:8` skoczyłby na 9.x innovation po EOL 8.0); compose + 3 joby CI. `serverVersion=8.0` w DSN zostaje świadomie (DBAL `MySQL80Platform` w pełni zgodny z serwerem 8.4 — zero driftu `schema:validate`).
+- **Redis `redis:7-alpine` → `redis:8-alpine` (HMAI-229)** — compose + 3 joby CI; cache średnich / distributed lock / rate-limiter bez zmian.
+- **RabbitMQ `rabbitmq:3.12` → `rabbitmq:4-management-alpine` (HMAI-228)** — 3.12 było **EOL**; major-pin `:4` trzyma wspieraną linię (Khepri metadata backend, quorum queues default). Classic mirrored queues usunięte w 4.0 — nieużywane, więc bump niskiego ryzyka.
+- **Monitoring: Graylog 5.2 → 6.3, MongoDB `mongo:6` → `mongo:7` (HMAI-231)** — OpenSearch zostaje na `:2` (Graylog 6.3 wspiera OpenSearch tylko 1.1–2.19.5, NIE 3.x). `scripts/graylog-bootstrap.sh` — fix readiness probe; GELF input / index sets / streamy bez zmian kontraktu.
+
+#### Build frontu — Encore 7 / Babel 8 / webpack-cli 7 (ESM, HMAI-226)
+
+- **`@symfony/webpack-encore` 6 → 7**, **`@babel/core`/`@babel/preset-env` 7 → 8**, **`webpack-cli` 6 → 7**, webpack 5.107 → 5.108. `webpack.config.js` przepisany na **ESM** (`import Encore`, top-level `await Encore.getWebpackConfig()`, `"type":"module"` w `package.json`).
+- **Polyfille corejs3 przez `babel-plugin-polyfill-corejs3`** (Babel 8 usunął `useBuiltIns`/`corejs` z preset-env); targety przez `"browserslist": ["defaults"]`.
+- **Stimulus bootstrap pod ESM** — `assets/bootstrap.js` ładuje kontrolery przez `import.meta.webpackContext` (nie CJS-owy `require.context`, który pod `type:module` rzuca runtime `ReferenceError`).
+- **`.github/dependabot.yml`** — usunięte 3 reguły ignore-major (`webpack-cli` + `@babel/core` + `@babel/preset-env`); Encore 7 obejmuje te majory peer-range'em.
+
+#### Epic review (HMAI-227)
+
+- In-range bumpy `friendsofphp/php-cs-fixer 3.95.11`, `webpack 5.108.0`, `@playwright/test 1.61.0 → 1.61.1`; re-sweep `composer/npm outdated` czysty poza świadomymi pinami (Symfony 8.0.\*, newman 6.x).
+
+### Coverage
+
+- **930 PHP / 52 Playwright / 43 Newman — bez zmiany liczby testów.** Tylko 3 pliki testowe zmodyfikowane (fixy zgodności PHP 8.5, zero nowych/usuniętych przypadków). PHPStan level 8 clean (zero nowych baseline entries). Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit --audit-level=high` zielone.
+
+### Documentation
+
+- **CLAUDE.md**: „Stack" → PHP 8.5 / MySQL 8.4 LTS / Redis 8 / RabbitMQ 4.x; sekcje Infrastruktura / Encore / Held-dependency zaktualizowane; „Status" → 1.17.0. **README.md**: tabela wersji stacku zaktualizowana.
+
+### Migration
+
+1. **Przebuduj obraz PHP** — `docker compose build php` (bazowy obraz `php:8.5-fpm-alpine`).
+2. **Podnieś obrazy infrastruktury** — `docker compose pull && docker compose up -d` (MySQL 8.4, Redis 8, RabbitMQ 4.x; metadata RabbitMQ efemeryczna — Messenger auto-deklaruje exchange/kolejki przy połączeniu).
+3. **Reinstaluj zależności frontu** — `make node-install` (`npm install` po bumpie Encore 7 / Babel 8), następnie `make assets-prod`.
+4. **Monitoring (opcjonalnie)** — `make monitoring-up && make monitoring-bootstrap` (Graylog 6.3 + MongoDB 7).
+5. Brak migracji DB, brak nowych kluczy `.env.local`, brak operacji destrukcyjnych.
+
+### Closed Jira
+
+- **HMAI-227** (epik) — Aktualizacja zasobów i zależności aplikacji (runtime, Composer, npm)
+- **HMAI-224** — bump zależności Composer/npm + runtime PHP 8.5
+- **HMAI-226** — migracja build frontu na Encore 7 / Babel 8 / webpack-cli 7 (ESM)
+- **HMAI-228** — RabbitMQ 3.12 (EOL) → 4.x
+- **HMAI-229** — Redis 7 → 8
+- **HMAI-230** — MySQL pin → 8.4 LTS
+- **HMAI-231** — monitoring: Graylog 5.2 → 6.3 + MongoDB 7
+
+### Carried forward
+
+- **HMAI-225 (Symfony 8.0 → 8.1)** — odroczone, wciąż zablokowane upstream: `framework-bundle` 8.1.0 gubi `event.bus → default_middleware.allow_no_handlers: true` (fire-and-forget domain eventy bez handlera → `NoHandlerForMessageException`). Odblokować gdy wyjdzie 8.1.1+ z fixem.
+
 ## [1.16.0] — 2026-06-21
 
 Domknięcie **dwóch** epików GUI: **HMAI-194** (Books — uzupełnienie GUI, 5 podzadań) i **HMAI-195** (Music — uzupełnienie GUI, 2 podzadania) — każdy z epic review. Moduły Books i Music dostają pełne panele zarządzania nad istniejącym REST API. **Books** (tor Encore + Stimulus): edycja metadanych, usuwanie (z potwierdzeniem), widok szczegółów z historią sesji czytania, eksport CSV/PDF oraz dodawanie pełnym payloadem (tryb ręczny, bez ISBN). **Music** (tor Twig + vanilla JS): widok lokalnej historii odsłuchów (filtr from/to/source) i ręczne rejestrowanie sesji odsłuchu. Wszystkie podzadania to czysta warstwa frontu nad gotowym REST — bez zmian w modelu domenowym. Epic review każdego modułu domknął higienę testów: Books — konsolidacja redundantnego `CoverUrlTest` do kanonicznej lokalizacji `Domain/ValueObject/`; Music — mobilny spec E2E `music.mobile.spec.ts` (Music był ostatnim modułem GUI bez mobilnego speca) plus testy jednostkowe VO `AlbumArtist`/`AlbumTitle`. **Tym wydaniem cały backlog uzupełnienia GUI — 4 epiki (Tasks, Articles, Books, Music) — jest domknięty**: każdy moduł domenowy ma teraz pełny panel zarządzania i mobilny E2E overflow guard. **930/930 PHP** (+9) + **52/52 Playwright** (+10) + **43 Newman** requests — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries).
