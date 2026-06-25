@@ -158,7 +158,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Fixtures: `tests/Integration/DataFixtures/FixturesLoadTest.php` — sprawdza, że `make fixtures` daje stałą strukturę danych
 - E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) lub `*.mobile.spec.ts` (Pixel 5 viewport) per project config w `playwright.config.ts`
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json`. Uruchamiać przez `make test-newman` (truncate + newman z `--ignore-redirects`); details w `tests-e2e/postman/README.md`
-- Framework: PHPUnit 13 + @playwright/test 1.49 + newman 6.x
+- Framework: PHPUnit 13 + @playwright/test 1.61 + newman 6.x
 - **PHPUnit gates**: `phpunit.dist.xml` ma `failOnDeprecation="true"` + `failOnPhpunitDeprecation="true"` + `failOnNotice="true"` + `failOnWarning="true"`. Nowe PHP deprecations w `src/` ORAZ deprecations samego PHPUnit (`->expects(self::any())`, `with()` bez `expects()` itd.) blokują CI. `<source>` ma `ignoreIndirectDeprecations="true"` + `restrictNotices/Warnings="true"` — vendor noise (np. google/apiclient `str_replace null` deprecation) jest świadomie filtrowany. Notices nie są na gate — 41 to data noise z testów, fix-effort vs value słaby. Lokalnie: `vendor/bin/phpunit --display-phpunit-deprecations` pokaże source PHPUnit deprecation; `--display-deprecations` pokaże PHP deprecation
 - Testy `*ApiTest` używają `App\Tests\Support\AuthenticatedApiTrait` — dodaje header `X-API-Key: test-api-key` (zob. `app/.env.test`)
 - CI gate: job `tests` uruchamia `doctrine:schema:validate` po migracjach a przed PHPUnit — drift ORM XML mapping vs schema MySQL blokuje merge (osobna kategoria błędu, nie zaszyta w teście). Lokalnie: `make schema-validate`
