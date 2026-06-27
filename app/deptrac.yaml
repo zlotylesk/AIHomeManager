@@ -108,9 +108,18 @@ deptrac:
               - type: directory
                 value: src/Module/YouTubeProgress/Infrastructure/.*
 
-        # Everything inside src/ that is not under src/Module/ — controllers,
-        # event listeners, security, kernel, scheduled tasks, health, http
-        # decorators, entities and repositories not yet migrated to modules, etc.
+        # Shared kernel (HMAI-235): cross-cutting Domain value objects shared by
+        # more than one bounded context (e.g. CoverUrl in Books + Series). The
+        # standard DDD shared kernel — every *Domain may depend on it. Pure domain
+        # code with zero outbound dependencies, like the per-module Domain layers.
+        - name: Shared
+          collectors:
+              - type: directory
+                value: src/Shared/.*
+
+        # Everything inside src/ that is not under src/Module/ or src/Shared/ —
+        # controllers, event listeners, security, kernel, scheduled tasks, health,
+        # http decorators, entities and repositories not yet migrated to modules.
         # Glue may wire any module together; that's its job.
         - name: Glue
           collectors:
@@ -121,6 +130,8 @@ deptrac:
                 must_not:
                     - type: directory
                       value: src/Module/.*
+                    - type: directory
+                      value: src/Shared/.*
 
         # Framework code. Captured so that `*Domain → []` actually fails on a
         # stray `use Doctrine\…` or `use Symfony\…` inside the domain layer.
@@ -130,62 +141,80 @@ deptrac:
                 value: ^(Symfony|Doctrine|Psr|Monolog|GuzzleHttp|Predis|Twig|Composer|League|Google|Sentry|Redis|AMQPChannel|AMQPConnection|AMQPQueue|AMQPExchange|AMQPEnvelope|AMQPException|JsonException|Random|Throwable|DateTime|DateTimeImmutable|DateTimeInterface|DateTimeZone|DateInterval|Exception|RuntimeException|LogicException|InvalidArgumentException|DomainException|UnexpectedValueException|OutOfBoundsException|OutOfRangeException|RangeException|TypeError|ValueError|Generator|Closure|Stringable|ArrayAccess|Countable|IteratorAggregate|Iterator|Traversable|JsonSerializable|UnitEnum|BackedEnum)\\\\.*
 
     ruleset:
-        # Domain layer: zero outbound dependencies. Formalizes the CLAUDE.md
-        # "Domain bez frameworka" rule — any `use Doctrine\…` or cross-module
-        # import lights up here.
-        ArticlesDomain: []
-        BooksDomain: []
-        MusicDomain: []
-        SeriesDomain: []
-        TasksDomain: []
-        YouTubeProgressDomain: []
+        # Domain layer: own Shared kernel only (otherwise zero outbound deps).
+        # Formalizes the CLAUDE.md "Domain bez frameworka" rule — any
+        # `use Doctrine\…` or cross-module import lights up here.
+        ArticlesDomain:
+            - Shared
+        BooksDomain:
+            - Shared
+        MusicDomain:
+            - Shared
+        SeriesDomain:
+            - Shared
+        TasksDomain:
+            - Shared
+        YouTubeProgressDomain:
+            - Shared
 
-        # Application layer: own Domain only. May freely import Vendor (Messenger
-        # attributes, etc.). May NOT import other modules or Infrastructure.
+        # Application layer: own Domain + Shared. May freely import Vendor
+        # (Messenger attributes, etc.). May NOT import other modules or Infrastructure.
         ArticlesApplication:
             - ArticlesDomain
+            - Shared
             - Vendor
         BooksApplication:
             - BooksDomain
+            - Shared
             - Vendor
         MusicApplication:
             - MusicDomain
+            - Shared
             - Vendor
         SeriesApplication:
             - SeriesDomain
+            - Shared
             - Vendor
         TasksApplication:
             - TasksDomain
+            - Shared
             - Vendor
         YouTubeProgressApplication:
             - YouTubeProgressDomain
+            - Shared
             - Vendor
 
-        # Infrastructure layer: own Domain + own Application + Vendor.
+        # Infrastructure layer: own Domain + own Application + Shared + Vendor.
         # No cross-module reach.
         ArticlesInfrastructure:
             - ArticlesDomain
             - ArticlesApplication
+            - Shared
             - Vendor
         BooksInfrastructure:
             - BooksDomain
             - BooksApplication
+            - Shared
             - Vendor
         MusicInfrastructure:
             - MusicDomain
             - MusicApplication
+            - Shared
             - Vendor
         SeriesInfrastructure:
             - SeriesDomain
             - SeriesApplication
+            - Shared
             - Vendor
         TasksInfrastructure:
             - TasksDomain
             - TasksApplication
+            - Shared
             - Vendor
         YouTubeProgressInfrastructure:
             - YouTubeProgressDomain
             - YouTubeProgressApplication
+            - Shared
             - Vendor
 
         # Glue: controllers, listeners, kernel, security — orchestration code
@@ -209,7 +238,13 @@ deptrac:
             - YouTubeProgressDomain
             - YouTubeProgressApplication
             - YouTubeProgressInfrastructure
+            - Shared
             - Vendor
+
+        # Shared kernel: pure cross-cutting domain VOs. Zero outbound deps like the
+        # per-module Domain layers (its only token, the global
+        # \InvalidArgumentException, is uncovered — not a violation).
+        Shared: []
 
         Vendor: []
 
