@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Messaging\CommandBus;
+use App\Messaging\QueryBus;
 use App\Module\Music\Application\Command\LogListeningSession;
 use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
@@ -21,13 +23,10 @@ use Exception;
 use InvalidArgumentException;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
-use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/music')]
@@ -42,9 +41,8 @@ final class MusicController extends AbstractController
     public function __construct(
         private readonly MusicListeningHistoryInterface $listeningHistory,
         private readonly VinylCollectionInterface $vinylCollection,
-        #[Target('query.bus')]
-        private readonly MessageBusInterface $queryBus,
-        private readonly MessageBusInterface $commandBus,
+        private readonly QueryBus $queryBus,
+        private readonly CommandBus $commandBus,
         private readonly string $lastfmUsername,
         private readonly string $discogsUsername,
     ) {
@@ -109,7 +107,7 @@ final class MusicController extends AbstractController
 
         try {
             /** @var MusicComparisonDTO $result */
-            $result = $this->queryBus->dispatch(new GetMusicComparison($period, $limit))->last(HandledStamp::class)->getResult();
+            $result = $this->queryBus->ask(new GetMusicComparison($period, $limit));
         } catch (DiscogsAuthException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNAUTHORIZED);
         } catch (DiscogsRateLimitException $e) {
@@ -179,10 +177,7 @@ final class MusicController extends AbstractController
         }
 
         /** @var ListeningSessionDTO[] $sessions */
-        $sessions = $this->queryBus
-            ->dispatch(new GetListeningHistory($from, $to, $source, $limit))
-            ->last(HandledStamp::class)
-            ?->getResult() ?? [];
+        $sessions = $this->queryBus->ask(new GetListeningHistory($from, $to, $source, $limit));
 
         return new JsonResponse(array_map($this->serializeSession(...), $sessions));
     }

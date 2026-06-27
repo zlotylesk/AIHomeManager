@@ -17,6 +17,7 @@ Single-user system automatyzacji codziennych czynności. Stack: PHP 8.5 + Symfon
 - Query handler: `#[AsMessageHandler(bus: 'query.bus')]`
 - Event handler: `#[AsMessageHandler]` bez `bus:` (default)
 - `event.bus` skonfigurowany z `allow_no_handlers: true` — domain events to fire-and-forget, subscriber opcjonalny
+- **Bus dispatch w kontrolerach przez typed wrappery `App\Messaging\{QueryBus,CommandBus}` (HMAI-241), NIE surowy `MessageBusInterface`:** oba używają Symfony `HandleTrait`. `QueryBus::ask($q)` i `CommandBus::dispatchAndReturn($cmd)` zwracają wynik pojedynczego handlera (rzucają `LogicException` przy braku handlera zamiast dereferencji `null` — eliminują null-unsafe łańcuch `->dispatch(...)->last(HandledStamp::class)->getResult()`). `CommandBus::dispatch($cmd, $stamps=[])` to fire-and-forget passthrough — **dla komend async-routed** (np. `ImportWatchedShowsFromTrakt`, `RefreshDiscogsCollection`) MUSI iść tędy, bo dostają `SentStamp` nie `HandledStamp` (przez `HandleTrait` rzuciłyby). Autowiring: `CommandBus` → default bus, `QueryBus` przez `#[Target('query.bus')]` w konstruktorze wrappera. Regresja: `tests/Unit/Messaging/{QueryBus,CommandBus}Test.php`
 
 ## Konwencje nazewnictwa
 
