@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Messaging\QueryBus;
 use App\Module\YouTubeProgress\Application\Command\MarkVideoStarted;
 use App\Module\YouTubeProgress\Application\Command\MarkVideoWatched;
 use App\Module\YouTubeProgress\Application\Command\PushSessionToYouTube;
 use App\Module\YouTubeProgress\Application\Command\RegenerateSessions;
 use App\Module\YouTubeProgress\Application\Command\SyncWatchlist;
-use App\Module\YouTubeProgress\Domain\Entity\Video;
-use App\Module\YouTubeProgress\Domain\Entity\WatchSession;
-use App\Module\YouTubeProgress\Domain\Repository\VideoRepositoryInterface;
-use App\Module\YouTubeProgress\Domain\Repository\WatchSessionRepositoryInterface;
+use App\Module\YouTubeProgress\Application\DTO\VideoDTO;
+use App\Module\YouTubeProgress\Application\DTO\WatchSessionDTO;
+use App\Module\YouTubeProgress\Application\Query\GetSessions;
+use App\Module\YouTubeProgress\Application\Query\GetWatchlist;
 use DateTimeImmutable;
-use DateTimeInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,20 +25,19 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Read + command API for the /youtube-progress panel (T13).
  *
- * Reads go straight through the Domain repositories — the module has no
- * dedicated query layer, and the single-user panel never needs more than the
- * full watchlist / session list. Writes dispatch the existing command handlers
- * on the synchronous command bus; not-found and idempotency invariants live in
- * those handlers, so a NotFoundHttpException thrown there is unwrapped by
- * ApiExceptionListener back into a 404 here.
+ * Reads go through the query bus (GetWatchlist / GetSessions, DBAL handlers
+ * returning DTOs) — consistent with every other module (HMAI-236). Writes
+ * dispatch the existing command handlers on the synchronous command bus;
+ * not-found and idempotency invariants live in those handlers, so a
+ * NotFoundHttpException thrown there is unwrapped by ApiExceptionListener back
+ * into a 404 here.
  */
 #[Route('/api/youtube-progress')]
 final class YouTubeProgressController extends AbstractController
 {
     public function __construct(
         private readonly MessageBusInterface $commandBus,
-        private readonly VideoRepositoryInterface $videos,
-        private readonly WatchSessionRepositoryInterface $sessions,
+        private readonly QueryBus $queryBus,
         #[Autowire('%env(YOUTUBE_WATCHLIST_PLAYLIST_ID)%')]
         private readonly string $watchlistPlaylistId,
     ) {
@@ -47,25 +46,23 @@ final class YouTubeProgressController extends AbstractController
     #[Route('/watchlist', methods: ['GET'])]
     public function watchlist(): JsonResponse
     {
+        /** @var list<VideoDTO> $videos */
+        $videos = $this->queryBus->ask(new GetWatchlist());
+
         return new JsonResponse([
-            'videos' => array_map($this->serializeVideo(...), $this->videos->findAll()),
+            'videos' => array_map($this->serializeVideo(...), $videos),
         ]);
     }
 
     #[Route('/sessions', methods: ['GET'])]
     public function sessions(): JsonResponse
     {
-        $videoMap = [];
-        foreach ($this->videos->findAll() as $video) {
-            $videoMap[$video->id()->value()] = $video;
-        }
+        /** @var list<WatchSessionDTO> $sessions */
+        $sessions = $this->queryBus->ask(new GetSessions());
 
-        $sessions = array_map(
-            fn (WatchSession $session): array => $this->serializeSession($session, $videoMap),
-            $this->sessions->findAll(),
-        );
-
-        return new JsonResponse(['sessions' => $sessions]);
+        return new JsonResponse([
+            'sessions' => array_map($this->serializeSession(...), $sessions),
+        ]);
     }
 
     #[Route('/sync', methods: ['POST'])]
@@ -81,9 +78,14 @@ final class YouTubeProgressController extends AbstractController
         $this->commandBus->dispatch(new SyncWatchlist($this->watchlistPlaylistId));
         $this->commandBus->dispatch(new RegenerateSessions());
 
+        /** @var list<VideoDTO> $videos */
+        $videos = $this->queryBus->ask(new GetWatchlist());
+        /** @var list<WatchSessionDTO> $sessions */
+        $sessions = $this->queryBus->ask(new GetSessions());
+
         return new JsonResponse([
-            'sessions_count' => count($this->sessions->findAll()),
-            'videos_count' => count($this->videos->findAll()),
+            'sessions_count' => count($sessions),
+            'videos_count' => count($videos),
         ]);
     }
 
@@ -114,53 +116,30 @@ final class YouTubeProgressController extends AbstractController
     /**
      * @return array<string, mixed>
      */
-    private function serializeVideo(Video $video): array
+    private function serializeVideo(VideoDTO $video): array
     {
         return [
-            'youtubeId' => $video->id()->value(),
-            'title' => $video->title(),
-            'channel' => $video->channel()->value(),
-            'durationSeconds' => $video->duration()->toSeconds(),
-            'status' => $this->videoStatus($video),
-            'startedAt' => $video->startedAt()?->format(DateTimeInterface::ATOM),
-            'watchedAt' => $video->watchedAt()?->format(DateTimeInterface::ATOM),
+            'youtubeId' => $video->youtubeId,
+            'title' => $video->title,
+            'channel' => $video->channel,
+            'durationSeconds' => $video->durationSeconds,
+            'status' => $video->status,
+            'startedAt' => $video->startedAt,
+            'watchedAt' => $video->watchedAt,
         ];
     }
 
     /**
-     * @param array<string, Video> $videoMap
-     *
      * @return array<string, mixed>
      */
-    private function serializeSession(WatchSession $session, array $videoMap): array
+    private function serializeSession(WatchSessionDTO $session): array
     {
-        $videos = [];
-        foreach ($session->videoIds() as $videoId) {
-            $video = $videoMap[$videoId->value()] ?? null;
-            $videos[] = null !== $video
-                ? $this->serializeVideo($video)
-                : ['youtubeId' => $videoId->value(), 'title' => null, 'channel' => null, 'durationSeconds' => null, 'status' => null, 'startedAt' => null, 'watchedAt' => null];
-        }
-
         return [
-            'id' => $session->id()->value,
-            'createdAt' => $session->createdAt()->format(DateTimeInterface::ATOM),
-            'totalDurationSeconds' => $session->totalDurationSeconds(),
-            'youtubePlaylistId' => $session->youtubePlaylistId(),
-            'videos' => $videos,
+            'id' => $session->id,
+            'createdAt' => $session->createdAt,
+            'totalDurationSeconds' => $session->totalDurationSeconds,
+            'youtubePlaylistId' => $session->youtubePlaylistId,
+            'videos' => array_map($this->serializeVideo(...), $session->videos),
         ];
-    }
-
-    private function videoStatus(Video $video): string
-    {
-        if (null !== $video->watchedAt()) {
-            return 'watched';
-        }
-
-        if (null !== $video->startedAt()) {
-            return 'started';
-        }
-
-        return 'split-pool';
     }
 }
