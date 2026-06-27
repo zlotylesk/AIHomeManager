@@ -204,6 +204,12 @@ jobs:
       - name: npm audit (high+critical)
         run: npm audit --audit-level=high
 
+      # HMAI-246: Vitest unit tests for the frontend pure functions (util.js
+      # helpers + Series sort/filter/rating-highlight). Fast, jsdom-based, no
+      # browser — complements the slower Playwright E2E.
+      - name: Run JS unit tests (Vitest)
+        run: npm test
+
       - name: Build Webpack Encore assets
         run: npm run build
 
