@@ -76,23 +76,23 @@ const API = {
     }),
 };
 
-function avg(nums) {
+export function avg(nums) {
     const filtered = nums.filter(n => n !== null && n !== undefined);
     if (!filtered.length) return null;
     return Math.round((filtered.reduce((a, b) => a + b, 0) / filtered.length) * 100) / 100;
 }
 
-function cardRating(label, value) {
+export function cardRating(label, value) {
     const has = value !== null && value !== undefined;
     return `<span class="card-rating${has ? '' : ' card-rating-empty'}">${label} ${has ? `★ ${value}` : '—'}</span>`;
 }
 
-function statusLabel(status) {
+export function statusLabel(status) {
     return {ongoing: 'Ongoing', ended: 'Ended'}[status] ?? null;
 }
 
 
-function ratingHighlight(entity) {
+export function ratingHighlight(entity) {
     if (entity.episodeCount > 0 && entity.watchedCount < entity.episodeCount) {
         return 'incomplete';
     }
@@ -105,7 +105,7 @@ function ratingHighlight(entity) {
     return Math.round(entity.averageRating) !== entity.rating ? 'mismatch' : null;
 }
 
-function ratingFlag(entity) {
+export function ratingFlag(entity) {
     const state = ratingHighlight(entity);
     if (state === 'incomplete') {
         return {cls: 'is-rating-incomplete', title: `W toku — obejrzane ${entity.watchedCount}/${entity.episodeCount} odcinków`};
@@ -120,7 +120,7 @@ function ratingFlag(entity) {
     return {cls: '', title: ''};
 }
 
-function cardRatingFlag(s) {
+export function cardRatingFlag(s) {
     if (s.episodeCount > 0 && s.watchedCount < s.episodeCount) {
         return {cls: 'is-rating-incomplete', title: `W toku — obejrzane ${s.watchedCount}/${s.episodeCount} odcinków`};
     }
@@ -128,6 +128,32 @@ function cardRatingFlag(s) {
         return {cls: 'is-rating-mismatch', title: 'Twoja ocena ≠ średnia z odcinków (serial lub sezon)'};
     }
     return {cls: '', title: ''};
+}
+
+export function filterSeries(list, searchTerm) {
+    const term = (searchTerm ?? '').trim().toLowerCase();
+    return term
+        ? list.filter(s => s.title.toLowerCase().includes(term))
+        : [...list];
+}
+
+export function sortSeries(list, key) {
+    const desc = (a, b) => (b ?? -Infinity) - (a ?? -Infinity);
+    const sorted = [...list];
+    switch (key) {
+        case 'rating-desc':
+            sorted.sort((a, b) => desc(a.averageRating, b.averageRating));
+            break;
+        case 'own-desc':
+            sorted.sort((a, b) => desc(a.rating, b.rating));
+            break;
+        case 'created-desc':
+            sorted.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+            break;
+        default:
+            sorted.sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return sorted;
 }
 
 export default class extends Controller {
@@ -238,36 +264,14 @@ export default class extends Controller {
 
         if (toolbar) this.show(toolbar);
 
-        const term = this.searchTerm.trim().toLowerCase();
-        const filtered = term
-            ? this.allSeries.filter(s => s.title.toLowerCase().includes(term))
-            : [...this.allSeries];
+        const filtered = filterSeries(this.allSeries, this.searchTerm);
 
         if (!filtered.length) {
             container.innerHTML = '<div class="empty-state">No series match your search.</div>';
             return;
         }
 
-        this.renderSeriesList(this.sortSeries(filtered, this.sortKey));
-    }
-
-    sortSeries(list, key) {
-        const desc = (a, b) => (b ?? -Infinity) - (a ?? -Infinity);
-        const sorted = [...list];
-        switch (key) {
-            case 'rating-desc':
-                sorted.sort((a, b) => desc(a.averageRating, b.averageRating));
-                break;
-            case 'own-desc':
-                sorted.sort((a, b) => desc(a.rating, b.rating));
-                break;
-            case 'created-desc':
-                sorted.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
-                break;
-            default:
-                sorted.sort((a, b) => a.title.localeCompare(b.title));
-        }
-        return sorted;
+        this.renderSeriesList(sortSeries(filtered, this.sortKey));
     }
 
     renderSeriesList(seriesArr) {

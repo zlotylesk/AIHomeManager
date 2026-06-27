@@ -1,4 +1,4 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
 
 up:
 	docker compose --profile monitoring up -d
@@ -152,6 +152,9 @@ assets-watch:
 
 assets-prod:
 	docker compose exec node npm run build
+
+test-js:
+	docker compose exec node npm test
 
 backup-now:
 	docker compose exec php bin/console app:backup-database

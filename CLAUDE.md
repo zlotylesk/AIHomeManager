@@ -59,12 +59,14 @@ Single-user system for automating everyday activities. Stack: PHP 8.5 + Symfony 
 | `app/assets/app.js` | Main entry — imports `bootstrap.js` (Stimulus) + `styles/app.css` |
 | `app/assets/bootstrap.js` | `startStimulusApp` auto-discovery from `controllers/` via **`import.meta.webpackContext`** (ESM-native; NOT `require.context` — see below) |
 | `app/assets/util.js` | ES module export: `TOAST_TIMEOUT_MS`, `safeUrl`, `apiCall`, `escHtml` |
-| `app/assets/controllers/series_controller.js` | Stimulus controller for the Series UI |
+| `app/assets/controllers/series_controller.js` | Stimulus controller for the Series UI (named-`export`s its pure helpers `sortSeries`/`filterSeries`/`ratingHighlight`/`ratingFlag`/`cardRatingFlag`/`cardRating`/`statusLabel`/`avg` for Vitest — the `default` export stays the controller) |
 | `app/assets/controllers/books_controller.js` | Stimulus controller for the Books UI |
 | `app/assets/controllers/youtube_progress_controller.js` | Stimulus controller for the YouTubeProgress panel (sync/start/watched/push) |
 | `app/assets/styles/app.css` | Global stylesheet (the single source of truth) |
+| `app/vitest.config.js` | Vitest config (ESM) — `environment: 'jsdom'` (needed by `safeUrl`/`URL`), `include: ['assets/**/*.test.js']` |
+| `app/assets/tests/*.test.js` | JS unit tests (Vitest). Kept OUT of `assets/controllers/` because `bootstrap.js`'s `webpackContext` auto-mounts **every** `.js` there as a Stimulus controller (a test file under `controllers/` would break the boot/build) |
 
-Commands: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production), `make node-audit` (CVE gate). Node service: `aihm-node-1` (`node:24-alpine`, mounted on `./app`). `make node-install` re-runs `npm install` after a `package.json` change.
+Commands: `make assets` (dev), `make assets-watch` (watch mode), `make assets-prod` (production), `make node-audit` (CVE gate), `make test-js` (Vitest JS unit tests). Node service: `aihm-node-1` (`node:24-alpine`, mounted on `./app`). `make node-install` re-runs `npm install` after a `package.json` change.
 
 `public/build/` + `node_modules/` in `.gitignore`. CI builds the assets in the `tests` and `e2e-playwright` jobs (`npm ci && npm run build` in `app/`) before PHPUnit/Playwright — without this Twig `encore_entry_*` throws 500.
 
@@ -147,6 +149,7 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 | Newman (Postman REST collection) | `make test-newman-install` / `make test-newman` |
 | Load fixtures (dev) | `make fixtures` |
 | Webpack Encore dev/watch/prod | `make assets` / `make assets-watch` / `make assets-prod` |
+| JS unit tests (Vitest) | `make test-js` |
 | Npm install (after a `package.json` change) | `make node-install` |
 | npm audit (high+critical CVE gate) | `make node-audit` |
 | Backup MySQL (manual) | `make backup-now` |
@@ -159,7 +162,8 @@ NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 - Fixtures: `tests/Integration/DataFixtures/FixturesLoadTest.php` — checks that `make fixtures` produces a stable data structure
 - E2E: `tests-e2e/` (Playwright, TypeScript). Files match `*.desktop.spec.ts` (1440×900) or `*.mobile.spec.ts` (Pixel 5 viewport) per the project config in `playwright.config.ts`
 - Newman/Postman: `tests-e2e/postman/AIHomeManager.postman_collection.json`. Run via `make test-newman` (truncate + newman with `--ignore-redirects`); details in `tests-e2e/postman/README.md`
-- Framework: PHPUnit 13 + @playwright/test 1.61 + newman 6.x
+- JS unit (Vitest, HMAI-246): `app/assets/tests/*.test.js` — fast jsdom unit tests for the frontend **pure** functions (`util.js` `safeUrl`/`escHtml`/`TOAST_TIMEOUT_MS`; Series `sortSeries`/`filterSeries`/`ratingHighlight`/`ratingFlag`/`cardRatingFlag`/`cardRating`/`statusLabel`/`avg`). Run via `make test-js` (or `npm test` in `app/` → `vitest run`). CI: a "Run JS unit tests (Vitest)" step in the `tests` job, after `npm ci`/`npm audit`, before the Encore build. The tested pure helpers are named-exported from `series_controller.js`; **full extraction of the view logic into its own module is a separate ticket**. Test files must NOT live under `assets/controllers/` (the `webpackContext` there registers every `.js` as a Stimulus controller)
+- Framework: PHPUnit 13 + @playwright/test 1.61 + newman 6.x + Vitest 4 (JS unit, jsdom)
 - **PHPUnit gates**: `phpunit.dist.xml` has `failOnDeprecation="true"` + `failOnPhpunitDeprecation="true"` + `failOnNotice="true"` + `failOnWarning="true"`. New PHP deprecations in `src/` AND PHPUnit's own deprecations (`->expects(self::any())`, `with()` without `expects()`, etc.) block CI. `<source>` has `ignoreIndirectDeprecations="true"` + `restrictNotices/Warnings="true"` — vendor noise (e.g. google/apiclient's `str_replace null` deprecation) is deliberately filtered. Notices are not on the gate — 41 are data noise from the tests, fix-effort vs value is weak. Locally: `vendor/bin/phpunit --display-phpunit-deprecations` shows the source PHPUnit deprecation; `--display-deprecations` shows the PHP deprecation
 - `*ApiTest` tests use `App\Tests\Support\AuthenticatedApiTrait` — it adds the `X-API-Key: test-api-key` header (see `app/.env.test`)
 - CI gate: the `tests` job runs `doctrine:schema:validate` after the migrations and before PHPUnit — a drift of the ORM XML mapping vs the MySQL schema blocks the merge (a separate error category, not baked into a test). Locally: `make schema-validate`
