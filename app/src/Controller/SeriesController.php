@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Messaging\CommandBus;
+use App\Messaging\QueryBus;
 use App\Module\Series\Application\Command\AddEpisode;
 use App\Module\Series\Application\Command\AddEpisodeRating;
 use App\Module\Series\Application\Command\AddSeason;
@@ -35,8 +37,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
-use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/series')]
@@ -47,9 +47,8 @@ final class SeriesController extends AbstractController
     private const int MIN_YEAR = 1900;
 
     public function __construct(
-        private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')]
-        private readonly MessageBusInterface $queryBus,
+        private readonly CommandBus $commandBus,
+        private readonly QueryBus $queryBus,
         #[Target('series')]
         private readonly LoggerInterface $logger,
         private readonly TraktTokenRepositoryInterface $traktTokens,
@@ -62,7 +61,7 @@ final class SeriesController extends AbstractController
         $this->logger->debug('GET /api/series requested');
 
         /** @var SeriesDetailDTO[] $series */
-        $series = $this->queryBus->dispatch(new GetAllSeries())->last(HandledStamp::class)->getResult();
+        $series = $this->queryBus->ask(new GetAllSeries());
 
         $this->logger->debug('GET /api/series returned {count} series', ['count' => count($series)]);
 
@@ -73,7 +72,7 @@ final class SeriesController extends AbstractController
     public function detail(string $id): JsonResponse
     {
         /** @var SeriesDetailDTO|null $dto */
-        $dto = $this->queryBus->dispatch(new GetSeriesDetail($id))->last(HandledStamp::class)->getResult();
+        $dto = $this->queryBus->ask(new GetSeriesDetail($id));
 
         if (null === $dto) {
             return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
@@ -96,13 +95,13 @@ final class SeriesController extends AbstractController
             return $metadata;
         }
 
-        $id = $this->commandBus->dispatch(new CreateSeries(
+        $id = $this->commandBus->dispatchAndReturn(new CreateSeries(
             title: $title,
             coverUrl: $metadata['coverUrl'],
             year: $metadata['year'],
             status: $metadata['status'],
             description: $metadata['description'],
-        ))->last(HandledStamp::class)->getResult();
+        ));
 
         $this->logger->info('Series created', ['id' => $id, 'title' => $title]);
 
@@ -147,7 +146,7 @@ final class SeriesController extends AbstractController
         }
 
         try {
-            $id = $this->commandBus->dispatch(new AddSeason($seriesId, $number))->last(HandledStamp::class)->getResult();
+            $id = $this->commandBus->dispatchAndReturn(new AddSeason($seriesId, $number));
         } catch (HandlerFailedException $e) {
             if ($e->getPrevious() instanceof DomainException) {
                 return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
@@ -187,9 +186,7 @@ final class SeriesController extends AbstractController
         }
 
         try {
-            $id = $this->commandBus->dispatch(new AddEpisode($seriesId, $seasonId, $title, $number, $rating))
-                ->last(HandledStamp::class)
-                ->getResult();
+            $id = $this->commandBus->dispatchAndReturn(new AddEpisode($seriesId, $seasonId, $title, $number, $rating));
         } catch (HandlerFailedException $e) {
             $original = $e->getPrevious();
             if ($original instanceof DomainException) {

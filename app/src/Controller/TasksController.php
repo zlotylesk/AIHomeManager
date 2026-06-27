@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Csv\CsvBuilder;
+use App\Messaging\CommandBus;
+use App\Messaging\QueryBus;
 use App\Module\Tasks\Application\Command\CancelTask;
 use App\Module\Tasks\Application\Command\CompleteTask;
 use App\Module\Tasks\Application\Command\CreateTask;
@@ -24,22 +26,18 @@ use DomainException;
 use Exception;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
-use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/tasks')]
 final class TasksController extends AbstractController
 {
     public function __construct(
-        private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')]
-        private readonly MessageBusInterface $queryBus,
+        private readonly CommandBus $commandBus,
+        private readonly QueryBus $queryBus,
     ) {
     }
 
@@ -56,7 +54,7 @@ final class TasksController extends AbstractController
         }
 
         /** @var TaskDTO[] $tasks */
-        $tasks = $this->queryBus->dispatch(new GetAllTasks($statusParam))->last(HandledStamp::class)->getResult();
+        $tasks = $this->queryBus->ask(new GetAllTasks($statusParam));
 
         return new JsonResponse(array_map($this->serializeDTO(...), $tasks));
     }
@@ -65,7 +63,7 @@ final class TasksController extends AbstractController
     public function detail(string $id): JsonResponse
     {
         /** @var TaskDTO|null $dto */
-        $dto = $this->queryBus->dispatch(new GetTaskById($id))->last(HandledStamp::class)->getResult();
+        $dto = $this->queryBus->ask(new GetTaskById($id));
 
         if (null === $dto) {
             return new JsonResponse(['error' => 'Task not found.'], Response::HTTP_NOT_FOUND);
@@ -89,11 +87,11 @@ final class TasksController extends AbstractController
         }
 
         try {
-            $id = $this->commandBus->dispatch(new CreateTask(
+            $id = $this->commandBus->dispatchAndReturn(new CreateTask(
                 title: trim((string) $data['title']),
                 start: trim((string) $data['start']),
                 end: trim((string) $data['end']),
-            ))->last(HandledStamp::class)->getResult();
+            ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
             if ($prev instanceof InvalidArgumentException) {
@@ -258,7 +256,7 @@ final class TasksController extends AbstractController
         }
 
         /** @var TimeReportDTO $report */
-        $report = $this->queryBus->dispatch(new GetTimeReport($from, $to))->last(HandledStamp::class)->getResult();
+        $report = $this->queryBus->ask(new GetTimeReport($from, $to));
 
         return new JsonResponse([
             'totalMinutes' => $report->totalMinutes,

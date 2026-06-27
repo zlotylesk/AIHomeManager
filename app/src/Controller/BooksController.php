@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Csv\CsvBuilder;
+use App\Messaging\CommandBus;
+use App\Messaging\QueryBus;
 use App\Module\Books\Application\Command\AddBook;
 use App\Module\Books\Application\Command\LogReadingSession;
 use App\Module\Books\Application\Command\RemoveBook;
@@ -24,22 +26,18 @@ use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
-use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/books')]
 final class BooksController extends AbstractController
 {
     public function __construct(
-        private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')]
-        private readonly MessageBusInterface $queryBus,
+        private readonly CommandBus $commandBus,
+        private readonly QueryBus $queryBus,
     ) {
     }
 
@@ -56,7 +54,7 @@ final class BooksController extends AbstractController
         }
 
         /** @var BookDTO[] $books */
-        $books = $this->queryBus->dispatch(new GetAllBooks($statusParam))->last(HandledStamp::class)->getResult();
+        $books = $this->queryBus->ask(new GetAllBooks($statusParam));
 
         return new JsonResponse(array_map($this->serializeDTO(...), $books));
     }
@@ -102,7 +100,7 @@ final class BooksController extends AbstractController
     public function detail(string $id): JsonResponse
     {
         /** @var BookDetailDTO|null $dto */
-        $dto = $this->queryBus->dispatch(new GetBookDetail($id))->last(HandledStamp::class)->getResult();
+        $dto = $this->queryBus->ask(new GetBookDetail($id));
 
         if (null === $dto) {
             return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
@@ -127,7 +125,7 @@ final class BooksController extends AbstractController
         }
 
         try {
-            $id = $this->commandBus->dispatch(new AddBook(
+            $id = $this->commandBus->dispatchAndReturn(new AddBook(
                 isbn: trim((string) $data['isbn']),
                 title: isset($data['title']) ? trim((string) $data['title']) : null,
                 author: isset($data['author']) ? trim((string) $data['author']) : null,
@@ -135,7 +133,7 @@ final class BooksController extends AbstractController
                 year: isset($data['year']) ? (int) $data['year'] : null,
                 coverUrl: $coverUrl,
                 totalPages: isset($data['total_pages']) ? (int) $data['total_pages'] : null,
-            ))->last(HandledStamp::class)->getResult();
+            ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
 

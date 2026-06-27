@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Controller;
 
 use App\Controller\MusicController;
+use App\Messaging\CommandBus;
+use App\Messaging\QueryBus;
 use App\Module\Music\Application\Exception\DiscogsAuthException;
 use App\Module\Music\Application\Exception\DiscogsNotFoundException;
 use App\Module\Music\Application\Exception\DiscogsRateLimitException;
@@ -29,14 +31,13 @@ final class MusicControllerTest extends TestCase
     private function makeController(VinylCollectionInterface $vinylCollection): MusicController
     {
         $listeningHistory = $this->createStub(MusicListeningHistoryInterface::class);
-        $queryBus = $this->createStub(MessageBusInterface::class);
-        $commandBus = $this->createStub(MessageBusInterface::class);
+        $messageBus = $this->createStub(MessageBusInterface::class);
 
         $controller = new MusicController(
             listeningHistory: $listeningHistory,
             vinylCollection: $vinylCollection,
-            queryBus: $queryBus,
-            commandBus: $commandBus,
+            queryBus: new QueryBus($messageBus),
+            commandBus: new CommandBus($messageBus),
             lastfmUsername: 'lf-user',
             discogsUsername: 'disco-user',
         );
