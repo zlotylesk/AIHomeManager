@@ -21,6 +21,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
  * Read + command API for the /youtube-progress panel (T13).
@@ -40,6 +41,7 @@ final class YouTubeProgressController extends AbstractController
         private readonly QueryBus $queryBus,
         #[Autowire('%env(YOUTUBE_WATCHLIST_PLAYLIST_ID)%')]
         private readonly string $watchlistPlaylistId,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -50,7 +52,7 @@ final class YouTubeProgressController extends AbstractController
         $videos = $this->queryBus->ask(new GetWatchlist());
 
         return new JsonResponse([
-            'videos' => array_map($this->serializeVideo(...), $videos),
+            'videos' => $this->normalizer->normalize($videos),
         ]);
     }
 
@@ -61,7 +63,7 @@ final class YouTubeProgressController extends AbstractController
         $sessions = $this->queryBus->ask(new GetSessions());
 
         return new JsonResponse([
-            'sessions' => array_map($this->serializeSession(...), $sessions),
+            'sessions' => $this->normalizer->normalize($sessions),
         ]);
     }
 
@@ -111,35 +113,5 @@ final class YouTubeProgressController extends AbstractController
         $this->commandBus->dispatch(new PushSessionToYouTube($id));
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeVideo(VideoDTO $video): array
-    {
-        return [
-            'youtubeId' => $video->youtubeId,
-            'title' => $video->title,
-            'channel' => $video->channel,
-            'durationSeconds' => $video->durationSeconds,
-            'status' => $video->status,
-            'startedAt' => $video->startedAt,
-            'watchedAt' => $video->watchedAt,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeSession(WatchSessionDTO $session): array
-    {
-        return [
-            'id' => $session->id,
-            'createdAt' => $session->createdAt,
-            'totalDurationSeconds' => $session->totalDurationSeconds,
-            'youtubePlaylistId' => $session->youtubePlaylistId,
-            'videos' => array_map($this->serializeVideo(...), $session->videos),
-        ];
     }
 }

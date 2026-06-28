@@ -13,7 +13,6 @@ use App\Module\Books\Application\Command\RemoveBook;
 use App\Module\Books\Application\Command\UpdateBook;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
-use App\Module\Books\Application\DTO\ReadingSessionDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Exception\BookNotFoundException;
@@ -31,6 +30,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 #[Route('/api/books')]
 final class BooksController extends AbstractController
@@ -38,6 +38,7 @@ final class BooksController extends AbstractController
     public function __construct(
         private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -56,7 +57,7 @@ final class BooksController extends AbstractController
         /** @var BookDTO[] $books */
         $books = $this->queryBus->ask(new GetAllBooks($statusParam));
 
-        return new JsonResponse(array_map($this->serializeDTO(...), $books));
+        return new JsonResponse($this->normalizer->normalize($books));
     }
 
     #[Route('/export', methods: ['GET'])]
@@ -106,7 +107,7 @@ final class BooksController extends AbstractController
             return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->serializeDetailDTO($dto));
+        return new JsonResponse($this->normalizer->normalize($dto));
     }
 
     #[Route('', methods: ['POST'])]
@@ -262,40 +263,5 @@ final class BooksController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_CREATED);
-    }
-
-    private function serializeDTO(BookDTO $dto): array
-    {
-        return [
-            'id' => $dto->id,
-            'isbn' => $dto->isbn,
-            'title' => $dto->title,
-            'author' => $dto->author,
-            'publisher' => $dto->publisher,
-            'year' => $dto->year,
-            'coverUrl' => $dto->coverUrl,
-            'totalPages' => $dto->totalPages,
-            'currentPage' => $dto->currentPage,
-            'percentage' => $dto->percentage,
-            'status' => $dto->status,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeDetailDTO(BookDetailDTO $dto): array
-    {
-        return $this->serializeDTO($dto->book) + [
-            'sessions' => array_map(
-                static fn (ReadingSessionDTO $session): array => [
-                    'id' => $session->id,
-                    'date' => $session->date,
-                    'pagesRead' => $session->pagesRead,
-                    'notes' => $session->notes,
-                ],
-                $dto->sessions,
-            ),
-        ];
     }
 }

@@ -14,6 +14,7 @@ Single-user system for automating everyday activities. Stack: PHP 8.5 + Symfony 
 - Doctrine XML in `Infrastructure/Persistence/Doctrine/*.orm.xml` — do NOT migrate to PHP attributes (ADR-001)
 - Domain Events: the aggregate collects them in `$recordedEvents`, the handler dispatches after `releaseEvents()`. Pattern: the `Series` aggregate
 - Query handlers: DBAL, NOT ORM (do not hydrate aggregates for reads)
+- **API serialization (HMAI-240):** DTO→JSON goes through Symfony Serializer Normalizers in `src/Serializer/*DTONormalizer.php` (`App\Serializer\`, Glue layer) — controllers inject `NormalizerInterface` and return `$this->normalizer->normalize($dtoOrList)`, NOT hand-rolled private `serialize*` methods. One normalizer per top-level read DTO (auto-tagged `serializer.normalizer` via autoconfigure; `getSupportedTypes` keyed by the DTO class); nested DTOs delegate through `NormalizerAwareTrait` (`BookDetailDTO`→`BookDTO`, `WatchSessionDTO`→`VideoDTO`) instead of duplicating field maps. The `Serializer` is `enabled` implicitly (symfony/serializer installed, no extra config). Regression: `tests/Unit/Serializer/NormalizersTest.php` (11 tests) + every module's `*ApiTest` pins the byte-identical JSON contract
 - Command handler: `#[AsMessageHandler(bus: 'command.bus')]`
 - Query handler: `#[AsMessageHandler(bus: 'query.bus')]`
 - Event handler: `#[AsMessageHandler]` without `bus:` (default)
@@ -33,6 +34,7 @@ Single-user system for automating everyday activities. Stack: PHP 8.5 + Symfony 
 | DTO | `*DTO` | `Application/DTO/` |
 | Repository Interface | `*RepositoryInterface` | `Domain/Repository/` |
 | Repository Impl | `Doctrine*Repository` | `Infrastructure/Persistence/` |
+| Serializer Normalizer | `*DTONormalizer` | `src/Serializer/` (Glue) |
 
 ## Frontend
 
