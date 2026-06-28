@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace App\Module\Series\Infrastructure\Persistence;
 
-use App\Security\TokenCipher;
+use App\Shared\Security\TokenCipherInterface;
 use Doctrine\DBAL\Connection;
 
 /**
  * Persists the Trakt OAuth2 token encrypted at rest (libsodium secretbox via
- * {@see TokenCipher}). Mirrors the Tasks GoogleOAuthTokenRepository: the whole
- * token payload is JSON-encoded then encrypted into a single column. A separate
- * key (TRAKT_TOKEN_KEY) isolates the blast radius from Discogs/Google.
+ * the {@see TokenCipherInterface} port). Mirrors the Tasks GoogleOAuthTokenRepository:
+ * the whole token payload is JSON-encoded then encrypted into a single column. A
+ * separate key (TRAKT_TOKEN_KEY) isolates the blast radius from Discogs/Google.
  */
 final readonly class TraktOAuthTokenRepository implements TraktTokenRepositoryInterface
 {
     public function __construct(
         private Connection $connection,
-        private TokenCipher $cipher,
+        private TokenCipherInterface $cipher,
     ) {
     }
 

@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Security;
 
+use App\Shared\Security\TokenCipherInterface;
 use RuntimeException;
 use SodiumException;
 
-final readonly class TokenCipher
+final readonly class TokenCipher implements TokenCipherInterface
 {
     public function __construct(private string $key)
     {

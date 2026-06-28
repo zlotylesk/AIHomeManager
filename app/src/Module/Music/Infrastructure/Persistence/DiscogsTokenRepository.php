@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Infrastructure\Persistence;
 
-use App\Security\TokenCipher;
+use App\Shared\Security\TokenCipherInterface;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 
@@ -12,7 +12,7 @@ final readonly class DiscogsTokenRepository implements DiscogsTokenRepositoryInt
 {
     public function __construct(
         private Connection $connection,
-        private TokenCipher $cipher,
+        private TokenCipherInterface $cipher,
     ) {
     }
 
