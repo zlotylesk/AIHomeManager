@@ -7,10 +7,8 @@ namespace App\Controller;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Music\Application\Command\LogListeningSession;
-use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Application\DTO\MusicComparisonDTO;
-use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Exception\DiscogsAuthException;
 use App\Module\Music\Application\Exception\DiscogsRateLimitException;
 use App\Module\Music\Application\Query\GetListeningHistory;
@@ -28,6 +26,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 #[Route('/api/music')]
 final class MusicController extends AbstractController
@@ -45,6 +44,7 @@ final class MusicController extends AbstractController
         private readonly CommandBus $commandBus,
         private readonly string $lastfmUsername,
         private readonly string $discogsUsername,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -74,15 +74,7 @@ final class MusicController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
-        return new JsonResponse(array_map(
-            fn (AlbumDTO $a) => [
-                'artist' => $a->artist,
-                'title' => $a->title,
-                'playCount' => $a->playCount,
-                'imageUrl' => $a->imageUrl,
-            ],
-            $albums
-        ));
+        return new JsonResponse($this->normalizer->normalize($albums));
     }
 
     #[Route('/comparison', methods: ['GET'])]
@@ -118,10 +110,10 @@ final class MusicController extends AbstractController
 
         return new JsonResponse([
             'matchScore' => $result->matchScore,
-            'ownedAndListened' => array_map($this->serializeAlbum(...), $result->ownedAndListened),
-            'wantList' => array_map($this->serializeAlbum(...), $result->wantList),
-            'dustyShelf' => array_map($this->serializeRecord(...), $result->dustyShelf),
-            'recentlyPlayedNotOwned' => array_map($this->serializeAlbum(...), $result->recentlyPlayedNotOwned),
+            'ownedAndListened' => $this->normalizer->normalize($result->ownedAndListened),
+            'wantList' => $this->normalizer->normalize($result->wantList),
+            'dustyShelf' => $this->normalizer->normalize($result->dustyShelf),
+            'recentlyPlayedNotOwned' => $this->normalizer->normalize($result->recentlyPlayedNotOwned),
         ]);
     }
 
@@ -138,7 +130,7 @@ final class MusicController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
-        return new JsonResponse(array_map($this->serializeRecord(...), $records));
+        return new JsonResponse($this->normalizer->normalize($records));
     }
 
     /**
@@ -179,7 +171,7 @@ final class MusicController extends AbstractController
         /** @var ListeningSessionDTO[] $sessions */
         $sessions = $this->queryBus->ask(new GetListeningHistory($from, $to, $source, $limit));
 
-        return new JsonResponse(array_map($this->serializeSession(...), $sessions));
+        return new JsonResponse($this->normalizer->normalize($sessions));
     }
 
     /**
@@ -289,41 +281,5 @@ final class MusicController extends AbstractController
             ', ',
             array_map(static fn (ListeningSource $s): string => $s->value, ListeningSource::cases())
         );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeSession(ListeningSessionDTO $s): array
-    {
-        return [
-            'id' => $s->id,
-            'artist' => $s->artist,
-            'title' => $s->title,
-            'playedAt' => $s->playedAt,
-            'source' => $s->source,
-            'playCount' => $s->playCount,
-        ];
-    }
-
-    private function serializeAlbum(AlbumDTO $a): array
-    {
-        return [
-            'artist' => $a->artist,
-            'title' => $a->title,
-            'playCount' => $a->playCount,
-            'imageUrl' => $a->imageUrl,
-        ];
-    }
-
-    private function serializeRecord(VinylRecordDTO $r): array
-    {
-        return [
-            'artist' => $r->artist,
-            'title' => $r->title,
-            'year' => $r->year,
-            'format' => $r->format,
-            'discogsId' => $r->discogsId,
-        ];
     }
 }

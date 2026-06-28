@@ -13,11 +13,13 @@ use App\Module\Music\Application\Exception\DiscogsRateLimitException;
 use App\Module\Music\Application\Exception\DiscogsUnavailableException;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use App\Serializer\VinylRecordDTONormalizer;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Serializer\Serializer;
 
 /**
  * Verifies that the controller maps Discogs exception types to the right HTTP status:
@@ -40,6 +42,7 @@ final class MusicControllerTest extends TestCase
             commandBus: new CommandBus($messageBus),
             lastfmUsername: 'lf-user',
             discogsUsername: 'disco-user',
+            normalizer: new Serializer([new VinylRecordDTONormalizer()]),
         );
 
         $controller->setContainer(new Container());

@@ -31,6 +31,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 #[Route('/api/tasks')]
 final class TasksController extends AbstractController
@@ -38,6 +39,7 @@ final class TasksController extends AbstractController
     public function __construct(
         private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -56,7 +58,7 @@ final class TasksController extends AbstractController
         /** @var TaskDTO[] $tasks */
         $tasks = $this->queryBus->ask(new GetAllTasks($statusParam));
 
-        return new JsonResponse(array_map($this->serializeDTO(...), $tasks));
+        return new JsonResponse($this->normalizer->normalize($tasks));
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
@@ -69,7 +71,7 @@ final class TasksController extends AbstractController
             return new JsonResponse(['error' => 'Task not found.'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->serializeDTO($dto));
+        return new JsonResponse($this->normalizer->normalize($dto));
     }
 
     #[Route('', methods: ['POST'])]
@@ -270,19 +272,5 @@ final class TasksController extends AbstractController
                 $report->breakdown
             ),
         ]);
-    }
-
-    /** @return array<string, mixed> */
-    private function serializeDTO(TaskDTO $dto): array
-    {
-        return [
-            'id' => $dto->id,
-            'title' => $dto->title,
-            'start' => $dto->start,
-            'end' => $dto->end,
-            'durationMinutes' => $dto->durationMinutes,
-            'status' => $dto->status,
-            'googleEventId' => $dto->googleEventId,
-        ];
     }
 }

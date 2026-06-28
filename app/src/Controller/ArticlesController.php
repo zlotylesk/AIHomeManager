@@ -28,6 +28,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 #[Route('/api/articles')]
 final class ArticlesController extends AbstractController
@@ -36,6 +37,7 @@ final class ArticlesController extends AbstractController
         private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
         private readonly LoggerInterface $logger,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -45,7 +47,7 @@ final class ArticlesController extends AbstractController
         /** @var ArticleDTO[] $articles */
         $articles = $this->queryBus->ask(new GetAllArticles());
 
-        return new JsonResponse(array_map($this->serializeDTO(...), $articles));
+        return new JsonResponse($this->normalizer->normalize($articles));
     }
 
     #[Route('/export', methods: ['GET'])]
@@ -139,7 +141,7 @@ final class ArticlesController extends AbstractController
             return new JsonResponse(null, Response::HTTP_NO_CONTENT);
         }
 
-        return new JsonResponse($this->serializeDTO($dto));
+        return new JsonResponse($this->normalizer->normalize($dto));
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
@@ -152,7 +154,7 @@ final class ArticlesController extends AbstractController
             return new JsonResponse(['error' => 'Article not found.'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->serializeDTO($dto));
+        return new JsonResponse($this->normalizer->normalize($dto));
     }
 
     #[Route('', methods: ['POST'])]
@@ -249,19 +251,5 @@ final class ArticlesController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
-    }
-
-    private function serializeDTO(ArticleDTO $dto): array
-    {
-        return [
-            'id' => $dto->id,
-            'title' => $dto->title,
-            'url' => $dto->url,
-            'category' => $dto->category,
-            'estimatedReadTime' => $dto->estimatedReadTime,
-            'addedAt' => $dto->addedAt,
-            'readAt' => $dto->readAt,
-            'isRead' => $dto->isRead,
-        ];
     }
 }
