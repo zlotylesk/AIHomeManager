@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Module\YouTubeProgress\Infrastructure\External;
 
 use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
-use App\Module\YouTubeProgress\Application\DTO\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface;
 use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistWriterInterface;
+use App\Module\YouTubeProgress\Domain\ReadModel\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\ValueObject\VideoDuration;
 use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;
 use DateTimeImmutable;

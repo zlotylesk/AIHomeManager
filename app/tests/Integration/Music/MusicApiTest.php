@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Music;
 
-use App\Module\Music\Application\DTO\AlbumDTO;
-use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -39,8 +39,8 @@ class MusicApiTest extends WebTestCase
      *
      * Must reboot-disable so the overrides survive the controller sub-request.
      *
-     * @param list<AlbumDTO>       $topAlbums
-     * @param list<VinylRecordDTO> $collection
+     * @param list<Album>       $topAlbums
+     * @param list<VinylRecord> $collection
      *
      * @return array{0: MusicListeningHistoryInterface&MockObject, 1: VinylCollectionInterface&MockObject}
      */
@@ -121,8 +121,8 @@ class MusicApiTest extends WebTestCase
     public function testTopAlbumsReturnsArrayWithExpectedFields(): void
     {
         $this->installMusicPortMocks(topAlbums: [
-            new AlbumDTO('Pink Floyd', 'The Wall', 200, 'https://img.example/wall.jpg'),
-            new AlbumDTO('Radiohead', 'OK Computer', 150, null),
+            new Album('Pink Floyd', 'The Wall', 200, 'https://img.example/wall.jpg'),
+            new Album('Radiohead', 'OK Computer', 150, null),
         ]);
 
         $this->client->request('GET', '/api/music/top-albums?period=1month&limit=10');
@@ -145,8 +145,8 @@ class MusicApiTest extends WebTestCase
     public function testCollectionReturnsArrayWithExpectedFields(): void
     {
         $this->installMusicPortMocks(collection: [
-            new VinylRecordDTO('Pink Floyd', 'The Wall', 1979, 'Vinyl', 12345),
-            new VinylRecordDTO('Unknown', 'No Year', null, 'CD', 67890),
+            new VinylRecord('Pink Floyd', 'The Wall', 1979, 'Vinyl', 12345),
+            new VinylRecord('Unknown', 'No Year', null, 'CD', 67890),
         ]);
 
         $this->client->request('GET', '/api/music/collection');
@@ -219,12 +219,12 @@ class MusicApiTest extends WebTestCase
     {
         $this->installMusicPortMocks(
             topAlbums: [
-                new AlbumDTO('Pink Floyd', 'The Wall', 200, null),
-                new AlbumDTO('Radiohead', 'OK Computer', 150, null),
+                new Album('Pink Floyd', 'The Wall', 200, null),
+                new Album('Radiohead', 'OK Computer', 150, null),
             ],
             collection: [
-                new VinylRecordDTO('Pink Floyd', 'The Wall', 1979, 'Vinyl', 1),
-                new VinylRecordDTO('Forgotten Band', 'Forgotten Album', 1980, 'Vinyl', 2),
+                new VinylRecord('Pink Floyd', 'The Wall', 1979, 'Vinyl', 1),
+                new VinylRecord('Forgotten Band', 'Forgotten Album', 1980, 'Vinyl', 2),
             ],
         );
 

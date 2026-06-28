@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\YouTubeProgress\Domain\Port;
 
-use App\Module\YouTubeProgress\Application\DTO\VideoMetadata;
+use App\Module\YouTubeProgress\Domain\ReadModel\VideoMetadata;
 
 interface YouTubePlaylistReaderInterface
 {

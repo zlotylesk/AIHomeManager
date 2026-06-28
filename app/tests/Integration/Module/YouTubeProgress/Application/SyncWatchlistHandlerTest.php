@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Module\YouTubeProgress\Application;
 
 use App\Module\YouTubeProgress\Application\Command\SyncWatchlist;
-use App\Module\YouTubeProgress\Application\DTO\VideoMetadata;
 use App\Module\YouTubeProgress\Application\Handler\SyncWatchlistHandler;
 use App\Module\YouTubeProgress\Domain\Entity\Video;
 use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface;
+use App\Module\YouTubeProgress\Domain\ReadModel\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\ValueObject\ChannelName;
 use App\Module\YouTubeProgress\Domain\ValueObject\VideoDuration;
 use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;

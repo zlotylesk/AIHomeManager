@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Application\DTO;
 
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
+
 final readonly class MusicComparisonDTO
 {
     public function __construct(
-        /** @var AlbumDTO[] */
+        /** @var Album[] */
         public array $ownedAndListened,
-        /** @var AlbumDTO[] */
+        /** @var Album[] */
         public array $wantList,
-        /** @var VinylRecordDTO[] */
+        /** @var VinylRecord[] */
         public array $dustyShelf,
         public float $matchScore,
-        /** @var AlbumDTO[] Recently played from local history but not in the Discogs collection (HMAI-144). */
+        /** @var Album[] Recently played from local history but not in the Discogs collection (HMAI-144). */
         public array $recentlyPlayedNotOwned = [],
     ) {
     }

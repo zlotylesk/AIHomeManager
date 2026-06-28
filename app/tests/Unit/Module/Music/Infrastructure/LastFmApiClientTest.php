@@ -47,7 +47,7 @@ final class LastFmApiClientTest extends TestCase
         ];
     }
 
-    public function testReturnsAlbumDTOListFromApiResponse(): void
+    public function testReturnsAlbumListFromApiResponse(): void
     {
         $json = $this->makeApiResponse([
             $this->makeAlbum('Radiohead', 'OK Computer', 150, 'https://img.last.fm/ok-computer.jpg'),

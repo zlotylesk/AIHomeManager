@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Serializer;
 
-use App\Module\Music\Application\DTO\VinylRecordDTO;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
- * Normalizes a VinylRecordDTO to its API array shape (HMAI-240) — extracted
- * verbatim from the former MusicController::serializeRecord.
+ * Normalizes a VinylRecord read model to its API array shape (HMAI-240) —
+ * extracted verbatim from the former MusicController::serializeRecord.
  */
 final class VinylRecordDTONormalizer implements NormalizerInterface
 {
@@ -20,7 +20,7 @@ final class VinylRecordDTONormalizer implements NormalizerInterface
      */
     public function normalize(mixed $data, ?string $format = null, array $context = []): array
     {
-        \assert($data instanceof VinylRecordDTO);
+        \assert($data instanceof VinylRecord);
 
         return [
             'artist' => $data->artist,
@@ -34,12 +34,12 @@ final class VinylRecordDTONormalizer implements NormalizerInterface
     /** @param array<string, mixed> $context */
     public function supportsNormalization(mixed $data, ?string $format = null, array $context = []): bool
     {
-        return $data instanceof VinylRecordDTO;
+        return $data instanceof VinylRecord;
     }
 
     /** @return array<class-string, bool> */
     public function getSupportedTypes(?string $format): array
     {
-        return [VinylRecordDTO::class => true];
+        return [VinylRecord::class => true];
     }
 }

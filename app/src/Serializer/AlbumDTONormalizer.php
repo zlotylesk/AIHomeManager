@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Serializer;
 
-use App\Module\Music\Application\DTO\AlbumDTO;
+use App\Module\Music\Domain\ReadModel\Album;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
- * Normalizes an AlbumDTO to its API array shape (HMAI-240) — extracted verbatim
- * from the former MusicController::serializeAlbum.
+ * Normalizes an Album read model to its API array shape (HMAI-240) — extracted
+ * verbatim from the former MusicController::serializeAlbum.
  */
 final class AlbumDTONormalizer implements NormalizerInterface
 {
@@ -20,7 +20,7 @@ final class AlbumDTONormalizer implements NormalizerInterface
      */
     public function normalize(mixed $data, ?string $format = null, array $context = []): array
     {
-        \assert($data instanceof AlbumDTO);
+        \assert($data instanceof Album);
 
         return [
             'artist' => $data->artist,
@@ -33,12 +33,12 @@ final class AlbumDTONormalizer implements NormalizerInterface
     /** @param array<string, mixed> $context */
     public function supportsNormalization(mixed $data, ?string $format = null, array $context = []): bool
     {
-        return $data instanceof AlbumDTO;
+        return $data instanceof Album;
     }
 
     /** @return array<class-string, bool> */
     public function getSupportedTypes(?string $format): array
     {
-        return [AlbumDTO::class => true];
+        return [Album::class => true];
     }
 }
