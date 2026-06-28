@@ -1,18 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Method App\\Controller\\ArticlesController\:\:serializeDTO\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/ArticlesController.php
-
-		-
-			message: '#^Method App\\Controller\\BooksController\:\:serializeDTO\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/BooksController.php
-
-		-
 			message: '#^Parameter \#1 \$oauthToken of method App\\Module\\Music\\Infrastructure\\Persistence\\DiscogsTokenRepositoryInterface\:\:save\(\) expects string, array\<mixed\>\|string given\.$#'
 			identifier: argument.type
 			count: 1
@@ -29,24 +17,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: src/Controller/DiscogsAuthController.php
-
-		-
-			message: '#^Method App\\Controller\\MusicController\:\:serializeAlbum\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/MusicController.php
-
-		-
-			message: '#^Method App\\Controller\\MusicController\:\:serializeRecord\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/MusicController.php
-
-		-
-			message: '#^Method App\\Controller\\SeriesController\:\:serializeDTO\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/SeriesController.php
 
 		-
 			message: '#^Method App\\Module\\Articles\\Application\\QueryHandler\\GetArticleOfTheDayHandler\:\:findCandidate\(\) has parameter \$excludeIds with no value type specified in iterable type array\.$#'

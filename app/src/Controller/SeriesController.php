@@ -37,6 +37,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 #[Route('/api/series')]
 final class SeriesController extends AbstractController
@@ -48,6 +49,7 @@ final class SeriesController extends AbstractController
         private readonly LoggerInterface $logger,
         private readonly TraktTokenRepositoryInterface $traktTokens,
         private readonly SeriesRequestParser $parser,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -61,7 +63,7 @@ final class SeriesController extends AbstractController
 
         $this->logger->debug('GET /api/series returned {count} series', ['count' => count($series)]);
 
-        return new JsonResponse(array_map($this->serializeDTO(...), $series));
+        return new JsonResponse($this->normalizer->normalize($series));
     }
 
     #[Route('/{id}', methods: ['GET'])]
@@ -74,7 +76,7 @@ final class SeriesController extends AbstractController
             return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->serializeDTO($dto));
+        return new JsonResponse($this->normalizer->normalize($dto));
     }
 
     #[Route('', methods: ['POST'])]
@@ -379,53 +381,5 @@ final class SeriesController extends AbstractController
         $token = $this->traktTokens->get();
 
         return null !== $token && isset($token['access_token']);
-    }
-
-    private function serializeDTO(SeriesDetailDTO $dto): array
-    {
-        $seasons = array_map(function ($season) {
-            $ratedEpisodes = array_filter($season->episodes, fn ($e) => null !== $e->rating);
-            $seasonAvg = count($ratedEpisodes) > 0
-                ? round(array_sum(array_map(fn ($e) => $e->rating, $ratedEpisodes)) / count($ratedEpisodes), 2)
-                : null;
-
-            return [
-                'id' => $season->id,
-                'number' => $season->number,
-                'rating' => $season->rating,
-                'averageRating' => $seasonAvg,
-                'watchedCount' => count(array_filter($season->episodes, fn ($e) => $e->watched)),
-                'episodeCount' => count($season->episodes),
-                'episodes' => array_map(fn ($e) => [
-                    'id' => $e->id,
-                    'title' => $e->title,
-                    'number' => $e->number,
-                    'rating' => $e->rating,
-                    'watched' => $e->watched,
-                    'watchedAt' => $e->watchedAt,
-                ], $season->episodes),
-            ];
-        }, $dto->seasons);
-
-        $allEpisodes = array_merge(...array_map(fn ($s) => $s->episodes, $dto->seasons));
-        $allRated = array_filter($allEpisodes, fn ($e) => null !== $e->rating);
-        $seriesAvg = count($allRated) > 0
-            ? round(array_sum(array_map(fn ($e) => $e->rating, $allRated)) / count($allRated), 2)
-            : null;
-
-        return [
-            'id' => $dto->id,
-            'title' => $dto->title,
-            'createdAt' => $dto->createdAt,
-            'coverUrl' => $dto->coverUrl,
-            'year' => $dto->year,
-            'status' => $dto->status,
-            'description' => $dto->description,
-            'rating' => $dto->rating,
-            'averageRating' => $seriesAvg,
-            'watchedCount' => count(array_filter($allEpisodes, fn ($e) => $e->watched)),
-            'episodeCount' => count($allEpisodes),
-            'seasons' => $seasons,
-        ];
     }
 }
