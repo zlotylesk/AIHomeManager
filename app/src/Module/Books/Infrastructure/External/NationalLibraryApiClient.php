@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Books\Infrastructure\External;
 
-use App\Module\Books\Application\DTO\BookMetadataDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
+use App\Module\Books\Domain\ReadModel\BookMetadata;
 use JsonException;
 use Redis;
 use RuntimeException;
@@ -28,7 +28,7 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
     ) {
     }
 
-    public function getByIsbn(string $isbn): BookMetadataDTO
+    public function getByIsbn(string $isbn): BookMetadata
     {
         $cacheKey = self::CACHE_PREFIX.$isbn;
 
@@ -81,7 +81,7 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
         return $dto;
     }
 
-    private function encodeMetadataForCache(BookMetadataDTO $dto): string
+    private function encodeMetadataForCache(BookMetadata $dto): string
     {
         return json_encode([
             'title' => $dto->title,
@@ -93,11 +93,11 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
         ], JSON_THROW_ON_ERROR);
     }
 
-    private function decodeMetadataFromCache(string $json): BookMetadataDTO
+    private function decodeMetadataFromCache(string $json): BookMetadata
     {
         $row = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
-        return new BookMetadataDTO(
+        return new BookMetadata(
             title: (string) ($row['title'] ?? ''),
             author: isset($row['author']) ? (string) $row['author'] : null,
             publisher: isset($row['publisher']) ? (string) $row['publisher'] : null,
@@ -107,7 +107,7 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
         );
     }
 
-    private function parseBib(SimpleXMLElement $bib): BookMetadataDTO
+    private function parseBib(SimpleXMLElement $bib): BookMetadata
     {
         $title = trim((string) ($bib->title ?? '')) ?: null;
 
@@ -124,7 +124,7 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             $year = null;
         }
 
-        return new BookMetadataDTO(
+        return new BookMetadata(
             title: $title,
             author: $author,
             publisher: $publisher,

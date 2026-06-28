@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Application\QueryHandler;
 
-use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Application\DTO\MusicComparisonDTO;
-use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Application\Service\AlbumNormalizer;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
@@ -117,7 +117,7 @@ final readonly class GetMusicComparisonHandler
      *
      * @param array<string, true> $discogsKeys normalized owned-album keys
      *
-     * @return AlbumDTO[]
+     * @return Album[]
      */
     private function computeRecentlyPlayedNotOwned(array $discogsKeys): array
     {
@@ -143,7 +143,7 @@ final readonly class GetMusicComparisonHandler
                 continue;
             }
 
-            $result[] = new AlbumDTO(
+            $result[] = new Album(
                 artist: $artist,
                 title: $title,
                 playCount: (int) $row['plays'],
@@ -203,7 +203,7 @@ final readonly class GetMusicComparisonHandler
     /**
      * @return array{artist: string, title: string, playCount: int, imageUrl: ?string}
      */
-    private static function albumToArray(AlbumDTO $album): array
+    private static function albumToArray(Album $album): array
     {
         return [
             'artist' => $album->artist,
@@ -216,7 +216,7 @@ final readonly class GetMusicComparisonHandler
     /**
      * @return array{artist: string, title: string, year: ?int, format: string, discogsId: int}
      */
-    private static function vinylToArray(VinylRecordDTO $record): array
+    private static function vinylToArray(VinylRecord $record): array
     {
         return [
             'artist' => $record->artist,
@@ -230,7 +230,7 @@ final readonly class GetMusicComparisonHandler
     /**
      * @param list<mixed> $items
      *
-     * @return list<AlbumDTO>|null
+     * @return list<Album>|null
      */
     private static function mapAlbums(array $items): ?array
     {
@@ -243,7 +243,7 @@ final readonly class GetMusicComparisonHandler
                 || !(null === ($item['imageUrl'] ?? null) || is_string($item['imageUrl'] ?? null))) {
                 return null;
             }
-            $result[] = new AlbumDTO(
+            $result[] = new Album(
                 artist: $item['artist'],
                 title: $item['title'],
                 playCount: $item['playCount'],
@@ -257,7 +257,7 @@ final readonly class GetMusicComparisonHandler
     /**
      * @param list<mixed> $items
      *
-     * @return list<VinylRecordDTO>|null
+     * @return list<VinylRecord>|null
      */
     private static function mapVinyls(array $items): ?array
     {
@@ -271,7 +271,7 @@ final readonly class GetMusicComparisonHandler
                 || !is_int($item['discogsId'] ?? null)) {
                 return null;
             }
-            $result[] = new VinylRecordDTO(
+            $result[] = new VinylRecord(
                 artist: $item['artist'],
                 title: $item['title'],
                 year: $item['year'] ?? null,

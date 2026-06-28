@@ -8,9 +8,9 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
 use App\Module\Books\Application\DTO\ReadingSessionDTO;
-use App\Module\Music\Application\DTO\AlbumDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
-use App\Module\Music\Application\DTO\VinylRecordDTO;
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use App\Module\Series\Application\DTO\EpisodeDTO;
 use App\Module\Series\Application\DTO\SeasonDTO;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
@@ -75,7 +75,7 @@ final class NormalizersTest extends TestCase
     public function testAlbumNormalizer(): void
     {
         $n = new AlbumDTONormalizer();
-        $dto = new AlbumDTO('Pink Floyd', 'Animals', 42, 'https://img.test/a.jpg');
+        $dto = new Album('Pink Floyd', 'Animals', 42, 'https://img.test/a.jpg');
 
         self::assertTrue($n->supportsNormalization($dto));
         self::assertFalse($n->supportsNormalization(new stdClass()));
@@ -90,7 +90,7 @@ final class NormalizersTest extends TestCase
     public function testVinylRecordNormalizer(): void
     {
         $n = new VinylRecordDTONormalizer();
-        $dto = new VinylRecordDTO('Pink Floyd', 'Animals', 1977, 'Vinyl', 12345);
+        $dto = new VinylRecord('Pink Floyd', 'Animals', 1977, 'Vinyl', 12345);
 
         self::assertTrue($n->supportsNormalization($dto));
         self::assertFalse($n->supportsNormalization(new stdClass()));

@@ -255,29 +255,20 @@ deptrac:
     # (then manually move the new `skip_violations` block back here).
     #
     # Known follow-ups:
-    # - Books/Music Domain ports return Application DTOs — should return domain
-    #   value objects or arrays of primitives (separate ticket).
     # - Music/Tasks Infrastructure uses App\Security\TokenCipher — cross-module
     #   shared crypto helper; consider promoting to a Shared layer or moving the
     #   port into Domain so each module owns its cipher abstraction.
+    #
+    # The Books/Music/YouTubeProgress Domain ports no longer return Application
+    # DTOs (HMAI-233) — the read shapes moved to per-module Domain\ReadModel\, so
+    # those four grandfathered entries were removed.
     skip_violations:
-        App\Module\Books\Domain\Port\BookMetadataProviderInterface:
-            - App\Module\Books\Application\DTO\BookMetadataDTO
-        App\Module\Music\Domain\Port\MusicListeningHistoryInterface:
-            - App\Module\Music\Application\DTO\AlbumDTO
-            - App\Module\Music\Application\DTO\RecentTrackDTO
-        App\Module\Music\Domain\Port\VinylCollectionInterface:
-            - App\Module\Music\Application\DTO\VinylRecordDTO
         App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
             - App\Security\TokenCipher
         App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
             - App\Security\TokenCipher
         App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository:
             - App\Security\TokenCipher
-        # YouTubeProgress Domain port returns an Application DTO — same grandfathered
-        # pattern as Books/Music ports above (HMAI-164).
-        App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface:
-            - App\Module\YouTubeProgress\Application\DTO\VideoMetadata
         # YouTube adapter re-uses the Tasks Google OAuth token repository — one
         # token source for the shared Google API surface (HMAI-164).
         App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
