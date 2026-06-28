@@ -108,10 +108,12 @@ deptrac:
               - type: directory
                 value: src/Module/YouTubeProgress/Infrastructure/.*
 
-        # Shared kernel (HMAI-235): cross-cutting Domain value objects shared by
-        # more than one bounded context (e.g. CoverUrl in Books + Series). The
-        # standard DDD shared kernel — every *Domain may depend on it. Pure domain
-        # code with zero outbound dependencies, like the per-module Domain layers.
+        # Shared kernel (HMAI-235): cross-cutting domain primitives and stable
+        # contracts shared by more than one bounded context (e.g. the CoverUrl
+        # value object in Books + Series; the TokenCipherInterface encryption port
+        # used by Music/Tasks/Series Infrastructure, HMAI-234). The standard DDD
+        # shared kernel — every *Domain may depend on it, and Infrastructure/Glue
+        # may too. Pure code with zero outbound dependencies.
         - name: Shared
           collectors:
               - type: directory
@@ -241,9 +243,9 @@ deptrac:
             - Shared
             - Vendor
 
-        # Shared kernel: pure cross-cutting domain VOs. Zero outbound deps like the
-        # per-module Domain layers (its only token, the global
-        # \InvalidArgumentException, is uncovered — not a violation).
+        # Shared kernel: pure cross-cutting domain VOs + stable contracts. Zero
+        # outbound deps like the per-module Domain layers (its only token, the
+        # global \InvalidArgumentException, is uncovered — not a violation).
         Shared: []
 
         Vendor: []
@@ -254,21 +256,17 @@ deptrac:
     #     vendor/bin/deptrac analyse --formatter=baseline --output=deptrac.yaml
     # (then manually move the new `skip_violations` block back here).
     #
-    # Known follow-ups:
-    # - Music/Tasks Infrastructure uses App\Security\TokenCipher — cross-module
-    #   shared crypto helper; consider promoting to a Shared layer or moving the
-    #   port into Domain so each module owns its cipher abstraction.
+    # Resolved follow-ups:
+    # - The Books/Music/YouTubeProgress Domain ports no longer return Application
+    #   DTOs (HMAI-233) — the read shapes moved to per-module Domain\ReadModel\.
+    # - Music/Tasks/Series Infrastructure no longer reach the glue helper
+    #   App\Security\TokenCipher directly (HMAI-234) — they depend on the Shared
+    #   App\Shared\Security\TokenCipherInterface port (Infrastructure → Shared),
+    #   with TokenCipher wired as its implementation via DI.
     #
-    # The Books/Music/YouTubeProgress Domain ports no longer return Application
-    # DTOs (HMAI-233) — the read shapes moved to per-module Domain\ReadModel\, so
-    # those four grandfathered entries were removed.
+    # The single remaining grandfathered entry is the deliberate YouTube↔Tasks
+    # Google-token reuse below.
     skip_violations:
-        App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
-            - App\Security\TokenCipher
-        App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
-            - App\Security\TokenCipher
-        App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository:
-            - App\Security\TokenCipher
         # YouTube adapter re-uses the Tasks Google OAuth token repository — one
         # token source for the shared Google API surface (HMAI-164).
         App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
