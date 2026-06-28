@@ -214,7 +214,7 @@ final class NormalizersTest extends TestCase
             seasons: [
                 new SeasonDTO('se1', 1, [
                     new EpisodeDTO('e1', 'Pilot', 1, 8, true, '2026-01-02'),
-                    new EpisodeDTO('e2', 'Second', 2, 6, false, null),
+                    new EpisodeDTO('e2', 'Second', 2, 6, false),
                 ], 7),
             ],
             rating: 7,
