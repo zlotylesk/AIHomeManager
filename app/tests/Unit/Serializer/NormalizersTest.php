@@ -204,8 +204,10 @@ final class NormalizersTest extends TestCase
         ], $result['videos']);
     }
 
-    public function testSeriesDetailNormalizerComputesAverages(): void
+    public function testSeriesDetailNormalizerMapsPrecomputedReadModelFields(): void
     {
+        // The averages/counters are computed upstream (SeriesRowHydrator) and
+        // carried on the DTO; the normalizer is a pure field map (HMAI-242).
         $n = new SeriesDetailDTONormalizer();
         $dto = new SeriesDetailDTO(
             id: 'sr1',
@@ -215,9 +217,12 @@ final class NormalizersTest extends TestCase
                 new SeasonDTO('se1', 1, [
                     new EpisodeDTO('e1', 'Pilot', 1, 8, true, '2026-01-02'),
                     new EpisodeDTO('e2', 'Second', 2, 6, false),
-                ], 7),
+                ], rating: 7, averageRating: 7.0, watchedCount: 1, episodeCount: 2),
             ],
             rating: 7,
+            averageRating: 7.0,
+            watchedCount: 1,
+            episodeCount: 2,
         );
 
         $result = $n->normalize($dto);
@@ -235,14 +240,15 @@ final class NormalizersTest extends TestCase
         self::assertCount(2, $season['episodes']);
     }
 
-    public function testSeriesDetailNormalizerNullAveragesWhenNoRatings(): void
+    public function testSeriesDetailNormalizerMapsNullAverageAndZeroCounters(): void
     {
         $n = new SeriesDetailDTONormalizer();
         $dto = new SeriesDetailDTO(
             id: 'sr2',
             title: 'Empty',
             createdAt: '2026-01-01',
-            seasons: [new SeasonDTO('se1', 1, [new EpisodeDTO('e1', 'Pilot', 1, null)])],
+            seasons: [new SeasonDTO('se1', 1, [new EpisodeDTO('e1', 'Pilot', 1, null)], episodeCount: 1)],
+            episodeCount: 1,
         );
 
         $result = $n->normalize($dto);
@@ -250,6 +256,9 @@ final class NormalizersTest extends TestCase
         self::assertNull($result['averageRating']);
         self::assertNull($result['seasons'][0]['averageRating']);
         self::assertSame(0, $result['watchedCount']);
+        self::assertSame(1, $result['episodeCount']);
+        self::assertSame(0, $result['seasons'][0]['watchedCount']);
+        self::assertSame(1, $result['seasons'][0]['episodeCount']);
     }
 
     private function book(): BookDTO

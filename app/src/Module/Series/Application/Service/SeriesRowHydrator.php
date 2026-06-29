@@ -19,7 +19,9 @@ use App\Module\Series\Application\DTO\SeriesDetailDTO;
  *   episode_id, episode_title, episode_rating
  *
  * `series_rating` / `season_rating` are the user's own (manual) scores — kept
- * separate from the average the controller derives from `episode_rating`.
+ * separate from `averageRating`, the mean this hydrator derives from
+ * `episode_rating` per season and per show (HMAI-242). The watched/episode
+ * counters are computed here too, so the serializer is a pure field map.
  */
 final readonly class SeriesRowHydrator
 {
@@ -79,12 +81,19 @@ final readonly class SeriesRowHydrator
         $result = [];
         foreach ($seriesMap as $seriesId => $s) {
             $seasonDTOs = [];
+            /** @var list<EpisodeDTO> $allEpisodes */
+            $allEpisodes = [];
             foreach ($seasonMap[$seriesId] ?? [] as $seasonId => $season) {
+                $episodes = $episodeMap[$seasonId] ?? [];
+                $allEpisodes = array_merge($allEpisodes, $episodes);
                 $seasonDTOs[] = new SeasonDTO(
                     id: $season['id'],
                     number: $season['number'],
-                    episodes: $episodeMap[$seasonId] ?? [],
+                    episodes: $episodes,
                     rating: $season['rating'],
+                    averageRating: $this->averageRating($episodes),
+                    watchedCount: $this->watchedCount($episodes),
+                    episodeCount: count($episodes),
                 );
             }
             $result[] = new SeriesDetailDTO(
@@ -97,9 +106,41 @@ final readonly class SeriesRowHydrator
                 year: $s['year'],
                 status: $s['status'],
                 description: $s['description'],
+                averageRating: $this->averageRating($allEpisodes),
+                watchedCount: $this->watchedCount($allEpisodes),
+                episodeCount: count($allEpisodes),
             );
         }
 
         return $result;
+    }
+
+    /**
+     * Mean of the episodes' own ratings, rounded to 2 decimals — `null` when none
+     * are rated (a partially-rated show still averages only its rated episodes).
+     * Disjoint from the user's manual `rating` on the show/season.
+     *
+     * @param list<EpisodeDTO> $episodes
+     */
+    private function averageRating(array $episodes): ?float
+    {
+        $ratings = [];
+        foreach ($episodes as $episode) {
+            if (null !== $episode->rating) {
+                $ratings[] = $episode->rating;
+            }
+        }
+
+        if ([] === $ratings) {
+            return null;
+        }
+
+        return round(array_sum($ratings) / count($ratings), 2);
+    }
+
+    /** @param list<EpisodeDTO> $episodes */
+    private function watchedCount(array $episodes): int
+    {
+        return count(array_filter($episodes, static fn (EpisodeDTO $episode): bool => $episode->watched));
     }
 }
