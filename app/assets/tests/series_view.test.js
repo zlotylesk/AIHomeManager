@@ -3,12 +3,11 @@ import {
     avg,
     cardRating,
     cardRatingFlag,
-    filterSeries,
     ratingFlag,
     ratingHighlight,
-    sortSeries,
     statusLabel,
-} from '../controllers/series_controller.js';
+} from '../series/ratings.js';
+import { filterSeries, sortSeries } from '../series/list.js';
 
 describe('sortSeries', () => {
     it('sorts by title A–Z by default', () => {
