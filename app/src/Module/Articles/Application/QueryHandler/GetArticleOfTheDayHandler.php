@@ -58,6 +58,11 @@ final readonly class GetArticleOfTheDayHandler
         return ArticleDTO::fromRow($row);
     }
 
+    /**
+     * @param string[] $excludeIds
+     *
+     * @return array<string, mixed>|null
+     */
     private function findCandidate(array $excludeIds, ?string $preferredCategory): ?array
     {
         $excludeClause = '';

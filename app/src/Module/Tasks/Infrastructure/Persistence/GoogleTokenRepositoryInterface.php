@@ -8,5 +8,8 @@ use App\Shared\Security\GoogleTokenProviderInterface;
 
 interface GoogleTokenRepositoryInterface extends GoogleTokenProviderInterface
 {
+    /**
+     * @param array<string, mixed> $token
+     */
     public function save(array $token): void;
 }

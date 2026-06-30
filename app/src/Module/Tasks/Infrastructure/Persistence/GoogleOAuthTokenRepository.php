@@ -31,6 +31,9 @@ final readonly class GoogleOAuthTokenRepository implements GoogleTokenRepository
         return is_array($decoded) ? $decoded : null;
     }
 
+    /**
+     * @param array<string, mixed> $token
+     */
     public function save(array $token): void
     {
         $tokenJson = json_encode($token, JSON_THROW_ON_ERROR);

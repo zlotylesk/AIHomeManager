@@ -206,6 +206,9 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         $this->logger->info('External API call', $context);
     }
 
+    /**
+     * @param array<string, mixed> $item
+     */
     private function parseRelease(array $item): VinylRecord
     {
         $info = $item['basic_information'] ?? [];

@@ -193,7 +193,11 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         );
     }
 
-    /** @return Album[] */
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return Album[]
+     */
     private function parseAlbums(array $data): array
     {
         $albums = [];
@@ -229,6 +233,9 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         $this->logger->info('External API call', $context);
     }
 
+    /**
+     * @param array<int, mixed> $images
+     */
     private function extractImageUrl(array $images): ?string
     {
         $bySize = [];
