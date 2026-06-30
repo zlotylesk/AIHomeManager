@@ -115,22 +115,10 @@ parameters:
 			path: src/Module/Music/Infrastructure/Persistence/DiscogsTokenRepositoryInterface.php
 
 		-
-			message: '#^Method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleOAuthTokenRepository\:\:get\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Module/Tasks/Infrastructure/Persistence/GoogleOAuthTokenRepository.php
-
-		-
 			message: '#^Method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleOAuthTokenRepository\:\:save\(\) has parameter \$token with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Module/Tasks/Infrastructure/Persistence/GoogleOAuthTokenRepository.php
-
-		-
-			message: '#^Method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleTokenRepositoryInterface\:\:get\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Module/Tasks/Infrastructure/Persistence/GoogleTokenRepositoryInterface.php
 
 		-
 			message: '#^Method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleTokenRepositoryInterface\:\:save\(\) has parameter \$token with no value type specified in iterable type array\.$#'

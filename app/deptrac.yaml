@@ -250,9 +250,11 @@ deptrac:
 
         Vendor: []
 
-    # Baseline — pre-existing violations grandfathered in when deptrac was first
-    # wired up (HMAI-146). New violations of these rules must be fixed; new
-    # baseline entries require explicit justification. Generate updates via:
+    # Architecture is now violation-free — there are NO grandfathered
+    # `skip_violations`. Every pre-existing violation from when deptrac was first
+    # wired up (HMAI-146) has since been resolved. New violations must be fixed;
+    # re-introducing a `skip_violations` block requires explicit justification.
+    # Generate a baseline (only if ever needed again) via:
     #     vendor/bin/deptrac analyse --formatter=baseline --output=deptrac.yaml
     # (then manually move the new `skip_violations` block back here).
     #
@@ -263,11 +265,7 @@ deptrac:
     #   App\Security\TokenCipher directly (HMAI-234) — they depend on the Shared
     #   App\Shared\Security\TokenCipherInterface port (Infrastructure → Shared),
     #   with TokenCipher wired as its implementation via DI.
-    #
-    # The single remaining grandfathered entry is the deliberate YouTube↔Tasks
-    # Google-token reuse below.
-    skip_violations:
-        # YouTube adapter re-uses the Tasks Google OAuth token repository — one
-        # token source for the shared Google API surface (HMAI-164).
-        App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
-            - App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface
+    # - The YouTube adapter no longer reaches the Tasks Google-token repository
+    #   (HMAI-237) — it reads the token through the Shared
+    #   App\Shared\Security\GoogleTokenProviderInterface port (Infrastructure →
+    #   Shared); the Tasks GoogleTokenRepositoryInterface extends it for writes.

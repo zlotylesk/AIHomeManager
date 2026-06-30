@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Module\YouTubeProgress\Infrastructure\External;
 
-use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
 use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;
 use App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient;
+use App\Shared\Security\GoogleTokenProviderInterface;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -44,7 +44,7 @@ final class YouTubeApiClientWriteTest extends TestCase
             }
         );
 
-        $tokenRepo = $this->createStub(GoogleTokenRepositoryInterface::class);
+        $tokenRepo = $this->createStub(GoogleTokenProviderInterface::class);
         $tokenRepo->method('get')->willReturn(null === $accessToken ? null : ['access_token' => $accessToken]);
 
         return new YouTubeApiClient($httpClient, $tokenRepo);
