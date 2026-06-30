@@ -6,6 +6,9 @@ namespace App\Module\Music\Infrastructure\External;
 
 final class DiscogsOAuth1Signer
 {
+    /**
+     * @param array<string, scalar> $extraParams
+     */
     public function buildAuthorizationHeader(
         string $method,
         string $url,

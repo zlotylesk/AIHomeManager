@@ -134,6 +134,9 @@ final readonly class ArticleImporter
         return 'UTF-8';
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
     private function processRow(array $row, ImportResult $result, bool $dryRun = false): void
     {
         $title = trim($row['title'] ?? '');

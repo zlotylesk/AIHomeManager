@@ -36,6 +36,9 @@ final readonly class GetAllBooksHandler
         return array_map($this->toDTO(...), $rows);
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
     private function toDTO(array $row): BookDTO
     {
         $totalPages = (int) $row['total_pages'];

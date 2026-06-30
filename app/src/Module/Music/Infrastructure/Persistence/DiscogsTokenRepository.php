@@ -16,6 +16,9 @@ final readonly class DiscogsTokenRepository implements DiscogsTokenRepositoryInt
     ) {
     }
 
+    /**
+     * @return array{oauth_token: string, oauth_token_secret: string}|null
+     */
     public function get(): ?array
     {
         $row = $this->connection->fetchAssociative('SELECT oauth_token, oauth_token_secret FROM discogs_oauth_tokens LIMIT 1');
