@@ -1,4 +1,4 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-coverage test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
 
 up:
 	docker compose --profile monitoring up -d
@@ -32,6 +32,16 @@ test-unit:
 
 test-integration:
 	docker compose exec php vendor/bin/phpunit --testsuite=integration
+
+# HMAI-245: minimum line-coverage % enforced locally and in CI (see ci.yml
+# "Enforce coverage threshold"). Measured baseline (2026-06-30) was 93.66%;
+# the gate sits conservatively below it and can be tightened later.
+# Override per-run: `make test-coverage COVERAGE_MIN=92`.
+COVERAGE_MIN ?= 90
+
+test-coverage:
+	docker compose exec php sh -c "mkdir -p var/coverage && php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html"
+	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN)
 
 test-e2e-install:
 	npm install
