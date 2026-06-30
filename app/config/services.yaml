@@ -184,6 +184,12 @@ services:
     App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface:
         alias: App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository
 
+    # Shared read-only Google-token port (HMAI-237): the YouTube adapter reads
+    # the OAuth token through this Shared-kernel contract instead of reaching
+    # into the Tasks Infrastructure. Same repository backs it.
+    App\Shared\Security\GoogleTokenProviderInterface:
+        alias: App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository
+
     App\Module\Tasks\Infrastructure\Google\GoogleCalendarService:
         arguments:
             $client: '@google.client'
