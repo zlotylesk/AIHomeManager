@@ -11,12 +11,13 @@ use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
 use App\Module\Books\Domain\ReadModel\BookMetadata;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
 use InvalidArgumentException;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 final class AddBookHandlerTest extends TestCase
 {
     private BookRepositoryInterface $repository;
-    private BookMetadataProviderInterface $metadataProvider;
+    private BookMetadataProviderInterface&Stub $metadataProvider;
 
     protected function setUp(): void
     {

@@ -44,7 +44,7 @@ class TasksTimeReportTest extends WebTestCase
         $this->client->request('GET', '/api/tasks/time-report?from=2025-01-01&to=2025-01-31');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame(90, $data['totalMinutes']);
         self::assertSame(1.5, $data['totalHours']);
         self::assertCount(3, $data['breakdown']);
@@ -82,7 +82,7 @@ class TasksTimeReportTest extends WebTestCase
         $this->client->request('GET', '/api/tasks/time-report?from=2025-01-01&to=2025-01-31');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame(60, $data['totalMinutes']);
         self::assertEquals(1.0, $data['totalHours']);
         self::assertCount(1, $data['breakdown']);
@@ -94,7 +94,7 @@ class TasksTimeReportTest extends WebTestCase
         $this->client->request('GET', '/api/tasks/time-report?from=2025-01-01&to=2025-01-31');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame(0, $data['totalMinutes']);
         self::assertEquals(0.0, $data['totalHours']);
         self::assertSame([], $data['breakdown']);

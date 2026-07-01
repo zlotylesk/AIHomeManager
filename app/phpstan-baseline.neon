@@ -67,18 +67,6 @@ parameters:
 			path: src/Security/ApiUserProvider.php
 
 		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 15
-			path: tests/Integration/Articles/ArticlesApiTest.php
-
-		-
-			message: '#^Parameter \$content of method Symfony\\Component\\BrowserKit\\AbstractBrowser\<Symfony\\Component\\HttpFoundation\\Request,Symfony\\Component\\HttpFoundation\\Response\>\:\:request\(\) expects string\|null, string\|false given\.$#'
-			identifier: argument.type
-			count: 16
-			path: tests/Integration/Articles/ArticlesApiTest.php
-
-		-
 			message: '#^Cannot call method addReadingSession\(\) on App\\Module\\Books\\Domain\\Entity\\Book\|null\.$#'
 			identifier: method.nonObject
 			count: 2
@@ -115,76 +103,16 @@ parameters:
 			path: tests/Integration/Books/BooksApiTest.php
 
 		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 9
-			path: tests/Integration/Books/BooksApiTest.php
-
-		-
-			message: '#^Parameter \$content of method Symfony\\Component\\BrowserKit\\AbstractBrowser\<Symfony\\Component\\HttpFoundation\\Request,Symfony\\Component\\HttpFoundation\\Response\>\:\:request\(\) expects string\|null, string\|false given\.$#'
-			identifier: argument.type
-			count: 14
-			path: tests/Integration/Books/BooksApiTest.php
-
-		-
 			message: '#^Parameter \#2 \$haystack of static method PHPUnit\\Framework\\Assert\:\:assertStringContainsString\(\) expects string, string\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: tests/Integration/Frontend/FrontendControllerTest.php
 
 		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 4
-			path: tests/Integration/Music/MusicApiTest.php
-
-		-
 			message: '#^Call to static method PHPUnit\\Framework\\Assert\:\:assertSame\(\) with ''X\-API\-Key'' and ''X\-API\-Key'' will always evaluate to true\.$#'
 			identifier: staticMethod.alreadyNarrowedType
 			count: 1
 			path: tests/Integration/Security/ApiKeyAuthTest.php
-
-		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 4
-			path: tests/Integration/Security/GoogleOAuthStateTest.php
-
-		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 17
-			path: tests/Integration/Series/SeriesApiTest.php
-
-		-
-			message: '#^Parameter \$content of method Symfony\\Component\\BrowserKit\\AbstractBrowser\<Symfony\\Component\\HttpFoundation\\Request,Symfony\\Component\\HttpFoundation\\Response\>\:\:request\(\) expects string\|null, string\|false given\.$#'
-			identifier: argument.type
-			count: 22
-			path: tests/Integration/Series/SeriesApiTest.php
-
-		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Integration/Tasks/TasksTimeReportTest.php
-
-		-
-			message: '#^Call to an undefined method App\\Module\\Books\\Domain\\Port\\BookMetadataProviderInterface\:\:method\(\)\.$#'
-			identifier: method.notFound
-			count: 4
-			path: tests/Unit/Module/Books/Application/AddBookHandlerTest.php
-
-		-
-			message: '#^Call to an undefined method App\\Module\\Music\\Domain\\Port\\MusicListeningHistoryInterface\:\:method\(\)\.$#'
-			identifier: method.notFound
-			count: 8
-			path: tests/Unit/Module/Music/Application/GetMusicComparisonHandlerTest.php
-
-		-
-			message: '#^Call to an undefined method App\\Module\\Music\\Domain\\Port\\VinylCollectionInterface\:\:method\(\)\.$#'
-			identifier: method.notFound
-			count: 8
-			path: tests/Unit/Module/Music/Application/GetMusicComparisonHandlerTest.php
 
 		-
 			message: '#^Method App\\Tests\\Unit\\Module\\Music\\Infrastructure\\DiscogsApiClientTest\:\:makeRelease\(\) return type has no value type specified in iterable type array\.$#'
@@ -239,18 +167,6 @@ parameters:
 			identifier: staticMethod.alreadyNarrowedType
 			count: 1
 			path: tests/Unit/Module/Series/Infrastructure/Logging/NewRelicMonologHandlerTest.php
-
-		-
-			message: '#^Call to an undefined method App\\Module\\Tasks\\Infrastructure\\Persistence\\GoogleTokenRepositoryInterface\:\:method\(\)\.$#'
-			identifier: method.notFound
-			count: 10
-			path: tests/Unit/Module/Tasks/Infrastructure/GoogleCalendarServiceTest.php
-
-		-
-			message: '#^Call to an undefined method Google\\Client\:\:method\(\)\.$#'
-			identifier: method.notFound
-			count: 8
-			path: tests/Unit/Module/Tasks/Infrastructure/GoogleCalendarServiceTest.php
 
 		-
 			message: '#^Call to function method_exists\(\) with ''Symfony\\\\Component\\\\Dotenv\\\\Dotenv'' and ''bootEnv'' will always evaluate to true\.$#'

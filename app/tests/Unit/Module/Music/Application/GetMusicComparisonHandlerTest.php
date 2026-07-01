@@ -13,6 +13,7 @@ use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Result;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Redis;
@@ -26,8 +27,8 @@ final class GetMusicComparisonHandlerTest extends TestCase
     private const float NO_MATCH_SCORE = 0.0;
 
     private Redis $redis;
-    private MusicListeningHistoryInterface $lastfm;
-    private VinylCollectionInterface $discogs;
+    private MusicListeningHistoryInterface&Stub $lastfm;
+    private VinylCollectionInterface&Stub $discogs;
     private Connection $connection;
 
     protected function setUp(): void
