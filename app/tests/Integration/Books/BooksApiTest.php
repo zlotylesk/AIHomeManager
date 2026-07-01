@@ -39,10 +39,10 @@ class BooksApiTest extends WebTestCase
             'total_pages' => 300,
         ], $overrides);
 
-        $this->client->request('POST', '/api/books', content: json_encode($payload));
+        $this->client->request('POST', '/api/books', content: (string) json_encode($payload));
         self::assertResponseStatusCodeSame(201);
 
-        return json_decode($this->client->getResponse()->getContent(), true);
+        return $this->jsonResponse($this->client);
     }
 
     public function testListBooksReturnsEmptyArray(): void
@@ -50,7 +50,7 @@ class BooksApiTest extends WebTestCase
         $this->client->request('GET', '/api/books');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], json_decode($this->client->getResponse()->getContent(), true));
+        self::assertSame([], $this->jsonResponse($this->client));
     }
 
     public function testCreateBookReturns201WithId(): void
@@ -63,7 +63,7 @@ class BooksApiTest extends WebTestCase
 
     public function testCreateBookWithInvalidIsbnReturns422(): void
     {
-        $this->client->request('POST', '/api/books', content: json_encode([
+        $this->client->request('POST', '/api/books', content: (string) json_encode([
             'isbn' => '9780306406158',
             'title' => 'Bad ISBN',
             'author' => 'Author',
@@ -77,14 +77,14 @@ class BooksApiTest extends WebTestCase
 
     public function testCreateBookWithMissingFieldsReturns422(): void
     {
-        $this->client->request('POST', '/api/books', content: json_encode(['title' => 'No ISBN']));
+        $this->client->request('POST', '/api/books', content: (string) json_encode(['title' => 'No ISBN']));
 
         self::assertResponseStatusCodeSame(422);
     }
 
     public function testCreateBookRejectsJavascriptCoverUrlAs422(): void
     {
-        $this->client->request('POST', '/api/books', content: json_encode([
+        $this->client->request('POST', '/api/books', content: (string) json_encode([
             'isbn' => '9780306406157',
             'title' => 'XSS Attempt',
             'author' => 'A',
@@ -99,7 +99,7 @@ class BooksApiTest extends WebTestCase
 
     public function testCreateBookRejectsDataSchemeCoverUrlAs422(): void
     {
-        $this->client->request('POST', '/api/books', content: json_encode([
+        $this->client->request('POST', '/api/books', content: (string) json_encode([
             'isbn' => '9780306406157',
             'title' => 'SVG XSS',
             'author' => 'A',
@@ -117,7 +117,7 @@ class BooksApiTest extends WebTestCase
         $data = $this->createBook(['cover_url' => 'https://example.com/cover.jpg']);
 
         $this->client->request('GET', '/api/books/'.$data['id']);
-        $detail = json_decode($this->client->getResponse()->getContent(), true);
+        $detail = $this->jsonResponse($this->client);
 
         self::assertSame('https://example.com/cover.jpg', $detail['coverUrl']);
     }
@@ -127,7 +127,7 @@ class BooksApiTest extends WebTestCase
         $data = $this->createBook(['cover_url' => '']);
 
         $this->client->request('GET', '/api/books/'.$data['id']);
-        $detail = json_decode($this->client->getResponse()->getContent(), true);
+        $detail = $this->jsonResponse($this->client);
 
         self::assertNull($detail['coverUrl']);
     }
@@ -136,7 +136,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook()['id'];
 
-        $this->client->request('PUT', '/api/books/'.$id, content: json_encode([
+        $this->client->request('PUT', '/api/books/'.$id, content: (string) json_encode([
             'title' => 'T', 'author' => 'A', 'publisher' => 'P', 'year' => 2020,
             'cover_url' => 'javascript:alert(1)',
         ]));
@@ -152,7 +152,7 @@ class BooksApiTest extends WebTestCase
         $this->client->request('GET', '/api/books/'.$id);
 
         self::assertResponseIsSuccessful();
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('percentage', $data);
         self::assertEquals(0.0, $data['percentage']);
         self::assertSame('to_read', $data['status']);
@@ -184,7 +184,7 @@ class BooksApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/books/'.$id);
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
 
         self::assertArrayHasKey('sessions', $data);
         self::assertCount(2, $data['sessions']);
@@ -204,7 +204,7 @@ class BooksApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/books/'.$id);
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
 
         self::assertArrayHasKey('sessions', $data);
         self::assertSame([], $data['sessions']);
@@ -215,14 +215,14 @@ class BooksApiTest extends WebTestCase
         $this->createBook(['isbn' => '9780306406157', 'title' => 'Book A']);
         $id2 = $this->createBook(['isbn' => '080442957X', 'title' => 'Book B', 'total_pages' => 100])['id'];
 
-        $this->client->request('POST', '/api/books/'.$id2.'/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id2.'/reading-sessions', content: (string) json_encode([
             'pages_read' => 50,
             'date' => '2025-01-10',
         ]));
 
         $this->client->request('GET', '/api/books?status=reading');
         self::assertResponseIsSuccessful();
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertCount(1, $data);
         self::assertSame('Book B', $data[0]['title']);
     }
@@ -238,7 +238,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook()['id'];
 
-        $this->client->request('PUT', '/api/books/'.$id, content: json_encode([
+        $this->client->request('PUT', '/api/books/'.$id, content: (string) json_encode([
             'title' => 'Clean Code Updated',
             'author' => 'Robert C. Martin',
             'publisher' => 'Prentice Hall',
@@ -248,14 +248,14 @@ class BooksApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/books/'.$id);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('Clean Code Updated', $data['title']);
         self::assertSame(2009, $data['year']);
     }
 
     public function testUpdateBookReturns404ForUnknownId(): void
     {
-        $this->client->request('PUT', '/api/books/00000000-0000-0000-0000-000000000000', content: json_encode([
+        $this->client->request('PUT', '/api/books/00000000-0000-0000-0000-000000000000', content: (string) json_encode([
             'title' => 'X', 'author' => 'X', 'publisher' => 'X', 'year' => 2020,
         ]));
 
@@ -284,7 +284,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 200])['id'];
 
-        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
             'pages_read' => 100,
             'date' => '2025-01-15',
         ]));
@@ -292,7 +292,7 @@ class BooksApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(201);
 
         $this->client->request('GET', '/api/books/'.$id);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame(100, $data['currentPage']);
         self::assertEquals(50.0, $data['percentage']);
         self::assertSame('reading', $data['status']);
@@ -302,7 +302,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 200])['id'];
 
-        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
             'pages_read' => 100,
             'date' => '2025-01-15',
         ]));
@@ -320,20 +320,20 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 100])['id'];
 
-        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
             'pages_read' => 100,
             'date' => '2025-01-15',
         ]));
 
         $this->client->request('GET', '/api/books/'.$id);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('completed', $data['status']);
         self::assertEquals(100.0, $data['percentage']);
     }
 
     public function testLogReadingSessionReturns404ForUnknownBook(): void
     {
-        $this->client->request('POST', '/api/books/00000000-0000-0000-0000-000000000000/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/00000000-0000-0000-0000-000000000000/reading-sessions', content: (string) json_encode([
             'pages_read' => 50,
             'date' => '2025-01-15',
         ]));
@@ -345,7 +345,7 @@ class BooksApiTest extends WebTestCase
     {
         $id = $this->createBook(['total_pages' => 100])['id'];
 
-        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: json_encode([
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
             'pages_read' => 200,
             'date' => '2025-01-15',
         ]));

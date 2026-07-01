@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Security;
 
+use App\Tests\Support\AuthenticatedApiTrait;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 final class GoogleOAuthStateTest extends WebTestCase
 {
+    use AuthenticatedApiTrait;
+
     private const string SESSION_STATE_KEY = 'google_oauth_state';
 
     public function testAuthorizeStoresHexStateInSession(): void
@@ -31,7 +34,7 @@ final class GoogleOAuthStateTest extends WebTestCase
         $client->request('GET', '/auth/google/callback?code=any-code');
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
-        $payload = json_decode($client->getResponse()->getContent(), true);
+        $payload = $this->jsonResponse($client);
         self::assertSame('Invalid or missing OAuth state.', $payload['error']);
     }
 
@@ -41,7 +44,7 @@ final class GoogleOAuthStateTest extends WebTestCase
         $client->request('GET', '/auth/google/callback?code=any-code&state=any-state');
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
-        $payload = json_decode($client->getResponse()->getContent(), true);
+        $payload = $this->jsonResponse($client);
         self::assertSame('Invalid or missing OAuth state.', $payload['error']);
     }
 
@@ -51,7 +54,7 @@ final class GoogleOAuthStateTest extends WebTestCase
         $client->request('GET', '/auth/google/callback?code=any-code&state=');
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
-        $payload = json_decode($client->getResponse()->getContent(), true);
+        $payload = $this->jsonResponse($client);
         self::assertSame('Invalid or missing OAuth state.', $payload['error']);
     }
 
@@ -65,7 +68,7 @@ final class GoogleOAuthStateTest extends WebTestCase
         $client->request('GET', '/auth/google/callback?code=any-code&state=tampered');
 
         self::assertSame(400, $client->getResponse()->getStatusCode());
-        $payload = json_decode($client->getResponse()->getContent(), true);
+        $payload = $this->jsonResponse($client);
         self::assertSame('Invalid or missing OAuth state.', $payload['error']);
     }
 

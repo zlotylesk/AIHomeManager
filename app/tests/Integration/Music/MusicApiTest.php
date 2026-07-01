@@ -71,7 +71,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/top-albums?period=invalid');
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('error', $data);
     }
 
@@ -80,7 +80,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/top-albums?period=1month');
 
         self::assertResponseStatusCodeSame(503);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertStringContainsString('not configured', $data['error']);
     }
 
@@ -89,7 +89,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/comparison?period=badvalue');
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('error', $data);
     }
 
@@ -98,7 +98,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/collection');
 
         self::assertResponseStatusCodeSame(503);
-        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertStringContainsString('being refreshed', strtolower((string) $data['error']));
     }
 
@@ -107,7 +107,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/comparison?period=1month&limit=5');
 
         self::assertResponseStatusCodeSame(503);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('error', $data);
     }
 
@@ -128,8 +128,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/top-albums?period=1month&limit=10');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertIsArray($data);
+        $data = $this->jsonResponse($this->client);
         self::assertCount(2, $data);
         self::assertSame(
             ['artist', 'title', 'playCount', 'imageUrl'],
@@ -152,8 +151,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/collection');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertIsArray($data);
+        $data = $this->jsonResponse($this->client);
         self::assertCount(2, $data);
         self::assertSame(
             ['artist', 'title', 'year', 'format', 'discogsId'],
@@ -183,7 +181,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/top-albums?period=1month&limit='.urlencode($limit));
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('Field "limit" must be a positive integer between 1 and 1000.', $data['error']);
     }
 
@@ -192,7 +190,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/top-albums?period=1month&limit=1001');
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('Field "limit" must be a positive integer between 1 and 1000.', $data['error']);
     }
 
@@ -202,7 +200,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/comparison?period=1month&limit='.urlencode($limit));
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('Field "limit" must be a positive integer between 1 and 200.', $data['error']);
     }
 
@@ -211,7 +209,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/comparison?period=1month&limit=201');
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('Field "limit" must be a positive integer between 1 and 200.', $data['error']);
     }
 
@@ -231,8 +229,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/comparison?period=1month&limit=2');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertIsArray($data);
+        $data = $this->jsonResponse($this->client);
         self::assertSame(
             ['matchScore', 'ownedAndListened', 'wantList', 'dustyShelf', 'recentlyPlayedNotOwned'],
             array_keys($data)
@@ -258,7 +255,7 @@ class MusicApiTest extends WebTestCase
         ]);
 
         self::assertResponseStatusCodeSame(201);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertSame('Pink Floyd', $data['artist']);
         self::assertSame('The Wall', $data['title']);
         self::assertSame('manual', $data['source']);
@@ -270,7 +267,7 @@ class MusicApiTest extends WebTestCase
         $this->postSession(['artist' => 'Pink Floyd', 'title' => 'The Wall']);
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('error', $data);
     }
 
@@ -305,7 +302,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/history');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertCount(2, $data);
         self::assertSame(['id', 'artist', 'title', 'playedAt', 'source', 'playCount'], array_keys($data[0]));
         self::assertSame('Newer', $data[0]['title']);
@@ -320,7 +317,7 @@ class MusicApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/music/history');
 
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertCount(1, $data);
     }
 
@@ -332,7 +329,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/history?source=manual');
 
         self::assertResponseIsSuccessful();
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertCount(1, $data);
         self::assertSame('Manual', $data[0]['title']);
     }
@@ -342,7 +339,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/history?source=bogus');
 
         self::assertResponseStatusCodeSame(422);
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('error', $data);
     }
 

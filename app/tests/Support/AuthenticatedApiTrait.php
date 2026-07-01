@@ -15,4 +15,21 @@ trait AuthenticatedApiTrait
     {
         $client->setServerParameter('HTTP_'.str_replace('-', '_', strtoupper(ApiKeyAuthenticator::HEADER)), self::TEST_API_KEY);
     }
+
+    /**
+     * Decodes the client's last JSON response into a typed array, guaranteeing a
+     * string body so PHPStan does not see the `string|false` of getContent().
+     *
+     * @return array<mixed>
+     */
+    private function jsonResponse(KernelBrowser $client): array
+    {
+        $content = $client->getResponse()->getContent();
+        self::assertIsString($content);
+
+        $decoded = json_decode($content, true);
+        self::assertIsArray($decoded);
+
+        return $decoded;
+    }
 }

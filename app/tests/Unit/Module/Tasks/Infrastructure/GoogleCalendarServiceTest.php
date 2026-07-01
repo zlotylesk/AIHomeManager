@@ -13,6 +13,7 @@ use DateTime;
 use DateTimeImmutable;
 use Google\Client;
 use Google\Service\Exception as GoogleServiceException;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -20,8 +21,8 @@ use TypeError;
 
 final class GoogleCalendarServiceTest extends TestCase
 {
-    private Client $client;
-    private GoogleTokenRepositoryInterface $tokenRepository;
+    private Client&Stub $client;
+    private GoogleTokenRepositoryInterface&Stub $tokenRepository;
     private LoggerInterface $logger;
     private GoogleCalendarService $service;
 
