@@ -165,4 +165,93 @@ class SeriesRepositoryTest extends KernelTestCase
         self::assertNotNull($firstEpisode->rating());
         self::assertSame(9, $firstEpisode->rating()->value());
     }
+
+    /**
+     * The aggregate has no ORM associations (entities persisted by string FK),
+     * so orphanRemoval/cascade cannot fire — the cascade is spelled out by hand
+     * in the repository (ADR-007). These three tests pin that hand-written
+     * cascade against raw row counts, so a future delete path that forgets to
+     * remove children fails loudly instead of leaking orphaned rows.
+     */
+    public function testDeleteCascadesToSeasonsAndEpisodes(): void
+    {
+        $this->repository->save($this->breakingBadWithTwoSeasons());
+        $this->em->clear();
+
+        $found = $this->repository->findById('id-1');
+        self::assertNotNull($found);
+
+        $this->repository->delete($found);
+        $this->em->clear();
+
+        self::assertNull($this->repository->findById('id-1'));
+        self::assertSame(0, $this->countRows('series'));
+        self::assertSame(0, $this->countRows('series_seasons'));
+        self::assertSame(0, $this->countRows('series_episodes'));
+    }
+
+    public function testDeleteSeasonCascadesToItsEpisodesOnly(): void
+    {
+        $this->repository->save($this->breakingBadWithTwoSeasons());
+        $this->em->clear();
+
+        $found = $this->repository->findById('id-1');
+        self::assertNotNull($found);
+
+        $this->repository->deleteSeason($found->seasons()['se-1']);
+        $this->em->clear();
+
+        // The series and the sibling season (with its single episode) survive.
+        self::assertSame(1, $this->countRows('series'));
+        self::assertSame(1, $this->countRows('series_seasons'));
+        self::assertSame(1, $this->countRows('series_episodes'));
+
+        $reloaded = $this->repository->findById('id-1');
+        self::assertNotNull($reloaded);
+        self::assertCount(1, $reloaded->seasons());
+        self::assertArrayHasKey('se-2', $reloaded->seasons());
+    }
+
+    public function testDeleteEpisodeRemovesOnlyThatEpisode(): void
+    {
+        $this->repository->save($this->breakingBadWithTwoSeasons());
+        $this->em->clear();
+
+        $found = $this->repository->findById('id-1');
+        self::assertNotNull($found);
+
+        $episode = $found->seasons()['se-1']->findEpisode('ep-1');
+        self::assertNotNull($episode);
+
+        $this->repository->deleteEpisode($episode);
+        $this->em->clear();
+
+        // Only the one episode row is gone; series, both seasons, siblings stay.
+        self::assertSame(1, $this->countRows('series'));
+        self::assertSame(2, $this->countRows('series_seasons'));
+        self::assertSame(2, $this->countRows('series_episodes'));
+
+        $reloaded = $this->repository->findById('id-1');
+        self::assertNotNull($reloaded);
+        $season = $reloaded->seasons()['se-1'];
+        self::assertNull($season->findEpisode('ep-1'));
+        self::assertNotNull($season->findEpisode('ep-2'));
+    }
+
+    private function breakingBadWithTwoSeasons(): Series
+    {
+        $series = new Series(id: 'id-1', title: 'Breaking Bad');
+        $series->addSeason(new Season(id: 'se-1', seriesId: 'id-1', number: 1));
+        $series->addEpisode('se-1', new Episode('ep-1', 'se-1', 'Pilot', 1));
+        $series->addEpisode('se-1', new Episode('ep-2', 'se-1', 'Cat in the Bag', 2));
+        $series->addSeason(new Season(id: 'se-2', seriesId: 'id-1', number: 2));
+        $series->addEpisode('se-2', new Episode('ep-3', 'se-2', 'Seven Thirty-Seven', 1));
+
+        return $series;
+    }
+
+    private function countRows(string $table): int
+    {
+        return (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM '.$table);
+    }
 }
