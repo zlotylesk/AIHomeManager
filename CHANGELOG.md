@@ -4,6 +4,70 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.18.0] — 2026-07-02
+
+Wydanie techniczne (epik **HMAI-232** — dług techniczny: architektura, jakość kodu, pokrycie testami; 16 podzadań, każde z osobnym zielonym CI). Spłata długu zidentyfikowanego w audycie 2026-06-23: naruszenia granic heksagonalnych zalegalizowane w `deptrac.yaml` (`skip_violations`), tłuste kontrolery i powielona serializacja, supresje w baseline PHPStan oraz luki w pokryciu testami. Po epiku **deptrac działa z zerem `skip_violations`** (architektura bez naruszeń), a frontend zyskał pierwsze unit-testy. Przy okazji domknięte odłożone od 1.16.0 **HMAI-225 — Symfony 8.0.\* → 8.1.\*** (`framework-bundle` 8.1.1 naprawia regresję `allow_no_handlers`; bumpnięte przez Dependabota na master, back-merge do develop). **977/977 PHP** (+47 vs 930) + **52/52 Playwright** + **43 Newman** + **42 nowe Vitest JS** — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); nowa **bramka pokrycia** (baseline 93,66%, floor 90). Bez zmian w modelu domenowym.
+
+### Added
+
+- **Bramka pokrycia testami (HMAI-245)** — pomiar line coverage przez **pcov** (driver w `docker/php/Dockerfile`; `pcov.enabled=0` w `php.ini` → zero narzutu na bare `make test`, włączane per-run `-d pcov.enabled=1`). `make test-coverage` → clover (`var/coverage/clover.xml`) + HTML + próg; job CI wymusza minimalny próg (fail-on-regression) i uploaduje artefakt `coverage-report`. Bramka `app/bin/coverage-check.php`. Baseline 2026-06-30 = **93,66%** (3976/4245 statements), floor **90**.
+- **Unit-testy frontendu JS — Vitest (HMAI-246)** — 42 testy jsdom dla czystych funkcji (`util.js` `safeUrl`/`escHtml`; Series `sortSeries`/`filterSeries`/`ratingHighlight`/`ratingFlag`/`cardRatingFlag`/`readMetadataInputs`). `make test-js` (→ `vitest run`), krok CI w jobie `tests` po `npm ci`/`npm audit`, przed buildem Encore.
+- **Shared kernel — porty i VO (HMAI-235/234/237)** — `App\Shared\`: VO `CoverUrl` (Books+Series), port `TokenCipherInterface` (Music+Tasks+Series), read-only `GoogleTokenProviderInterface` (YouTube). Dedykowana warstwa `Shared` w deptrac (Domain→Shared dozwolone, Shared bez zależności wychodzących).
+
+### Changed
+
+#### Architektura — granice heksagonalne (deptrac zero `skip_violations`)
+
+- **HMAI-233** — porty Domain zwracają Domain read modele (`Domain/ReadModel/`: `BookMetadata`, `Album`, `RecentTrack`, `VinylRecord`, `VideoMetadata`), nie Application DTO — usunięte 4 grandfathered `skip_violations`.
+- **HMAI-234** — `App\Security\TokenCipher` przez port Shared `TokenCipherInterface` — usunięte 3 wpisy (Music/Tasks/Series Infrastructure → Shared, koniec reachu do Glue).
+- **HMAI-237** — YouTube adapter czyta token Google przez port Shared `GoogleTokenProviderInterface` (zamiast sięgać do Tasks Infrastructure) — usunięty ostatni wpis → **deptrac zero `skip_violations`**.
+- **HMAI-235** — powielone VO `CoverUrl` (Books + Series) wydzielone do Shared kernela.
+- **HMAI-236** — YouTubeProgress czyta watchlist/sessions przez `query.bus` (`GetWatchlist`/`GetSessions` → DBAL query handlery); kontroler bez repo Domain w odczycie — spójność CQRS z resztą modułów.
+
+#### Kontrolery / serializacja
+
+- **HMAI-239** — `SeriesController` (655 linii) odchudzony: całe parsowanie/walidacja payloadu do stateless `App\Controller\Series\SeriesRequestParser` (rzuca `UnprocessableEntityHttpException` → kontrakt 422 bez zmian).
+- **HMAI-240** — scentralizowana serializacja DTO→JSON przez normalizery Symfony Serializer (`src/Serializer/*DTONormalizer`); koniec ręcznych prywatnych `serialize*` w kontrolerach.
+- **HMAI-241** — typowane helpery dispatchu `App\Messaging\{QueryBus,CommandBus}` (`HandleTrait`) — koniec null-unsafe `->dispatch(...)->last(HandledStamp::class)->getResult()`.
+- **HMAI-242** — liczenie `averageRating`/`watchedCount`/`episodeCount` przeniesione z serializacji do warstwy read (`SeriesRowHydrator`); normalizer to czyste mapowanie pól.
+
+#### Frontend
+
+- **HMAI-243** — god-controller `series_controller.js` (976 linii) rozbity na moduły ES w `assets/series/` (`api`/`banners`/`ratings`/`list`/buildery DOM); kontroler Stimulus ~180 linii. Żaden plik Series-UI > ~260 linii.
+
+#### Testy / analiza statyczna
+
+- **HMAI-247** — sprzątnięcie supresji typowania w testach (`*ApiTest` helper `jsonResponse`, konwencja typów mocków `Foo&Stub`/`Foo&MockObject`); redukcja baseline PHPStan.
+- **HMAI-244** — array-shape phpdoc dla wszystkich `missingType.iterableValue` w `src/` — usunięte z baseline.
+- **HMAI-238** — udokumentowana ręczna persystencja agregatu Series bez asocjacji ORM (**ADR-007**) + pin kaskady delete (`SeriesRepositoryTest` na surowych row counts).
+
+#### Zależności
+
+- **Symfony 8.0.\* → 8.1.\*** — `framework-bundle` 8.1.1 naprawia regresję `event.bus → allow_no_handlers` (fire-and-forget domain events), która trzymała HMAI-225 przez 1.17.0. Bump Dependabota na master, back-merge do develop; **HMAI-225 domknięte**. Plus `actions/cache` 5→6 i in-range dev bumps.
+
+#### Dokumentacja
+
+- **HMAI-273** — `README.md` i `CLAUDE.md` przetłumaczone na angielski.
+
+### Coverage
+
+- **977 PHP** (+47 vs 930 przy 1.17.0) + **52 Playwright** + **43 Newman** + **42 Vitest JS** (nowa kategoria) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); **deptrac 0/0 `skip_violations`**; nowa bramka coverage (93,66% baseline, floor 90). Rector dry-run + CS Fixer + Deptrac + `composer audit` + `npm audit --audit-level=high` zielone.
+
+### Migration
+
+1. **Reinstall Composer deps** — `composer install` (Symfony 8.1.\*).
+2. **Coverage lokalnie (opcjonalnie)** — `make test-coverage` (pcov włączane per-run; `pcov.enabled=0` → zero narzutu na `make test`).
+
+Bez migracji DB, bez nowych kluczy `.env.local`, bez operacji destrukcyjnych.
+
+### Closed Jira
+
+Epik **HMAI-232** (16 podzadań): HMAI-233, HMAI-234, HMAI-235, HMAI-236, HMAI-237, HMAI-238, HMAI-239, HMAI-240, HMAI-241, HMAI-242, HMAI-243, HMAI-244, HMAI-245, HMAI-246, HMAI-247, HMAI-273. Plus **HMAI-225** (Symfony 8.1) domknięte przez bump.
+
+### Carried forward
+
+- **HMAI-274** — dokończenie redukcji `phpstan-baseline.neon` (~27 pozostałych supresji typowania: produkcja `src/` + test-helpery) — świadomie wydzielone poza epik HMAI-232, bez fixVersion.
+
 ## [1.17.0] — 2026-06-25
 
 Wydanie utrzymaniowe (epik **HMAI-227** — aktualizacja zasobów i zależności; 6 podzadań, każde z osobnym zielonym CI). Czysta higiena runtime/infrastruktury/zależności — bez zmian w modelu domenowym i bez nowych endpointów. Runtime PHP **8.4 → 8.5**; obrazy infrastruktury podniesione lub przypięte do wspieranych linii: MySQL **8.4 LTS** (przypięcie z floatującego `:8`), Redis **8**, RabbitMQ **4.x** (3.12 było EOL), Graylog **6.3** + MongoDB **7**; build frontu zmigrowany na **Encore 7 / Babel 8 / webpack-cli 7 (ESM)**; plus in-range bumpy Composer/npm (doctrine-migrations-bundle 4, php-cs-fixer, webpack, @playwright/test). **Symfony świadomie wstrzymane na 8.0.\*** (HMAI-225 odroczone — regresja `allow_no_handlers` w `framework-bundle` 8.1.0 wciąż nienaprawiona upstream). **930/930 PHP** + **52/52 Playwright** + **43 Newman** requests — wszystko zielone, **bez zmiany liczby testów** (tylko 3 pliki testowe dotknięte fixami zgodności z PHP 8.5). PHPStan level 8 clean (zero nowych baseline entries).
