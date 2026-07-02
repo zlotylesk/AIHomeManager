@@ -143,7 +143,8 @@ jobs:
         with:
           php-version: '8.5'
           extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
-          coverage: none
+          # HMAI-245: pcov drives the coverage report + threshold gate below.
+          coverage: pcov
           tools: composer:v2
 
       - name: Get composer cache dir
@@ -204,11 +205,31 @@ jobs:
       - name: npm audit (high+critical)
         run: npm audit --audit-level=high
 
+      # HMAI-246: Vitest unit tests for the frontend pure functions (util.js
+      # helpers + Series sort/filter/rating-highlight). Fast, jsdom-based, no
+      # browser — complements the slower Playwright E2E.
+      - name: Run JS unit tests (Vitest)
+        run: npm test
+
       - name: Build Webpack Encore assets
         run: npm run build
 
-      - name: PHPUnit
-        run: vendor/bin/phpunit
+      - name: PHPUnit with coverage
+        run: vendor/bin/phpunit --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html
+
+      # HMAI-245: informational baseline gate. Measured ~93.66% line coverage;
+      # the build fails if coverage regresses below the floor (kept in sync with
+      # the Makefile COVERAGE_MIN). Tighten over time.
+      - name: Enforce coverage threshold
+        run: php bin/coverage-check.php var/coverage/clover.xml 90
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: app/var/coverage/
+          retention-days: 30
 
   e2e-playwright:
     name: Playwright E2E (desktop + mobile)

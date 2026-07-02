@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\YouTubeProgress\Infrastructure\External;
 
-use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
-use App\Module\YouTubeProgress\Application\DTO\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface;
 use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistWriterInterface;
+use App\Module\YouTubeProgress\Domain\ReadModel\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\ValueObject\VideoDuration;
 use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;
+use App\Shared\Security\GoogleTokenProviderInterface;
 use DateTimeImmutable;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -31,7 +31,7 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
 
     public function __construct(
         private HttpClientInterface $httpClient,
-        private GoogleTokenRepositoryInterface $tokenRepository,
+        private GoogleTokenProviderInterface $tokenRepository,
     ) {
     }
 

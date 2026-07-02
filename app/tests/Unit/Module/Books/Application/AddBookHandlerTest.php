@@ -5,18 +5,19 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Books\Application;
 
 use App\Module\Books\Application\Command\AddBook;
-use App\Module\Books\Application\DTO\BookMetadataDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Handler\AddBookHandler;
 use App\Module\Books\Domain\Port\BookMetadataProviderInterface;
+use App\Module\Books\Domain\ReadModel\BookMetadata;
 use App\Module\Books\Domain\Repository\BookRepositoryInterface;
 use InvalidArgumentException;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 final class AddBookHandlerTest extends TestCase
 {
     private BookRepositoryInterface $repository;
-    private BookMetadataProviderInterface $metadataProvider;
+    private BookMetadataProviderInterface&Stub $metadataProvider;
 
     protected function setUp(): void
     {
@@ -44,7 +45,7 @@ final class AddBookHandlerTest extends TestCase
 
     public function testCreatesBookFromMetadataProviderWhenTitleIsNull(): void
     {
-        $this->metadataProvider->method('getByIsbn')->willReturn(new BookMetadataDTO(
+        $this->metadataProvider->method('getByIsbn')->willReturn(new BookMetadata(
             title: 'Clean Code',
             author: 'Robert C. Martin',
             publisher: 'Prentice Hall',
@@ -61,7 +62,7 @@ final class AddBookHandlerTest extends TestCase
 
     public function testUserProvidedFieldsTakePrecedenceOverApiMetadata(): void
     {
-        $this->metadataProvider->method('getByIsbn')->willReturn(new BookMetadataDTO(
+        $this->metadataProvider->method('getByIsbn')->willReturn(new BookMetadata(
             title: 'API Title',
             author: 'API Author',
             publisher: 'API Publisher',
@@ -81,7 +82,7 @@ final class AddBookHandlerTest extends TestCase
 
     public function testThrowsWhenTotalPagesNotAvailableAfterApiLookup(): void
     {
-        $this->metadataProvider->method('getByIsbn')->willReturn(new BookMetadataDTO(
+        $this->metadataProvider->method('getByIsbn')->willReturn(new BookMetadata(
             title: 'Book Without Pages',
             author: null,
             publisher: null,

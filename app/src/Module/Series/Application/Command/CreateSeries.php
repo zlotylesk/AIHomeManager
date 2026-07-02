@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Series\Application\Command;
 
 use App\Module\Series\Domain\Enum\SeriesStatus;
-use App\Module\Series\Domain\ValueObject\CoverUrl;
+use App\Shared\Domain\ValueObject\CoverUrl;
 
 final readonly class CreateSeries
 {

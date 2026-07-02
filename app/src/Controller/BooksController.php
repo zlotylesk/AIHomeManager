@@ -5,41 +5,40 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Csv\CsvBuilder;
+use App\Messaging\CommandBus;
+use App\Messaging\QueryBus;
 use App\Module\Books\Application\Command\AddBook;
 use App\Module\Books\Application\Command\LogReadingSession;
 use App\Module\Books\Application\Command\RemoveBook;
 use App\Module\Books\Application\Command\UpdateBook;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
-use App\Module\Books\Application\DTO\ReadingSessionDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Exception\BookNotFoundException;
 use App\Module\Books\Application\Query\GetAllBooks;
 use App\Module\Books\Application\Query\GetBookDetail;
 use App\Module\Books\Application\Service\BookCsvExporter;
-use App\Module\Books\Domain\ValueObject\CoverUrl;
 use App\Pdf\PdfBuilder;
+use App\Shared\Domain\ValueObject\CoverUrl;
 use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\HandlerFailedException;
-use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 #[Route('/api/books')]
 final class BooksController extends AbstractController
 {
     public function __construct(
-        private readonly MessageBusInterface $commandBus,
-        #[Target('query.bus')]
-        private readonly MessageBusInterface $queryBus,
+        private readonly CommandBus $commandBus,
+        private readonly QueryBus $queryBus,
+        private readonly NormalizerInterface $normalizer,
     ) {
     }
 
@@ -56,9 +55,9 @@ final class BooksController extends AbstractController
         }
 
         /** @var BookDTO[] $books */
-        $books = $this->queryBus->dispatch(new GetAllBooks($statusParam))->last(HandledStamp::class)->getResult();
+        $books = $this->queryBus->ask(new GetAllBooks($statusParam));
 
-        return new JsonResponse(array_map($this->serializeDTO(...), $books));
+        return new JsonResponse($this->normalizer->normalize($books));
     }
 
     #[Route('/export', methods: ['GET'])]
@@ -102,13 +101,13 @@ final class BooksController extends AbstractController
     public function detail(string $id): JsonResponse
     {
         /** @var BookDetailDTO|null $dto */
-        $dto = $this->queryBus->dispatch(new GetBookDetail($id))->last(HandledStamp::class)->getResult();
+        $dto = $this->queryBus->ask(new GetBookDetail($id));
 
         if (null === $dto) {
             return new JsonResponse(['error' => 'Book not found.'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->serializeDetailDTO($dto));
+        return new JsonResponse($this->normalizer->normalize($dto));
     }
 
     #[Route('', methods: ['POST'])]
@@ -127,7 +126,7 @@ final class BooksController extends AbstractController
         }
 
         try {
-            $id = $this->commandBus->dispatch(new AddBook(
+            $id = $this->commandBus->dispatchAndReturn(new AddBook(
                 isbn: trim((string) $data['isbn']),
                 title: isset($data['title']) ? trim((string) $data['title']) : null,
                 author: isset($data['author']) ? trim((string) $data['author']) : null,
@@ -135,7 +134,7 @@ final class BooksController extends AbstractController
                 year: isset($data['year']) ? (int) $data['year'] : null,
                 coverUrl: $coverUrl,
                 totalPages: isset($data['total_pages']) ? (int) $data['total_pages'] : null,
-            ))->last(HandledStamp::class)->getResult();
+            ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
 
@@ -264,40 +263,5 @@ final class BooksController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_CREATED);
-    }
-
-    private function serializeDTO(BookDTO $dto): array
-    {
-        return [
-            'id' => $dto->id,
-            'isbn' => $dto->isbn,
-            'title' => $dto->title,
-            'author' => $dto->author,
-            'publisher' => $dto->publisher,
-            'year' => $dto->year,
-            'coverUrl' => $dto->coverUrl,
-            'totalPages' => $dto->totalPages,
-            'currentPage' => $dto->currentPage,
-            'percentage' => $dto->percentage,
-            'status' => $dto->status,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function serializeDetailDTO(BookDetailDTO $dto): array
-    {
-        return $this->serializeDTO($dto->book) + [
-            'sessions' => array_map(
-                static fn (ReadingSessionDTO $session): array => [
-                    'id' => $session->id,
-                    'date' => $session->date,
-                    'pagesRead' => $session->pagesRead,
-                    'notes' => $session->notes,
-                ],
-                $dto->sessions,
-            ),
-        ];
     }
 }

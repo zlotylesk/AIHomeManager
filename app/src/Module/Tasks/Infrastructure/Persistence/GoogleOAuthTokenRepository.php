@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Tasks\Infrastructure\Persistence;
 
-use App\Security\TokenCipher;
+use App\Shared\Security\TokenCipherInterface;
 use Doctrine\DBAL\Connection;
 
 final readonly class GoogleOAuthTokenRepository implements GoogleTokenRepositoryInterface
 {
     public function __construct(
         private Connection $connection,
-        private TokenCipher $cipher,
+        private TokenCipherInterface $cipher,
     ) {
     }
 
@@ -31,6 +31,9 @@ final readonly class GoogleOAuthTokenRepository implements GoogleTokenRepository
         return is_array($decoded) ? $decoded : null;
     }
 
+    /**
+     * @param array<string, mixed> $token
+     */
     public function save(array $token): void
     {
         $tokenJson = json_encode($token, JSON_THROW_ON_ERROR);

@@ -108,9 +108,20 @@ deptrac:
               - type: directory
                 value: src/Module/YouTubeProgress/Infrastructure/.*
 
-        # Everything inside src/ that is not under src/Module/ — controllers,
-        # event listeners, security, kernel, scheduled tasks, health, http
-        # decorators, entities and repositories not yet migrated to modules, etc.
+        # Shared kernel (HMAI-235): cross-cutting domain primitives and stable
+        # contracts shared by more than one bounded context (e.g. the CoverUrl
+        # value object in Books + Series; the TokenCipherInterface encryption port
+        # used by Music/Tasks/Series Infrastructure, HMAI-234). The standard DDD
+        # shared kernel — every *Domain may depend on it, and Infrastructure/Glue
+        # may too. Pure code with zero outbound dependencies.
+        - name: Shared
+          collectors:
+              - type: directory
+                value: src/Shared/.*
+
+        # Everything inside src/ that is not under src/Module/ or src/Shared/ —
+        # controllers, event listeners, security, kernel, scheduled tasks, health,
+        # http decorators, entities and repositories not yet migrated to modules.
         # Glue may wire any module together; that's its job.
         - name: Glue
           collectors:
@@ -121,6 +132,8 @@ deptrac:
                 must_not:
                     - type: directory
                       value: src/Module/.*
+                    - type: directory
+                      value: src/Shared/.*
 
         # Framework code. Captured so that `*Domain → []` actually fails on a
         # stray `use Doctrine\…` or `use Symfony\…` inside the domain layer.
@@ -130,62 +143,80 @@ deptrac:
                 value: ^(Symfony|Doctrine|Psr|Monolog|GuzzleHttp|Predis|Twig|Composer|League|Google|Sentry|Redis|AMQPChannel|AMQPConnection|AMQPQueue|AMQPExchange|AMQPEnvelope|AMQPException|JsonException|Random|Throwable|DateTime|DateTimeImmutable|DateTimeInterface|DateTimeZone|DateInterval|Exception|RuntimeException|LogicException|InvalidArgumentException|DomainException|UnexpectedValueException|OutOfBoundsException|OutOfRangeException|RangeException|TypeError|ValueError|Generator|Closure|Stringable|ArrayAccess|Countable|IteratorAggregate|Iterator|Traversable|JsonSerializable|UnitEnum|BackedEnum)\\\\.*
 
     ruleset:
-        # Domain layer: zero outbound dependencies. Formalizes the CLAUDE.md
-        # "Domain bez frameworka" rule — any `use Doctrine\…` or cross-module
-        # import lights up here.
-        ArticlesDomain: []
-        BooksDomain: []
-        MusicDomain: []
-        SeriesDomain: []
-        TasksDomain: []
-        YouTubeProgressDomain: []
+        # Domain layer: own Shared kernel only (otherwise zero outbound deps).
+        # Formalizes the CLAUDE.md "Domain bez frameworka" rule — any
+        # `use Doctrine\…` or cross-module import lights up here.
+        ArticlesDomain:
+            - Shared
+        BooksDomain:
+            - Shared
+        MusicDomain:
+            - Shared
+        SeriesDomain:
+            - Shared
+        TasksDomain:
+            - Shared
+        YouTubeProgressDomain:
+            - Shared
 
-        # Application layer: own Domain only. May freely import Vendor (Messenger
-        # attributes, etc.). May NOT import other modules or Infrastructure.
+        # Application layer: own Domain + Shared. May freely import Vendor
+        # (Messenger attributes, etc.). May NOT import other modules or Infrastructure.
         ArticlesApplication:
             - ArticlesDomain
+            - Shared
             - Vendor
         BooksApplication:
             - BooksDomain
+            - Shared
             - Vendor
         MusicApplication:
             - MusicDomain
+            - Shared
             - Vendor
         SeriesApplication:
             - SeriesDomain
+            - Shared
             - Vendor
         TasksApplication:
             - TasksDomain
+            - Shared
             - Vendor
         YouTubeProgressApplication:
             - YouTubeProgressDomain
+            - Shared
             - Vendor
 
-        # Infrastructure layer: own Domain + own Application + Vendor.
+        # Infrastructure layer: own Domain + own Application + Shared + Vendor.
         # No cross-module reach.
         ArticlesInfrastructure:
             - ArticlesDomain
             - ArticlesApplication
+            - Shared
             - Vendor
         BooksInfrastructure:
             - BooksDomain
             - BooksApplication
+            - Shared
             - Vendor
         MusicInfrastructure:
             - MusicDomain
             - MusicApplication
+            - Shared
             - Vendor
         SeriesInfrastructure:
             - SeriesDomain
             - SeriesApplication
+            - Shared
             - Vendor
         TasksInfrastructure:
             - TasksDomain
             - TasksApplication
+            - Shared
             - Vendor
         YouTubeProgressInfrastructure:
             - YouTubeProgressDomain
             - YouTubeProgressApplication
+            - Shared
             - Vendor
 
         # Glue: controllers, listeners, kernel, security — orchestration code
@@ -209,41 +240,32 @@ deptrac:
             - YouTubeProgressDomain
             - YouTubeProgressApplication
             - YouTubeProgressInfrastructure
+            - Shared
             - Vendor
+
+        # Shared kernel: pure cross-cutting domain VOs + stable contracts. Zero
+        # outbound deps like the per-module Domain layers (its only token, the
+        # global \InvalidArgumentException, is uncovered — not a violation).
+        Shared: []
 
         Vendor: []
 
-    # Baseline — pre-existing violations grandfathered in when deptrac was first
-    # wired up (HMAI-146). New violations of these rules must be fixed; new
-    # baseline entries require explicit justification. Generate updates via:
+    # Architecture is now violation-free — there are NO grandfathered
+    # `skip_violations`. Every pre-existing violation from when deptrac was first
+    # wired up (HMAI-146) has since been resolved. New violations must be fixed;
+    # re-introducing a `skip_violations` block requires explicit justification.
+    # Generate a baseline (only if ever needed again) via:
     #     vendor/bin/deptrac analyse --formatter=baseline --output=deptrac.yaml
     # (then manually move the new `skip_violations` block back here).
     #
-    # Known follow-ups:
-    # - Books/Music Domain ports return Application DTOs — should return domain
-    #   value objects or arrays of primitives (separate ticket).
-    # - Music/Tasks Infrastructure uses App\Security\TokenCipher — cross-module
-    #   shared crypto helper; consider promoting to a Shared layer or moving the
-    #   port into Domain so each module owns its cipher abstraction.
-    skip_violations:
-        App\Module\Books\Domain\Port\BookMetadataProviderInterface:
-            - App\Module\Books\Application\DTO\BookMetadataDTO
-        App\Module\Music\Domain\Port\MusicListeningHistoryInterface:
-            - App\Module\Music\Application\DTO\AlbumDTO
-            - App\Module\Music\Application\DTO\RecentTrackDTO
-        App\Module\Music\Domain\Port\VinylCollectionInterface:
-            - App\Module\Music\Application\DTO\VinylRecordDTO
-        App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
-            - App\Security\TokenCipher
-        App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository:
-            - App\Security\TokenCipher
-        App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository:
-            - App\Security\TokenCipher
-        # YouTubeProgress Domain port returns an Application DTO — same grandfathered
-        # pattern as Books/Music ports above (HMAI-164).
-        App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistReaderInterface:
-            - App\Module\YouTubeProgress\Application\DTO\VideoMetadata
-        # YouTube adapter re-uses the Tasks Google OAuth token repository — one
-        # token source for the shared Google API surface (HMAI-164).
-        App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient:
-            - App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface
+    # Resolved follow-ups:
+    # - The Books/Music/YouTubeProgress Domain ports no longer return Application
+    #   DTOs (HMAI-233) — the read shapes moved to per-module Domain\ReadModel\.
+    # - Music/Tasks/Series Infrastructure no longer reach the glue helper
+    #   App\Security\TokenCipher directly (HMAI-234) — they depend on the Shared
+    #   App\Shared\Security\TokenCipherInterface port (Infrastructure → Shared),
+    #   with TokenCipher wired as its implementation via DI.
+    # - The YouTube adapter no longer reaches the Tasks Google-token repository
+    #   (HMAI-237) — it reads the token through the Shared
+    #   App\Shared\Security\GoogleTokenProviderInterface port (Infrastructure →
+    #   Shared); the Tasks GoogleTokenRepositoryInterface extends it for writes.

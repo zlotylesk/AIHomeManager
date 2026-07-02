@@ -43,6 +43,13 @@
         </deprecationTrigger>
     </source>
 
+    <!-- HMAI-245: coverage is scoped to <source> above. Reports are opt-in via
+         CLI flags (make test-coverage / CI) so a bare `phpunit` run stays fast.
+         includeUncoveredFiles keeps untested files in the denominator. -->
+    <coverage includeUncoveredFiles="true"
+              ignoreDeprecatedCodeUnits="true"
+    />
+
     <extensions>
     </extensions>
 </phpunit>

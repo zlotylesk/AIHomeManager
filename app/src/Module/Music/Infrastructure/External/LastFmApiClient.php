@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Infrastructure\External;
 
-use App\Module\Music\Application\DTO\AlbumDTO;
-use App\Module\Music\Application\DTO\RecentTrackDTO;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\RecentTrack;
 use DateTimeImmutable;
 use JsonException;
 use Psr\Log\LoggerInterface;
@@ -33,7 +33,7 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
     ) {
     }
 
-    /** @return AlbumDTO[] */
+    /** @return Album[] */
     public function getTopAlbums(string $username, string $period, int $limit): array
     {
         if ('' === trim($this->apiKey)) {
@@ -87,7 +87,7 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
      * scheduler polls this to capture new scrobbles the local history hasn't seen
      * yet (HMAI-144). A cache would hide exactly the deltas we are polling for.
      *
-     * @return RecentTrackDTO[]
+     * @return RecentTrack[]
      */
     public function getRecentTracks(string $username, int $limit): array
     {
@@ -125,7 +125,7 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
     /**
      * @param array<string, mixed> $data
      *
-     * @return RecentTrackDTO[]
+     * @return RecentTrack[]
      */
     private function parseRecentTracks(array $data): array
     {
@@ -149,7 +149,7 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
 
             $mbid = trim((string) ($item['album']['mbid'] ?? $item['mbid'] ?? ''));
 
-            $tracks[] = new RecentTrackDTO(
+            $tracks[] = new RecentTrack(
                 artist: $artist,
                 album: $album,
                 playedAt: $playedAt,
@@ -160,12 +160,12 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         return $tracks;
     }
 
-    /** @param AlbumDTO[] $albums */
+    /** @param Album[] $albums */
     private function encodeAlbumsForCache(array $albums): string
     {
         return json_encode(
             array_map(
-                static fn (AlbumDTO $album) => [
+                static fn (Album $album) => [
                     'artist' => $album->artist,
                     'title' => $album->title,
                     'playCount' => $album->playCount,
@@ -177,13 +177,13 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         );
     }
 
-    /** @return AlbumDTO[] */
+    /** @return Album[] */
     private function decodeAlbumsFromCache(string $json): array
     {
         $rows = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
         return array_map(
-            static fn (array $row) => new AlbumDTO(
+            static fn (array $row) => new Album(
                 artist: (string) ($row['artist'] ?? ''),
                 title: (string) ($row['title'] ?? ''),
                 playCount: (int) ($row['playCount'] ?? 0),
@@ -193,13 +193,17 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         );
     }
 
-    /** @return AlbumDTO[] */
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return Album[]
+     */
     private function parseAlbums(array $data): array
     {
         $albums = [];
 
         foreach ($data['topalbums']['album'] ?? [] as $item) {
-            $albums[] = new AlbumDTO(
+            $albums[] = new Album(
                 artist: $item['artist']['name'] ?? '',
                 title: $item['name'] ?? '',
                 playCount: (int) ($item['playcount'] ?? 0),
@@ -229,6 +233,9 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
         $this->logger->info('External API call', $context);
     }
 
+    /**
+     * @param array<int, mixed> $images
+     */
     private function extractImageUrl(array $images): ?string
     {
         $bySize = [];

@@ -14,9 +14,9 @@ final class NewRelicMonologHandlerTest extends TestCase
 {
     public function testConstructsWithoutExceptionWhenExtensionNotAvailable(): void
     {
-        $handler = new NewRelicMonologHandler(extensionAvailable: false);
+        $this->expectNotToPerformAssertions();
 
-        self::assertInstanceOf(NewRelicMonologHandler::class, $handler);
+        new NewRelicMonologHandler(extensionAvailable: false);
     }
 
     public function testDefaultLevelIsDebug(): void

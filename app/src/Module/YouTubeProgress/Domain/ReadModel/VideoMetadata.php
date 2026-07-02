@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Module\YouTubeProgress\Application\DTO;
+namespace App\Module\YouTubeProgress\Domain\ReadModel;
 
 use DateTimeImmutable;
 
@@ -13,6 +13,9 @@ use DateTimeImmutable;
  *
  * `publishedAt` is the playlist-item timestamp — when the video was added to the
  * watchlist — not the video's own upload date.
+ *
+ * A Domain read model: it is the return type of the YouTubePlaylistReaderInterface
+ * port, so it belongs to the Domain alongside that contract.
  */
 final readonly class VideoMetadata
 {

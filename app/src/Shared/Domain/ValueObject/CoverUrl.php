@@ -2,10 +2,17 @@
 
 declare(strict_types=1);
 
-namespace App\Module\Books\Domain\ValueObject;
+namespace App\Shared\Domain\ValueObject;
 
 use InvalidArgumentException;
 
+/**
+ * A cover/poster image URL shared across bounded contexts (Books, Series).
+ *
+ * Promoted to the Shared kernel (HMAI-235): previously each module kept an
+ * identical copy because deptrac forbids cross-module coupling. Only http/https
+ * are allowed and the value must be a well-formed URL.
+ */
 final readonly class CoverUrl
 {
     private const array ALLOWED_SCHEMES = ['http', 'https'];

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Music;
 
 use App\Module\Music\Application\Command\PollLastFmRecentTracks;
-use App\Module\Music\Application\DTO\RecentTrackDTO;
 use App\Module\Music\Application\Handler\PollLastFmRecentTracksHandler;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
+use App\Module\Music\Domain\ReadModel\RecentTrack;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
@@ -31,8 +31,8 @@ class PollLastFmRecentTracksTest extends KernelTestCase
     public function testPollPersistsRecentTracks(): void
     {
         $this->installLastFmStub([
-            new RecentTrackDTO('Pink Floyd', 'The Wall', new DateTimeImmutable('2026-05-20 10:00:00', new DateTimeZone('UTC'))),
-            new RecentTrackDTO('Radiohead', 'OK Computer', new DateTimeImmutable('2026-05-20 11:00:00', new DateTimeZone('UTC'))),
+            new RecentTrack('Pink Floyd', 'The Wall', new DateTimeImmutable('2026-05-20 10:00:00', new DateTimeZone('UTC'))),
+            new RecentTrack('Radiohead', 'OK Computer', new DateTimeImmutable('2026-05-20 11:00:00', new DateTimeZone('UTC'))),
         ]);
 
         $this->dispatchPoll();
@@ -47,8 +47,8 @@ class PollLastFmRecentTracksTest extends KernelTestCase
     public function testRepeatedPollIsIdempotent(): void
     {
         $this->installLastFmStub([
-            new RecentTrackDTO('Pink Floyd', 'The Wall', new DateTimeImmutable('2026-05-20 10:00:00', new DateTimeZone('UTC'))),
-            new RecentTrackDTO('Radiohead', 'OK Computer', new DateTimeImmutable('2026-05-20 11:00:00', new DateTimeZone('UTC'))),
+            new RecentTrack('Pink Floyd', 'The Wall', new DateTimeImmutable('2026-05-20 10:00:00', new DateTimeZone('UTC'))),
+            new RecentTrack('Radiohead', 'OK Computer', new DateTimeImmutable('2026-05-20 11:00:00', new DateTimeZone('UTC'))),
         ]);
 
         $this->dispatchPoll();
@@ -67,7 +67,7 @@ class PollLastFmRecentTracksTest extends KernelTestCase
     }
 
     /**
-     * @param RecentTrackDTO[] $tracks
+     * @param RecentTrack[] $tracks
      */
     private function installLastFmStub(array $tracks): void
     {

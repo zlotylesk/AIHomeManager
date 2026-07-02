@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Music\Domain\Port;
 
-use App\Module\Music\Application\DTO\VinylRecordDTO;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 
 interface VinylCollectionInterface
 {
-    /** @return VinylRecordDTO[] */
+    /** @return VinylRecord[] */
     public function getUserCollection(string $username): array;
 }

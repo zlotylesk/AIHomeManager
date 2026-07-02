@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Module\Music\Infrastructure\External;
 
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
-use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Exception\DiscogsApiException;
 use App\Module\Music\Application\Exception\DiscogsAuthException;
 use App\Module\Music\Application\Exception\DiscogsNotFoundException;
@@ -13,6 +12,7 @@ use App\Module\Music\Application\Exception\DiscogsRateLimitException;
 use App\Module\Music\Application\Exception\DiscogsUnavailableException;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Domain\Port\VinylCollectionLoaderInterface;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepositoryInterface;
 use JsonException;
 use Psr\Log\LoggerInterface;
@@ -50,7 +50,7 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
     /**
      * Read-only path: returns cached collection or schedules an async refresh and signals "not ready" to caller.
      *
-     * @return VinylRecordDTO[]
+     * @return VinylRecord[]
      */
     public function getUserCollection(string $username): array
     {
@@ -91,12 +91,12 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         return sprintf('discogs:collection:%s', $username);
     }
 
-    /** @param VinylRecordDTO[] $records */
+    /** @param VinylRecord[] $records */
     private function encodeRecordsForCache(array $records): string
     {
         return json_encode(
             array_map(
-                static fn (VinylRecordDTO $record) => [
+                static fn (VinylRecord $record) => [
                     'artist' => $record->artist,
                     'title' => $record->title,
                     'year' => $record->year,
@@ -109,13 +109,13 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         );
     }
 
-    /** @return VinylRecordDTO[] */
+    /** @return VinylRecord[] */
     private function decodeRecordsFromCache(string $json): array
     {
         $rows = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
         return array_map(
-            static fn (array $row) => new VinylRecordDTO(
+            static fn (array $row) => new VinylRecord(
                 artist: (string) ($row['artist'] ?? ''),
                 title: (string) ($row['title'] ?? ''),
                 year: isset($row['year']) ? (int) $row['year'] : null,
@@ -126,7 +126,7 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         );
     }
 
-    /** @return VinylRecordDTO[] */
+    /** @return VinylRecord[] */
     private function fetchAllPages(string $username, string $oauthToken, string $oauthTokenSecret): array
     {
         $url = sprintf(self::COLLECTION_URL, $username);
@@ -206,7 +206,10 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
         $this->logger->info('External API call', $context);
     }
 
-    private function parseRelease(array $item): VinylRecordDTO
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function parseRelease(array $item): VinylRecord
     {
         $info = $item['basic_information'] ?? [];
 
@@ -217,7 +220,7 @@ final readonly class DiscogsApiClient implements VinylCollectionInterface, Vinyl
 
         $format = $info['formats'][0]['name'] ?? 'Unknown';
 
-        return new VinylRecordDTO(
+        return new VinylRecord(
             artist: $artist ?: 'Unknown Artist',
             title: $info['title'] ?? 'Unknown Title',
             year: isset($info['year']) && $info['year'] > 0 ? (int) $info['year'] : null,

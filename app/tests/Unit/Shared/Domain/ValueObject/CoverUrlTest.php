@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit\Module\Books\Domain\ValueObject;
+namespace App\Tests\Unit\Shared\Domain\ValueObject;
 
-use App\Module\Books\Domain\ValueObject\CoverUrl;
+use App\Shared\Domain\ValueObject\CoverUrl;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -85,6 +85,7 @@ final class CoverUrlTest extends TestCase
         return [
             'javascript' => ['javascript:alert(1)'],
             'data SVG' => ['data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='],
+            'data PNG' => ['data:image/png;base64,iVBORw0KGgo='],
             'file' => ['file:///etc/passwd'],
             'ftp' => ['ftp://example.com/cover.jpg'],
             'gopher' => ['gopher://example.com/'],

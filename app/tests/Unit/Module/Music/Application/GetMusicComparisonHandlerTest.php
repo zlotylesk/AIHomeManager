@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Module\Music\Application;
 
-use App\Module\Music\Application\DTO\AlbumDTO;
-use App\Module\Music\Application\DTO\VinylRecordDTO;
 use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler;
 use App\Module\Music\Application\Service\AlbumNormalizer;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Result;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Redis;
@@ -26,8 +27,8 @@ final class GetMusicComparisonHandlerTest extends TestCase
     private const float NO_MATCH_SCORE = 0.0;
 
     private Redis $redis;
-    private MusicListeningHistoryInterface $lastfm;
-    private VinylCollectionInterface $discogs;
+    private MusicListeningHistoryInterface&Stub $lastfm;
+    private VinylCollectionInterface&Stub $discogs;
     private Connection $connection;
 
     protected function setUp(): void
@@ -63,18 +64,18 @@ final class GetMusicComparisonHandlerTest extends TestCase
         $this->lastfm->method('getTopAlbums')->willReturnCallback(function (string $user, string $period, int $limit) {
             if (2 === $limit) {
                 return [
-                    new AlbumDTO('Pink Floyd', 'The Wall', 200, null),
-                    new AlbumDTO('Radiohead', 'OK Computer', 150, null),
+                    new Album('Pink Floyd', 'The Wall', 200, null),
+                    new Album('Radiohead', 'OK Computer', 150, null),
                 ];
             }
 
             return [
-                new AlbumDTO('Pink Floyd', 'The Wall', 200, null),
+                new Album('Pink Floyd', 'The Wall', 200, null),
             ];
         });
 
         $this->discogs->method('getUserCollection')->willReturn([
-            new VinylRecordDTO('Pink Floyd', 'The Wall', 1979, 'Vinyl', 1),
+            new VinylRecord('Pink Floyd', 'The Wall', 1979, 'Vinyl', 1),
         ]);
 
         $handler = $this->makeHandler();
@@ -90,16 +91,16 @@ final class GetMusicComparisonHandlerTest extends TestCase
     {
         $this->lastfm->method('getTopAlbums')->willReturnCallback(
             fn ($u, $p, $limit) => 4 === $limit ? [
-                new AlbumDTO('Artist A', 'Album A', 100, null),
-                new AlbumDTO('Artist B', 'Album B', 90, null),
-                new AlbumDTO('Artist C', 'Album C', 80, null),
-                new AlbumDTO('Artist D', 'Album D', 70, null),
+                new Album('Artist A', 'Album A', 100, null),
+                new Album('Artist B', 'Album B', 90, null),
+                new Album('Artist C', 'Album C', 80, null),
+                new Album('Artist D', 'Album D', 70, null),
             ] : []
         );
 
         $this->discogs->method('getUserCollection')->willReturn([
-            new VinylRecordDTO('Artist A', 'Album A', 2000, 'Vinyl', 1),
-            new VinylRecordDTO('Artist B', 'Album B', 2001, 'Vinyl', 2),
+            new VinylRecord('Artist A', 'Album A', 2000, 'Vinyl', 1),
+            new VinylRecord('Artist B', 'Album B', 2001, 'Vinyl', 2),
         ]);
 
         $result = $this->makeHandler()(new GetMusicComparison(period: '1month', limit: 4));
@@ -110,12 +111,12 @@ final class GetMusicComparisonHandlerTest extends TestCase
     public function testIdentifiesDustyShelf(): void
     {
         $this->lastfm->method('getTopAlbums')->willReturnCallback(
-            fn ($u, $p, $limit) => 500 === $limit ? [new AlbumDTO('Artist A', 'Album A', 100, null)] : []
+            fn ($u, $p, $limit) => 500 === $limit ? [new Album('Artist A', 'Album A', 100, null)] : []
         );
 
         $this->discogs->method('getUserCollection')->willReturn([
-            new VinylRecordDTO('Artist A', 'Album A', 2000, 'Vinyl', 1),
-            new VinylRecordDTO('Forgotten', 'Forgotten Album', 1980, 'Vinyl', 2),
+            new VinylRecord('Artist A', 'Album A', 2000, 'Vinyl', 1),
+            new VinylRecord('Forgotten', 'Forgotten Album', 1980, 'Vinyl', 2),
         ]);
 
         $result = $this->makeHandler()(new GetMusicComparison(limit: 50));
@@ -127,11 +128,11 @@ final class GetMusicComparisonHandlerTest extends TestCase
     public function testMatchingIgnoresParenthesesFormatDifferences(): void
     {
         $this->lastfm->method('getTopAlbums')->willReturnCallback(
-            fn ($u, $p, $limit) => 1 === $limit ? [new AlbumDTO('Radiohead', 'OK Computer (Remastered 2009)', 100, null)] : []
+            fn ($u, $p, $limit) => 1 === $limit ? [new Album('Radiohead', 'OK Computer (Remastered 2009)', 100, null)] : []
         );
 
         $this->discogs->method('getUserCollection')->willReturn([
-            new VinylRecordDTO('Radiohead', 'OK Computer', 1997, 'Vinyl', 1),
+            new VinylRecord('Radiohead', 'OK Computer', 1997, 'Vinyl', 1),
         ]);
 
         $result = $this->makeHandler()(new GetMusicComparison(limit: 1));
@@ -210,7 +211,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testIgnoresMalformedJsonAndRecomputes(): void
     {
-        $this->lastfm->method('getTopAlbums')->willReturn([new AlbumDTO('A', 'B', 1, null)]);
+        $this->lastfm->method('getTopAlbums')->willReturn([new Album('A', 'B', 1, null)]);
         $this->discogs->method('getUserCollection')->willReturn([]);
 
         $redis = $this->createMock(Redis::class);
@@ -225,7 +226,7 @@ final class GetMusicComparisonHandlerTest extends TestCase
 
     public function testIgnoresWrongStructureAndRecomputes(): void
     {
-        $this->lastfm->method('getTopAlbums')->willReturn([new AlbumDTO('A', 'B', 1, null)]);
+        $this->lastfm->method('getTopAlbums')->willReturn([new Album('A', 'B', 1, null)]);
         $this->discogs->method('getUserCollection')->willReturn([]);
 
         $redis = $this->createMock(Redis::class);
