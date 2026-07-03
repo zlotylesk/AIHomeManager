@@ -3,6 +3,11 @@
 # Groups collapse symfony/* and doctrine/* into single PRs so an 8-package
 # Symfony bump does not produce 8 separate reviews.
 #
+# target-branch: develop — Dependabot opens PRs against `develop` (the working
+# branch), not the default branch `master`, so bumps flow through the normal
+# develop -> master release path instead of landing on master and needing a
+# back-merge. Dependabot still reads THIS config from the default branch (master).
+#
 # Manual fallback: `make audit` (composer) and `make node-audit` (frontend
 # npm) still run in CI for high+critical CVEs — Dependabot covers freshness,
 # audit covers severity-gated regressions.
@@ -10,6 +15,7 @@ version: 2
 updates:
   - package-ecosystem: composer
     directory: /app
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -26,18 +32,21 @@ updates:
 
   - package-ecosystem: npm
     directory: /app
+    target-branch: develop
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
 
   - package-ecosystem: npm
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
