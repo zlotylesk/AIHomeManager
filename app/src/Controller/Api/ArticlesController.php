@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
@@ -30,7 +30,7 @@ use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-#[Route('/api/articles')]
+#[Route('/articles')]
 final class ArticlesController extends AbstractController
 {
     public function __construct(

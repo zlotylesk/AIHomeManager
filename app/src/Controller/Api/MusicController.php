@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -28,7 +28,7 @@ use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-#[Route('/api/music')]
+#[Route('/music')]
 final class MusicController extends AbstractController
 {
     private const array VALID_PERIODS = ['7day', '1month', '3month', '6month', '12month', 'overall'];

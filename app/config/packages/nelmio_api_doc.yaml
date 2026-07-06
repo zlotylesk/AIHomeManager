@@ -3,11 +3,11 @@ nelmio_api_doc:
         openapi: 3.1.0
         info:
             title: 'AI Home Manager API'
-            description: 'Machine-readable REST contract for the AI Home Manager API (`^/api/*`). Consumed by external clients (mobile app). This is the base document — per-endpoint contracts are added incrementally.'
+            description: 'Machine-readable REST contract for the AI Home Manager API. Served under the versioned base `/api/v1`; the unversioned `/api` prefix stays as a backward-compatible alias (ADR-008). Consumed by external clients (mobile app). This is the base document — per-endpoint contracts are added incrementally.'
             version: '1.0.0'
         servers:
-            - url: '/'
-              description: 'Same-origin server'
+            - url: '/api/v1'
+              description: 'Versioned API base (v1). The unversioned `/api` prefix remains a backward-compatible alias — see ADR-008.'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes
@@ -155,6 +155,11 @@ nelmio_api_doc:
         # global security with `security: []`, mirroring ApiKeyAuthenticator.
         paths:
             /api/health:
+                # The public readiness probe is an infra endpoint, not part of the
+                # versioned client contract — it lives at the unversioned `/api/health`
+                # and overrides the global `/api/v1` server base accordingly.
+                servers:
+                    - url: '/'
                 get:
                     tags:
                         - Health
@@ -180,6 +185,8 @@ nelmio_api_doc:
         assets_mode: bundle
     areas:
         default:
-            # Document every API route except the documentation routes themselves.
+            # Document the canonical versioned surface only (`/api/v1/*`). The
+            # unversioned `/api/*` alias mirrors it 1:1, and the documentation routes
+            # (`/api/doc*`) live outside `/api/v1`, so both are naturally excluded.
             path_patterns:
-                - ^/api(?!/doc)
+                - ^/api/v1
