@@ -1,0 +1,19 @@
+nelmio_api_doc:
+    documentation:
+        openapi: 3.1.0
+        info:
+            title: 'AI Home Manager API'
+            description: 'Machine-readable REST contract for the AI Home Manager API (`^/api/*`). Consumed by external clients (mobile app). This is the base document — per-endpoint contracts are added incrementally.'
+            version: '1.0.0'
+        servers:
+            - url: '/'
+              description: 'Same-origin server'
+    html_config:
+        # Serve Swagger UI / Redoc assets from the bundle's installed public/ assets
+        # (assets:install runs as a Composer auto-script) instead of an external CDN.
+        assets_mode: bundle
+    areas:
+        default:
+            # Document every API route except the documentation routes themselves.
+            path_patterns:
+                - ^/api(?!/doc)
