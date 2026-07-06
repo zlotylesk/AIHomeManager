@@ -24,7 +24,16 @@ final class ApiKeyAuthenticator extends AbstractAuthenticator
 
     public function supports(Request $request): bool
     {
-        return '/api/health' !== $request->getPathInfo();
+        $path = $request->getPathInfo();
+
+        return '/api/health' !== $path && !self::isDocumentationPath($path);
+    }
+
+    private static function isDocumentationPath(string $path): bool
+    {
+        return '/api/doc' === $path
+            || str_starts_with($path, '/api/doc.')
+            || str_starts_with($path, '/api/doc/');
     }
 
     public function authenticate(Request $request): Passport
