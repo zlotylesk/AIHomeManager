@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Controller;
 
-use App\Controller\MusicController;
+use App\Controller\Api\MusicController;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Music\Application\Exception\DiscogsAuthException;

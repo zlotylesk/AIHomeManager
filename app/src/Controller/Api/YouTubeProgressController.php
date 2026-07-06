@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\Messaging\QueryBus;
 use App\Module\YouTubeProgress\Application\Command\MarkVideoStarted;
@@ -33,7 +33,7 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
  * NotFoundHttpException thrown there is unwrapped by ApiExceptionListener back
  * into a 404 here.
  */
-#[Route('/api/youtube-progress')]
+#[Route('/youtube-progress')]
 final class YouTubeProgressController extends AbstractController
 {
     public function __construct(

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\Controller\Series\SeriesRequestParser;
 use App\Messaging\CommandBus;
@@ -39,7 +39,7 @@ use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-#[Route('/api/series')]
+#[Route('/series')]
 final class SeriesController extends AbstractController
 {
     public function __construct(

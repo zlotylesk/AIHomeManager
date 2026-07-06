@@ -1,6 +1,6 @@
-
-
-
+# Frontend, auth, and health controllers — explicit paths, no version prefix.
+# The versioned API module controllers (src/Controller/Api) are excluded here and
+# imported below with the version/alias prefixes instead.
 controllers:
     resource: ../src/
     type: attribute
@@ -8,3 +8,22 @@ controllers:
         - '../src/Domain/'
         - '../src/Infrastructure/'
         - '../src/Kernel.php'
+        - '../src/Controller/Api/'
+
+# API versioning (HMAI-338, ADR-008). The module controllers under
+# App\Controller\Api declare version-agnostic paths (e.g. `/series`); the version
+# prefix is applied centrally here. The same controllers back both the canonical
+# `/api/v1/*` routes and the backward-compatibility `/api/*` alias, so behaviour is
+# byte-identical across both prefixes. `name_prefix` keeps the two route sets
+# distinct in the collection — the legacy alias keeps the original route names, so
+# existing consumers and tests are unaffected.
+api_v1:
+    resource: ../src/Controller/Api/
+    type: attribute
+    prefix: /api/v1
+    name_prefix: api_v1_
+
+api_legacy:
+    resource: ../src/Controller/Api/
+    type: attribute
+    prefix: /api

@@ -146,7 +146,7 @@ services:
         arguments:
             $callbackUrl: '%env(DISCOGS_CALLBACK_URL)%'
 
-    App\Controller\MusicController:
+    App\Controller\Api\MusicController:
         arguments:
             $lastfmUsername: '%env(LASTFM_USERNAME)%'
             $discogsUsername: '%env(DISCOGS_USERNAME)%'
