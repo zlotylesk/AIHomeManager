@@ -7,6 +7,11 @@ app/vendor/
 app/var/
 app/.env.local
 app/.phpunit.cache/
+
+# Symfony auto-generated config reference — IDE autocomplete only, regenerated on
+# every dev cache warmup (drifts with the framework version); nothing at runtime or
+# CI consumes it (PHPStan excludePaths + Rector withSkip already ignore it).
+app/config/reference.php
 *.cache
 .idea/
 .vscode/
