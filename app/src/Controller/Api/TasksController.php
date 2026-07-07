@@ -25,6 +25,8 @@ use DateTimeImmutable;
 use DomainException;
 use Exception;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -44,6 +46,31 @@ final class TasksController extends AbstractController
     }
 
     #[Route('', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'List tasks',
+        description: 'Returns all tasks, optionally filtered by status.',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'status',
+                description: 'Filter by task status. Omit to return every task.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['pending', 'completed', 'cancelled']),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The list of tasks.',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(ref: new Model(type: TaskDTO::class)),
+                ),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function list(Request $request): JsonResponse
     {
         $statusParam = $request->query->get('status');
@@ -62,6 +89,27 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Get(
+        summary: 'Get a task by id',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\PathParameter(
+                name: 'id',
+                description: 'Task UUID.',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The task.',
+                content: new OA\JsonContent(ref: new Model(type: TaskDTO::class)),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function detail(string $id): JsonResponse
     {
         /** @var TaskDTO|null $dto */
@@ -75,6 +123,35 @@ final class TasksController extends AbstractController
     }
 
     #[Route('', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Create a task',
+        tags: ['Tasks'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['title', 'start', 'end'],
+                properties: [
+                    new OA\Property(property: 'title', type: 'string', example: 'Grocery shopping'),
+                    new OA\Property(property: 'start', type: 'string', format: 'date-time', example: '2026-07-06T10:00:00'),
+                    new OA\Property(property: 'end', type: 'string', format: 'date-time', example: '2026-07-06T11:00:00'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Task created.',
+                content: new OA\JsonContent(
+                    required: ['id'],
+                    properties: [
+                        new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                    ],
+                ),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
@@ -106,6 +183,35 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['PATCH'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Patch(
+        summary: 'Update a task (partial)',
+        description: 'Partial update — only the provided fields are changed.',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\PathParameter(
+                name: 'id',
+                description: 'Task UUID.',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid'),
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'title', type: 'string', example: 'Grocery shopping'),
+                    new OA\Property(property: 'start', type: 'string', format: 'date-time', example: '2026-07-06T10:00:00'),
+                    new OA\Property(property: 'end', type: 'string', format: 'date-time', example: '2026-07-06T11:00:00'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 204, description: 'Task updated.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function update(string $id, Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
@@ -132,6 +238,24 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/{id}/complete', methods: ['POST'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Post(
+        summary: 'Mark a task completed',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\PathParameter(
+                name: 'id',
+                description: 'Task UUID.',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid'),
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Task marked completed.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function complete(string $id): JsonResponse
     {
         try {
@@ -151,6 +275,24 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/{id}/cancel', methods: ['POST'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Post(
+        summary: 'Cancel a task',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\PathParameter(
+                name: 'id',
+                description: 'Task UUID.',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid'),
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Task cancelled.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function cancel(string $id): JsonResponse
     {
         try {
@@ -170,6 +312,23 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['DELETE'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Delete(
+        summary: 'Delete a task',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\PathParameter(
+                name: 'id',
+                description: 'Task UUID.',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid'),
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Task deleted.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function delete(string $id): JsonResponse
     {
         try {
@@ -185,6 +344,43 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/export', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Export completed tasks (CSV or PDF)',
+        description: 'Streams completed tasks within an optional [from, to] window as a CSV or PDF attachment. The date filter matches when the work happened (time_start).',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'from',
+                description: 'Inclusive lower bound on the task start (YYYY-MM-DD).',
+                required: false,
+                schema: new OA\Schema(type: 'string', format: 'date'),
+            ),
+            new OA\QueryParameter(
+                name: 'to',
+                description: 'Inclusive upper bound on the task start (YYYY-MM-DD).',
+                required: false,
+                schema: new OA\Schema(type: 'string', format: 'date'),
+            ),
+            new OA\QueryParameter(
+                name: 'format',
+                description: 'Export format.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['csv', 'pdf'], default: 'csv'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The export file as an attachment.',
+                content: [
+                    new OA\MediaType(mediaType: 'text/csv', schema: new OA\Schema(type: 'string', format: 'binary')),
+                    new OA\MediaType(mediaType: 'application/pdf', schema: new OA\Schema(type: 'string', format: 'binary')),
+                ],
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function export(Request $request, TaskCsvExporter $csvExporter, PdfBuilder $pdfBuilder): Response
     {
         $fromStr = $request->query->get('from');
@@ -235,6 +431,34 @@ final class TasksController extends AbstractController
     }
 
     #[Route('/time-report', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Time report',
+        description: 'Aggregates minutes spent on completed tasks within [from, to], with a per-task breakdown.',
+        tags: ['Tasks'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'from',
+                description: 'Inclusive lower bound on the task start (YYYY-MM-DD).',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'date'),
+            ),
+            new OA\QueryParameter(
+                name: 'to',
+                description: 'Inclusive upper bound on the task start (YYYY-MM-DD).',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'date'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The aggregated time report.',
+                content: new OA\JsonContent(ref: new Model(type: TimeReportDTO::class)),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function timeReport(Request $request): JsonResponse
     {
         $fromStr = $request->query->get('from');
