@@ -15,6 +15,8 @@ use App\Module\YouTubeProgress\Application\DTO\WatchSessionDTO;
 use App\Module\YouTubeProgress\Application\Query\GetSessions;
 use App\Module\YouTubeProgress\Application\Query\GetWatchlist;
 use DateTimeImmutable;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -46,6 +48,21 @@ final class YouTubeProgressController extends AbstractController
     }
 
     #[Route('/watchlist', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Get the watchlist',
+        description: 'Returns the watch-later videos with their per-video progress status.',
+        tags: ['YouTubeProgress'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The watchlist.',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'videos', type: 'array', items: new OA\Items(ref: new Model(type: VideoDTO::class))),
+                ]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function watchlist(): JsonResponse
     {
         /** @var list<VideoDTO> $videos */
@@ -57,6 +74,21 @@ final class YouTubeProgressController extends AbstractController
     }
 
     #[Route('/sessions', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Get the watch sessions',
+        description: 'Returns the generated watch sessions, each with its ordered videos and total duration.',
+        tags: ['YouTubeProgress'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The watch sessions.',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'sessions', type: 'array', items: new OA\Items(ref: new Model(type: WatchSessionDTO::class))),
+                ]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function sessions(): JsonResponse
     {
         /** @var list<WatchSessionDTO> $sessions */
@@ -68,6 +100,23 @@ final class YouTubeProgressController extends AbstractController
     }
 
     #[Route('/sync', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Sync the watchlist from YouTube',
+        description: 'Pulls the configured YouTube playlist and regenerates watch sessions. 400 when YOUTUBE_WATCHLIST_PLAYLIST_ID is not configured.',
+        tags: ['YouTubeProgress'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Sync completed; returns the new counts.',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'sessions_count', type: 'integer'),
+                    new OA\Property(property: 'videos_count', type: 'integer'),
+                ]),
+            ),
+            new OA\Response(response: 400, description: 'The YouTube watchlist playlist is not configured.', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function sync(): JsonResponse
     {
         if ('' === trim($this->watchlistPlaylistId)) {
@@ -92,6 +141,19 @@ final class YouTubeProgressController extends AbstractController
     }
 
     #[Route('/videos/{id}/start', methods: ['POST'], requirements: ['id' => '[A-Za-z0-9_-]+'])]
+    #[OA\Post(
+        summary: 'Mark a video started',
+        description: 'Idempotent — records the first-started timestamp for a watchlist video.',
+        tags: ['YouTubeProgress'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'YouTube video id.', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Video marked started.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function startVideo(string $id): JsonResponse
     {
         $this->commandBus->dispatch(new MarkVideoStarted($id, new DateTimeImmutable()));
@@ -100,6 +162,19 @@ final class YouTubeProgressController extends AbstractController
     }
 
     #[Route('/videos/{id}/watched', methods: ['POST'], requirements: ['id' => '[A-Za-z0-9_-]+'])]
+    #[OA\Post(
+        summary: 'Mark a video watched',
+        description: 'Idempotent — records the watched timestamp for a watchlist video.',
+        tags: ['YouTubeProgress'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'YouTube video id.', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Video marked watched.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function watchedVideo(string $id): JsonResponse
     {
         $this->commandBus->dispatch(new MarkVideoWatched($id, new DateTimeImmutable()));
@@ -108,6 +183,19 @@ final class YouTubeProgressController extends AbstractController
     }
 
     #[Route('/sessions/{id}/push-to-youtube', methods: ['POST'], requirements: ['id' => '[0-9a-f-]{36}'])]
+    #[OA\Post(
+        summary: 'Push a session to YouTube',
+        description: 'Creates a YouTube playlist from the session videos. 404 when the session does not exist.',
+        tags: ['YouTubeProgress'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Watch session UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Session pushed to YouTube.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function pushSession(string $id): JsonResponse
     {
         $this->commandBus->dispatch(new PushSessionToYouTube($id));
