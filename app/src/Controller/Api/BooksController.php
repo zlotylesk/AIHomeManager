@@ -13,6 +13,7 @@ use App\Module\Books\Application\Command\RemoveBook;
 use App\Module\Books\Application\Command\UpdateBook;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
+use App\Module\Books\Application\DTO\ReadingSessionDTO;
 use App\Module\Books\Application\Exception\BookMetadataNotFoundException;
 use App\Module\Books\Application\Exception\BookMetadataUnavailableException;
 use App\Module\Books\Application\Exception\BookNotFoundException;
@@ -24,6 +25,8 @@ use App\Shared\Domain\ValueObject\CoverUrl;
 use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -43,6 +46,28 @@ final class BooksController extends AbstractController
     }
 
     #[Route('', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'List books',
+        description: 'Returns all books, optionally filtered by reading status, each with page progress.',
+        tags: ['Books'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'status',
+                description: 'Filter by reading status. Omit to return every book.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['to_read', 'reading', 'completed']),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The list of books.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: BookDTO::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function list(Request $request): JsonResponse
     {
         $statusParam = $request->query->get('status');
@@ -61,6 +86,31 @@ final class BooksController extends AbstractController
     }
 
     #[Route('/export', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Export books (CSV or PDF)',
+        description: 'Streams the whole reading list as a CSV or PDF attachment.',
+        tags: ['Books'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'format',
+                description: 'Export format.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['csv', 'pdf'], default: 'csv'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The export file as an attachment.',
+                content: [
+                    new OA\MediaType(mediaType: 'text/csv', schema: new OA\Schema(type: 'string', format: 'binary')),
+                    new OA\MediaType(mediaType: 'application/pdf', schema: new OA\Schema(type: 'string', format: 'binary')),
+                ],
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function export(Request $request, BookCsvExporter $csvExporter, PdfBuilder $pdfBuilder): Response
     {
         $format = $request->query->get('format', 'csv');
@@ -98,6 +148,32 @@ final class BooksController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Get(
+        summary: 'Get a book by id',
+        description: 'Returns the book fields plus its logged reading sessions.',
+        tags: ['Books'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Book UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The book with its reading sessions.',
+                content: new OA\JsonContent(allOf: [
+                    new OA\Schema(ref: new Model(type: BookDTO::class)),
+                    new OA\Schema(properties: [
+                        new OA\Property(
+                            property: 'sessions',
+                            type: 'array',
+                            items: new OA\Items(ref: new Model(type: ReadingSessionDTO::class)),
+                        ),
+                    ]),
+                ]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function detail(string $id): JsonResponse
     {
         /** @var BookDetailDTO|null $dto */
@@ -111,6 +187,41 @@ final class BooksController extends AbstractController
     }
 
     #[Route('', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Add a book',
+        description: 'Adds a book by ISBN. Missing fields are backfilled from an external metadata provider; 404 when the ISBN is unknown, 503 when the provider is unreachable.',
+        tags: ['Books'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['isbn'],
+                properties: [
+                    new OA\Property(property: 'isbn', type: 'string', example: '9780134685991'),
+                    new OA\Property(property: 'title', type: 'string', nullable: true),
+                    new OA\Property(property: 'author', type: 'string', nullable: true),
+                    new OA\Property(property: 'publisher', type: 'string', nullable: true),
+                    new OA\Property(property: 'year', type: 'integer', nullable: true),
+                    new OA\Property(property: 'cover_url', type: 'string', format: 'uri', nullable: true),
+                    new OA\Property(property: 'total_pages', type: 'integer', nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Book added.',
+                content: new OA\JsonContent(required: ['id'], properties: [new OA\Property(property: 'id', type: 'string', format: 'uuid')]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(
+                response: 503,
+                description: 'The book metadata provider is unavailable.',
+                content: new OA\JsonContent(ref: '#/components/schemas/Error'),
+            ),
+        ],
+    )]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
@@ -157,6 +268,33 @@ final class BooksController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['PUT'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Put(
+        summary: 'Update a book',
+        description: 'Replaces the editable book fields (title, author, publisher, year, cover).',
+        tags: ['Books'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Book UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['title', 'author', 'publisher', 'year'],
+                properties: [
+                    new OA\Property(property: 'title', type: 'string'),
+                    new OA\Property(property: 'author', type: 'string'),
+                    new OA\Property(property: 'publisher', type: 'string'),
+                    new OA\Property(property: 'year', type: 'integer'),
+                    new OA\Property(property: 'cover_url', type: 'string', format: 'uri', nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 204, description: 'Book updated.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function update(string $id, Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
@@ -208,6 +346,18 @@ final class BooksController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['DELETE'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Delete(
+        summary: 'Delete a book',
+        tags: ['Books'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Book UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Book deleted.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function delete(string $id): JsonResponse
     {
         try {
@@ -223,6 +373,31 @@ final class BooksController extends AbstractController
     }
 
     #[Route('/{id}/reading-sessions', methods: ['POST'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Post(
+        summary: 'Log a reading session',
+        description: 'Records pages read on a given day; advances the book progress. Defaults the date to today when omitted.',
+        tags: ['Books'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Book UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['pages_read'],
+                properties: [
+                    new OA\Property(property: 'pages_read', type: 'integer', minimum: 1, example: 30),
+                    new OA\Property(property: 'date', type: 'string', format: 'date', nullable: true, description: 'Y-m-d; defaults to today.'),
+                    new OA\Property(property: 'notes', type: 'string', nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Reading session logged.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function logReadingSession(string $id, Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
