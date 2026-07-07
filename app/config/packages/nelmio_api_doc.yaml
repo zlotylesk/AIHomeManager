@@ -8,6 +8,11 @@ nelmio_api_doc:
         servers:
             - url: '/api/v1'
               description: 'Versioned API base (v1). The unversioned `/api` prefix remains a backward-compatible alias — see ADR-008.'
+        # Operation groupings surfaced in Swagger UI / Redoc. One tag per module,
+        # added incrementally as each module's endpoints are documented.
+        tags:
+            - name: Tasks
+              description: 'Task management — full REST CRUD, complete/cancel actions, a time report and CSV/PDF export. Backed by Google Calendar sync (graceful degrade).'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes
