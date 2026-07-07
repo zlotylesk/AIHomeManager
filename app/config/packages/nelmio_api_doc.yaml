@@ -17,6 +17,10 @@ nelmio_api_doc:
               description: 'Series catalog — full CRUD of series/seasons/episodes, own series & season ratings (disjoint from the computed episode average), episode watched flags, catalog metadata and a Trakt watched-shows import.'
             - name: Health
               description: 'Public readiness probe for orchestrators and uptime monitors — no API key required.'
+            - name: Books
+              description: 'Reading list — book CRUD with ISBN metadata lookup, reading-session logging with page progress, and CSV/PDF export.'
+            - name: Articles
+              description: 'Read-later articles — CRUD, mark-as-read, an article-of-the-day pick, CSV import/export.'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes
