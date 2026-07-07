@@ -21,6 +21,10 @@ nelmio_api_doc:
               description: 'Reading list — book CRUD with ISBN metadata lookup, reading-session logging with page progress, and CSV/PDF export.'
             - name: Articles
               description: 'Read-later articles — CRUD, mark-as-read, an article-of-the-day pick, CSV import/export.'
+            - name: Music
+              description: 'Music insight — Last.fm top albums & local play history, a Discogs vinyl collection, and an owned-vs-listened comparison. Backed by external APIs (graceful degrade → 503/429).'
+            - name: YouTubeProgress
+              description: 'YouTube watch-later progress — watchlist and generated watch sessions, a playlist sync, per-video start/watched actions, and push-to-YouTube.'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes
