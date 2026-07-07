@@ -13,6 +13,10 @@ nelmio_api_doc:
         tags:
             - name: Tasks
               description: 'Task management — full REST CRUD, complete/cancel actions, a time report and CSV/PDF export. Backed by Google Calendar sync (graceful degrade).'
+            - name: Series
+              description: 'Series catalog — full CRUD of series/seasons/episodes, own series & season ratings (disjoint from the computed episode average), episode watched flags, catalog metadata and a Trakt watched-shows import.'
+            - name: Health
+              description: 'Public readiness probe for orchestrators and uptime monitors — no API key required.'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes
@@ -177,11 +181,67 @@ nelmio_api_doc:
                             headers:
                                 X-Request-ID:
                                     $ref: '#/components/headers/X-Request-ID'
+                            content:
+                                application/json:
+                                    schema:
+                                        type: object
+                                        required:
+                                            - status
+                                            - components
+                                            - timestamp
+                                        properties:
+                                            status:
+                                                type: string
+                                                enum:
+                                                    - healthy
+                                                    - degraded
+                                            components:
+                                                type: object
+                                                description: 'Per-dependency status.'
+                                                additionalProperties:
+                                                    type: string
+                                                    enum:
+                                                        - up
+                                                        - degraded
+                                                        - down
+                                                example:
+                                                    mysql: up
+                                                    redis: up
+                                                    rabbitmq: up
+                                                    disk: up
+                                            timestamp:
+                                                type: string
+                                                format: date-time
                         '503':
                             description: 'Service unhealthy — a dependency probe failed or the disk is critically full.'
                             headers:
                                 X-Request-ID:
                                     $ref: '#/components/headers/X-Request-ID'
+                            content:
+                                application/json:
+                                    schema:
+                                        type: object
+                                        required:
+                                            - status
+                                            - components
+                                            - timestamp
+                                        properties:
+                                            status:
+                                                type: string
+                                                enum:
+                                                    - unhealthy
+                                            components:
+                                                type: object
+                                                description: 'Per-dependency status — at least one is `down`.'
+                                                additionalProperties:
+                                                    type: string
+                                                    enum:
+                                                        - up
+                                                        - degraded
+                                                        - down
+                                            timestamp:
+                                                type: string
+                                                format: date-time
                         '500':
                             $ref: '#/components/responses/InternalServerError'
     html_config:
