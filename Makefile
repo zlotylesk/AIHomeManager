@@ -1,4 +1,4 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-coverage test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-coverage test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
 
 up:
 	docker compose --profile monitoring up -d
@@ -147,6 +147,17 @@ audit:
 	docker compose exec php composer audit --abandoned=report
 
 analyse: cs-check phpstan deptrac audit
+
+# HMAI-343: dump the generated OpenAPI 3.1 contract to a static openapi.json — the
+# same artifact CI publishes. -T avoids a pseudo-TTY so stdout stays clean JSON.
+openapi-dump:
+	docker compose exec -T php bin/console nelmio:apidoc:dump --format=json --no-ansi > openapi.json
+
+# HMAI-343: lint the contract with Spectral (error severity blocks; warnings nag).
+# Runs on the host Node, mirroring the CI openapi-contract job; CLI version pinned
+# for reproducibility.
+openapi-lint: openapi-dump
+	npx --yes @stoplight/spectral-cli@6.16.1 lint openapi.json --ruleset .spectral.yaml --fail-severity=error
 
 node-install:
 	docker compose exec node npm install
