@@ -24,6 +24,10 @@ playwright-report/
 playwright/.cache/
 backups/
 
+# HMAI-343: generated OpenAPI contract — a build artifact (`make openapi-dump`,
+# CI openapi-contract job); regenerated from the annotated controllers, never committed.
+openapi.json
+
 # Local-only planning notes (not committed)
 PLAN.md
 TODO.md

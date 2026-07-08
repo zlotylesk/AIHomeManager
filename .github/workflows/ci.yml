@@ -83,6 +83,78 @@ jobs:
       - name: Composer audit
         run: composer audit --abandoned=report
 
+  # HMAI-343: the OpenAPI contract as a CI gate. Dumps the static openapi.json,
+  # publishes it as a build artifact (input for the generated mobile client), and
+  # lints it with Spectral — an error-severity finding (a structurally invalid
+  # spec) blocks the merge. The response↔schema conformance tests ride the `tests`
+  # job (they are PHPUnit integration tests). Closes epic HMAI-311.
+  openapi-contract:
+    name: OpenAPI contract (dump + Spectral lint)
+    runs-on: ubuntu-latest
+    # HMAI-343: a kernel boot to dump + a Spectral lint of a ~150 KB spec is well
+    # under a minute; cap at ~5×.
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # nelmio:apidoc:dump boots the container (dev) to read the route attributes;
+      # it never contacts MySQL/Redis, so dummy DSNs are enough to compile the DI
+      # container (same trick as the static-analysis cache warmup above).
+      APP_ENV: dev
+      APP_DEBUG: '1'
+      DATABASE_URL: 'mysql://app:app@127.0.0.1:3306/app?serverVersion=8.0'
+      MESSENGER_TRANSPORT_DSN: 'in-memory://'
+      REDIS_URL: 'redis://127.0.0.1:6379'
+      API_KEY: 'ci-api-key'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
+          coverage: none
+          tools: composer:v2
+
+      - name: Get composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('app/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Make console executable
+        run: chmod +x bin/console
+
+      - name: Dump OpenAPI contract
+        run: bin/console nelmio:apidoc:dump --format=json --no-ansi > "$GITHUB_WORKSPACE/openapi.json"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # Spectral gate: --fail-severity=error means a structurally invalid spec fails
+      # the merge, while style findings stay non-blocking warnings. CLI pinned for
+      # reproducibility; .spectral.yaml lives at the repo root.
+      - name: Lint OpenAPI contract (Spectral)
+        working-directory: ${{ github.workspace }}
+        run: npx --yes @stoplight/spectral-cli@6.16.1 lint openapi.json --ruleset .spectral.yaml --fail-severity=error
+
+      - name: Upload OpenAPI contract artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi-spec
+          path: openapi.json
+          retention-days: 30
+
   tests:
     name: PHPUnit (unit + integration)
     runs-on: ubuntu-latest

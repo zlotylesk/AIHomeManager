@@ -1,0 +1,17 @@
+# HMAI-343 — OpenAPI contract lint ruleset (Spectral).
+#
+# Gate: `spectral lint openapi.json --ruleset .spectral.yaml --fail-severity=error`
+# blocks a merge on ERROR-level findings (a structurally invalid OpenAPI document);
+# the bundled style rules stay as non-blocking warnings so drift in structure fails
+# hard while cosmetics only nag. Wired into CI (openapi-contract job) and the
+# Makefile (`make openapi-lint`).
+extends: ["spectral:oas"]
+
+rules:
+  # `duplicated-entry-in-enum` crashes Spectral 6.x on this OpenAPI 3.1 document
+  # ("Cannot read properties of null (reading 'enum')" inside its nimma JSONPath
+  # engine) because every nullable property carries `default: null` and the rule's
+  # recursive-descent filter dereferences those null scalars. It is the *only* oas
+  # rule that trips on 3.1 null defaults — `typed-enum` and the rest run fine — so
+  # it is disabled until the upstream nimma/3.1 incompatibility is fixed.
+  duplicated-entry-in-enum: off

@@ -77,6 +77,9 @@
             "ref": "07a97ec434d43b7903c78069a04c92adb6442e52"
         }
     },
+    "nelmio/api-doc-bundle": {
+        "version": "v5.10.3"
+    },
     "phpstan/phpstan": {
         "version": "2.1",
         "recipe": {
