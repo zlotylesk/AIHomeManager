@@ -28,6 +28,11 @@ class BooksApiTest extends WebTestCase
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     *
+     * @return array<string, mixed>
+     */
     private function createBook(array $overrides = []): array
     {
         $payload = array_merge([

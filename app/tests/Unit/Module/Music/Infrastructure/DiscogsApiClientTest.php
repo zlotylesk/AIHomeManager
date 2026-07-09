@@ -41,14 +41,20 @@ final class DiscogsApiClientTest extends TestCase
         $this->signer = new DiscogsOAuth1Signer();
     }
 
+    /**
+     * @param list<array<string, mixed>> $releases
+     */
     private function makeReleasePage(array $releases, int $page = 1, int $totalPages = 1): string
     {
-        return json_encode([
+        return (string) json_encode([
             'pagination' => ['page' => $page, 'pages' => $totalPages, 'per_page' => 100],
             'releases' => $releases,
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function makeRelease(string $artist, string $title, int $year, string $format, int $id): array
     {
         return [

@@ -76,7 +76,7 @@ final class DiscogsAuthController extends AbstractController
         }
 
         parse_str($response->getContent(), $params);
-        $requestToken = $params['oauth_token'] ?? '';
+        $requestToken = is_string($params['oauth_token'] ?? null) ? $params['oauth_token'] : '';
 
         return $this->redirect(self::AUTHORIZE_URL.'?oauth_token='.urlencode($requestToken));
     }
@@ -142,8 +142,8 @@ final class DiscogsAuthController extends AbstractController
         }
 
         parse_str($response->getContent(), $params);
-        $accessToken = $params['oauth_token'] ?? '';
-        $accessTokenSecret = $params['oauth_token_secret'] ?? '';
+        $accessToken = is_string($params['oauth_token'] ?? null) ? $params['oauth_token'] : '';
+        $accessTokenSecret = is_string($params['oauth_token_secret'] ?? null) ? $params['oauth_token_secret'] : '';
 
         if ('' === $accessToken || '' === $accessTokenSecret) {
             $this->logger->warning('OAuth callback failed', [

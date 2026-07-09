@@ -19,6 +19,6 @@ final readonly class ApiUser implements UserInterface
 
     public function getUserIdentifier(): string
     {
-        return $this->identifier;
+        return '' === $this->identifier ? 'api' : $this->identifier;
     }
 }
