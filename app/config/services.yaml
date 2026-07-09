@@ -290,6 +290,27 @@ services:
     App\Module\Series\Domain\Port\RatingsProviderInterface:
         alias: App\Module\Series\Infrastructure\External\TraktApiClient
 
+    # Goals activity stream (HMAI-250): per-source-module DBAL read adapters,
+    # aggregated by the composite that backs the ActivityProviderInterface port.
+    App\Module\Goals\Infrastructure\Activity\BooksActivityAdapter:
+        tags: ['goals.activity_provider']
+
+    App\Module\Goals\Infrastructure\Activity\SeriesActivityAdapter:
+        tags: ['goals.activity_provider']
+
+    App\Module\Goals\Infrastructure\Activity\ArticlesActivityAdapter:
+        tags: ['goals.activity_provider']
+
+    App\Module\Goals\Infrastructure\Activity\YouTubeActivityAdapter:
+        tags: ['goals.activity_provider']
+
+    App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider:
+        arguments:
+            $providers: !tagged_iterator goals.activity_provider
+
+    App\Module\Goals\Domain\Port\ActivityProviderInterface:
+        alias: App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider
+
 when@test:
     services:
         App\Tests\Support\SpyLogger:
