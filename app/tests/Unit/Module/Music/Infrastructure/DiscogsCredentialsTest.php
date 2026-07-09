@@ -34,7 +34,7 @@ final class DiscogsCredentialsTest extends TestCase
 
         ob_start();
         var_dump($credentials);
-        $dump = (string) ob_get_clean();
+        $dump = ob_get_clean();
 
         self::assertStringNotContainsString('plaintext-secret-DO-NOT-LEAK', $dump);
         self::assertStringContainsString('***REDACTED***', $dump);

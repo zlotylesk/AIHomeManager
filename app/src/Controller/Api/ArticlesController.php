@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
@@ -20,6 +20,8 @@ use App\Module\Articles\Application\Service\ArticleImporter;
 use App\Pdf\PdfBuilder;
 use DomainException;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes as OA;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -30,7 +32,7 @@ use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-#[Route('/api/articles')]
+#[Route('/articles')]
 final class ArticlesController extends AbstractController
 {
     public function __construct(
@@ -42,6 +44,18 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'List articles',
+        tags: ['Articles'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The list of articles.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: ArticleDTO::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function list(): JsonResponse
     {
         /** @var ArticleDTO[] $articles */
@@ -51,6 +65,37 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/export', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Export articles (CSV or PDF)',
+        description: 'Streams articles (optionally filtered by read state) as a CSV or PDF attachment.',
+        tags: ['Articles'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'status',
+                description: 'Filter by read state.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['read', 'unread']),
+            ),
+            new OA\QueryParameter(
+                name: 'format',
+                description: 'Export format.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['csv', 'pdf'], default: 'csv'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The export file as an attachment.',
+                content: [
+                    new OA\MediaType(mediaType: 'text/csv', schema: new OA\Schema(type: 'string', format: 'binary')),
+                    new OA\MediaType(mediaType: 'application/pdf', schema: new OA\Schema(type: 'string', format: 'binary')),
+                ],
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function export(Request $request, ArticleCsvExporter $csvExporter, PdfBuilder $pdfBuilder): Response
     {
         $status = $request->query->get('status');
@@ -96,6 +141,39 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/import', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Import articles from a CSV file',
+        description: 'Uploads a CSV of articles. Use `dry_run` to validate without persisting.',
+        tags: ['Articles'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    required: ['file'],
+                    properties: [
+                        new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'The CSV file to import.'),
+                        new OA\Property(property: 'encoding', type: 'string', nullable: true, description: 'Source encoding; auto-detected when omitted.'),
+                        new OA\Property(property: 'dry_run', type: 'boolean', default: false),
+                    ],
+                ),
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Import summary.',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'imported', type: 'integer'),
+                    new OA\Property(property: 'skipped', type: 'integer'),
+                    new OA\Property(property: 'errors', type: 'array', items: new OA\Items(type: 'string')),
+                    new OA\Property(property: 'dryRun', type: 'boolean'),
+                ]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function import(Request $request, ArticleImporter $importer): JsonResponse
     {
         $file = $request->files->get('file');
@@ -132,6 +210,20 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/today', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Article of the day',
+        description: 'Returns the daily-pick article, or 204 when no pick exists yet.',
+        tags: ['Articles'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The article of the day.',
+                content: new OA\JsonContent(ref: new Model(type: ArticleDTO::class)),
+            ),
+            new OA\Response(response: 204, description: 'No article-of-the-day pick available.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function today(): JsonResponse
     {
         /** @var ArticleDTO|null $dto */
@@ -145,6 +237,22 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Get(
+        summary: 'Get an article by id',
+        tags: ['Articles'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Article UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The article.',
+                content: new OA\JsonContent(ref: new Model(type: ArticleDTO::class)),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function detail(string $id): JsonResponse
     {
         /** @var ArticleDTO|null $dto */
@@ -158,6 +266,31 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Create an article',
+        tags: ['Articles'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['title', 'url'],
+                properties: [
+                    new OA\Property(property: 'title', type: 'string', example: 'How to build a mobile client'),
+                    new OA\Property(property: 'url', type: 'string', format: 'uri', example: 'https://example.com/article'),
+                    new OA\Property(property: 'category', type: 'string', nullable: true),
+                    new OA\Property(property: 'estimated_read_time', type: 'integer', nullable: true, description: 'Minutes.'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Article created.',
+                content: new OA\JsonContent(required: ['id'], properties: [new OA\Property(property: 'id', type: 'string', format: 'uuid')]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
@@ -192,6 +325,31 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['PUT'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Put(
+        summary: 'Update an article',
+        description: 'Updates the article title, category and estimated read time (the URL is immutable).',
+        tags: ['Articles'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Article UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['title'],
+                properties: [
+                    new OA\Property(property: 'title', type: 'string'),
+                    new OA\Property(property: 'category', type: 'string', nullable: true),
+                    new OA\Property(property: 'estimated_read_time', type: 'integer', nullable: true, description: 'Minutes.'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 204, description: 'Article updated.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function update(string $id, Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
@@ -224,6 +382,18 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/{id}', methods: ['DELETE'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Delete(
+        summary: 'Delete an article',
+        tags: ['Articles'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Article UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Article deleted.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function delete(string $id): JsonResponse
     {
         try {
@@ -239,6 +409,18 @@ final class ArticlesController extends AbstractController
     }
 
     #[Route('/{id}/read', methods: ['POST'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Post(
+        summary: 'Mark an article as read',
+        tags: ['Articles'],
+        parameters: [
+            new OA\PathParameter(name: 'id', description: 'Article UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Article marked as read.'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+        ],
+    )]
     public function markAsRead(string $id): JsonResponse
     {
         try {

@@ -1,0 +1,265 @@
+nelmio_api_doc:
+    documentation:
+        openapi: 3.1.0
+        info:
+            title: 'AI Home Manager API'
+            description: 'Machine-readable REST contract for the AI Home Manager API. Served under the versioned base `/api/v1`; the unversioned `/api` prefix stays as a backward-compatible alias (ADR-008). Consumed by external clients (mobile app). This is the base document — per-endpoint contracts are added incrementally.'
+            version: '1.0.0'
+        servers:
+            - url: '/api/v1'
+              description: 'Versioned API base (v1). The unversioned `/api` prefix remains a backward-compatible alias — see ADR-008.'
+        # Operation groupings surfaced in Swagger UI / Redoc. One tag per module,
+        # added incrementally as each module's endpoints are documented.
+        tags:
+            - name: Tasks
+              description: 'Task management — full REST CRUD, complete/cancel actions, a time report and CSV/PDF export. Backed by Google Calendar sync (graceful degrade).'
+            - name: Series
+              description: 'Series catalog — full CRUD of series/seasons/episodes, own series & season ratings (disjoint from the computed episode average), episode watched flags, catalog metadata and a Trakt watched-shows import.'
+            - name: Health
+              description: 'Public readiness probe for orchestrators and uptime monitors — no API key required.'
+            - name: Books
+              description: 'Reading list — book CRUD with ISBN metadata lookup, reading-session logging with page progress, and CSV/PDF export.'
+            - name: Articles
+              description: 'Read-later articles — CRUD, mark-as-read, an article-of-the-day pick, CSV import/export.'
+            - name: Music
+              description: 'Music insight — Last.fm top albums & local play history, a Discogs vinyl collection, and an owned-vs-listened comparison. Backed by external APIs (graceful degrade → 503/429).'
+            - name: YouTubeProgress
+              description: 'YouTube watch-later progress — watchlist and generated watch sessions, a playlist sync, per-video start/watched actions, and push-to-YouTube.'
+        # Every operation requires the API key by default. Public endpoints
+        # (the health probe) opt out with an empty `security: []` override —
+        # mirroring ApiKeyAuthenticator::supports(). The documentation routes
+        # (^/api/doc) are excluded from the spec entirely (see areas below).
+        security:
+            - ApiKeyAuth: []
+        # Reusable contract components referenced by `$ref` from per-module
+        # endpoint documentation added in later tasks. Shapes mirror the code:
+        # ApiKeyAuthenticator (auth), ApiExceptionListener ({"error": "..."}),
+        # ApiRateLimitListener (429 body + rate-limit headers), RequestIdListener.
+        components:
+            securitySchemes:
+                ApiKeyAuth:
+                    type: apiKey
+                    in: header
+                    name: X-API-Key
+                    description: 'Static API key. Required on every `^/api/*` request except the public health probe (`/api/health`) and the documentation routes (`/api/doc*`).'
+            schemas:
+                Error:
+                    type: object
+                    description: 'Uniform error envelope emitted by ApiExceptionListener and the API-key authenticator.'
+                    required:
+                        - error
+                    properties:
+                        error:
+                            type: string
+                            description: 'Human-readable error message.'
+                    example:
+                        error: 'Not found.'
+                RateLimitError:
+                    description: 'The 429 body: the standard error envelope plus the retry hint.'
+                    allOf:
+                        - $ref: '#/components/schemas/Error'
+                        - type: object
+                          required:
+                              - retry_after
+                          properties:
+                              retry_after:
+                                  type: integer
+                                  description: 'Seconds to wait before the per-IP rate-limit window resets.'
+                    example:
+                        error: 'Too Many Requests'
+                        retry_after: 42
+                Pagination:
+                    type: object
+                    description: 'Pagination metadata envelope for list endpoints (reserved — current collections return the full set; wired here for forward compatibility).'
+                    required:
+                        - total
+                        - count
+                        - limit
+                        - offset
+                    properties:
+                        total:
+                            type: integer
+                            description: 'Total number of items across all pages.'
+                        count:
+                            type: integer
+                            description: 'Number of items in the current page.'
+                        limit:
+                            type: integer
+                            description: 'Maximum number of items per page.'
+                        offset:
+                            type: integer
+                            description: 'Zero-based index of the first returned item.'
+            headers:
+                X-RateLimit-Limit:
+                    description: 'Maximum number of requests allowed per sliding window (60/min per IP).'
+                    schema:
+                        type: integer
+                X-RateLimit-Remaining:
+                    description: 'Requests remaining in the current window (0 when throttled).'
+                    schema:
+                        type: integer
+                Retry-After:
+                    description: 'Seconds to wait before retrying — sent on a 429 response.'
+                    schema:
+                        type: integer
+                X-Request-ID:
+                    description: 'Correlation ID echoed on every response (server-generated UUID v4 unless a valid inbound `X-Request-ID` was supplied).'
+                    schema:
+                        type: string
+            responses:
+                UnauthorizedError:
+                    description: 'Authentication failed — missing or invalid `X-API-Key`.'
+                    headers:
+                        X-Request-ID:
+                            $ref: '#/components/headers/X-Request-ID'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                NotFoundError:
+                    description: 'The requested resource does not exist.'
+                    headers:
+                        X-Request-ID:
+                            $ref: '#/components/headers/X-Request-ID'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                ConflictError:
+                    description: 'The request conflicts with the current state of the resource.'
+                    headers:
+                        X-Request-ID:
+                            $ref: '#/components/headers/X-Request-ID'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                UnprocessableEntityError:
+                    description: 'The request payload failed validation.'
+                    headers:
+                        X-Request-ID:
+                            $ref: '#/components/headers/X-Request-ID'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                TooManyRequestsError:
+                    description: 'Per-IP rate limit exceeded.'
+                    headers:
+                        Retry-After:
+                            $ref: '#/components/headers/Retry-After'
+                        X-RateLimit-Limit:
+                            $ref: '#/components/headers/X-RateLimit-Limit'
+                        X-RateLimit-Remaining:
+                            $ref: '#/components/headers/X-RateLimit-Remaining'
+                        X-Request-ID:
+                            $ref: '#/components/headers/X-Request-ID'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RateLimitError'
+                InternalServerError:
+                    description: 'Unexpected server error — the original cause is logged, never returned.'
+                    headers:
+                        X-Request-ID:
+                            $ref: '#/components/headers/X-Request-ID'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+        # Example endpoint wiring the shared components via `$ref`. The health
+        # probe is the one public endpoint (no API key) — it opts out of the
+        # global security with `security: []`, mirroring ApiKeyAuthenticator.
+        paths:
+            /api/health:
+                # The public readiness probe is an infra endpoint, not part of the
+                # versioned client contract — it lives at the unversioned `/api/health`
+                # and overrides the global `/api/v1` server base accordingly.
+                servers:
+                    - url: '/'
+                get:
+                    tags:
+                        - Health
+                    summary: 'Readiness probe (public).'
+                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / disk status for orchestrators and uptime monitors.'
+                    security: []
+                    responses:
+                        '200':
+                            description: 'Service healthy (or disk degraded but still serving).'
+                            headers:
+                                X-Request-ID:
+                                    $ref: '#/components/headers/X-Request-ID'
+                            content:
+                                application/json:
+                                    schema:
+                                        type: object
+                                        required:
+                                            - status
+                                            - components
+                                            - timestamp
+                                        properties:
+                                            status:
+                                                type: string
+                                                enum:
+                                                    - healthy
+                                                    - degraded
+                                            components:
+                                                type: object
+                                                description: 'Per-dependency status.'
+                                                additionalProperties:
+                                                    type: string
+                                                    enum:
+                                                        - up
+                                                        - degraded
+                                                        - down
+                                                example:
+                                                    mysql: up
+                                                    redis: up
+                                                    rabbitmq: up
+                                                    disk: up
+                                            timestamp:
+                                                type: string
+                                                format: date-time
+                        '503':
+                            description: 'Service unhealthy — a dependency probe failed or the disk is critically full.'
+                            headers:
+                                X-Request-ID:
+                                    $ref: '#/components/headers/X-Request-ID'
+                            content:
+                                application/json:
+                                    schema:
+                                        type: object
+                                        required:
+                                            - status
+                                            - components
+                                            - timestamp
+                                        properties:
+                                            status:
+                                                type: string
+                                                enum:
+                                                    - unhealthy
+                                            components:
+                                                type: object
+                                                description: 'Per-dependency status — at least one is `down`.'
+                                                additionalProperties:
+                                                    type: string
+                                                    enum:
+                                                        - up
+                                                        - degraded
+                                                        - down
+                                            timestamp:
+                                                type: string
+                                                format: date-time
+                        '500':
+                            $ref: '#/components/responses/InternalServerError'
+    html_config:
+        # Serve Swagger UI / Redoc assets from the bundle's installed public/ assets
+        # (assets:install runs as a Composer auto-script) instead of an external CDN.
+        assets_mode: bundle
+    areas:
+        default:
+            # Document the canonical versioned surface only (`/api/v1/*`). The
+            # unversioned `/api/*` alias mirrors it 1:1, and the documentation routes
+            # (`/api/doc*`) live outside `/api/v1`, so both are naturally excluded.
+            path_patterns:
+                - ^/api/v1

@@ -4,6 +4,43 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.22.0] — 2026-07-08
+
+Wydanie kontraktu API (epik **HMAI-311** — formalny, wersjonowany kontrakt REST oparty o OpenAPI 3.1; 8 podzadań, każde z osobnym zielonym CI). Wprowadza maszynowy opis całej powierzchni `^/api/*` generowany przez **NelmioApiDocBundle** z atrybutów na kontrolerach (bez ingerencji w cienkie kontrolery i architekturę heksagonalną), interaktywną dokumentację (Swagger UI + Redoc), współdzielone komponenty (schemat `X-API-Key`, schematy błędów 401/404/409/422/429/500, paginacja, nagłówki rate-limit/`X-Request-ID`) oraz **wersjonowanie ścieżek `/api/v1`** z aliasem zgodności wstecznej `/api` (ADR-008). Kontrakt jest **bramką jakości w CI** (5. job `openapi-contract`: dump `openapi.json` jako artefakt + lint Spectral + testy zgodności odpowiedzi ze schematem przez `opis/json-schema`) — gotowy pod generowanie typowanego klienta, fundament pod aplikację mobilną Android. **1033/1033 PHP** (+56 vs 977) + **52/52 Playwright** + **43 Newman** — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac 0 `skip_violations`. Bez zmian w modelu domenowym — poza dodaniem prefiksu `/api/v1` z zachowaniem aliasu kontrakt opisuje istniejące zachowanie API.
+
+### Added
+
+- **Kontrakt OpenAPI 3.1 + interaktywna dokumentacja (HMAI-336)** — `nelmio/api-doc-bundle` generuje maszynowy dokument OpenAPI 3.1 dla `^/api/*`. Trasy publiczne (bez `X-API-Key`): `/api/doc` (Swagger UI), `/api/doc/redoc` (Redoc), `/api/doc.json` (specyfikacja). Assety Swagger/Redoc z bundla (`assets_mode: bundle`), nie z CDN.
+- **Współdzielone komponenty kontraktu (HMAI-337)** — `securitySchemes.ApiKeyAuth` (apiKey/header/`X-API-Key`) jako globalne domyślne `security`; reużywalny `schemas.Error` (`{error}`) + `RateLimitError` + `Pagination` (zarezerwowany); gotowe odpowiedzi 401/404/409/422/429/500; komponenty nagłówków `X-RateLimit-*`/`Retry-After`/`X-Request-ID`. `/api/health` opisany inline jako publiczny (`security: []`).
+- **Opis kontraktu wszystkich modułów (HMAI-339/340/341/342)** — atrybuty `#[OA\*]` + `#[Model]` na kontrolerach `App\Controller\Api\*` (nad `#[Route]`, zero logiki): Series + `/api/health` (339), Tasks (340), Books + Articles (341), Music + YouTubeProgress (342). Schematy `#[Model]` odzwierciedlają JSON normalizerów byte-for-byte; błędy przez `$ref` do komponentów współdzielonych. Kontrakt obejmuje całą powierzchnię `^/api/*` (39 ścieżek, 7 tagów).
+- **Bramka kontraktu w CI (HMAI-343)** — nowy 5. job `openapi-contract`: dump statycznego `openapi.json` (`nelmio:apidoc:dump`, artefakt `openapi-spec`) + lint **Spectral** (`.spectral.yaml` extends `spectral:oas`, `--fail-severity=error`) + testy zgodności odpowiedzi ze schematem (`OpenApiContractTest`, `opis/json-schema` — natywny JSON Schema 2020-12 = dialekt OpenAPI 3.1). Lokalnie: `make openapi-dump` / `make openapi-lint`.
+
+### Changed
+
+- **Wersjonowanie API — prefiks `/api/v1` + alias `/api` (HMAI-338, ADR-008)** — 6 kontrolerów API przeniesionych do `src/Controller/Api/` (`App\Controller\Api\*`) z trasami version-agnostic (`#[Route('/series')]`); `routes.yaml` importuje katalog dwukrotnie (`/api/v1` + alias `/api`), prefiks nadawany centralnie zamiast w atrybutach. `servers` w kontrakcie = `/api/v1`; `/api/health` niewersjonowane. Firewall `api` i rate-limit obejmują oba prefiksy bez zmian (wzorzec `^/api`). Nowy **ADR-008** (path-prefix + polityka zgodności wstecznej: kiedy `v2`, jak długo żyje alias).
+
+### Coverage
+
+- **+56 testów PHP** (977 → 1033): HMAI-336 +5, HMAI-337 +6, HMAI-338 +4 (`ApiVersioningTest`), HMAI-339 +9, HMAI-340 +7, HMAI-341 +9, HMAI-342 +9, HMAI-343 +7 — testy spec-level (`*ApiDocTest`), wersjonowanie i zgodność odpowiedzi ze schematem (`OpenApiContractTest`). Playwright 52 i Newman 43 bez zmian.
+
+### Documentation
+
+- Nowa strona Confluence **ADR-008 — Wersjonowanie API przez prefiks ścieżki `/api/v1`** (pod „Architektura"). Zaktualizowana strona **Dokumentacja API** — sekcje „Kontrakt OpenAPI (maszynowy)" (Swagger UI/Redoc/`doc.json` + bramka CI) i „Wersjonowanie `/api/v1`".
+
+### Dependencies
+
+- Bumpy Dependabota: dev group, symfony group (amqp-messenger), webpack 5.108.3, webpack-cli 7.1.0, google/apiclient 2.19.4. Nowe zależności: `nelmio/api-doc-bundle ^5.10` + `opis/json-schema ^2.6` (require-dev). Spectral przez `npx` (pinned `@stoplight/spectral-cli@6.16.1`, poza projektowym drzewem zależności → poza npm-audit gate).
+
+### Migration
+
+1. **Klienci API** — docelowa baza to `/api/v1`; dotychczasowy prefiks `/api` działa jako alias zgodności wstecznej (bez wymogu migracji ścieżek od zaraz).
+2. **Zależności** — `composer install` (nowe `nelmio/api-doc-bundle`, `opis/json-schema`). Brak nowych kluczy `.env.local`, brak operacji destrukcyjnych na DB.
+3. **Branch protection (ręcznie, admin repo)** — dodać check `OpenAPI contract (dump + Spectral lint)` do required-checks na `develop` + `master`, aby 5. job stał się twardą bramką merge.
+
+### Closed Jira
+
+- **Epik HMAI-311** (kontrakt REST API — OpenAPI/Swagger + wersjonowanie `/api/v1`) + 8 podzadań: HMAI-336, HMAI-337, HMAI-338, HMAI-339, HMAI-340, HMAI-341, HMAI-342, HMAI-343.
+
 ## [1.18.0] — 2026-07-02
 
 Wydanie techniczne (epik **HMAI-232** — dług techniczny: architektura, jakość kodu, pokrycie testami; 16 podzadań, każde z osobnym zielonym CI). Spłata długu zidentyfikowanego w audycie 2026-06-23: naruszenia granic heksagonalnych zalegalizowane w `deptrac.yaml` (`skip_violations`), tłuste kontrolery i powielona serializacja, supresje w baseline PHPStan oraz luki w pokryciu testami. Po epiku **deptrac działa z zerem `skip_violations`** (architektura bez naruszeń), a frontend zyskał pierwsze unit-testy. Przy okazji domknięte odłożone od 1.16.0 **HMAI-225 — Symfony 8.0.\* → 8.1.\*** (`framework-bundle` 8.1.1 naprawia regresję `allow_no_handlers`; bumpnięte przez Dependabota na master, back-merge do develop). **977/977 PHP** (+47 vs 930) + **52/52 Playwright** + **43 Newman** + **42 nowe Vitest JS** — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); nowa **bramka pokrycia** (baseline 93,66%, floor 90). Bez zmian w modelu domenowym.

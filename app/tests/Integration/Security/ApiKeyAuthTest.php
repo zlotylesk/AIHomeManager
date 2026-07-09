@@ -51,6 +51,22 @@ final class ApiKeyAuthTest extends WebTestCase
         self::assertNotSame(401, $client->getResponse()->getStatusCode());
     }
 
+    public function testOpenApiSpecRouteIsPublic(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/doc.json');
+
+        self::assertNotSame(401, $client->getResponse()->getStatusCode());
+    }
+
+    public function testSwaggerUiRouteIsPublic(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/doc');
+
+        self::assertNotSame(401, $client->getResponse()->getStatusCode());
+    }
+
     public function testAuthenticatorHeaderConstantMatchesConvention(): void
     {
         self::assertSame('X-API-Key', ApiKeyAuthenticator::HEADER);

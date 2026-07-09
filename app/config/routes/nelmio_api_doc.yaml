@@ -1,0 +1,17 @@
+# OpenAPI JSON specification.
+nelmio_api_doc.swagger_json:
+    path: /api/doc.json
+    methods: [GET]
+    defaults: { _controller: nelmio_api_doc.controller.swagger }
+
+# Swagger UI (interactive documentation).
+nelmio_api_doc.swagger_ui:
+    path: /api/doc
+    methods: [GET]
+    defaults: { _controller: nelmio_api_doc.controller.swagger_ui }
+
+# Redoc (read-oriented documentation).
+nelmio_api_doc.redocly:
+    path: /api/doc/redoc
+    methods: [GET]
+    defaults: { _controller: nelmio_api_doc.controller.redocly }

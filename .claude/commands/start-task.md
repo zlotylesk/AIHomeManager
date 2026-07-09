@@ -24,8 +24,18 @@ Gdy ryzyka nie ma — przejdź do Kroku 1 bez komentarza.
 
 **2. Środowisko + develop:** `docker compose ps` (jeśli nie działa → `make up`), następnie `git fetch && git checkout develop && git pull origin develop && git remote prune origin`.
 
-**3. Fetch Jira** (`getJiraIssue` $ARGUMENTS) — zapamiętaj tytuł, opis, typ.
+**3. Fetch Jira** (`getJiraIssue` $ARGUMENTS, `fields` obejmuje `fixVersions`) — zapamiętaj tytuł, opis, typ, fixVersion.
 - `issuetype == "Epik"` → **Ścieżka B**, inaczej → **Ścieżka A**.
+
+**3a. Start date fixVersion — pierwsze zadanie w wersji.** Pomiń, gdy zadanie nie ma `fixVersion`. W przeciwnym razie sprawdź, czy w tej wersji już coś ruszono:
+```
+searchJiraIssuesUsingJql:
+  project = HMAI AND fixVersion = "{VER}" AND statusCategory != "To Do"
+  fields: ["key","status"]
+```
+Zero wyników (nic w tej wersji nie jest jeszcze W toku/Code Review/Gotowe, żadnego worklogu) → to pierwsze podjęte zadanie w `{VER}`. Ustaw `startDate` wersji na dzisiejszą datę.
+
+**Ograniczenie:** ten zestaw MCP nie ma narzędzia do edycji metadanych wersji Jira (brak `editJiraVersion`/odpowiednika). Nie próbuj wywoływać nieistniejącego narzędzia — zamiast tego wypisz userowi jawne przypomnienie: `Manualne TODO: ustaw startDate={dzisiejsza data} dla wersji {VER} w Jira (Ustawienia projektu → Wersje).` i kontynuuj workflow bez blokowania się na tym kroku.
 
 ---
 

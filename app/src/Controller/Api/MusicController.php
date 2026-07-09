@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -16,9 +16,13 @@ use App\Module\Music\Application\Query\GetMusicComparison;
 use App\Module\Music\Domain\Enum\ListeningSource;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
+use App\Module\Music\Domain\ReadModel\Album;
+use App\Module\Music\Domain\ReadModel\VinylRecord;
 use DateTimeImmutable;
 use Exception;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes as OA;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -28,7 +32,7 @@ use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-#[Route('/api/music')]
+#[Route('/music')]
 final class MusicController extends AbstractController
 {
     private const array VALID_PERIODS = ['7day', '1month', '3month', '6month', '12month', 'overall'];
@@ -49,6 +53,35 @@ final class MusicController extends AbstractController
     }
 
     #[Route('/top-albums', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Top albums (Last.fm)',
+        description: 'Returns the most-played albums for a period, read live from Last.fm. 503 when the provider is unreachable.',
+        tags: ['Music'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'period',
+                description: 'Last.fm period window.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['7day', '1month', '3month', '6month', '12month', 'overall'], default: '1month'),
+            ),
+            new OA\QueryParameter(
+                name: 'limit',
+                description: 'Maximum number of albums (1–1000).',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 1000, default: 50),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The top albums.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: Album::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 503, description: 'The Last.fm provider is unavailable.', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+        ],
+    )]
     public function topAlbums(Request $request): JsonResponse
     {
         $period = $request->query->get('period', '1month');
@@ -78,6 +111,41 @@ final class MusicController extends AbstractController
     }
 
     #[Route('/comparison', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Owned-vs-listened comparison',
+        description: 'Cross-references the Discogs collection with Last.fm listening: a match score plus owned+listened, want-list, dusty-shelf and recently-played-not-owned buckets.',
+        tags: ['Music'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'period',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['7day', '1month', '3month', '6month', '12month', 'overall'], default: '1month'),
+            ),
+            new OA\QueryParameter(
+                name: 'limit',
+                description: 'Maximum number of albums considered (1–200).',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200, default: 50),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The comparison result.',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'matchScore', type: 'number', format: 'float'),
+                    new OA\Property(property: 'ownedAndListened', type: 'array', items: new OA\Items(ref: new Model(type: Album::class))),
+                    new OA\Property(property: 'wantList', type: 'array', items: new OA\Items(ref: new Model(type: Album::class))),
+                    new OA\Property(property: 'dustyShelf', type: 'array', items: new OA\Items(ref: new Model(type: VinylRecord::class))),
+                    new OA\Property(property: 'recentlyPlayedNotOwned', type: 'array', items: new OA\Items(ref: new Model(type: Album::class))),
+                ]),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 429, ref: '#/components/responses/TooManyRequestsError'),
+            new OA\Response(response: 503, description: 'A music provider (Discogs/Last.fm) is unavailable.', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+        ],
+    )]
     public function comparison(Request $request): JsonResponse
     {
         $period = $request->query->get('period', '1month');
@@ -118,6 +186,21 @@ final class MusicController extends AbstractController
     }
 
     #[Route('/collection', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Vinyl collection (Discogs)',
+        description: 'Returns the owned vinyl collection from Discogs. Served from cache with an async refresh dispatched on a miss.',
+        tags: ['Music'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The vinyl collection.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: VinylRecord::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 429, ref: '#/components/responses/TooManyRequestsError'),
+            new OA\Response(response: 503, description: 'Discogs is unavailable.', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+        ],
+    )]
     public function collection(): JsonResponse
     {
         try {
@@ -138,6 +221,46 @@ final class MusicController extends AbstractController
      * the authoritative source that survives the external API going away (HMAI-144).
      */
     #[Route('/history', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Local listening history',
+        description: 'Returns the authoritative local play history (from our own DB, never Last.fm), optionally filtered by source and date range.',
+        tags: ['Music'],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'limit',
+                description: 'Maximum number of sessions (1–500).',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 500, default: 50),
+            ),
+            new OA\QueryParameter(
+                name: 'source',
+                description: 'Filter by listening source.',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['lastfm_scrobble', 'lastfm_top_delta', 'manual']),
+            ),
+            new OA\QueryParameter(
+                name: 'from',
+                description: 'Inclusive lower bound (ISO 8601).',
+                required: false,
+                schema: new OA\Schema(type: 'string', format: 'date-time'),
+            ),
+            new OA\QueryParameter(
+                name: 'to',
+                description: 'Inclusive upper bound (ISO 8601).',
+                required: false,
+                schema: new OA\Schema(type: 'string', format: 'date-time'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The listening history.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: ListeningSessionDTO::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function history(Request $request): JsonResponse
     {
         $limit = $this->parseLimit($request->query->get('limit'), self::MAX_HISTORY_LIMIT);
@@ -179,6 +302,40 @@ final class MusicController extends AbstractController
      * (HMAI-144). Idempotent: re-posting the same album+time is a silent no-op.
      */
     #[Route('/sessions', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Log a listening session',
+        description: 'Manually records a play Last.fm never captured. Idempotent — re-posting the same album+time is a silent no-op.',
+        tags: ['Music'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['artist', 'title', 'playedAt'],
+                properties: [
+                    new OA\Property(property: 'artist', type: 'string', example: 'Radiohead'),
+                    new OA\Property(property: 'title', type: 'string', example: 'In Rainbows'),
+                    new OA\Property(property: 'playedAt', type: 'string', format: 'date-time'),
+                    new OA\Property(property: 'source', type: 'string', enum: ['lastfm_scrobble', 'lastfm_top_delta', 'manual'], default: 'manual'),
+                    new OA\Property(property: 'playCount', type: 'integer', minimum: 0, nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Listening session logged.',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'artist', type: 'string'),
+                    new OA\Property(property: 'title', type: 'string'),
+                    new OA\Property(property: 'playedAt', type: 'string', format: 'date-time'),
+                    new OA\Property(property: 'source', type: 'string'),
+                    new OA\Property(property: 'playCount', type: 'integer', nullable: true),
+                ]),
+            ),
+            new OA\Response(response: 400, description: 'The request body is not a JSON object.', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
     public function createSession(Request $request): JsonResponse
     {
         $payload = json_decode($request->getContent(), true);

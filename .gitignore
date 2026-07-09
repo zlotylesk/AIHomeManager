@@ -7,6 +7,11 @@ app/vendor/
 app/var/
 app/.env.local
 app/.phpunit.cache/
+
+# Symfony auto-generated config reference — IDE autocomplete only, regenerated on
+# every dev cache warmup (drifts with the framework version); nothing at runtime or
+# CI consumes it (PHPStan excludePaths + Rector withSkip already ignore it).
+app/config/reference.php
 *.cache
 .idea/
 .vscode/
@@ -18,6 +23,10 @@ test-results/
 playwright-report/
 playwright/.cache/
 backups/
+
+# HMAI-343: generated OpenAPI contract — a build artifact (`make openapi-dump`,
+# CI openapi-contract job); regenerated from the annotated controllers, never committed.
+openapi.json
 
 # Local-only planning notes (not committed)
 PLAN.md
