@@ -86,7 +86,7 @@ final readonly class ArticleImporter
             if ($needsConversion) {
                 $header = array_map(fn ($v) => iconv($encoding, 'UTF-8//TRANSLIT', $v ?? ''), $header);
             }
-            $columns = array_flip(array_map(trim(...), $header));
+            $columns = array_flip(array_map(static fn ($v): string => trim((string) $v), $header));
 
             while (($fields = fgetcsv($handle, 0, ',', '"', '')) !== false) {
                 if ($needsConversion) {

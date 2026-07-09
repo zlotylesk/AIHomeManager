@@ -8,14 +8,17 @@ use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
 
+/**
+ * @implements UserProviderInterface<ApiUser>
+ */
 final class ApiUserProvider implements UserProviderInterface
 {
-    public function loadUserByIdentifier(string $identifier): UserInterface
+    public function loadUserByIdentifier(string $identifier): ApiUser
     {
         return new ApiUser($identifier);
     }
 
-    public function refreshUser(UserInterface $user): UserInterface
+    public function refreshUser(UserInterface $user): ApiUser
     {
         if (!$user instanceof ApiUser) {
             throw new UnsupportedUserException(\sprintf('Invalid user class "%s".', $user::class));

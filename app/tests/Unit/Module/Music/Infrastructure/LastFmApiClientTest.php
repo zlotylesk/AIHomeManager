@@ -23,15 +23,21 @@ final class LastFmApiClientTest extends TestCase
         $this->redis->method('setex')->willReturn(true);
     }
 
+    /**
+     * @param list<array<string, mixed>> $albums
+     */
     private function makeApiResponse(array $albums): string
     {
-        return json_encode([
+        return (string) json_encode([
             'topalbums' => [
                 'album' => $albums,
             ],
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function makeAlbum(string $artist, string $title, int $playCount, string $imageUrl = ''): array
     {
         return [
@@ -79,7 +85,7 @@ final class LastFmApiClientTest extends TestCase
 
     public function testReturnsEmptyArrayWhenNoAlbums(): void
     {
-        $json = json_encode(['topalbums' => ['album' => []]]);
+        $json = (string) json_encode(['topalbums' => ['album' => []]]);
         $httpClient = new MockHttpClient(new MockResponse($json));
         $client = new LastFmApiClient($httpClient, $this->redis, 'test-api-key');
 

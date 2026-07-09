@@ -74,7 +74,12 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             throw new BookMetadataNotFoundException('Book not found in National Library.');
         }
 
-        $dto = $this->parseBib($bibNodes[0]);
+        $firstBib = $bibNodes[0];
+        if (!$firstBib instanceof SimpleXMLElement) {
+            throw new BookMetadataNotFoundException('Book not found in National Library.');
+        }
+
+        $dto = $this->parseBib($firstBib);
 
         $this->redis->setex($cacheKey, self::CACHE_TTL, $this->encodeMetadataForCache($dto));
 

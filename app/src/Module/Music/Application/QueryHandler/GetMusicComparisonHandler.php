@@ -182,9 +182,9 @@ final readonly class GetMusicComparisonHandler
             return null;
         }
 
-        $owned = self::mapAlbums($decoded['ownedAndListened']);
-        $want = self::mapAlbums($decoded['wantList']);
-        $dusty = self::mapVinyls($decoded['dustyShelf']);
+        $owned = self::mapAlbums(array_values($decoded['ownedAndListened']));
+        $want = self::mapAlbums(array_values($decoded['wantList']));
+        $dusty = self::mapVinyls(array_values($decoded['dustyShelf']));
         $recentlyPlayed = self::mapAlbums(array_values($decoded['recentlyPlayedNotOwned']));
 
         if (null === $owned || null === $want || null === $dusty || null === $recentlyPlayed) {
@@ -240,14 +240,14 @@ final readonly class GetMusicComparisonHandler
                 || !is_string($item['artist'] ?? null)
                 || !is_string($item['title'] ?? null)
                 || !is_int($item['playCount'] ?? null)
-                || !(null === ($item['imageUrl'] ?? null) || is_string($item['imageUrl'] ?? null))) {
+                || !(null === ($item['imageUrl'] ?? null) || is_string($item['imageUrl']))) {
                 return null;
             }
             $result[] = new Album(
                 artist: $item['artist'],
                 title: $item['title'],
                 playCount: $item['playCount'],
-                imageUrl: $item['imageUrl'] ?? null,
+                imageUrl: $item['imageUrl'],
             );
         }
 
@@ -266,7 +266,7 @@ final readonly class GetMusicComparisonHandler
             if (!is_array($item)
                 || !is_string($item['artist'] ?? null)
                 || !is_string($item['title'] ?? null)
-                || !(null === ($item['year'] ?? null) || is_int($item['year'] ?? null))
+                || !(null === ($item['year'] ?? null) || is_int($item['year']))
                 || !is_string($item['format'] ?? null)
                 || !is_int($item['discogsId'] ?? null)) {
                 return null;
@@ -274,7 +274,7 @@ final readonly class GetMusicComparisonHandler
             $result[] = new VinylRecord(
                 artist: $item['artist'],
                 title: $item['title'],
-                year: $item['year'] ?? null,
+                year: $item['year'],
                 format: $item['format'],
                 discogsId: $item['discogsId'],
             );

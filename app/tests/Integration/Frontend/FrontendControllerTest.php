@@ -91,7 +91,9 @@ class FrontendControllerTest extends WebTestCase
         $crawler = $this->client->getCrawler();
         $activeLink = $crawler->filter('nav.navbar a.active');
         self::assertCount(1, $activeLink);
-        self::assertStringContainsString('/series', $activeLink->attr('href'));
+        $href = $activeLink->attr('href');
+        self::assertNotNull($href);
+        self::assertStringContainsString('/series', $href);
     }
 
     public function testBaseLayoutContainsCSPMetaTag(): void
