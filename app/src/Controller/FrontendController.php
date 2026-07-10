@@ -52,4 +52,10 @@ final class FrontendController extends AbstractController
     {
         return $this->render('youtube_progress/index.html.twig');
     }
+
+    #[Route('/goals', name: 'app_frontend_goals', methods: ['GET'])]
+    public function goals(): Response
+    {
+        return $this->render('goals/index.html.twig');
+    }
 }
