@@ -7,6 +7,7 @@ namespace App;
 use App\Application\Scheduled\BackupDatabase;
 use App\Application\Scheduled\GenerateWeeklyActivityReport;
 use App\Module\Articles\Application\Command\ResetDailyArticleCache;
+use App\Module\Goals\Application\Command\RecalculateStreaks;
 use App\Module\Music\Application\Command\PollLastFmRecentTracks;
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -52,6 +53,7 @@ final readonly class Schedule implements ScheduleProviderInterface
                 RecurringMessage::cron('0 8 * * 1', new GenerateWeeklyActivityReport()),
                 RecurringMessage::cron('0 */6 * * *', new RefreshDiscogsCollection($this->discogsUsername)),
                 RecurringMessage::cron('*/30 * * * *', new PollLastFmRecentTracks($this->lastfmUsername)),
+                RecurringMessage::cron('0 1 * * *', new RecalculateStreaks()),
             );
     }
 }
