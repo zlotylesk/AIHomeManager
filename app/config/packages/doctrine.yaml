@@ -8,6 +8,8 @@ doctrine:
             series_status: App\Module\Series\Infrastructure\Persistence\Doctrine\Type\SeriesStatusType
             series_rating: App\Module\Series\Infrastructure\Persistence\Doctrine\Type\RatingType
             listening_source: App\Module\Music\Infrastructure\Persistence\Doctrine\Type\ListeningSourceType
+            goal_type: App\Module\Goals\Infrastructure\Persistence\Doctrine\Type\GoalTypeType
+            goal_period: App\Module\Goals\Infrastructure\Persistence\Doctrine\Type\GoalPeriodType
 
 
         profiling_collect_backtrace: '%kernel.debug%'
@@ -65,6 +67,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/YouTubeProgress/Infrastructure/Persistence/Doctrine/Entity'
                 prefix: 'App\Module\YouTubeProgress\Domain\Entity'
+            GoalsDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Goals/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Goals\Domain\Entity'
+            GoalsDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Goals/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Goals\Domain\ValueObject'
 
 when@test:
     doctrine:
