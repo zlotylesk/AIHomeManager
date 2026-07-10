@@ -1,0 +1,35 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Cele — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="goals">
+    <header class="app-header">
+        <h1 class="app-title">Cele i streaki</h1>
+    </header>
+
+    <section class="goals-section">
+        <h2 class="goals-section-title">Nowy cel</h2>
+        <form class="goal-create-form" data-action="submit->goals#createGoal">
+            <select class="goal-input" data-goals-target="type" aria-label="Typ celu"></select>
+            <input class="goal-input" type="number" min="1" placeholder="Próg" data-goals-target="target" aria-label="Próg celu">
+            <select class="goal-input" data-goals-target="period" aria-label="Okres celu"></select>
+            <button type="submit" class="btn btn-primary">Dodaj cel</button>
+        </form>
+    </section>
+
+    <section class="goals-section">
+        <h2 class="goals-section-title">Twoje cele</h2>
+        <div id="goals-list" class="goals-list" data-goals-target="list">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+
+    <section class="goals-section">
+        <h2 class="goals-section-title">Streaki</h2>
+        <div id="goals-streaks" class="goals-streaks" data-goals-target="streaks">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
