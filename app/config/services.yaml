@@ -65,6 +65,9 @@ services:
     App\Module\Books\Domain\Repository\BookRepositoryInterface:
         alias: App\Module\Books\Infrastructure\Persistence\DoctrineBookRepository
 
+    App\Module\Goals\Domain\Repository\GoalRepositoryInterface:
+        alias: App\Module\Goals\Infrastructure\Persistence\DoctrineGoalRepository
+
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
             $redis: '@app.redis'
