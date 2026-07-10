@@ -112,3 +112,32 @@ test('creating a goal posts to the API and re-renders the list', async ({ page }
   await expect(page.locator('.goal-card')).toHaveCount(1);
   await expect(page.locator('.goal-card')).toContainText('Odcinki seriali');
 });
+
+test('creating a goal then shows its progress and streak', async ({ page }) => {
+  let goals: GoalFixture[] = [];
+  let streaks: StreakFixture[] = [];
+  await page.route('**/api/goals/streaks', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(streaks) }),
+  );
+  await page.route('**/api/goals', (route) => {
+    if ('POST' === route.request().method()) {
+      goals = [goal({ type: 'book_pages', period: 'daily', target: 50, achieved: 30, percent: 60, met: false })];
+      streaks = [{ type: 'book_pages', currentLength: 2, longestLength: 5, lastActivityDate: '2026-07-10' }];
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: goal().goalId }) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(goals) });
+  });
+
+  await gotoGoals(page);
+  await expect(page.locator('.goal-card')).toHaveCount(0);
+
+  await page.locator('[data-goals-target="type"]').selectOption('book_pages');
+  await page.locator('[data-goals-target="target"]').fill('50');
+  await page.locator('[data-goals-target="period"]').selectOption('daily');
+  await page.locator('.goal-create-form button[type="submit"]').click();
+
+  await expect(page.locator('.goal-card')).toHaveCount(1);
+  await expect(page.locator('.goal-card').first()).toContainText('30 / 50');
+  await expect(page.locator('.goal-card').first()).toContainText('60%');
+  await expect(page.locator('.streak-card')).toContainText('2 dni z rzędu');
+});

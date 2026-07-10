@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Goals;
 
 use App\Tests\Support\AuthenticatedApiTrait;
+use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -48,6 +49,16 @@ final class GoalsApiTest extends WebTestCase
         return $body['id'];
     }
 
+    private function insertReadingSession(string $id, DateTimeImmutable $date, int $pagesRead): void
+    {
+        $this->connection->insert('book_reading_sessions', [
+            'id' => $id,
+            'book_id' => 'book-1',
+            'date' => $date->format('Y-m-d'),
+            'pages_read' => $pagesRead,
+        ]);
+    }
+
     public function testListReturnsEmptyArrayWhenNoGoals(): void
     {
         $this->client->request('GET', '/api/goals');
@@ -87,6 +98,54 @@ final class GoalsApiTest extends WebTestCase
         self::assertSame(0, $streaks[0]['currentLength']);
         self::assertSame(0, $streaks[0]['longestLength']);
         self::assertNull($streaks[0]['lastActivityDate']);
+    }
+
+    public function testListReflectsSeededActivityProgress(): void
+    {
+        $id = $this->createGoal(['type' => 'book_pages', 'target' => 50, 'period' => 'daily']);
+        $this->insertReadingSession('sess-progress', new DateTimeImmutable('today'), 30);
+
+        $this->client->request('GET', '/api/goals');
+        self::assertResponseIsSuccessful();
+
+        $list = $this->jsonResponse($this->client);
+        self::assertCount(1, $list);
+        self::assertSame($id, $list[0]['goalId']);
+        self::assertSame(30, $list[0]['achieved']);
+        self::assertSame(60, $list[0]['percent']);
+        self::assertFalse($list[0]['met']);
+    }
+
+    public function testGoalIsMetAndPercentCapsAtHundred(): void
+    {
+        $this->createGoal(['type' => 'book_pages', 'target' => 50, 'period' => 'daily']);
+        $this->insertReadingSession('sess-met', new DateTimeImmutable('today'), 60);
+
+        $this->client->request('GET', '/api/goals');
+        self::assertResponseIsSuccessful();
+
+        $list = $this->jsonResponse($this->client);
+        self::assertSame(60, $list[0]['achieved']);
+        self::assertSame(100, $list[0]['percent']);
+        self::assertTrue($list[0]['met']);
+    }
+
+    public function testStreaksReflectConsecutiveActivityDays(): void
+    {
+        $this->createGoal(['type' => 'book_pages', 'target' => 10, 'period' => 'daily']);
+        $today = new DateTimeImmutable('today');
+        $this->insertReadingSession('sess-yesterday', $today->modify('-1 day'), 5);
+        $this->insertReadingSession('sess-today', $today, 5);
+
+        $this->client->request('GET', '/api/goals/streaks');
+        self::assertResponseIsSuccessful();
+
+        $streaks = $this->jsonResponse($this->client);
+        self::assertCount(1, $streaks);
+        self::assertSame('book_pages', $streaks[0]['type']);
+        self::assertSame(2, $streaks[0]['currentLength']);
+        self::assertSame(2, $streaks[0]['longestLength']);
+        self::assertSame($today->format('Y-m-d'), $streaks[0]['lastActivityDate']);
     }
 
     public function testUpdateGoalChangesTargetAndPeriod(): void
