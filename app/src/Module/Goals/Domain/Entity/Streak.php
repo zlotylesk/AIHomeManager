@@ -89,4 +89,24 @@ final class Streak
     {
         $this->currentLength = 0;
     }
+
+    /**
+     * Reconcile the streak with a freshly recomputed state — the progress engine
+     * is the source of truth for the run lengths. Idempotent: reconciling to the
+     * same values leaves the aggregate unchanged.
+     */
+    public function reconcile(int $currentLength, int $longestLength, ?DateTimeImmutable $lastActivityDate): void
+    {
+        if ($currentLength < 0) {
+            throw new InvalidArgumentException('Current streak length cannot be negative.');
+        }
+
+        if ($longestLength < $currentLength) {
+            throw new InvalidArgumentException('Longest streak length cannot be smaller than the current length.');
+        }
+
+        $this->currentLength = $currentLength;
+        $this->longestLength = $longestLength;
+        $this->lastActivityDate = $lastActivityDate;
+    }
 }

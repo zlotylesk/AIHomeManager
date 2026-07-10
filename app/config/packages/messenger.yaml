@@ -42,6 +42,7 @@ framework:
             App\Module\Series\Application\Command\ImportRatingsFromTrakt: async
             App\Module\Music\Application\Command\RefreshDiscogsCollection: async
             App\Module\Music\Application\Command\PollLastFmRecentTracks: async
+            App\Module\Goals\Application\Command\RecalculateStreaks: async
 
 when@test:
     framework:

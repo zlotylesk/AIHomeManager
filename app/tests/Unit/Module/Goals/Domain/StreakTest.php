@@ -106,4 +106,47 @@ final class StreakTest extends TestCase
         self::assertSame(9, $streak->longestLength());
         self::assertSame($date, $streak->lastActivityDate());
     }
+
+    public function testReconcileReplacesTheRecomputedState(): void
+    {
+        $streak = new Streak('s-0010', GoalType::BOOK_PAGES, 1, 5, new DateTimeImmutable('2026-07-01'));
+        $newDate = new DateTimeImmutable('2026-07-10');
+
+        $streak->reconcile(3, 8, $newDate);
+
+        self::assertSame(3, $streak->currentLength());
+        self::assertSame(8, $streak->longestLength());
+        self::assertSame($newDate, $streak->lastActivityDate());
+    }
+
+    public function testReconcileAcceptsAZeroCurrentAndNullDate(): void
+    {
+        $streak = new Streak('s-0011', GoalType::BOOK_PAGES, 4, 9, new DateTimeImmutable('2026-07-08'));
+
+        $streak->reconcile(0, 9, null);
+
+        self::assertSame(0, $streak->currentLength());
+        self::assertSame(9, $streak->longestLength());
+        self::assertNull($streak->lastActivityDate());
+    }
+
+    public function testReconcileThrowsWhenCurrentNegative(): void
+    {
+        $streak = new Streak('s-0012', GoalType::BOOK_PAGES);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Current streak length cannot be negative.');
+
+        $streak->reconcile(-1, 0, null);
+    }
+
+    public function testReconcileThrowsWhenLongestSmallerThanCurrent(): void
+    {
+        $streak = new Streak('s-0013', GoalType::BOOK_PAGES);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Longest streak length cannot be smaller than the current length.');
+
+        $streak->reconcile(5, 3, null);
+    }
 }
