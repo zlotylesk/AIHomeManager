@@ -13,6 +13,8 @@ use App\Module\Goals\Application\DTO\StreakDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
+use App\Module\Search\Domain\Enum\SearchResultType;
+use App\Module\Search\Domain\ValueObject\SearchResult;
 use App\Module\Series\Application\DTO\EpisodeDTO;
 use App\Module\Series\Application\DTO\SeasonDTO;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
@@ -25,6 +27,7 @@ use App\Serializer\BookDetailDTONormalizer;
 use App\Serializer\BookDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
+use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
 use App\Serializer\TaskDTONormalizer;
@@ -292,6 +295,23 @@ final class NormalizersTest extends TestCase
             'longestLength' => 7,
             'lastActivityDate' => '2026-07-10',
         ], $n->normalize($dto));
+    }
+
+    public function testSearchResultNormalizer(): void
+    {
+        $n = new SearchResultDTONormalizer();
+        $result = new SearchResult(SearchResultType::BOOK, 'b1', 'Dune', 'desert planet', '/books');
+
+        self::assertTrue($n->supportsNormalization($result));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(SearchResult::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'type' => 'book',
+            'id' => 'b1',
+            'title' => 'Dune',
+            'snippet' => 'desert planet',
+            'url' => '/books',
+        ], $n->normalize($result));
     }
 
     private function book(): BookDTO
