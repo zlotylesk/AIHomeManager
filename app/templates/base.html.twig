@@ -24,6 +24,7 @@
                 <li><a href="{{ path('app_frontend_youtube_progress') }}" {% if app.request.attributes.get('_route') == 'app_frontend_youtube_progress' %}class="active"{% endif %}>YouTube</a></li>
                 <li><a href="{{ path('app_frontend_goals') }}" {% if app.request.attributes.get('_route') == 'app_frontend_goals' %}class="active"{% endif %}>Goals</a></li>
             </ul>
+            {{ include('_search.html.twig') }}
         </nav>
 
         <div id="error-banner" class="error-banner hidden"></div>
