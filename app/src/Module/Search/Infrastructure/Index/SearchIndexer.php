@@ -7,6 +7,7 @@ namespace App\Module\Search\Infrastructure\Index;
 use App\Module\Search\Domain\Port\SearchableProviderInterface;
 use App\Module\Search\Domain\Port\SearchIndexerInterface;
 use Doctrine\DBAL\Connection;
+use Psr\Cache\CacheItemPoolInterface;
 
 /**
  * Rebuilds the `search_documents` FULLTEXT index by pulling every
@@ -20,6 +21,7 @@ final readonly class SearchIndexer implements SearchIndexerInterface
     public function __construct(
         private Connection $connection,
         private SearchableProviderInterface $provider,
+        private CacheItemPoolInterface $cache,
     ) {
     }
 
@@ -39,6 +41,9 @@ final readonly class SearchIndexer implements SearchIndexerInterface
                 ]);
             }
         });
+
+        // The index changed, so any cached search results are now stale.
+        $this->cache->clear();
 
         return count($documents);
     }
