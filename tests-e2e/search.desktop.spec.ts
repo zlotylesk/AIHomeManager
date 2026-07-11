@@ -43,6 +43,20 @@ test('shows an empty state when nothing matches', async ({ page }) => {
   await expect(page.locator('.search-result')).toHaveCount(0);
 });
 
+test('clicking a result navigates to the source entity', async ({ page }) => {
+  await stubPage(page, RESULTS);
+  await page.route('**/api/books**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.goto('/goals');
+
+  await page.locator('[data-search-target="input"]').fill('space');
+  await expect(page.locator('.search-result').first()).toHaveAttribute('href', '/books');
+  await page.locator('.search-result').first().click();
+
+  await expect(page).toHaveURL(/\/books$/);
+});
+
 test('does not query the API for a single character', async ({ page }) => {
   let called = false;
   await page.route('**/api/goals/streaks', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
