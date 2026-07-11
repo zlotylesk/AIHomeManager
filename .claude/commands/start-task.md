@@ -72,7 +72,7 @@ Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Re
 
 **11. Commit:** `git diff` → commit `$ARGUMENTS - {Tytuł EN}`.
 
-**12. PR + merge** → [wspólna](#pr): utwórz PR, **poczekaj na zielone CI, potem rebase-and-merge do developa** (`gh pr merge {PR} --rebase --delete-branch`). **Confluence** → [opcjonalnie](#confluence). Status → Code Review (Jira **zostaje** w Code Review mimo merge). **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI i merge).
+**12. PR + merge** → [wspólna](#pr): utwórz PR, **poczekaj na zielone CI, potem rebase-and-merge do developa** (`gh pr merge {PR} --rebase --delete-branch`). **Confluence** → [opcjonalnie](#confluence). Status → **Gotowe** (transition id `31`) po zielonym CI i merge. **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI i merge).
 
 **12a. Bug → komentarz z analizą** (tylko gdy `issuetype` to `Błąd`/Bug): dodaj do ticketu komentarz z dokładną analizą problemu i podjętymi działaniami do rozwiązania — patrz [bug-analiza](#bug-analysis). Obowiązkowe dla każdego Buga, niezależnie od scope'u; osobny byt od worklogu (Krok 13).
 
@@ -108,7 +108,7 @@ Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Re
 
 **B12. Commit:** `git diff` → commit `$ARGUMENTS - {Tytuł EN} — epic review`.
 
-**B13. PR + merge** → [wspólna](#pr): utwórz PR, **poczekaj na zielone CI, potem rebase-and-merge do developa**. **Confluence** → [opcjonalnie](#confluence) (przy epiku zazwyczaj TAK — to zwykle aktualizacja dokumentacji modułu). Status epiku → Code Review (zostaje w Code Review mimo merge). **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI i merge).
+**B13. PR + merge** → [wspólna](#pr): utwórz PR, **poczekaj na zielone CI, potem rebase-and-merge do developa**. **Confluence** → [opcjonalnie](#confluence) (przy epiku zazwyczaj TAK — to zwykle aktualizacja dokumentacji modułu). Status epiku → **Gotowe** (transition id `31`) po zielonym CI i merge. **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI i merge).
 
 **B14. Rejestr czasu pracy:** identycznie jak Krok 13 — różnica `endedAt − startedAt` zaokrąglona w górę do pełnych 15 min, `addWorklogToJiraIssue` na klucz epiku, `started=startedAt`, **bez `commentBody`**. Patrz [worklog](#worklog).
 
@@ -141,7 +141,7 @@ Tests: {N} nowych — {jeden bullet z najważniejszym}
 1. **Poczekaj na zielone CI.** `gh pr checks {PR}` aż wszystkie joby = `pass` (develop jest airtight-protected: wymagane checki + enforce_admins, więc merge bez zielonego CI i tak jest zablokowany). **To oczekiwanie liczy się do worklogu** — patrz [worklog](#worklog).
 2. **Jeden commit na zadanie.** Pracuj jednym commitem od Kroku 11, więc squash to zwykle no-op. Jeśli na branchu powstało >1 commita — zsquashuj do jednego przed mergem (`git reset --soft develop && git commit -m "$ARGUMENTS - {Tytuł EN}"` + `git push --force-with-lease`); `git rebase -i` jest niedostępny.
 3. **Rebase and merge** (NIE squash-merge, NIE merge-commit): `gh pr merge {PR} --rebase --delete-branch`. Pojedynczy commit zadania ląduje na linii developa bez merge-commita.
-4. **Jira zostaje w Code Review** mimo zmergowania — owner robi wielozadaniowy przebieg i sam domyka do „Gotowe". Przejście na Code Review zrób po merge.
+4. **Po zmergowaniu przejdź zadanie na Gotowe** (transition id `31`) — owner potwierdził 2026-07-11, że zadania mają lądować w „Gotowe" po zielonym CI i merge (wcześniej zostawało w Code Review; ta reguła jest już nieaktualna). Przejście zrób po merge.
 
 ## Confluence — kiedy aktualizować {#confluence}
 
@@ -199,7 +199,7 @@ Komentarz to rejestr decyzji, nie changelog — zwięźle, ale nie pomijaj „dl
 
 ## Po zakończeniu zadania — co dalej {#next}
 
-Po wpisaniu worklogu i przejściu do Code Review **zaproponuj userowi następny krok** wg progresywnego algorytmu. Jedna rekomendacja, nie lista.
+Po wpisaniu worklogu i przejściu do Gotowe **zaproponuj userowi następny krok** wg progresywnego algorytmu. Jedna rekomendacja, nie lista.
 
 1. **Pobierz `fixVersion`** z bieżącego zadania (`getJiraIssue` → `fields.fixVersions[0].name`). Brak fixVersion → zakończ bez rekomendacji.
 
@@ -235,7 +235,7 @@ Jeśli user pominął rekomendację i podał własne `/start-task HMAI-YY` — w
 - 1h 7m → 1h 15m
 - 2h 30m 01s → 2h 45m
 
-**Czas oczekiwania na zielone CI liczy się do worklogu (owner, 2026-07-09).** `endedAt` bierzesz po tym, jak CI zrobi się zielone **i** PR zostanie zmergowany do developa — NIE w momencie przejścia Jiry na Code Review. Aktywne czekanie na joby CI (kilka–kilkanaście minut) jest częścią pracy nad zadaniem i wchodzi do różnicy `endedAt − startedAt`.
+**Czas oczekiwania na zielone CI liczy się do worklogu (owner, 2026-07-09).** `endedAt` bierzesz po tym, jak CI zrobi się zielone **i** PR zostanie zmergowany do developa — NIE w momencie przejścia Jiry na Gotowe. Aktywne czekanie na joby CI (kilka–kilkanaście minut) jest częścią pracy nad zadaniem i wchodzi do różnicy `endedAt − startedAt`.
 
 **Wywołanie:** `addWorklogToJiraIssue(cloudId, issueKey, timeSpent=…, started=ISO_8601)`. **Bez `commentBody`** — czysty rejestr czasu, żadnych adnotacji.
 
