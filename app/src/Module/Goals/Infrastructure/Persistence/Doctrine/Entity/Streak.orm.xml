@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Goals\Domain\Entity\Streak" table="streaks">
+        <unique-constraints>
+            <unique-constraint columns="type" name="uniq_streaks_type"/>
+        </unique-constraints>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="type" type="goal_type" column="type" length="50" nullable="false"/>
+        <field name="currentLength" type="integer" column="current_length" nullable="false"/>
+        <field name="longestLength" type="integer" column="longest_length" nullable="false"/>
+        <field name="lastActivityDate" type="datetime_immutable" column="last_activity_date" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>

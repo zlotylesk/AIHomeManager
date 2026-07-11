@@ -8,6 +8,8 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
 use App\Module\Books\Application\DTO\ReadingSessionDTO;
+use App\Module\Goals\Application\DTO\GoalProgressDTO;
+use App\Module\Goals\Application\DTO\StreakDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
@@ -21,8 +23,10 @@ use App\Serializer\AlbumDTONormalizer;
 use App\Serializer\ArticleDTONormalizer;
 use App\Serializer\BookDetailDTONormalizer;
 use App\Serializer\BookDTONormalizer;
+use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
+use App\Serializer\StreakDTONormalizer;
 use App\Serializer\TaskDTONormalizer;
 use App\Serializer\VideoDTONormalizer;
 use App\Serializer\VinylRecordDTONormalizer;
@@ -259,6 +263,35 @@ final class NormalizersTest extends TestCase
         self::assertSame(1, $result['episodeCount']);
         self::assertSame(0, $result['seasons'][0]['watchedCount']);
         self::assertSame(1, $result['seasons'][0]['episodeCount']);
+    }
+
+    public function testGoalProgressNormalizer(): void
+    {
+        $n = new GoalProgressDTONormalizer();
+        $dto = new GoalProgressDTO('g1', 'book_pages', 'daily', 50, 30, 60, false);
+
+        self::assertSame([
+            'goalId' => 'g1',
+            'type' => 'book_pages',
+            'period' => 'daily',
+            'target' => 50,
+            'achieved' => 30,
+            'percent' => 60,
+            'met' => false,
+        ], $n->normalize($dto));
+    }
+
+    public function testStreakNormalizer(): void
+    {
+        $n = new StreakDTONormalizer();
+        $dto = new StreakDTO('book_pages', 3, 7, '2026-07-10');
+
+        self::assertSame([
+            'type' => 'book_pages',
+            'currentLength' => 3,
+            'longestLength' => 7,
+            'lastActivityDate' => '2026-07-10',
+        ], $n->normalize($dto));
     }
 
     private function book(): BookDTO

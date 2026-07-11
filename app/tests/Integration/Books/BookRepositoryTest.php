@@ -80,6 +80,7 @@ class BookRepositoryTest extends KernelTestCase
         $this->em->clear();
 
         $loaded = $this->repository->findById('c0000003-0000-0000-0000-000000000001');
+        self::assertNotNull($loaded);
         $loaded->addReadingSession(new ReadingSession(
             id: 'sess-0001-0000-0000-000000000001',
             bookId: $loaded->id(),
@@ -111,6 +112,7 @@ class BookRepositoryTest extends KernelTestCase
         $this->em->clear();
 
         $loaded = $this->repository->findById('c0000005-0000-0000-0000-000000000001');
+        self::assertNotNull($loaded);
         $loaded->addReadingSession(new ReadingSession(
             id: 'sess-0005-0000-0000-000000000001',
             bookId: $loaded->id(),
@@ -139,6 +141,7 @@ class BookRepositoryTest extends KernelTestCase
         $this->em->clear();
 
         $loaded = $this->repository->findById('c0000004-0000-0000-0000-000000000001');
+        self::assertNotNull($loaded);
         $this->repository->remove($loaded);
         $this->em->clear();
 

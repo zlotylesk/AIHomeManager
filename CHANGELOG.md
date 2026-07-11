@@ -4,6 +4,40 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.19.0] — 2026-07-11
+
+Wydanie modułu **Goals** (epik **HMAI-248** — cele i streaki, gamifikacja ponad modułami; 8 podzadań HMAI-249…256, każde z osobnym zielonym CI). Nowy moduł pozwala definiować cele aktywności (książki / seriale / artykuły / YouTube) w oknach dzień / tydzień / miesiąc oraz śledzić postęp i streaki (ciągłość dzienną) — czytając aktywność z istniejących modułów **bez łamania granic heksagonalnych** (port `ActivityProviderInterface` + adaptery DBAL czytające tabele źródłowe surowym SQL, deptrac 0/0). Wydanie domyka też dług techniczny **HMAI-274** (redukcja phpstan-baseline do jednego celowego wpisu). **1119/1119 PHP** (+86 vs 1033 w 1.22.0) + **59/59 Playwright** (+7) + **49 Vitest JS** (+7) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac 0 `skip_violations`.
+
+> **Uwaga o numeracji.** `1.19.0` to numer z roadmapy (fixVersion epiku Goals nadany, zanim epik OpenAPI wyszedł jako `1.22.0`). Treściowo to wydanie powstaje **na bazie już wydanego `1.22.0`** (jest jego nadzbiorem), dlatego `1.22.0` pozostaje najwyższym tagiem na GitHub, a ten release nie jest oznaczony jako „latest". Diff zawartości: [`1.22.0...1.19.0`](https://github.com/zlotylesk/AIHomeManager/compare/1.22.0...1.19.0).
+
+### Added
+
+- **Moduł Goals — Domain (HMAI-249)** — agregaty `Goal` + `Streak` (`Domain/Entity/`), enumy `GoalType` + `Period` (`Domain/Enum/`), VO `GoalTarget` (`Domain/ValueObject/`), porty `GoalRepositoryInterface` + `StreakRepositoryInterface` (`Domain/Repository/`) oraz warstwy deptrac `Goals*`.
+- **Port aktywności cross-module (HMAI-250)** — `ActivityProviderInterface` (`Domain/Port/`) zwraca znormalizowane read modele `ActivityEvent` (`GoalType` + `value` + `occurredAt`) dla okna `[from, to]`; cztery **adaptery DBAL** (Books/Series/Articles/YouTube) czytają tabele modułów źródłowych surowym SQL — bez importu jakiejkolwiek klasy cross-module (deptrac 0/0) — plus `CompositeActivityProvider` agregujący adaptery (`!tagged_iterator goals.activity_provider`).
+- **Definiowanie celów — write side (HMAI-251)** — komendy `CreateGoal`/`UpdateGoal`/`DeleteGoal` + handlery na `command.bus` (walidacja w handlerach: `GoalType`/`Period` przez `tryFrom`, dodatni próg przez VO `GoalTarget`, `GoalNotFoundException` na miss; typ celu niemutowalny). Persystencja: `DoctrineGoalRepository` (ORM — tabela `goals` przez `Goal.orm.xml` + embeddable `GoalTarget`, enumy przez typy DBAL `goal_type`/`goal_period`), migracja `Version20260710000001`.
+- **Silnik postępu i streaków (HMAI-252)** — czysty `Domain/Service/GoalProgressCalculator` (bez I/O, unit-tested): okna dzień / tydzień-ISO-od-poniedziałku / miesiąc kalendarzowy, streak dzień-do-dnia (dedup tego samego dnia, zerwanie po całym opuszczonym dniu, zachowanie najdłuższego). Query `GetGoalsProgress`/`GetStreaks` na `query.bus` (**DBAL**) → `GoalProgressDTO`/`StreakDTO` (streaki per typ aktywności, lookback 365 dni).
+- **REST API Goals (HMAI-253)** — cienki `GoalsController` (`src/Controller/Api/`, serwowany pod `/api/v1/goals` + alias `/api/goals`, ADR-008): `GET /goals`, `GET /goals/streaks`, `POST /goals` (201), `PUT /goals/{id}` (204), `DELETE /goals/{id}` (204). Odczyty przez `query.bus`, zapisy przez `command.bus`; mapowanie `HandlerFailedException` → 404/422. DTO→JSON przez `GoalProgressDTONormalizer`/`StreakDTONormalizer`; udokumentowane `#[OA\*]`+`#[Model]` z tagiem `Goals`.
+- **Frontend Goals (HMAI-254)** — strona `/goals` (`app_frontend_goals`, link w nawigacji) sterowana Stimulusem `goals_controller.js`: formularz nowego celu, siatka kart z paskami postępu (`achieved/target` + capped percent + wyróżnienie „met"), inline edit (próg+okno) i usuwanie, oraz karta streaka per typ aktywności. Czyste helpery prezentacji w `assets/goals/format.js` (eksportowane, pokryte Vitest).
+- **Przeliczanie streaków w tle (HMAI-255)** — komenda `RecalculateStreaks` (bez payloadu) + handler `#[AsMessageHandler(bus:'command.bus')]` **routed async**; **persisted `Streak` per typ** przez `DoctrineStreakRepository` (nowa tabela `streaks` — `Streak.orm.xml`, migracja `Version20260710000002`), idempotentne, zachowuje all-time longest przez `Streak::reconcile()`. Odpalane nocnym zadaniem Schedulera `0 1 * * *` (Scheduler: 6 → 7 zadań cyklicznych).
+
+### Changed
+
+- **Dług techniczny — dokończenie redukcji phpstan-baseline (HMAI-274)** — ~26 pozostałych supresji typowania naprawionych **u źródła** (nie re-baseline'owanych): produkcja (DiscogsAuthController, GetMusicComparisonHandler, ApiUser/ApiUserProvider, NationalLibraryApiClient, ArticleImporter) + test-helpery. `phpstan-baseline.neon` zawiera teraz **dokładnie jeden** celowy wpis (`ApiKeyAuthTest` — tautologia kontraktu wire).
+
+### Coverage
+
+- **+86 testów PHP** (1033 → 1119): moduł Goals (HMAI-249…256) — Domain (`GoalProgressCalculator`, agregaty), adaptery aktywności (`ActivityAdaptersTest`), query handlery (`GoalsProgressQueryTest`), API z seeded activity (`GoalsApiTest`), normalizery, routing async (`RecalculateStreaksRoutingTest`), zgodność OpenAPI (`OpenApiContractTest` — goals list + streaks). Playwright 52 → 59 (+7: `goals.desktop` 5 + `goals.mobile` 2); Vitest 42 → 49 (+7: `goals_format`); Newman 43 bez zmian.
+
+### Migration
+
+1. **Migracje DB** — `make migrate` (nowe tabele `goals` + `streaks`: `Version20260710000001`, `Version20260710000002`).
+2. **Scheduler** — nowe zadanie nocne `0 1 * * *` (`RecalculateStreaks`) obsługiwane przez istniejący `scheduler_worker`; brak akcji ręcznej poza działającym workerem.
+3. Brak nowych kluczy `.env.local`; brak operacji destrukcyjnych na DB.
+
+### Closed Jira
+
+- **Epik HMAI-248** (Goals — cele i streaki, gamifikacja ponad modułami) + 8 podzadań: HMAI-249, HMAI-250, HMAI-251, HMAI-252, HMAI-253, HMAI-254, HMAI-255, HMAI-256. Dodatkowo **HMAI-274** (dokończenie redukcji phpstan-baseline).
+
 ## [1.22.0] — 2026-07-08
 
 Wydanie kontraktu API (epik **HMAI-311** — formalny, wersjonowany kontrakt REST oparty o OpenAPI 3.1; 8 podzadań, każde z osobnym zielonym CI). Wprowadza maszynowy opis całej powierzchni `^/api/*` generowany przez **NelmioApiDocBundle** z atrybutów na kontrolerach (bez ingerencji w cienkie kontrolery i architekturę heksagonalną), interaktywną dokumentację (Swagger UI + Redoc), współdzielone komponenty (schemat `X-API-Key`, schematy błędów 401/404/409/422/429/500, paginacja, nagłówki rate-limit/`X-Request-ID`) oraz **wersjonowanie ścieżek `/api/v1`** z aliasem zgodności wstecznej `/api` (ADR-008). Kontrakt jest **bramką jakości w CI** (5. job `openapi-contract`: dump `openapi.json` jako artefakt + lint Spectral + testy zgodności odpowiedzi ze schematem przez `opis/json-schema`) — gotowy pod generowanie typowanego klienta, fundament pod aplikację mobilną Android. **1033/1033 PHP** (+56 vs 977) + **52/52 Playwright** + **43 Newman** — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac 0 `skip_violations`. Bez zmian w modelu domenowym — poza dodaniem prefiksu `/api/v1` z zachowaniem aliasu kontrakt opisuje istniejące zachowanie API.

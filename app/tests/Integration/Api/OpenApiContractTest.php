@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Api;
 
 use App\Tests\Support\AuthenticatedApiTrait;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\ValidationResult;
@@ -43,7 +44,7 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles');
+        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions');
 
         $content = $this->fetchSpecContent();
 
@@ -98,6 +99,22 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->seedArticle();
         $this->assertResponseConformsToContract('GET', '/api/v1/articles', '/api/v1/articles');
+    }
+
+    public function testGoalsListResponseConformsToContract(): void
+    {
+        // Goals is the cross-module gamification layer: a goal plus seeded activity
+        // yields a populated GoalProgressDTO (non-zero achieved/percent, met flag).
+        $this->seedGoalWithActivity();
+        $this->assertResponseConformsToContract('GET', '/api/v1/goals', '/api/v1/goals');
+    }
+
+    public function testGoalsStreaksResponseConformsToContract(): void
+    {
+        // The streak read model carries the day-continuity run and a non-null
+        // lastActivityDate once activity exists — the populated branch of StreakDTO.
+        $this->seedGoalWithActivity();
+        $this->assertResponseConformsToContract('GET', '/api/v1/goals/streaks', '/api/v1/goals/streaks');
     }
 
     public function testContractValidationRejectsDriftingResponse(): void
@@ -264,6 +281,24 @@ final class OpenApiContractTest extends WebTestCase
         return $this->postForId('/api/v1/articles', [
             'title' => 'A representative article',
             'url' => 'https://example.com/article',
+        ]);
+    }
+
+    /**
+     * Define a book-pages goal and seed one same-day reading session, so both the
+     * progress (achieved/percent/met) and streak (currentLength/lastActivityDate)
+     * read models carry populated, non-null values rather than zeros.
+     */
+    private function seedGoalWithActivity(): void
+    {
+        $this->postForId('/api/v1/goals', ['type' => 'book_pages', 'target' => 50, 'period' => 'daily']);
+
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $connection->insert('book_reading_sessions', [
+            'id' => 'contract-goal-session',
+            'book_id' => 'contract-book',
+            'date' => new DateTimeImmutable('today')->format('Y-m-d'),
+            'pages_read' => 30,
         ]);
     }
 

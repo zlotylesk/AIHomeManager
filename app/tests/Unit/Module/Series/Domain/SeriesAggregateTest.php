@@ -48,6 +48,7 @@ final class SeriesAggregateTest extends TestCase
         $series->rateEpisode(self::SEASON_ID, self::EPISODE_ID, new Rating(9));
 
         $episode = $series->seasons()[self::SEASON_ID]->findEpisode(self::EPISODE_ID);
+        self::assertNotNull($episode);
         self::assertNotNull($episode->rating());
         self::assertSame(9, $episode->rating()->value());
     }
