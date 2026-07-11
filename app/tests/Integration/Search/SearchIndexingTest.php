@@ -68,4 +68,18 @@ final class SearchIndexingTest extends KernelTestCase
         $indexed = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM search_documents');
         self::assertSame(1, $indexed);
     }
+
+    public function testReindexClearsTheSearchResultCache(): void
+    {
+        $cache = static::getContainer()->get('cache.search');
+
+        $item = $cache->getItem('search_probe');
+        $item->set([]);
+        $cache->save($item);
+        self::assertTrue($cache->getItem('search_probe')->isHit());
+
+        $this->indexer->reindex();
+
+        self::assertFalse($cache->getItem('search_probe')->isHit(), 'Reindex must clear the search result cache.');
+    }
 }

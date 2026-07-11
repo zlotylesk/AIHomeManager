@@ -345,8 +345,19 @@ services:
     # Search engine (HMAI-268): the FULLTEXT engine + index rebuilder sit behind
     # their Domain ports so the read/write side stays swappable (e.g. an
     # Elasticsearch engine later, HMAI-359).
+    # The FULLTEXT engine is fronted by a Redis result cache (HMAI-271); both sit
+    # behind the SearchEngineInterface port so the read side stays swappable.
+    App\Module\Search\Infrastructure\Cache\CachingSearchEngine:
+        arguments:
+            $engine: '@App\Module\Search\Infrastructure\Engine\FulltextSearchEngine'
+            $cache: '@cache.search'
+
     App\Module\Search\Domain\Port\SearchEngineInterface:
-        alias: App\Module\Search\Infrastructure\Engine\FulltextSearchEngine
+        alias: App\Module\Search\Infrastructure\Cache\CachingSearchEngine
+
+    App\Module\Search\Infrastructure\Index\SearchIndexer:
+        arguments:
+            $cache: '@cache.search'
 
     App\Module\Search\Domain\Port\SearchIndexerInterface:
         alias: App\Module\Search\Infrastructure\Index\SearchIndexer
