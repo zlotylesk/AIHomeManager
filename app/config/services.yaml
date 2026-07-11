@@ -317,6 +317,31 @@ services:
     App\Module\Goals\Domain\Port\ActivityProviderInterface:
         alias: App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider
 
+    # Search indexing (HMAI-267): per-source-module DBAL read adapters expose
+    # indexable documents, aggregated by the composite that backs the
+    # SearchableProviderInterface port (deptrac-clean, no cross-module imports).
+    App\Module\Search\Infrastructure\Provider\BooksSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\ArticlesSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\SeriesSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\TasksSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\MusicSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\CompositeSearchableProvider:
+        arguments:
+            $providers: !tagged_iterator search.searchable_provider
+
+    App\Module\Search\Domain\Port\SearchableProviderInterface:
+        alias: App\Module\Search\Infrastructure\Provider\CompositeSearchableProvider
+
 when@test:
     services:
         App\Tests\Support\SpyLogger:
