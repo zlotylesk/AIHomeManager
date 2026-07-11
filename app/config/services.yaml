@@ -342,6 +342,15 @@ services:
     App\Module\Search\Domain\Port\SearchableProviderInterface:
         alias: App\Module\Search\Infrastructure\Provider\CompositeSearchableProvider
 
+    # Search engine (HMAI-268): the FULLTEXT engine + index rebuilder sit behind
+    # their Domain ports so the read/write side stays swappable (e.g. an
+    # Elasticsearch engine later, HMAI-359).
+    App\Module\Search\Domain\Port\SearchEngineInterface:
+        alias: App\Module\Search\Infrastructure\Engine\FulltextSearchEngine
+
+    App\Module\Search\Domain\Port\SearchIndexerInterface:
+        alias: App\Module\Search\Infrastructure\Index\SearchIndexer
+
 when@test:
     services:
         App\Tests\Support\SpyLogger:
