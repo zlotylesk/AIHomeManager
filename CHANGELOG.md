@@ -4,6 +4,39 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.20.0] — 2026-07-11
+
+Wydanie modułu **Search** (epik **HMAI-265** — globalne wyszukiwanie po wszystkich modułach; 7 podzadań HMAI-266…272, każde z osobnym zielonym CI). Jedno pole wyszukiwania zwraca wyniki z całego produktu (Articles / Books / Series / Music / Tasks) — z rankingiem trafności, paginacją i filtrem typu — czytając dane ze wszystkich modułów **bez łamania granic heksagonalnych** (port `SearchableProviderInterface` + adaptery DBAL czytające tabele źródłowe surowym SQL, deptrac 0/0). Backend MVP oparty na **MySQL FULLTEXT** (bez nowej ciężkiej zależności); Elasticsearch świadomie poza zakresem → osobny epik 1.30.0 (HMAI-359). **1174/1174 PHP** (+55 vs 1119 w 1.19.0) + **66/66 Playwright** (+7) + **54 Vitest JS** (+5) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac 0 `skip_violations`.
+
+> **Uwaga o numeracji.** `1.20.0` to numer z roadmapy (fixVersion epiku Search nadany, zanim epik OpenAPI wyszedł jako `1.22.0`). Treściowo to wydanie powstaje **na bazie już wydanych `1.22.0` i `1.19.0`** (jest ich nadzbiorem), dlatego `1.22.0` pozostaje najwyższym tagiem na GitHub, a ten release nie jest oznaczony jako „latest". Diff zawartości względem poprzedniego wydania: [`1.19.0...1.20.0`](https://github.com/zlotylesk/AIHomeManager/compare/1.19.0...1.20.0).
+
+### Added
+
+- **Moduł Search — Domain (HMAI-266)** — VO `SearchResult` (typ + id + tytuł + fragment + url) i `SearchQuery` (fraza + opcjonalny `typeFilter` + 1-based `page`/`perPage`, `MAX_PER_PAGE=100`) w `Domain/ValueObject/` (`final readonly`, strzeżone niezmienniki + `equals()`), enum `SearchResultType` (`article`/`book`/`series`/`music`/`task`), port `SearchEngineInterface` (`Domain/Port/`) oraz warstwy deptrac `Search*` (Domain → Shared only, deptrac 0/0).
+- **Indeksowanie cross-module (HMAI-267)** — port `SearchableProviderInterface` (`Domain/Port/`) zwraca znormalizowane read modele `SearchableDocument` (`type`+`id`+`title`+`content`+`url`); pięć **adapterów DBAL** (Books/Articles/Series/Tasks/Music — Music deduplikuje albumy `GROUP BY` artysta+tytuł) czyta tabele źródłowe surowym SQL bez importu klas cross-module (deptrac 0/0), plus `CompositeSearchableProvider` agregujący adaptery (`!tagged_iterator search.searchable_provider`).
+- **Silnik wyszukiwania (HMAI-268)** — adapter `FulltextSearchEngine` (`Infrastructure/Engine/`) uruchamia `MATCH…AGAINST … IN NATURAL LANGUAGE MODE` na tabeli `search_documents` (indeks FULLTEXT na `title`+`content`; migracja `Version20260711000001`, wyłączona ze `schema_filter` jako tabela nie-ORM) — ranking trafności, paginacja `LIMIT/OFFSET`, opcjonalny filtr typu → `SearchResult[]`; serwowany przez `Application/Query/Search` + `SearchHandler` na `query.bus`. Indeks zasila `SearchIndexer` (`SearchIndexerInterface`) przebudowując `search_documents` z `CompositeSearchableProvider` w jednej transakcji (idempotentnie); komenda `ReindexSearchDocuments` (`command.bus`, **sync**) odpalana przez Scheduler co 15 min (`*/15 * * * *`).
+- **REST API Search (HMAI-269)** — cienki `SearchController` (`src/Controller/Api/`, serwowany pod `/api/v1/search` + alias `/api/search`, ADR-008): `GET /search?q=&type=&page=&perPage=` buduje VO `SearchQuery` (422 na pustą frazę / zły zakres `page`·`perPage` / nieznany `type`), dispatchuje `Search` na `query.bus`, serializuje `SearchResult[]` przez `SearchResultDTONormalizer`. Udokumentowane `#[OA\*]`+`#[Model(SearchResult)]` pod tagiem OpenAPI `Search`.
+- **Cache wyników (HMAI-271)** — `CachingSearchEngine` (`Infrastructure/Cache/`) dekoruje silnik FULLTEXT za tym samym portem — cache `SearchResult[]` w dedykowanym poolu Redis `cache.search` (TTL 300s; `cache.adapter.array` w test) kluczowany znormalizowanym zapytaniem (fraza lowercased+trim + typ + strona). Inwalidacja: `SearchIndexer.reindex()` czyści pool — reindeks jest sygnałem „dane źródłowe się zmieniły", więc trafienie z cache nigdy nie przeżyje reindeksu (bez couplingu zdarzeń cross-module).
+- **Frontend Search (HMAI-270)** — **globalny pasek wyszukiwania** w navbarze (`templates/_search.html.twig`, dołączony w `base.html.twig` → na każdej stronie) sterowany Stimulusem `search_controller.js`: debounced input (250 ms, min 2 znaki) → `apiCall('/api/search?q=…')` → wyniki pogrupowane po typie w dropdownie ze stanami loading/pusty/błąd; każde trafienie linkuje do modułu źródłowego przez `safeUrl`. Czyste helpery (`typeLabel`/`groupByType`) w `assets/search/format.js` — eksportowane, pokryte Vitest.
+
+### Coverage
+
+- **+55 testów PHP** (1119 → 1174): moduł Search (HMAI-266…272) — VO Domain, per-adapter `SearchableAdaptersTest`, port-level `SearchIndexingTest`, HTTP `SearchApiTest` (ranking, filtr typu, paginacja, pusty, 422/401, wersjonowany+alias), `SearchCrossModuleApiTest` (seed 5 modułów → prawdziwy `SearchIndexer` → 5 typów w jednym zapytaniu), `SearchApiDocTest`, normalizery, routing sync (`ReindexSearchDocumentsRoutingTest`), zgodność OpenAPI (`OpenApiContractTest` — runtime-walidacja `/api/search`). Playwright 59 → 66 (+7: `search.desktop` 4 + `search.mobile` 3, fraza→wyniki→nawigacja do encji); Vitest 49 → 54 (+5: `search_format`); Newman 43 bez zmian.
+
+### Migration
+
+1. **Migracja DB** — `make migrate` (nowa tabela `search_documents` z indeksem FULLTEXT: `Version20260711000001`; nie-ORM, wyłączona ze `schema_filter`).
+2. **Scheduler** — nowe zadanie `*/15 * * * *` (`ReindexSearchDocuments`) obsługiwane przez istniejący `scheduler_worker` (Scheduler: 7 zadań cyklicznych). Indeks zbuduje się przy pierwszym uruchomieniu; ręczny reindeks: `bin/console messenger:dispatch` nie jest potrzebny — wystarczy działający `scheduler_worker`.
+3. Brak nowych kluczy `.env.local`; brak operacji destrukcyjnych na DB.
+
+### Closed Jira
+
+- **Epik HMAI-265** (globalne wyszukiwanie po modułach — moduł Search, MySQL FULLTEXT MVP) + 7 podzadań: HMAI-266, HMAI-267, HMAI-268, HMAI-269, HMAI-270, HMAI-271, HMAI-272.
+
+### Carried forward
+
+- **Elasticsearch backend** — świadomie poza zakresem MVP; osobny epik **HMAI-359** (fixVersion 1.30.0). Silnik FULLTEXT siedzi za portem `SearchEngineInterface`, więc swap na Elasticsearch nie wymaga zmian po stronie odczytu.
+
 ## [1.19.0] — 2026-07-11
 
 Wydanie modułu **Goals** (epik **HMAI-248** — cele i streaki, gamifikacja ponad modułami; 8 podzadań HMAI-249…256, każde z osobnym zielonym CI). Nowy moduł pozwala definiować cele aktywności (książki / seriale / artykuły / YouTube) w oknach dzień / tydzień / miesiąc oraz śledzić postęp i streaki (ciągłość dzienną) — czytając aktywność z istniejących modułów **bez łamania granic heksagonalnych** (port `ActivityProviderInterface` + adaptery DBAL czytające tabele źródłowe surowym SQL, deptrac 0/0). Wydanie domyka też dług techniczny **HMAI-274** (redukcja phpstan-baseline do jednego celowego wpisu). **1119/1119 PHP** (+86 vs 1033 w 1.22.0) + **59/59 Playwright** (+7) + **49 Vitest JS** (+7) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac 0 `skip_violations`.
