@@ -10,6 +10,7 @@ use App\Module\Articles\Application\Command\ResetDailyArticleCache;
 use App\Module\Goals\Application\Command\RecalculateStreaks;
 use App\Module\Music\Application\Command\PollLastFmRecentTracks;
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
+use App\Module\Search\Application\Command\ReindexSearchDocuments;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Scheduler\Attribute\AsSchedule;
 use Symfony\Component\Scheduler\RecurringMessage;
@@ -18,7 +19,7 @@ use Symfony\Component\Scheduler\ScheduleProviderInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 
 /**
- * HMAI-35: Four recurring jobs running in the `scheduler_worker` container.
+ * HMAI-35: Recurring jobs running in the `scheduler_worker` container.
  *
  *  - Daily 00:00 — purge the "article of the day" cache + prune picks > 7d.
  *  - Mon  08:00 — write the weekly activity report to Graylog.
@@ -54,6 +55,7 @@ final readonly class Schedule implements ScheduleProviderInterface
                 RecurringMessage::cron('0 */6 * * *', new RefreshDiscogsCollection($this->discogsUsername)),
                 RecurringMessage::cron('*/30 * * * *', new PollLastFmRecentTracks($this->lastfmUsername)),
                 RecurringMessage::cron('0 1 * * *', new RecalculateStreaks()),
+                RecurringMessage::cron('*/15 * * * *', new ReindexSearchDocuments()),
             );
     }
 }

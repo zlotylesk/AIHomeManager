@@ -78,6 +78,21 @@ deptrac:
               - type: directory
                 value: src/Module/Music/Infrastructure/.*
 
+        - name: SearchDomain
+          collectors:
+              - type: directory
+                value: src/Module/Search/Domain/.*
+
+        - name: SearchApplication
+          collectors:
+              - type: directory
+                value: src/Module/Search/Application/.*
+
+        - name: SearchInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Search/Infrastructure/.*
+
         - name: SeriesDomain
           collectors:
               - type: directory
@@ -169,6 +184,8 @@ deptrac:
             - Shared
         MusicDomain:
             - Shared
+        SearchDomain:
+            - Shared
         SeriesDomain:
             - Shared
         TasksDomain:
@@ -192,6 +209,10 @@ deptrac:
             - Vendor
         MusicApplication:
             - MusicDomain
+            - Shared
+            - Vendor
+        SearchApplication:
+            - SearchDomain
             - Shared
             - Vendor
         SeriesApplication:
@@ -229,6 +250,11 @@ deptrac:
             - MusicApplication
             - Shared
             - Vendor
+        SearchInfrastructure:
+            - SearchDomain
+            - SearchApplication
+            - Shared
+            - Vendor
         SeriesInfrastructure:
             - SeriesDomain
             - SeriesApplication
@@ -260,6 +286,9 @@ deptrac:
             - MusicDomain
             - MusicApplication
             - MusicInfrastructure
+            - SearchDomain
+            - SearchApplication
+            - SearchInfrastructure
             - SeriesDomain
             - SeriesApplication
             - SeriesInfrastructure

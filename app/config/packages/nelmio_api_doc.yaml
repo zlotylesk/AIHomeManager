@@ -27,6 +27,8 @@ nelmio_api_doc:
               description: 'YouTube watch-later progress — watchlist and generated watch sessions, a playlist sync, per-video start/watched actions, and push-to-YouTube.'
             - name: Goals
               description: 'Cross-module goals & streaks — define a target amount of an activity per rolling period, then read the computed progress and day-continuity streaks folded from the product-wide activity stream.'
+            - name: Search
+              description: 'Global cross-module search — a single full-text query over books, articles, series, music and tasks, ranked by relevance and paginated, optionally narrowed to one result type.'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes
