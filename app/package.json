@@ -10,7 +10,7 @@
         "jsdom": "^29.1.1",
         "regenerator-runtime": "^0.14.1",
         "vitest": "^4.1.10",
-        "webpack": "^5.108.3",
+        "webpack": "^5.108.4",
         "webpack-cli": "^7.1.0"
     },
     "license": "UNLICENSED",
