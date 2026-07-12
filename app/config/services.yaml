@@ -317,6 +317,51 @@ services:
     App\Module\Goals\Domain\Port\ActivityProviderInterface:
         alias: App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider
 
+    # Search indexing (HMAI-267): per-source-module DBAL read adapters expose
+    # indexable documents, aggregated by the composite that backs the
+    # SearchableProviderInterface port (deptrac-clean, no cross-module imports).
+    App\Module\Search\Infrastructure\Provider\BooksSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\ArticlesSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\SeriesSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\TasksSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\MusicSearchableProvider:
+        tags: ['search.searchable_provider']
+
+    App\Module\Search\Infrastructure\Provider\CompositeSearchableProvider:
+        arguments:
+            $providers: !tagged_iterator search.searchable_provider
+
+    App\Module\Search\Domain\Port\SearchableProviderInterface:
+        alias: App\Module\Search\Infrastructure\Provider\CompositeSearchableProvider
+
+    # Search engine (HMAI-268): the FULLTEXT engine + index rebuilder sit behind
+    # their Domain ports so the read/write side stays swappable (e.g. an
+    # Elasticsearch engine later, HMAI-359).
+    # The FULLTEXT engine is fronted by a Redis result cache (HMAI-271); both sit
+    # behind the SearchEngineInterface port so the read side stays swappable.
+    App\Module\Search\Infrastructure\Cache\CachingSearchEngine:
+        arguments:
+            $engine: '@App\Module\Search\Infrastructure\Engine\FulltextSearchEngine'
+            $cache: '@cache.search'
+
+    App\Module\Search\Domain\Port\SearchEngineInterface:
+        alias: App\Module\Search\Infrastructure\Cache\CachingSearchEngine
+
+    App\Module\Search\Infrastructure\Index\SearchIndexer:
+        arguments:
+            $cache: '@cache.search'
+
+    App\Module\Search\Domain\Port\SearchIndexerInterface:
+        alias: App\Module\Search\Infrastructure\Index\SearchIndexer
+
 when@test:
     services:
         App\Tests\Support\SpyLogger:

@@ -117,6 +117,20 @@ final class OpenApiContractTest extends WebTestCase
         $this->assertResponseConformsToContract('GET', '/api/v1/goals/streaks', '/api/v1/goals/streaks');
     }
 
+    public function testSearchResponseConformsToContract(): void
+    {
+        // Global search: one indexed document makes the query return a populated
+        // SearchResult (type enum + snippet), the non-empty branch of the contract.
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $connection->executeStatement('DELETE FROM search_documents');
+        $connection->insert('search_documents', [
+            'type' => 'book', 'source_id' => 'contract-book', 'title' => 'Contract Guide',
+            'content' => 'contract conformance handbook', 'url' => '/books',
+        ]);
+
+        $this->assertResponseConformsToContract('GET', '/api/v1/search?q=contract', '/api/v1/search');
+    }
+
     public function testContractValidationRejectsDriftingResponse(): void
     {
         // Negative control: a payload that breaks EpisodeDTO.number (integer) must be
