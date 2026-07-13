@@ -362,6 +362,13 @@ services:
     App\Module\Search\Domain\Port\SearchIndexerInterface:
         alias: App\Module\Search\Infrastructure\Index\SearchIndexer
 
+    # Dashboard aggregation (HMAI-258): per-widget DBAL read adapters expose each
+    # source module's "today" slice; the composite delegates to them and backs the
+    # DashboardDataProviderInterface port (deptrac-clean, no cross-module imports —
+    # the Goals/Search precedent). Adapters + composite are autowired from src/.
+    App\Module\Dashboard\Domain\Port\DashboardDataProviderInterface:
+        alias: App\Module\Dashboard\Infrastructure\Provider\CompositeDashboardDataProvider
+
 when@test:
     services:
         App\Tests\Support\SpyLogger:
