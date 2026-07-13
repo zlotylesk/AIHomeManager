@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Kokpit — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="dashboard">
+    <header class="app-header">
+        <h1 class="app-title">Kokpit — na dziś</h1>
+    </header>
+
+    {# Cockpit shell (HMAI-261). The dashboard Stimulus controller fills
+       #dashboard-content from /api/dashboard; the layout + per-widget cards
+       arrive with HMAI-262. #}
+    <div id="dashboard-content" class="dashboard-content" data-dashboard-target="content">
+        <div class="loading">Loading…</div>
+    </div>
+</div>
+{% endblock %}
