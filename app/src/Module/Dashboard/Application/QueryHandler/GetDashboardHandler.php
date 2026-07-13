@@ -53,12 +53,12 @@ final readonly class GetDashboardHandler
     }
 
     /**
-     * @return TodayTask[]
+     * @return list<TodayTask>
      */
     private function tasks(DateTimeImmutable $day): array
     {
         try {
-            return $this->provider->todaysTasks($day);
+            return array_values($this->provider->todaysTasks($day));
         } catch (Throwable $e) {
             $this->logWidgetFailure('tasks', $e);
 
@@ -78,12 +78,12 @@ final readonly class GetDashboardHandler
     }
 
     /**
-     * @return GoalSnapshot[]
+     * @return list<GoalSnapshot>
      */
     private function goals(): array
     {
         try {
-            return $this->provider->goalSnapshots();
+            return array_values($this->provider->goalSnapshots());
         } catch (Throwable $e) {
             $this->logWidgetFailure('goals', $e);
 
@@ -92,12 +92,12 @@ final readonly class GetDashboardHandler
     }
 
     /**
-     * @return Recommendation[]
+     * @return list<Recommendation>
      */
     private function recommendations(): array
     {
         try {
-            return $this->provider->recommendations(self::RECOMMENDATION_LIMIT);
+            return array_values($this->provider->recommendations(self::RECOMMENDATION_LIMIT));
         } catch (Throwable $e) {
             $this->logWidgetFailure('recommendations', $e);
 
@@ -106,12 +106,12 @@ final readonly class GetDashboardHandler
     }
 
     /**
-     * @return RecentTrack[]
+     * @return list<RecentTrack>
      */
     private function recentTracks(): array
     {
         try {
-            return $this->provider->recentTracks(self::RECENT_TRACKS_LIMIT);
+            return array_values($this->provider->recentTracks(self::RECENT_TRACKS_LIMIT));
         } catch (Throwable $e) {
             $this->logWidgetFailure('recentTracks', $e);
 
