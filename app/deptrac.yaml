@@ -48,6 +48,21 @@ deptrac:
               - type: directory
                 value: src/Module/Books/Infrastructure/.*
 
+        - name: DashboardDomain
+          collectors:
+              - type: directory
+                value: src/Module/Dashboard/Domain/.*
+
+        - name: DashboardApplication
+          collectors:
+              - type: directory
+                value: src/Module/Dashboard/Application/.*
+
+        - name: DashboardInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Dashboard/Infrastructure/.*
+
         - name: GoalsDomain
           collectors:
               - type: directory
@@ -180,6 +195,8 @@ deptrac:
             - Shared
         BooksDomain:
             - Shared
+        DashboardDomain:
+            - Shared
         GoalsDomain:
             - Shared
         MusicDomain:
@@ -201,6 +218,10 @@ deptrac:
             - Vendor
         BooksApplication:
             - BooksDomain
+            - Shared
+            - Vendor
+        DashboardApplication:
+            - DashboardDomain
             - Shared
             - Vendor
         GoalsApplication:
@@ -238,6 +259,11 @@ deptrac:
         BooksInfrastructure:
             - BooksDomain
             - BooksApplication
+            - Shared
+            - Vendor
+        DashboardInfrastructure:
+            - DashboardDomain
+            - DashboardApplication
             - Shared
             - Vendor
         GoalsInfrastructure:
@@ -280,6 +306,9 @@ deptrac:
             - BooksDomain
             - BooksApplication
             - BooksInfrastructure
+            - DashboardDomain
+            - DashboardApplication
+            - DashboardInfrastructure
             - GoalsDomain
             - GoalsApplication
             - GoalsInfrastructure
