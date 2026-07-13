@@ -5,16 +5,22 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class FrontendController extends AbstractController
 {
-    #[Route('/', methods: ['GET'])]
-    public function index(): RedirectResponse
+    /**
+     * The cockpit is the application's home page (HMAI-261): `/` renders the
+     * dashboard shell instead of redirecting to a module. The widgets load
+     * client-side from `/api/dashboard` (which goes through query.bus), matching
+     * the dual-track frontend pattern — the controller stays thin. The old
+     * redirect is removed entirely; empty widgets degrade per-section in the UI.
+     */
+    #[Route('/', name: 'app_frontend_dashboard', methods: ['GET'])]
+    public function index(): Response
     {
-        return $this->redirectToRoute('app_frontend_series');
+        return $this->render('dashboard/index.html.twig');
     }
 
     #[Route('/series', name: 'app_frontend_series', methods: ['GET'])]

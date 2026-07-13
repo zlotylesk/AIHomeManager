@@ -16,11 +16,26 @@ class FrontendControllerTest extends WebTestCase
         $this->client = static::createClient();
     }
 
-    public function testRootRedirectsToSeries(): void
+    public function testRootRendersCockpit(): void
     {
         $this->client->request('GET', '/');
 
-        self::assertResponseRedirects('/series', 302);
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('content-type', 'text/html; charset=UTF-8');
+        self::assertSelectorExists('nav.navbar');
+        self::assertSelectorExists('#dashboard-content');
+    }
+
+    public function testRootCockpitKeepsModuleNavigation(): void
+    {
+        $this->client->request('GET', '/');
+
+        self::assertSelectorExists('a[href="/series"]');
+        self::assertSelectorExists('a[href="/tasks"]');
+        self::assertSelectorExists('a[href="/books"]');
+        self::assertSelectorExists('a[href="/articles"]');
+        self::assertSelectorExists('a[href="/music"]');
+        self::assertSelectorExists('a[href="/goals"]');
     }
 
     public function testSeriesPageReturns200WithHtml(): void

@@ -14,7 +14,7 @@
     </head>
     <body>
         <nav class="navbar">
-            <a class="navbar-brand" href="{{ path('app_frontend_series') }}">🏠 AIHomeManager</a>
+            <a class="navbar-brand" href="{{ path('app_frontend_dashboard') }}">🏠 AIHomeManager</a>
             <ul class="navbar-links">
                 <li><a href="{{ path('app_frontend_series') }}" {% if app.request.attributes.get('_route') == 'app_frontend_series' %}class="active"{% endif %}>Series</a></li>
                 <li><a href="{{ path('app_frontend_tasks') }}" {% if app.request.attributes.get('_route') == 'app_frontend_tasks' %}class="active"{% endif %}>Tasks</a></li>
