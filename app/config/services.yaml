@@ -362,6 +362,16 @@ services:
     App\Module\Search\Domain\Port\SearchIndexerInterface:
         alias: App\Module\Search\Infrastructure\Index\SearchIndexer
 
+    # Dashboard read cache (HMAI-263): the composed cockpit read model is cached in
+    # a dedicated Redis pool with a short TTL, keyed per reference day. The query
+    # handler stays Infrastructure-agnostic behind the Application cache port.
+    App\Module\Dashboard\Infrastructure\Cache\RedisDashboardCache:
+        arguments:
+            $cache: '@cache.dashboard'
+
+    App\Module\Dashboard\Application\Cache\DashboardCacheInterface:
+        alias: App\Module\Dashboard\Infrastructure\Cache\RedisDashboardCache
+
     # Dashboard aggregation (HMAI-258): per-widget DBAL read adapters expose each
     # source module's "today" slice; the composite delegates to them and backs the
     # DashboardDataProviderInterface port (deptrac-clean, no cross-module imports —
