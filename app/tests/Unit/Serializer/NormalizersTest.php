@@ -8,6 +8,12 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
 use App\Module\Books\Application\DTO\ReadingSessionDTO;
+use App\Module\Dashboard\Application\DTO\DashboardDTO;
+use App\Module\Dashboard\Domain\ReadModel\DailyArticle;
+use App\Module\Dashboard\Domain\ReadModel\GoalSnapshot;
+use App\Module\Dashboard\Domain\ReadModel\RecentTrack;
+use App\Module\Dashboard\Domain\ReadModel\Recommendation;
+use App\Module\Dashboard\Domain\ReadModel\TodayTask;
 use App\Module\Goals\Application\DTO\GoalProgressDTO;
 use App\Module\Goals\Application\DTO\StreakDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
@@ -25,6 +31,7 @@ use App\Serializer\AlbumDTONormalizer;
 use App\Serializer\ArticleDTONormalizer;
 use App\Serializer\BookDetailDTONormalizer;
 use App\Serializer\BookDTONormalizer;
+use App\Serializer\DashboardDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
 use App\Serializer\SearchResultDTONormalizer;
@@ -34,6 +41,8 @@ use App\Serializer\TaskDTONormalizer;
 use App\Serializer\VideoDTONormalizer;
 use App\Serializer\VinylRecordDTONormalizer;
 use App\Serializer\WatchSessionDTONormalizer;
+use DateTimeImmutable;
+use DateTimeZone;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 use Symfony\Component\Serializer\Serializer;
@@ -312,6 +321,60 @@ final class NormalizersTest extends TestCase
             'snippet' => 'desert planet',
             'url' => '/books',
         ], $n->normalize($result));
+    }
+
+    public function testDashboardNormalizer(): void
+    {
+        $n = new DashboardDTONormalizer();
+        $start = new DateTimeImmutable('2026-07-13 09:00:00', new DateTimeZone('UTC'));
+        $dto = new DashboardDTO(
+            '2026-07-13',
+            [new TodayTask('t1', 'Standup', $start, $start->modify('+15 minutes'))],
+            new DailyArticle('Daily read', 'https://x.test/a', 'tech', 7, false),
+            [new GoalSnapshot('book_pages', 50, 'daily', 3, 9, new DateTimeImmutable('2026-07-12'))],
+            [new Recommendation('series', 'Ongoing Show', null, '2020')],
+            [new RecentTrack('Artist', 'Track', $start, 'manual')],
+        );
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(DashboardDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'date' => '2026-07-13',
+            'tasks' => [[
+                'id' => 't1',
+                'title' => 'Standup',
+                'startsAt' => '2026-07-13T09:00:00+00:00',
+                'endsAt' => '2026-07-13T09:15:00+00:00',
+            ]],
+            'article' => [
+                'title' => 'Daily read',
+                'url' => 'https://x.test/a',
+                'category' => 'tech',
+                'estimatedReadTime' => 7,
+                'isRead' => false,
+            ],
+            'goals' => [[
+                'type' => 'book_pages',
+                'target' => 50,
+                'period' => 'daily',
+                'currentStreak' => 3,
+                'longestStreak' => 9,
+                'lastActivityDate' => '2026-07-12',
+            ]],
+            'recommendations' => [[
+                'kind' => 'series',
+                'title' => 'Ongoing Show',
+                'coverUrl' => null,
+                'detail' => '2020',
+            ]],
+            'recentTracks' => [[
+                'artist' => 'Artist',
+                'title' => 'Track',
+                'playedAt' => '2026-07-13T09:00:00+00:00',
+                'source' => 'manual',
+            ]],
+        ], $n->normalize($dto));
     }
 
     private function book(): BookDTO

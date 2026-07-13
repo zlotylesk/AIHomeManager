@@ -20,10 +20,10 @@ use App\Module\Dashboard\Domain\ReadModel\TodayTask;
 final readonly class DashboardDTO
 {
     /**
-     * @param TodayTask[]      $tasks
-     * @param GoalSnapshot[]   $goals
-     * @param Recommendation[] $recommendations
-     * @param RecentTrack[]    $recentTracks
+     * @param list<TodayTask>      $tasks
+     * @param list<GoalSnapshot>   $goals
+     * @param list<Recommendation> $recommendations
+     * @param list<RecentTrack>    $recentTracks
      */
     public function __construct(
         public string $date,
