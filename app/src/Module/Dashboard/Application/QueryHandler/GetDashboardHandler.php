@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Dashboard\Application\QueryHandler;
 
+use App\Module\Dashboard\Application\Cache\DashboardCacheInterface;
 use App\Module\Dashboard\Application\DTO\DashboardDTO;
 use App\Module\Dashboard\Application\Query\GetDashboard;
 use App\Module\Dashboard\Domain\Port\DashboardDataProviderInterface;
@@ -34,14 +35,20 @@ final readonly class GetDashboardHandler
 
     public function __construct(
         private DashboardDataProviderInterface $provider,
+        private DashboardCacheInterface $cache,
         private LoggerInterface $logger,
     ) {
     }
 
     public function __invoke(GetDashboard $query): DashboardDTO
     {
-        $day = $query->day;
+        // A hit serves the whole cockpit from Redis; a miss composes every widget
+        // and caches the result for a short TTL (HMAI-263).
+        return $this->cache->remember($query->day, fn (): DashboardDTO => $this->compose($query->day));
+    }
 
+    private function compose(DateTimeImmutable $day): DashboardDTO
+    {
         return new DashboardDTO(
             $day->format('Y-m-d'),
             $this->tasks($day),

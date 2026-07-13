@@ -12,10 +12,12 @@ use App\Module\Dashboard\Domain\ReadModel\GoalSnapshot;
 use App\Module\Dashboard\Domain\ReadModel\RecentTrack;
 use App\Module\Dashboard\Domain\ReadModel\Recommendation;
 use App\Module\Dashboard\Domain\ReadModel\TodayTask;
+use App\Module\Dashboard\Infrastructure\Cache\RedisDashboardCache;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 
 final class GetDashboardHandlerTest extends TestCase
 {
@@ -26,7 +28,7 @@ final class GetDashboardHandlerTest extends TestCase
 
     private function handler(DashboardDataProviderInterface $provider): GetDashboardHandler
     {
-        return new GetDashboardHandler($provider, new NullLogger());
+        return new GetDashboardHandler($provider, new RedisDashboardCache(new ArrayAdapter()), new NullLogger());
     }
 
     public function testComposesEveryWidgetSectionIntoOneReadModel(): void
@@ -83,6 +85,23 @@ final class GetDashboardHandlerTest extends TestCase
         self::assertCount(1, $dto->goals);
         self::assertSame([], $dto->recommendations);
         self::assertCount(1, $dto->recentTracks);
+    }
+
+    public function testASecondDispatchOfTheSameDayIsServedFromCache(): void
+    {
+        $day = $this->day();
+        // Every provider method must be hit exactly once across two dispatches —
+        // the second read comes from the cache, not the adapters (HMAI-263).
+        $provider = $this->createMock(DashboardDataProviderInterface::class);
+        $provider->expects(self::once())->method('todaysTasks')->willReturn([]);
+        $provider->expects(self::once())->method('dailyArticle')->willReturn(null);
+        $provider->expects(self::once())->method('goalSnapshots')->willReturn([]);
+        $provider->expects(self::once())->method('recommendations')->willReturn([]);
+        $provider->expects(self::once())->method('recentTracks')->willReturn([]);
+
+        $handler = $this->handler($provider);
+        $handler(new GetDashboard($day));
+        $handler(new GetDashboard($day));
     }
 
     public function testEmptyWidgetsYieldEmptySectionsNotErrors(): void

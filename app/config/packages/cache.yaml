@@ -9,6 +9,9 @@ framework:
             cache.search:
                 adapter: cache.adapter.redis
                 default_lifetime: 300
+            cache.dashboard:
+                adapter: cache.adapter.redis
+                default_lifetime: 300
 
 when@test:
     framework:
@@ -17,4 +20,6 @@ when@test:
                 cache.rate_limiter:
                     adapter: cache.adapter.array
                 cache.search:
+                    adapter: cache.adapter.array
+                cache.dashboard:
                     adapter: cache.adapter.array
