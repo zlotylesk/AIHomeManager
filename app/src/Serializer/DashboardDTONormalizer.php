@@ -15,8 +15,9 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
  * Normalizes a DashboardDTO to its API array shape (HMAI-240) — one section per
- * widget. Pure field mapping over the composed Domain read models; datetimes are
- * ISO-8601, the streak's last-activity date is a plain calendar day.
+ * widget. Pure field mapping over the composed Domain read models; every datetime
+ * (including the streak's last-activity date) is ISO-8601, matching the date-time
+ * schema the contract documents for these DateTimeImmutable read-model fields.
  */
 final class DashboardDTONormalizer implements NormalizerInterface
 {
@@ -89,7 +90,7 @@ final class DashboardDTONormalizer implements NormalizerInterface
             'period' => $goal->period,
             'currentStreak' => $goal->currentStreak,
             'longestStreak' => $goal->longestStreak,
-            'lastActivityDate' => $goal->lastActivityDate?->format('Y-m-d'),
+            'lastActivityDate' => $goal->lastActivityDate?->format(DateTimeInterface::ATOM),
         ];
     }
 

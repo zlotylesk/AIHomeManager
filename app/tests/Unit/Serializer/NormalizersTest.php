@@ -331,7 +331,7 @@ final class NormalizersTest extends TestCase
             '2026-07-13',
             [new TodayTask('t1', 'Standup', $start, $start->modify('+15 minutes'))],
             new DailyArticle('Daily read', 'https://x.test/a', 'tech', 7, false),
-            [new GoalSnapshot('book_pages', 50, 'daily', 3, 9, new DateTimeImmutable('2026-07-12'))],
+            [new GoalSnapshot('book_pages', 50, 'daily', 3, 9, new DateTimeImmutable('2026-07-12', new DateTimeZone('UTC')))],
             [new Recommendation('series', 'Ongoing Show', null, '2020')],
             [new RecentTrack('Artist', 'Track', $start, 'manual')],
         );
@@ -360,7 +360,7 @@ final class NormalizersTest extends TestCase
                 'period' => 'daily',
                 'currentStreak' => 3,
                 'longestStreak' => 9,
-                'lastActivityDate' => '2026-07-12',
+                'lastActivityDate' => '2026-07-12T00:00:00+00:00',
             ]],
             'recommendations' => [[
                 'kind' => 'series',
