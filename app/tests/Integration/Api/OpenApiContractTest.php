@@ -131,6 +131,17 @@ final class OpenApiContractTest extends WebTestCase
         $this->assertResponseConformsToContract('GET', '/api/v1/search?q=contract', '/api/v1/search');
     }
 
+    public function testDashboardResponseConformsToContract(): void
+    {
+        // The cockpit composes every module's "today" slice. Seed one row per widget
+        // so each section's populated branch — task time range, the daily article, a
+        // goal snapshot with a non-null streak, a series recommendation, a recent
+        // track — is validated against the documented DashboardDTO schema, not just
+        // the empty arrays/null a bare cockpit would return.
+        $this->seedDashboardToday();
+        $this->assertResponseConformsToContract('GET', '/api/v1/dashboard', '/api/v1/dashboard');
+    }
+
     public function testContractValidationRejectsDriftingResponse(): void
     {
         // Negative control: a payload that breaks EpisodeDTO.number (integer) must be
@@ -313,6 +324,44 @@ final class OpenApiContractTest extends WebTestCase
             'book_id' => 'contract-book',
             'date' => new DateTimeImmutable('today')->format('Y-m-d'),
             'pages_read' => 30,
+        ]);
+    }
+
+    /**
+     * Populate every cockpit widget for "today" so the DashboardDTO response
+     * exercises each section's non-empty branch: a pending task with a time range,
+     * the day's article pick, a goal snapshot joined to a persisted streak (non-null
+     * counters + last-activity date), an ongoing-series recommendation with a cover,
+     * and a recent listening session. The Dashboard reads these source tables via
+     * DBAL, so the fixtures are inserted directly and dated to the current day.
+     */
+    private function seedDashboardToday(): void
+    {
+        $this->truncate('tasks', 'article_daily_picks', 'articles', 'goals', 'streaks', 'series', 'books', 'music_listening_sessions');
+
+        $day = new DateTimeImmutable('today')->format('Y-m-d');
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+
+        $connection->insert('tasks', [
+            'id' => 'dash-task', 'title' => 'Standup', 'time_start' => $day.' 09:00:00', 'time_end' => $day.' 09:15:00', 'status' => 'pending',
+        ]);
+        $connection->insert('articles', [
+            'id' => 'dash-article', 'title' => 'Article of the day', 'url' => 'https://example.test/a', 'added_at' => $day.' 06:00:00', 'is_read' => 0,
+        ]);
+        $connection->insert('article_daily_picks', [
+            'id' => 'dash-pick', 'article_id' => 'dash-article', 'picked_at' => $day.' 05:00:00',
+        ]);
+        $connection->insert('goals', [
+            'id' => 'dash-goal', 'type' => 'book_pages', 'target_value' => 50, 'period' => 'daily',
+        ]);
+        $connection->insert('streaks', [
+            'id' => 'dash-streak', 'type' => 'book_pages', 'current_length' => 3, 'longest_length' => 9, 'last_activity_date' => $day.' 00:00:00',
+        ]);
+        $connection->insert('series', [
+            'id' => 'dash-series', 'title' => 'Ongoing Show', 'created_at' => $day.' 00:00:00', 'status' => 'ongoing', 'cover_url' => 'https://example.test/cover.jpg', 'year' => 2020,
+        ]);
+        $connection->insert('music_listening_sessions', [
+            'id' => 'dash-track', 'artist' => 'Artist', 'title' => 'Track', 'played_at' => $day.' 08:00:00', 'source' => 'manual', 'dedup_hash' => 'dash-h1', 'created_at' => $day.' 08:00:00',
         ]);
     }
 
