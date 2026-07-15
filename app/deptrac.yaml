@@ -93,6 +93,21 @@ deptrac:
               - type: directory
                 value: src/Module/Music/Infrastructure/.*
 
+        - name: NotificationsDomain
+          collectors:
+              - type: directory
+                value: src/Module/Notifications/Domain/.*
+
+        - name: NotificationsApplication
+          collectors:
+              - type: directory
+                value: src/Module/Notifications/Application/.*
+
+        - name: NotificationsInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Notifications/Infrastructure/.*
+
         - name: SearchDomain
           collectors:
               - type: directory
@@ -201,6 +216,8 @@ deptrac:
             - Shared
         MusicDomain:
             - Shared
+        NotificationsDomain:
+            - Shared
         SearchDomain:
             - Shared
         SeriesDomain:
@@ -230,6 +247,10 @@ deptrac:
             - Vendor
         MusicApplication:
             - MusicDomain
+            - Shared
+            - Vendor
+        NotificationsApplication:
+            - NotificationsDomain
             - Shared
             - Vendor
         SearchApplication:
@@ -276,6 +297,11 @@ deptrac:
             - MusicApplication
             - Shared
             - Vendor
+        NotificationsInfrastructure:
+            - NotificationsDomain
+            - NotificationsApplication
+            - Shared
+            - Vendor
         SearchInfrastructure:
             - SearchDomain
             - SearchApplication
@@ -315,6 +341,9 @@ deptrac:
             - MusicDomain
             - MusicApplication
             - MusicInfrastructure
+            - NotificationsDomain
+            - NotificationsApplication
+            - NotificationsInfrastructure
             - SearchDomain
             - SearchApplication
             - SearchInfrastructure
