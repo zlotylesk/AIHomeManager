@@ -78,6 +78,21 @@ deptrac:
               - type: directory
                 value: src/Module/Goals/Infrastructure/.*
 
+        - name: MoviesDomain
+          collectors:
+              - type: directory
+                value: src/Module/Movies/Domain/.*
+
+        - name: MoviesApplication
+          collectors:
+              - type: directory
+                value: src/Module/Movies/Application/.*
+
+        - name: MoviesInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Movies/Infrastructure/.*
+
         - name: MusicDomain
           collectors:
               - type: directory
@@ -214,6 +229,8 @@ deptrac:
             - Shared
         GoalsDomain:
             - Shared
+        MoviesDomain:
+            - Shared
         MusicDomain:
             - Shared
         NotificationsDomain:
@@ -243,6 +260,10 @@ deptrac:
             - Vendor
         GoalsApplication:
             - GoalsDomain
+            - Shared
+            - Vendor
+        MoviesApplication:
+            - MoviesDomain
             - Shared
             - Vendor
         MusicApplication:
@@ -292,6 +313,11 @@ deptrac:
             - GoalsApplication
             - Shared
             - Vendor
+        MoviesInfrastructure:
+            - MoviesDomain
+            - MoviesApplication
+            - Shared
+            - Vendor
         MusicInfrastructure:
             - MusicDomain
             - MusicApplication
@@ -338,6 +364,9 @@ deptrac:
             - GoalsDomain
             - GoalsApplication
             - GoalsInfrastructure
+            - MoviesDomain
+            - MoviesApplication
+            - MoviesInfrastructure
             - MusicDomain
             - MusicApplication
             - MusicInfrastructure

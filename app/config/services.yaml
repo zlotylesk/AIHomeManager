@@ -71,6 +71,9 @@ services:
     App\Module\Goals\Domain\Repository\StreakRepositoryInterface:
         alias: App\Module\Goals\Infrastructure\Persistence\DoctrineStreakRepository
 
+    App\Module\Movies\Domain\Repository\MovieRepositoryInterface:
+        alias: App\Module\Movies\Infrastructure\Persistence\DoctrineMovieRepository
+
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
             $redis: '@app.redis'

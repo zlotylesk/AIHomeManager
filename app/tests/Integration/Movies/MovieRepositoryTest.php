@@ -1,0 +1,111 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Integration\Movies;
+
+use App\Module\Movies\Domain\Entity\Movie;
+use App\Module\Movies\Domain\ValueObject\Title;
+use App\Module\Movies\Infrastructure\Persistence\DoctrineMovieRepository;
+use DateTimeImmutable;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+
+final class MovieRepositoryTest extends KernelTestCase
+{
+    private DoctrineMovieRepository $repository;
+    private EntityManagerInterface $em;
+
+    protected function setUp(): void
+    {
+        self::bootKernel();
+        $this->em = static::getContainer()->get(EntityManagerInterface::class);
+        $this->repository = new DoctrineMovieRepository($this->em);
+
+        $this->em->getConnection()->executeStatement('TRUNCATE TABLE movies');
+    }
+
+    public function testSaveAndFindByIdRoundTripsEmbeddedTitleAndCreatedAt(): void
+    {
+        $createdAt = new DateTimeImmutable('2026-07-15 10:30:00');
+        $this->repository->save(new Movie(
+            'm0000001-0000-0000-0000-000000000001',
+            new Title('Blade Runner 2049'),
+            $createdAt,
+        ));
+        $this->em->clear();
+
+        $found = $this->repository->findById('m0000001-0000-0000-0000-000000000001');
+
+        self::assertNotNull($found);
+        self::assertSame('Blade Runner 2049', $found->title()->value());
+        self::assertSame($createdAt->format('Y-m-d H:i:s'), $found->createdAt()->format('Y-m-d H:i:s'));
+    }
+
+    public function testFindByIdReturnsNullForUnknownId(): void
+    {
+        self::assertNull($this->repository->findById('00000000-0000-0000-0000-000000000000'));
+    }
+
+    public function testSavePersistsRenamedTitle(): void
+    {
+        $this->repository->save(new Movie(
+            'm0000002-0000-0000-0000-000000000001',
+            new Title('Dune'),
+            new DateTimeImmutable(),
+        ));
+        $this->em->clear();
+
+        $loaded = $this->repository->findById('m0000002-0000-0000-0000-000000000001');
+        self::assertNotNull($loaded);
+        $loaded->rename(new Title('Dune: Part Two'));
+        $this->repository->save($loaded);
+        $this->em->clear();
+
+        $reloaded = $this->repository->findById('m0000002-0000-0000-0000-000000000001');
+        self::assertNotNull($reloaded);
+        self::assertSame('Dune: Part Two', $reloaded->title()->value());
+    }
+
+    public function testTitleSurvivesTheRoundTripAtFullColumnWidth(): void
+    {
+        $longTitle = str_repeat('ż', Title::MAX_LENGTH);
+        $this->repository->save(new Movie(
+            'm0000003-0000-0000-0000-000000000001',
+            new Title($longTitle),
+            new DateTimeImmutable(),
+        ));
+        $this->em->clear();
+
+        $found = $this->repository->findById('m0000003-0000-0000-0000-000000000001');
+
+        self::assertNotNull($found);
+        self::assertSame($longTitle, $found->title()->value());
+    }
+
+    public function testFindAllReturnsAllSavedMovies(): void
+    {
+        $this->repository->save(new Movie('m0000004-0000-0000-0000-000000000001', new Title('Arrival'), new DateTimeImmutable()));
+        $this->repository->save(new Movie('m0000004-0000-0000-0000-000000000002', new Title('Sicario'), new DateTimeImmutable()));
+        $this->em->clear();
+
+        self::assertCount(2, $this->repository->findAll());
+    }
+
+    public function testRemoveDeletesMovie(): void
+    {
+        $this->repository->save(new Movie(
+            'm0000005-0000-0000-0000-000000000001',
+            new Title('Prisoners'),
+            new DateTimeImmutable(),
+        ));
+        $this->em->clear();
+
+        $loaded = $this->repository->findById('m0000005-0000-0000-0000-000000000001');
+        self::assertNotNull($loaded);
+        $this->repository->remove($loaded);
+        $this->em->clear();
+
+        self::assertNull($this->repository->findById('m0000005-0000-0000-0000-000000000001'));
+    }
+}
