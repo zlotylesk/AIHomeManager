@@ -77,6 +77,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Goals/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Goals\Domain\ValueObject'
+            MoviesDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Movies/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Movies\Domain\Entity'
+            MoviesDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Movies/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Movies\Domain\ValueObject'
 
 when@test:
     doctrine:
