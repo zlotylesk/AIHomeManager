@@ -12,7 +12,12 @@ namespace App\Module\Movies\Application\Command;
  */
 final readonly class AddMovie
 {
-    public function __construct(public string $title)
-    {
+    public function __construct(
+        public string $title,
+        public ?string $coverUrl = null,
+        public ?int $year = null,
+        public ?string $status = null,
+        public ?string $description = null,
+    ) {
     }
 }

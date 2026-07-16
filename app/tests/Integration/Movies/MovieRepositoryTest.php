@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Movies;
 
 use App\Module\Movies\Domain\Entity\Movie;
+use App\Module\Movies\Domain\Enum\MovieStatus;
 use App\Module\Movies\Domain\ValueObject\Rating;
 use App\Module\Movies\Domain\ValueObject\Title;
 use App\Module\Movies\Infrastructure\Persistence\DoctrineMovieRepository;
@@ -143,5 +144,26 @@ final class MovieRepositoryTest extends KernelTestCase
         // The custom movie_rating DBAL type must return a real null for a NULL column,
         // not a hydrated-but-broken Rating (the nullable-embeddable hazard).
         self::assertNull($found->userRating());
+        // Same for the metadata: movie_status must round-trip NULL cleanly.
+        self::assertNull($found->coverUrl());
+        self::assertNull($found->year());
+        self::assertNull($found->status());
+        self::assertNull($found->description());
+    }
+
+    public function testMetadataRoundTrips(): void
+    {
+        $movie = new Movie('m0000008-0000-0000-0000-000000000001', new Title('Heat'), new DateTimeImmutable());
+        $movie->updateMetadata('https://example.com/poster.jpg', 1995, MovieStatus::RELEASED, 'A heist film.');
+        $this->repository->save($movie);
+        $this->em->clear();
+
+        $found = $this->repository->findById('m0000008-0000-0000-0000-000000000001');
+
+        self::assertNotNull($found);
+        self::assertSame('https://example.com/poster.jpg', $found->coverUrl());
+        self::assertSame(1995, $found->year());
+        self::assertSame(MovieStatus::RELEASED, $found->status());
+        self::assertSame('A heist film.', $found->description());
     }
 }
