@@ -10,6 +10,7 @@ doctrine:
             listening_source: App\Module\Music\Infrastructure\Persistence\Doctrine\Type\ListeningSourceType
             goal_type: App\Module\Goals\Infrastructure\Persistence\Doctrine\Type\GoalTypeType
             goal_period: App\Module\Goals\Infrastructure\Persistence\Doctrine\Type\GoalPeriodType
+            movie_rating: App\Module\Movies\Infrastructure\Persistence\Doctrine\Type\RatingType
 
 
         profiling_collect_backtrace: '%kernel.debug%'

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Movies\Domain;
 
 use App\Module\Movies\Domain\Entity\Movie;
+use App\Module\Movies\Domain\ValueObject\Rating;
 use App\Module\Movies\Domain\ValueObject\Title;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -56,5 +57,65 @@ final class MovieTest extends TestCase
 
         self::assertSame('m-0003', $movie->id());
         self::assertSame($createdAt, $movie->createdAt());
+    }
+
+    public function testNewMovieIsNotWatchedAndUnrated(): void
+    {
+        $movie = new Movie('m-0004', new Title('Heat'), new DateTimeImmutable());
+
+        self::assertFalse($movie->isWatched());
+        self::assertNull($movie->watchedAt());
+        self::assertNull($movie->userRating());
+    }
+
+    public function testMarkWatchedStampsProvidedTime(): void
+    {
+        $movie = new Movie('m-0005', new Title('Heat'), new DateTimeImmutable());
+        $watchedAt = new DateTimeImmutable('2026-07-10 21:00:00');
+
+        $movie->markWatched($watchedAt);
+
+        self::assertTrue($movie->isWatched());
+        self::assertSame($watchedAt, $movie->watchedAt());
+    }
+
+    public function testMarkWatchedDefaultsToNow(): void
+    {
+        $movie = new Movie('m-0006', new Title('Heat'), new DateTimeImmutable());
+
+        $movie->markWatched();
+
+        self::assertTrue($movie->isWatched());
+        self::assertInstanceOf(DateTimeImmutable::class, $movie->watchedAt());
+    }
+
+    public function testUnmarkWatchedClearsFlagAndTime(): void
+    {
+        $movie = new Movie('m-0007', new Title('Heat'), new DateTimeImmutable());
+        $movie->markWatched();
+
+        $movie->unmarkWatched();
+
+        self::assertFalse($movie->isWatched());
+        self::assertNull($movie->watchedAt());
+    }
+
+    public function testRateSetsUserRating(): void
+    {
+        $movie = new Movie('m-0008', new Title('Heat'), new DateTimeImmutable());
+
+        $movie->rate(new Rating(9));
+
+        self::assertSame(9, $movie->userRating()?->value());
+    }
+
+    public function testRateNullClearsUserRating(): void
+    {
+        $movie = new Movie('m-0009', new Title('Heat'), new DateTimeImmutable());
+        $movie->rate(new Rating(9));
+
+        $movie->rate(null);
+
+        self::assertNull($movie->userRating());
     }
 }
