@@ -15,6 +15,10 @@
         </field>
         <field name="watchedAt" type="datetime_immutable" column="watched_at" nullable="true"/>
         <field name="userRating" type="movie_rating" column="user_rating" nullable="true"/>
+        <field name="coverUrl" type="string" column="cover_url" length="1000" nullable="true"/>
+        <field name="year" type="integer" column="year" nullable="true"/>
+        <field name="status" type="movie_status" column="status" length="20" nullable="true"/>
+        <field name="description" type="text" column="description" nullable="true"/>
     </entity>
 
 </doctrine-mapping>

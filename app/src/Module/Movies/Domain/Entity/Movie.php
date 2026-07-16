@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Movies\Domain\Entity;
 
+use App\Module\Movies\Domain\Enum\MovieStatus;
 use App\Module\Movies\Domain\ValueObject\Rating;
 use App\Module\Movies\Domain\ValueObject\Title;
 use DateTimeImmutable;
@@ -12,11 +13,13 @@ use InvalidArgumentException;
 /**
  * A single film in the collection. Unlike a series a movie has no season/episode
  * hierarchy, so the aggregate is flat: it owns its identity, its title, when it
- * entered the collection, whether it has been watched (and when) and the user's
- * own 1–10 rating.
+ * entered the collection, whether it has been watched (and when), the user's own
+ * 1–10 rating and optional catalog metadata (cover/year/status/description).
  *
- * Catalog metadata (cover/year/status/description) is still deliberately absent —
- * it arrives with HMAI-289.
+ * The metadata is stored as already-validated primitives — the cover URL is
+ * validated through the shared CoverUrl VO, the year range, the status enum and
+ * the description length at the Application boundary (MovieMetadata), so this
+ * only stores (the Series updateMetadata precedent).
  */
 final class Movie
 {
@@ -25,6 +28,14 @@ final class Movie
     private ?DateTimeImmutable $watchedAt = null;
 
     private ?Rating $userRating = null;
+
+    private ?string $coverUrl = null;
+
+    private ?int $year = null;
+
+    private ?MovieStatus $status = null;
+
+    private ?string $description = null;
 
     public function __construct(
         private readonly string $id,
@@ -93,5 +104,37 @@ final class Movie
     public function rate(?Rating $rating): void
     {
         $this->userRating = $rating;
+    }
+
+    public function coverUrl(): ?string
+    {
+        return $this->coverUrl;
+    }
+
+    public function year(): ?int
+    {
+        return $this->year;
+    }
+
+    public function status(): ?MovieStatus
+    {
+        return $this->status;
+    }
+
+    public function description(): ?string
+    {
+        return $this->description;
+    }
+
+    /**
+     * Replace the catalog metadata (full replace — a null field clears it). The
+     * values are already validated by MovieMetadata at the Application boundary.
+     */
+    public function updateMetadata(?string $coverUrl, ?int $year, ?MovieStatus $status, ?string $description): void
+    {
+        $this->coverUrl = $coverUrl;
+        $this->year = $year;
+        $this->status = $status;
+        $this->description = $description;
     }
 }

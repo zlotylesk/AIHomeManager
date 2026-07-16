@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Movies\Domain;
 
 use App\Module\Movies\Domain\Entity\Movie;
+use App\Module\Movies\Domain\Enum\MovieStatus;
 use App\Module\Movies\Domain\ValueObject\Rating;
 use App\Module\Movies\Domain\ValueObject\Title;
 use DateTimeImmutable;
@@ -117,5 +118,40 @@ final class MovieTest extends TestCase
         $movie->rate(null);
 
         self::assertNull($movie->userRating());
+    }
+
+    public function testNewMovieHasNoMetadata(): void
+    {
+        $movie = new Movie('m-0010', new Title('Heat'), new DateTimeImmutable());
+
+        self::assertNull($movie->coverUrl());
+        self::assertNull($movie->year());
+        self::assertNull($movie->status());
+        self::assertNull($movie->description());
+    }
+
+    public function testUpdateMetadataStoresValues(): void
+    {
+        $movie = new Movie('m-0011', new Title('Heat'), new DateTimeImmutable());
+
+        $movie->updateMetadata('https://example.com/poster.jpg', 1995, MovieStatus::RELEASED, 'A heist film.');
+
+        self::assertSame('https://example.com/poster.jpg', $movie->coverUrl());
+        self::assertSame(1995, $movie->year());
+        self::assertSame(MovieStatus::RELEASED, $movie->status());
+        self::assertSame('A heist film.', $movie->description());
+    }
+
+    public function testUpdateMetadataWithNullsClears(): void
+    {
+        $movie = new Movie('m-0012', new Title('Heat'), new DateTimeImmutable());
+        $movie->updateMetadata('https://example.com/poster.jpg', 1995, MovieStatus::RELEASED, 'A heist film.');
+
+        $movie->updateMetadata(null, null, null, null);
+
+        self::assertNull($movie->coverUrl());
+        self::assertNull($movie->year());
+        self::assertNull($movie->status());
+        self::assertNull($movie->description());
     }
 }
