@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Movies;
 
 use App\Module\Movies\Domain\Entity\Movie;
+use App\Module\Movies\Domain\ValueObject\Rating;
 use App\Module\Movies\Domain\ValueObject\Title;
 use App\Module\Movies\Infrastructure\Persistence\DoctrineMovieRepository;
 use DateTimeImmutable;
@@ -107,5 +108,40 @@ final class MovieRepositoryTest extends KernelTestCase
         $this->em->clear();
 
         self::assertNull($this->repository->findById('m0000005-0000-0000-0000-000000000001'));
+    }
+
+    public function testWatchedFlagTimeAndRatingRoundTrip(): void
+    {
+        $movie = new Movie('m0000006-0000-0000-0000-000000000001', new Title('Heat'), new DateTimeImmutable());
+        $movie->markWatched(new DateTimeImmutable('2026-07-10 21:00:00'));
+        $movie->rate(new Rating(9));
+        $this->repository->save($movie);
+        $this->em->clear();
+
+        $found = $this->repository->findById('m0000006-0000-0000-0000-000000000001');
+
+        self::assertNotNull($found);
+        self::assertTrue($found->isWatched());
+        self::assertSame('2026-07-10 21:00:00', $found->watchedAt()?->format('Y-m-d H:i:s'));
+        self::assertSame(9, $found->userRating()?->value());
+    }
+
+    public function testUnwatchedUnratedMovieHydratesNullNotABrokenRating(): void
+    {
+        $this->repository->save(new Movie(
+            'm0000007-0000-0000-0000-000000000001',
+            new Title('Dune'),
+            new DateTimeImmutable(),
+        ));
+        $this->em->clear();
+
+        $found = $this->repository->findById('m0000007-0000-0000-0000-000000000001');
+
+        self::assertNotNull($found);
+        self::assertFalse($found->isWatched());
+        self::assertNull($found->watchedAt());
+        // The custom movie_rating DBAL type must return a real null for a NULL column,
+        // not a hydrated-but-broken Rating (the nullable-embeddable hazard).
+        self::assertNull($found->userRating());
     }
 }
