@@ -71,6 +71,9 @@ services:
     App\Module\Goals\Domain\Repository\StreakRepositoryInterface:
         alias: App\Module\Goals\Infrastructure\Persistence\DoctrineStreakRepository
 
+    App\Module\Movies\Domain\Repository\MovieRepositoryInterface:
+        alias: App\Module\Movies\Infrastructure\Persistence\DoctrineMovieRepository
+
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
             $redis: '@app.redis'
@@ -134,6 +137,11 @@ services:
             $cipher: '@app.trakt_token_cipher'
 
     App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface:
+        alias: App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository
+
+    # Shared-kernel read port for the single Trakt OAuth token (HMAI-290): the
+    # Movies Trakt adapter reads it without reaching into Series Infrastructure.
+    App\Shared\Security\TraktTokenProviderInterface:
         alias: App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository
 
     App\Module\Series\Infrastructure\External\TraktTokenProvider:
@@ -295,6 +303,19 @@ services:
 
     App\Module\Series\Domain\Port\RatingsProviderInterface:
         alias: App\Module\Series\Infrastructure\External\TraktApiClient
+
+    # Movies Trakt import (HMAI-290): the rate-limited Trakt HTTP client + the
+    # client id, reading the shared token through the Shared-kernel port.
+    App\Module\Movies\Infrastructure\External\TraktMoviesApiClient:
+        arguments:
+            $httpClient: '@app.trakt_http_client'
+            $clientId: '%env(TRAKT_CLIENT_ID)%'
+
+    App\Module\Movies\Domain\Port\WatchedMoviesProviderInterface:
+        alias: App\Module\Movies\Infrastructure\External\TraktMoviesApiClient
+
+    App\Module\Movies\Domain\Port\MovieRatingsProviderInterface:
+        alias: App\Module\Movies\Infrastructure\External\TraktMoviesApiClient
 
     # Goals activity stream (HMAI-250): per-source-module DBAL read adapters,
     # aggregated by the composite that backs the ActivityProviderInterface port.
