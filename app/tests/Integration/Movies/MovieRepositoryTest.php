@@ -166,4 +166,23 @@ final class MovieRepositoryTest extends KernelTestCase
         self::assertSame(MovieStatus::RELEASED, $found->status());
         self::assertSame('A heist film.', $found->description());
     }
+
+    public function testFindByTraktIdRoundTripsTheLinkedId(): void
+    {
+        $movie = new Movie('m0000009-0000-0000-0000-000000000001', new Title('Blade Runner 2049'), new DateTimeImmutable());
+        $movie->linkTrakt('6');
+        $this->repository->save($movie);
+        $this->em->clear();
+
+        $found = $this->repository->findByTraktId('6');
+
+        self::assertNotNull($found);
+        self::assertSame('m0000009-0000-0000-0000-000000000001', $found->id());
+        self::assertSame('6', $found->traktId());
+    }
+
+    public function testFindByTraktIdReturnsNullForUnknownTraktId(): void
+    {
+        self::assertNull($this->repository->findByTraktId('does-not-exist'));
+    }
 }

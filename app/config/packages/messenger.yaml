@@ -40,6 +40,8 @@ framework:
             App\Module\Series\Domain\Event\EpisodeRated: async
             App\Module\Series\Application\Command\ImportWatchedShowsFromTrakt: async
             App\Module\Series\Application\Command\ImportRatingsFromTrakt: async
+            App\Module\Movies\Application\Command\ImportWatchedMoviesFromTrakt: async
+            App\Module\Movies\Application\Command\ImportMovieRatingsFromTrakt: async
             App\Module\Music\Application\Command\RefreshDiscogsCollection: async
             App\Module\Music\Application\Command\PollLastFmRecentTracks: async
             App\Module\Goals\Application\Command\RecalculateStreaks: async

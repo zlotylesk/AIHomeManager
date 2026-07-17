@@ -154,4 +154,30 @@ final class MovieTest extends TestCase
         self::assertNull($movie->status());
         self::assertNull($movie->description());
     }
+
+    public function testNewMovieHasNoTraktId(): void
+    {
+        $movie = new Movie('m-0013', new Title('Heat'), new DateTimeImmutable());
+
+        self::assertNull($movie->traktId());
+    }
+
+    public function testLinkTraktStoresTheId(): void
+    {
+        $movie = new Movie('m-0014', new Title('Heat'), new DateTimeImmutable());
+
+        $movie->linkTrakt('6');
+
+        self::assertSame('6', $movie->traktId());
+    }
+
+    public function testLinkTraktRejectsEmptyId(): void
+    {
+        $movie = new Movie('m-0015', new Title('Heat'), new DateTimeImmutable());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Trakt id cannot be empty.');
+
+        $movie->linkTrakt('  ');
+    }
 }
