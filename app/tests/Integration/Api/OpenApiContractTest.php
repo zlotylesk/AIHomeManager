@@ -44,7 +44,7 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions');
+        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies');
 
         $content = $this->fetchSpecContent();
 
@@ -140,6 +140,21 @@ final class OpenApiContractTest extends WebTestCase
         // the empty arrays/null a bare cockpit would return.
         $this->seedDashboardToday();
         $this->assertResponseConformsToContract('GET', '/api/v1/dashboard', '/api/v1/dashboard');
+    }
+
+    public function testMoviesListResponseConformsToContract(): void
+    {
+        // A fully-populated flat MovieDTO: watched with a timestamp, an own rating
+        // and every optional metadata field, so the response exercises the non-null
+        // branch of each field rather than the nulls a bare movie would return.
+        $this->seedMovie();
+        $this->assertResponseConformsToContract('GET', '/api/v1/movies', '/api/v1/movies');
+    }
+
+    public function testMoviesDetailResponseConformsToContract(): void
+    {
+        $id = $this->seedMovie();
+        $this->assertResponseConformsToContract('GET', '/api/v1/movies/'.$id, '/api/v1/movies/{id}');
     }
 
     public function testContractValidationRejectsDriftingResponse(): void
@@ -290,6 +305,23 @@ final class OpenApiContractTest extends WebTestCase
         $this->patch('/api/v1/series/'.$seriesId.'/seasons/'.$seasonId.'/episodes/'.$episodeId.'/watched', ['watched' => true]);
 
         return $seriesId;
+    }
+
+    private function seedMovie(): string
+    {
+        $id = $this->postForId('/api/v1/movies', [
+            'title' => 'Blade Runner 2049',
+            'year' => 2017,
+            'status' => 'released',
+            'coverUrl' => 'https://example.com/br2049.jpg',
+            'description' => 'A young blade runner uncovers a long-buried secret.',
+        ]);
+
+        // Populate the watched flag (+ watchedAt) and the own rating on the read model.
+        $this->patch('/api/v1/movies/'.$id.'/watched', ['watched' => true]);
+        $this->patch('/api/v1/movies/'.$id.'/rating', ['rating' => 9]);
+
+        return $id;
     }
 
     private function seedTask(): string
