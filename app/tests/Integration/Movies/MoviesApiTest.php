@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Movies;
 
+use App\Shared\Security\TraktTokenProviderInterface;
 use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -274,6 +275,22 @@ final class MoviesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(409);
         $body = $this->jsonResponse($this->client);
         self::assertSame('/auth/trakt', $body['authUrl']);
+    }
+
+    public function testImportFromTraktReturns202WhenConnected(): void
+    {
+        // Stub the shared Trakt token port so the connectivity check passes without
+        // a real OAuth token. The import command is async-routed (in-memory in tests),
+        // so the trigger returns 202 immediately without running the import inline.
+        $this->client->disableReboot();
+        $token = $this->createStub(TraktTokenProviderInterface::class);
+        $token->method('get')->willReturn(['access_token' => 'stub-token']);
+        self::getContainer()->set(TraktTokenProviderInterface::class, $token);
+
+        $this->client->request('POST', '/api/movies/import/trakt');
+
+        self::assertResponseStatusCodeSame(202);
+        self::assertSame('import_started', $this->jsonResponse($this->client)['status']);
     }
 
     public function testVersionedAndLegacyAliasShareData(): void
