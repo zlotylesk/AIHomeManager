@@ -5,6 +5,9 @@
                                       https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
 
     <entity name="App\Module\Movies\Domain\Entity\Movie" table="movies">
+        <unique-constraints>
+            <unique-constraint columns="trakt_id" name="uniq_movies_trakt_id"/>
+        </unique-constraints>
         <id name="id" type="string" column="id" length="36"/>
         <embedded name="title" class="App\Module\Movies\Domain\ValueObject\Title" use-column-prefix="false"/>
         <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
@@ -19,6 +22,7 @@
         <field name="year" type="integer" column="year" nullable="true"/>
         <field name="status" type="movie_status" column="status" length="20" nullable="true"/>
         <field name="description" type="text" column="description" nullable="true"/>
+        <field name="traktId" type="string" column="trakt_id" length="64" nullable="true"/>
     </entity>
 
 </doctrine-mapping>

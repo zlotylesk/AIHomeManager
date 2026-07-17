@@ -37,6 +37,8 @@ final class Movie
 
     private ?string $description = null;
 
+    private ?string $traktId = null;
+
     public function __construct(
         private readonly string $id,
         private Title $title,
@@ -136,5 +138,23 @@ final class Movie
         $this->year = $year;
         $this->status = $status;
         $this->description = $description;
+    }
+
+    public function traktId(): ?string
+    {
+        return $this->traktId;
+    }
+
+    /**
+     * Link this movie to its Trakt film. Idempotent re-imports dedupe on this id
+     * (the Series linkTrakt precedent).
+     */
+    public function linkTrakt(string $traktId): void
+    {
+        if ('' === trim($traktId)) {
+            throw new InvalidArgumentException('Trakt id cannot be empty.');
+        }
+
+        $this->traktId = $traktId;
     }
 }

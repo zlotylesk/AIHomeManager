@@ -25,6 +25,11 @@ final readonly class DoctrineMovieRepository implements MovieRepositoryInterface
         return $this->entityManager->find(Movie::class, $id);
     }
 
+    public function findByTraktId(string $traktId): ?Movie
+    {
+        return $this->entityManager->getRepository(Movie::class)->findOneBy(['traktId' => $traktId]);
+    }
+
     /** @return Movie[] */
     public function findAll(): array
     {

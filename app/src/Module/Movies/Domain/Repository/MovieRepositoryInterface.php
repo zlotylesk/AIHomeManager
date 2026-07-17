@@ -12,6 +12,8 @@ interface MovieRepositoryInterface
 
     public function findById(string $id): ?Movie;
 
+    public function findByTraktId(string $traktId): ?Movie;
+
     /** @return Movie[] */
     public function findAll(): array;
 
