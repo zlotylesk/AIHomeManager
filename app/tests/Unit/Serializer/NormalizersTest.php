@@ -16,6 +16,7 @@ use App\Module\Dashboard\Domain\ReadModel\Recommendation;
 use App\Module\Dashboard\Domain\ReadModel\TodayTask;
 use App\Module\Goals\Application\DTO\GoalProgressDTO;
 use App\Module\Goals\Application\DTO\StreakDTO;
+use App\Module\Movies\Application\DTO\MovieDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
@@ -34,6 +35,7 @@ use App\Serializer\BookDTONormalizer;
 use App\Serializer\DashboardDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
+use App\Serializer\MovieDTONormalizer;
 use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
@@ -275,6 +277,58 @@ final class NormalizersTest extends TestCase
         self::assertSame(1, $result['episodeCount']);
         self::assertSame(0, $result['seasons'][0]['watchedCount']);
         self::assertSame(1, $result['seasons'][0]['episodeCount']);
+    }
+
+    public function testMovieNormalizer(): void
+    {
+        $n = new MovieDTONormalizer();
+        $dto = new MovieDTO(
+            id: 'm1',
+            title: 'Blade Runner 2049',
+            watched: true,
+            watchedAt: '2026-07-10T20:00:00+00:00',
+            rating: 9,
+            coverUrl: 'https://img.test/br.jpg',
+            year: 2017,
+            status: 'released',
+            description: 'Neo-noir sci-fi.',
+            createdAt: '2026-07-01T00:00:00+00:00',
+        );
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(MovieDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'id' => 'm1',
+            'title' => 'Blade Runner 2049',
+            'watched' => true,
+            'watchedAt' => '2026-07-10T20:00:00+00:00',
+            'rating' => 9,
+            'coverUrl' => 'https://img.test/br.jpg',
+            'year' => 2017,
+            'status' => 'released',
+            'description' => 'Neo-noir sci-fi.',
+            'createdAt' => '2026-07-01T00:00:00+00:00',
+        ], $n->normalize($dto));
+    }
+
+    public function testMovieNormalizerNullMetadata(): void
+    {
+        $n = new MovieDTONormalizer();
+        $dto = new MovieDTO('m2', 'Untitled', false, null, null, null, null, null, null, '2026-07-01T00:00:00+00:00');
+
+        self::assertSame([
+            'id' => 'm2',
+            'title' => 'Untitled',
+            'watched' => false,
+            'watchedAt' => null,
+            'rating' => null,
+            'coverUrl' => null,
+            'year' => null,
+            'status' => null,
+            'description' => null,
+            'createdAt' => '2026-07-01T00:00:00+00:00',
+        ], $n->normalize($dto));
     }
 
     public function testGoalProgressNormalizer(): void

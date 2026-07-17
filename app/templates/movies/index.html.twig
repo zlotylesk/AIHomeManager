@@ -1,0 +1,36 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Filmy — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="movies">
+    <header class="app-header">
+        <h1 class="app-title">Filmy</h1>
+        <div class="app-header-actions">
+            <button class="btn btn-primary" data-action="click->movies#toggleAddForm">Dodaj film</button>
+            <button class="btn btn-secondary" data-action="click->movies#importFromTrakt">Importuj z Trakt</button>
+        </div>
+    </header>
+
+    <section class="movies-section movies-add hidden" data-movies-target="addForm">
+        <h2 class="movies-section-title">Nowy film</h2>
+        <form class="movie-form" data-action="submit->movies#createMovie">
+            <input class="movie-input" type="text" placeholder="Tytuł" data-movies-target="title" aria-label="Tytuł filmu" required>
+            <input class="movie-input" type="url" placeholder="URL okładki (opcjonalnie)" data-movies-target="coverUrl" aria-label="URL okładki">
+            <input class="movie-input" type="number" placeholder="Rok" data-movies-target="year" aria-label="Rok produkcji">
+            <select class="movie-input" data-movies-target="status" aria-label="Status filmu"></select>
+            <textarea class="movie-input movie-input--wide" placeholder="Opis (opcjonalnie)" data-movies-target="description" aria-label="Opis filmu"></textarea>
+            <button type="submit" class="btn btn-primary">Zapisz film</button>
+        </form>
+    </section>
+
+    <section class="movies-section">
+        <div class="movies-toolbar" data-movies-target="filters"></div>
+        <div id="movies-list" class="movies-list" data-movies-target="list">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+
+    <section class="movies-section hidden" data-movies-target="detail"></section>
+</div>
+{% endblock %}

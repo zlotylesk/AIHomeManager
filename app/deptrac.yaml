@@ -78,6 +78,21 @@ deptrac:
               - type: directory
                 value: src/Module/Goals/Infrastructure/.*
 
+        - name: MoviesDomain
+          collectors:
+              - type: directory
+                value: src/Module/Movies/Domain/.*
+
+        - name: MoviesApplication
+          collectors:
+              - type: directory
+                value: src/Module/Movies/Application/.*
+
+        - name: MoviesInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Movies/Infrastructure/.*
+
         - name: MusicDomain
           collectors:
               - type: directory
@@ -92,6 +107,21 @@ deptrac:
           collectors:
               - type: directory
                 value: src/Module/Music/Infrastructure/.*
+
+        - name: NotificationsDomain
+          collectors:
+              - type: directory
+                value: src/Module/Notifications/Domain/.*
+
+        - name: NotificationsApplication
+          collectors:
+              - type: directory
+                value: src/Module/Notifications/Application/.*
+
+        - name: NotificationsInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Notifications/Infrastructure/.*
 
         - name: SearchDomain
           collectors:
@@ -199,7 +229,11 @@ deptrac:
             - Shared
         GoalsDomain:
             - Shared
+        MoviesDomain:
+            - Shared
         MusicDomain:
+            - Shared
+        NotificationsDomain:
             - Shared
         SearchDomain:
             - Shared
@@ -228,8 +262,16 @@ deptrac:
             - GoalsDomain
             - Shared
             - Vendor
+        MoviesApplication:
+            - MoviesDomain
+            - Shared
+            - Vendor
         MusicApplication:
             - MusicDomain
+            - Shared
+            - Vendor
+        NotificationsApplication:
+            - NotificationsDomain
             - Shared
             - Vendor
         SearchApplication:
@@ -271,9 +313,19 @@ deptrac:
             - GoalsApplication
             - Shared
             - Vendor
+        MoviesInfrastructure:
+            - MoviesDomain
+            - MoviesApplication
+            - Shared
+            - Vendor
         MusicInfrastructure:
             - MusicDomain
             - MusicApplication
+            - Shared
+            - Vendor
+        NotificationsInfrastructure:
+            - NotificationsDomain
+            - NotificationsApplication
             - Shared
             - Vendor
         SearchInfrastructure:
@@ -312,9 +364,15 @@ deptrac:
             - GoalsDomain
             - GoalsApplication
             - GoalsInfrastructure
+            - MoviesDomain
+            - MoviesApplication
+            - MoviesInfrastructure
             - MusicDomain
             - MusicApplication
             - MusicInfrastructure
+            - NotificationsDomain
+            - NotificationsApplication
+            - NotificationsInfrastructure
             - SearchDomain
             - SearchApplication
             - SearchInfrastructure

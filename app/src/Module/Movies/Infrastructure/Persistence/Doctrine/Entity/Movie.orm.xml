@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Movies\Domain\Entity\Movie" table="movies">
+        <unique-constraints>
+            <unique-constraint columns="trakt_id" name="uniq_movies_trakt_id"/>
+        </unique-constraints>
+        <id name="id" type="string" column="id" length="36"/>
+        <embedded name="title" class="App\Module\Movies\Domain\ValueObject\Title" use-column-prefix="false"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
+        <field name="watched" type="boolean" column="watched" nullable="false">
+            <options>
+                <option name="default">0</option>
+            </options>
+        </field>
+        <field name="watchedAt" type="datetime_immutable" column="watched_at" nullable="true"/>
+        <field name="userRating" type="movie_rating" column="user_rating" nullable="true"/>
+        <field name="coverUrl" type="string" column="cover_url" length="1000" nullable="true"/>
+        <field name="year" type="integer" column="year" nullable="true"/>
+        <field name="status" type="movie_status" column="status" length="20" nullable="true"/>
+        <field name="description" type="text" column="description" nullable="true"/>
+        <field name="traktId" type="string" column="trakt_id" length="64" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>
