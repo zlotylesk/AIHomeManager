@@ -29,6 +29,12 @@ final class FrontendController extends AbstractController
         return $this->render('series/index.html.twig');
     }
 
+    #[Route('/movies', name: 'app_frontend_movies', methods: ['GET'])]
+    public function movies(): Response
+    {
+        return $this->render('movies/index.html.twig');
+    }
+
     #[Route('/tasks', name: 'app_frontend_tasks', methods: ['GET'])]
     public function tasks(): Response
     {

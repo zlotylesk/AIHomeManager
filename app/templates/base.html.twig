@@ -17,6 +17,7 @@
             <a class="navbar-brand" href="{{ path('app_frontend_dashboard') }}">🏠 AIHomeManager</a>
             <ul class="navbar-links">
                 <li><a href="{{ path('app_frontend_series') }}" {% if app.request.attributes.get('_route') == 'app_frontend_series' %}class="active"{% endif %}>Series</a></li>
+                <li><a href="{{ path('app_frontend_movies') }}" {% if app.request.attributes.get('_route') == 'app_frontend_movies' %}class="active"{% endif %}>Movies</a></li>
                 <li><a href="{{ path('app_frontend_tasks') }}" {% if app.request.attributes.get('_route') == 'app_frontend_tasks' %}class="active"{% endif %}>Tasks</a></li>
                 <li><a href="{{ path('app_frontend_books') }}" {% if app.request.attributes.get('_route') == 'app_frontend_books' %}class="active"{% endif %}>Books</a></li>
                 <li><a href="{{ path('app_frontend_articles') }}" {% if app.request.attributes.get('_route') == 'app_frontend_articles' %}class="active"{% endif %}>Articles</a></li>
