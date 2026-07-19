@@ -1,0 +1,2 @@
+{% block title %}Podsumowanie dnia{% endblock %}
+{% block body %}{% if payload.items is defined and payload.items is iterable and payload.items|length > 0 %}{{ payload.items|length }} rzeczy czeka na Twoją uwagę.{% else %}Dziś nic nie czeka na Twoją uwagę.{% endif %}{% endblock %}
