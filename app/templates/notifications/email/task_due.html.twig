@@ -1,0 +1,17 @@
+{% extends 'notifications/email/_layout.html.twig' %}
+
+{% block subject %}Zbliża się termin: {{ payload.title|default('zadanie bez tytułu') }}{% endblock %}
+
+{% block body %}
+    <p style="margin:0 0 12px;">
+        Zadanie <strong>{{ payload.title|default('bez tytułu') }}</strong> czeka na wykonanie.
+    </p>
+    {% if payload.dueAt is defined %}
+        <p style="margin:0 0 12px;">Termin: <strong>{{ payload.dueAt }}</strong></p>
+    {% endif %}
+    {# Only http(s) is linked: a payload URL may originate from user-entered data,
+       and Twig escapes markup but would happily render a javascript:/data: scheme. #}
+    {% if payload.url is defined and (payload.url starts with 'http://' or payload.url starts with 'https://') %}
+        <p style="margin:0;"><a href="{{ payload.url }}" style="color:#1565c0;">Otwórz zadanie</a></p>
+    {% endif %}
+{% endblock %}

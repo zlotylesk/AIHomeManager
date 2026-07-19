@@ -1,0 +1,19 @@
+{% extends 'notifications/email/_layout.html.twig' %}
+
+{% block subject %}Twoja seria jest zagrożona{% endblock %}
+
+{% block body %}
+    <p style="margin:0 0 12px;">
+        {% if payload.currentLength is defined %}
+            Utrzymujesz serię <strong>{{ payload.currentLength }} dni</strong>{% if payload.goalType is defined %} w kategorii {{ payload.goalType }}{% endif %}.
+        {% else %}
+            Twoja seria zaraz się urwie.
+        {% endif %}
+    </p>
+    <p style="margin:0 0 12px;">
+        Dzisiaj nie odnotowano jeszcze aktywności — bez niej seria zeruje się o północy.
+    </p>
+    {% if payload.longestLength is defined %}
+        <p style="margin:0;color:#616161;">Najdłuższa dotąd seria: {{ payload.longestLength }} dni.</p>
+    {% endif %}
+{% endblock %}

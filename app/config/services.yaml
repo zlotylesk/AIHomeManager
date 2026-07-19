@@ -91,6 +91,13 @@ services:
         arguments:
             $channelAdapters: !tagged_iterator notifications.channel
 
+    # Single-user system: one sender, one recipient, both from ENV. The channel
+    # tag itself comes from the _instanceof rule above.
+    App\Module\Notifications\Infrastructure\Channel\EmailNotificationChannel:
+        arguments:
+            $from: '%env(NOTIFICATIONS_MAIL_FROM)%'
+            $to: '%env(NOTIFICATIONS_MAIL_TO)%'
+
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
             $redis: '@app.redis'
