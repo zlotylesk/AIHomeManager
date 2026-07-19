@@ -8,6 +8,13 @@ services:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
 
+    _instanceof:
+        # Notification channel adapters (HMAI-278): auto-tagged so the dispatch
+        # orchestrator collects every installed channel without a per-adapter
+        # services.yaml entry as e-mail/push land.
+        App\Module\Notifications\Domain\Port\NotificationChannelInterface:
+            tags: ['notifications.channel']
+
     App\:
         resource: '../src/'
 
@@ -76,6 +83,13 @@ services:
 
     App\Module\Notifications\Domain\Repository\NotificationPreferenceRepositoryInterface:
         alias: App\Module\Notifications\Infrastructure\Persistence\DoctrineNotificationPreferenceRepository
+
+    App\Module\Notifications\Domain\Repository\NotificationRepositoryInterface:
+        alias: App\Module\Notifications\Infrastructure\Persistence\DoctrineNotificationRepository
+
+    App\Module\Notifications\Application\CommandHandler\DispatchNotificationHandler:
+        arguments:
+            $channelAdapters: !tagged_iterator notifications.channel
 
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
