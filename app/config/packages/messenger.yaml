@@ -4,11 +4,15 @@ framework:
         failure_transport: failed
 
         buses:
-            command.bus: ~
+            command.bus:
+                middleware:
+                    - 'App\Messaging\AttachRequestIdStampMiddleware'
             query.bus: ~
             event.bus:
                 default_middleware:
                     allow_no_handlers: true
+                middleware:
+                    - 'App\Messaging\AttachRequestIdStampMiddleware'
 
         transports:
             in_memory:
