@@ -117,14 +117,27 @@ final class NotificationPreferenceTest extends TestCase
         self::assertNull($preference->quietHours());
     }
 
-    public function testDefaultForWantsTheTypeOnEveryChannelWithNoQuietPeriod(): void
+    public function testDefaultForWantsAnOrdinaryTypeOnEveryChannelWithNoQuietPeriod(): void
     {
-        $preference = NotificationPreference::defaultFor('p-0002', NotificationType::DAILY_DIGEST);
+        $preference = NotificationPreference::defaultFor('p-0002', NotificationType::TASK_DUE);
 
         self::assertSame('p-0002', $preference->id());
-        self::assertSame(NotificationType::DAILY_DIGEST, $preference->type());
+        self::assertSame(NotificationType::TASK_DUE, $preference->type());
         self::assertTrue($preference->isEnabled());
         self::assertSame(Channel::cases(), $preference->enabledChannels());
         self::assertNull($preference->quietHours());
+    }
+
+    /**
+     * The daily digest is opt-in: it defaults off (it would otherwise duplicate
+     * the individual reminders), but still carries every channel, so enabling it
+     * later delivers over both without a second step.
+     */
+    public function testDefaultForLeavesTheDailyDigestOffButChannelReady(): void
+    {
+        $preference = NotificationPreference::defaultFor('p-0003', NotificationType::DAILY_DIGEST);
+
+        self::assertFalse($preference->isEnabled());
+        self::assertSame(Channel::cases(), $preference->enabledChannels());
     }
 }

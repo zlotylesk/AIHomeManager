@@ -41,16 +41,20 @@ final class NotificationPreference
     }
 
     /**
-     * The state a type has before the user ever configures it: wanted, carried
-     * by every channel, with no quiet period. Callers materialize this on the
-     * first write so an unconfigured type still has something to persist.
+     * The state a type has before the user ever configures it: wanted (except
+     * the opt-in daily digest — see {@see NotificationType::enabledByDefault()}),
+     * carried by every channel, with no quiet period. Callers materialize this
+     * on the first write so an unconfigured type still has something to persist.
+     *
+     * Every type is given all channels even when it defaults off, so opting a
+     * type in later delivers over both channels without a second step.
      */
     public static function defaultFor(string $id, NotificationType $type): self
     {
         return new self(
             id: $id,
             type: $type,
-            enabled: true,
+            enabled: $type->enabledByDefault(),
             enabledChannels: Channel::cases(),
         );
     }

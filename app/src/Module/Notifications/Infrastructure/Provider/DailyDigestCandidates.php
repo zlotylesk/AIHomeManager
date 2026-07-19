@@ -15,9 +15,11 @@ use Doctrine\DBAL\Connection;
  * Deliberately quiet on an empty day: a digest that arrives every morning to say
  * "nothing" trains the user to ignore digests.
  *
- * NOTE: with every notification type enabled by default this overlaps the
- * individual reminders — the user turns off whichever half they do not want,
- * which is exactly what the per-type preference exists for.
+ * This provider still runs every sweep, but `daily_digest` is opt-in (it defaults
+ * off, see {@see \App\Module\Notifications\Domain\Enum\NotificationType::enabledByDefault()}),
+ * so the dispatch engine suppresses the candidate until the user enables the
+ * type — the digest would otherwise overlap the individual reminders it
+ * summarises.
  */
 final readonly class DailyDigestCandidates implements NotificationCandidateProviderInterface
 {
