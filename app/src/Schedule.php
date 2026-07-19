@@ -10,6 +10,7 @@ use App\Module\Articles\Application\Command\ResetDailyArticleCache;
 use App\Module\Goals\Application\Command\RecalculateStreaks;
 use App\Module\Music\Application\Command\PollLastFmRecentTracks;
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
+use App\Module\Notifications\Application\Command\ReviewNotificationCandidates;
 use App\Module\Search\Application\Command\ReindexSearchDocuments;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Scheduler\Attribute\AsSchedule;
@@ -56,6 +57,13 @@ final readonly class Schedule implements ScheduleProviderInterface
                 RecurringMessage::cron('*/30 * * * *', new PollLastFmRecentTracks($this->lastfmUsername)),
                 RecurringMessage::cron('0 1 * * *', new RecalculateStreaks()),
                 RecurringMessage::cron('*/15 * * * *', new ReindexSearchDocuments()),
+                // Twice a day rather than hourly: the morning pass carries the
+                // day's deadlines, article pick and digest, the evening one is
+                // when "your streak dies at midnight" first becomes true. The
+                // shared dedup window keeps the second pass from repeating the
+                // first.
+                RecurringMessage::cron('0 8 * * *', new ReviewNotificationCandidates()),
+                RecurringMessage::cron('0 20 * * *', new ReviewNotificationCandidates()),
             );
     }
 }

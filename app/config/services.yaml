@@ -98,6 +98,29 @@ services:
             $from: '%env(NOTIFICATIONS_MAIL_FROM)%'
             $to: '%env(NOTIFICATIONS_MAIL_TO)%'
 
+    # The scheduler sweep's sources (HMAI-282): per-source-module DBAL read
+    # adapters, aggregated by the composite that backs the port. Tagged
+    # explicitly rather than by _instanceof so the composite — which implements
+    # the same interface — cannot end up iterating over itself.
+    App\Module\Notifications\Infrastructure\Provider\UpcomingTaskCandidates:
+        tags: ['notifications.candidate_provider']
+
+    App\Module\Notifications\Infrastructure\Provider\StreakAtRiskCandidates:
+        tags: ['notifications.candidate_provider']
+
+    App\Module\Notifications\Infrastructure\Provider\DailyArticleCandidates:
+        tags: ['notifications.candidate_provider']
+
+    App\Module\Notifications\Infrastructure\Provider\DailyDigestCandidates:
+        tags: ['notifications.candidate_provider']
+
+    App\Module\Notifications\Domain\Port\NotificationCandidateProviderInterface:
+        alias: App\Module\Notifications\Infrastructure\Provider\CompositeNotificationCandidateProvider
+
+    App\Module\Notifications\Infrastructure\Provider\CompositeNotificationCandidateProvider:
+        arguments:
+            $providers: !tagged_iterator notifications.candidate_provider
+
     App\Module\Notifications\Domain\Repository\PushSubscriptionRepositoryInterface:
         alias: App\Module\Notifications\Infrastructure\Persistence\DoctrinePushSubscriptionRepository
 
