@@ -1,0 +1,2 @@
+{% block title %}Artykuł na dziś{% endblock %}
+{% block body %}{{ payload.title|default('Nowy artykuł z Twojej listy') }}{% if payload.readTime is defined %} · {{ payload.readTime }} min{% endif %}{% endblock %}

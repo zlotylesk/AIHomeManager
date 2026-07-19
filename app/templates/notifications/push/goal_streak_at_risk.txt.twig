@@ -1,0 +1,2 @@
+{% block title %}Twoja seria jest zagrożona{% endblock %}
+{% block body %}{% if payload.currentLength is defined %}{{ payload.currentLength }} dni serii przepadnie o północy bez dzisiejszej aktywności.{% else %}Bez dzisiejszej aktywności seria urwie się o północy.{% endif %}{% endblock %}

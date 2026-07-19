@@ -98,6 +98,20 @@ services:
             $from: '%env(NOTIFICATIONS_MAIL_FROM)%'
             $to: '%env(NOTIFICATIONS_MAIL_TO)%'
 
+    App\Module\Notifications\Domain\Repository\PushSubscriptionRepositoryInterface:
+        alias: App\Module\Notifications\Infrastructure\Persistence\DoctrinePushSubscriptionRepository
+
+    # VAPID identifies this server to the push service, so no third-party
+    # provider sits in the delivery path.
+    App\Module\Notifications\Infrastructure\Channel\WebPushSenderInterface:
+        alias: App\Module\Notifications\Infrastructure\Channel\MinishlinkWebPushSender
+
+    App\Module\Notifications\Infrastructure\Channel\MinishlinkWebPushSender:
+        arguments:
+            $publicKey: '%env(VAPID_PUBLIC_KEY)%'
+            $privateKey: '%env(VAPID_PRIVATE_KEY)%'
+            $subject: '%env(VAPID_SUBJECT)%'
+
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
             $redis: '@app.redis'

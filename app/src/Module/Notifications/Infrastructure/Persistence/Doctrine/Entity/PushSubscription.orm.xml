@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Notifications\Domain\Entity\PushSubscription" table="push_subscriptions">
+        <unique-constraints>
+            <unique-constraint columns="endpoint" name="uniq_push_subscriptions_endpoint"/>
+        </unique-constraints>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="endpoint" type="string" column="endpoint" length="500" nullable="false"/>
+        <field name="publicKey" type="string" column="p256dh" length="255" nullable="false"/>
+        <field name="authToken" type="string" column="auth_token" length="255" nullable="false"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
+    </entity>
+
+</doctrine-mapping>
