@@ -43,6 +43,14 @@ final class NotificationEnumsTest extends TestCase
         );
     }
 
+    public function testOnlyTheDailyDigestIsOptInByDefault(): void
+    {
+        self::assertTrue(NotificationType::TASK_DUE->enabledByDefault());
+        self::assertTrue(NotificationType::ARTICLE_DAILY->enabledByDefault());
+        self::assertTrue(NotificationType::GOAL_STREAK_AT_RISK->enabledByDefault());
+        self::assertFalse(NotificationType::DAILY_DIGEST->enabledByDefault());
+    }
+
     public function testNotificationStatusBackingValues(): void
     {
         $values = [];
