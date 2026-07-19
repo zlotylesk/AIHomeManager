@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Notifications\Domain\Entity\Notification" table="notifications">
+        <unique-constraints>
+            <unique-constraint columns="dedup_key" name="uniq_notifications_dedup_key"/>
+        </unique-constraints>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="type" type="notification_type" column="type" length="50" nullable="false"/>
+        <field name="channel" type="notification_channel" column="channel" length="20" nullable="false"/>
+        <field name="payload" type="json" column="payload" nullable="false"/>
+        <field name="dedupKey" type="string" column="dedup_key" length="255" nullable="false"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at" nullable="false"/>
+        <field name="status" type="notification_status" column="status" length="20" nullable="false"/>
+        <field name="sentAt" type="datetime_immutable" column="sent_at" nullable="true"/>
+        <field name="failureReason" type="text" column="failure_reason" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>
