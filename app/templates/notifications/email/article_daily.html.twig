@@ -1,0 +1,21 @@
+{% extends 'notifications/email/_layout.html.twig' %}
+
+{% block subject %}Artykuł na dziś: {{ payload.title|default('nowy artykuł') }}{% endblock %}
+
+{% block body %}
+    <p style="margin:0 0 12px;">
+        Dzisiejszy artykuł z Twojej listy: <strong>{{ payload.title|default('bez tytułu') }}</strong>
+    </p>
+    {% if payload.category is defined or payload.readTime is defined %}
+        <p style="margin:0 0 12px;color:#616161;">
+            {%- if payload.category is defined %}{{ payload.category }}{% endif -%}
+            {%- if payload.category is defined and payload.readTime is defined %} · {% endif -%}
+            {%- if payload.readTime is defined %}{{ payload.readTime }} min czytania{% endif -%}
+        </p>
+    {% endif %}
+    {# Article URLs come from user-imported data, so only http(s) becomes a link —
+       Twig escapes markup but would happily render a javascript:/data: scheme. #}
+    {% if payload.url is defined and (payload.url starts with 'http://' or payload.url starts with 'https://') %}
+        <p style="margin:0;"><a href="{{ payload.url }}" style="color:#1565c0;">Czytaj artykuł</a></p>
+    {% endif %}
+{% endblock %}
