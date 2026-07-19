@@ -45,6 +45,7 @@ framework:
             App\Module\Music\Application\Command\RefreshDiscogsCollection: async
             App\Module\Music\Application\Command\PollLastFmRecentTracks: async
             App\Module\Goals\Application\Command\RecalculateStreaks: async
+            App\Module\Notifications\Application\Command\DispatchNotification: async
 
 when@test:
     framework:

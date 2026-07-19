@@ -1,0 +1,15 @@
+{% extends 'notifications/email/_layout.html.twig' %}
+
+{% block subject %}Podsumowanie dnia{% if payload.date is defined %} — {{ payload.date }}{% endif %}{% endblock %}
+
+{% block body %}
+    {% if payload.items is defined and payload.items is iterable and payload.items|length > 0 %}
+        <ul style="margin:0;padding:0 0 0 20px;">
+            {% for item in payload.items %}
+                <li style="margin:0 0 8px;">{{ item }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p style="margin:0;">Dziś nic nie czeka na Twoją uwagę.</p>
+    {% endif %}
+{% endblock %}
