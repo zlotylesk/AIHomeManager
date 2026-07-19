@@ -14,6 +14,8 @@ doctrine:
             movie_status: App\Module\Movies\Infrastructure\Persistence\Doctrine\Type\MovieStatusType
             notification_type: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\NotificationTypeType
             quiet_hours: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\QuietHoursType
+            notification_channel: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\ChannelType
+            notification_status: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\NotificationStatusType
 
 
         profiling_collect_backtrace: '%kernel.debug%'
