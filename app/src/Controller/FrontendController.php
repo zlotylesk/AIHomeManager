@@ -70,4 +70,10 @@ final class FrontendController extends AbstractController
     {
         return $this->render('goals/index.html.twig');
     }
+
+    #[Route('/notifications', name: 'app_frontend_notifications', methods: ['GET'])]
+    public function notifications(): Response
+    {
+        return $this->render('notifications/index.html.twig');
+    }
 }
