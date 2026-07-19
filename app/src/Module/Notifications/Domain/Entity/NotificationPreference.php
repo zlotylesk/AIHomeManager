@@ -40,6 +40,21 @@ final class NotificationPreference
         }
     }
 
+    /**
+     * The state a type has before the user ever configures it: wanted, carried
+     * by every channel, with no quiet period. Callers materialize this on the
+     * first write so an unconfigured type still has something to persist.
+     */
+    public static function defaultFor(string $id, NotificationType $type): self
+    {
+        return new self(
+            id: $id,
+            type: $type,
+            enabled: true,
+            enabledChannels: Channel::cases(),
+        );
+    }
+
     public function id(): string
     {
         return $this->id;

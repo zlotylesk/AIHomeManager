@@ -12,6 +12,8 @@ doctrine:
             goal_period: App\Module\Goals\Infrastructure\Persistence\Doctrine\Type\GoalPeriodType
             movie_rating: App\Module\Movies\Infrastructure\Persistence\Doctrine\Type\RatingType
             movie_status: App\Module\Movies\Infrastructure\Persistence\Doctrine\Type\MovieStatusType
+            notification_type: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\NotificationTypeType
+            quiet_hours: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\QuietHoursType
 
 
         profiling_collect_backtrace: '%kernel.debug%'
@@ -89,6 +91,11 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Movies/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Movies\Domain\ValueObject'
+            NotificationsDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Notifications/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Notifications\Domain\Entity'
 
 when@test:
     doctrine:
