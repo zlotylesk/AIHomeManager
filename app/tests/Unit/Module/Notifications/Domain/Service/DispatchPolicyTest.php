@@ -32,6 +32,19 @@ final class DispatchPolicyTest extends TestCase
         self::assertSame(Channel::cases(), $channels, 'never configured means the defaultFor state, not silence');
     }
 
+    public function testAnUnconfiguredDailyDigestGoesNowhereUntilOptedIn(): void
+    {
+        // The digest is the one type that defaults off, so a never-configured
+        // one resolves to no channels rather than delivering unasked.
+        $channels = $this->policy->resolveChannels(
+            NotificationType::DAILY_DIGEST,
+            null,
+            new DateTimeImmutable('2026-07-19 12:00:00'),
+        );
+
+        self::assertSame([], $channels);
+    }
+
     public function testADisabledTypeGoesNowhere(): void
     {
         $preference = new NotificationPreference('p-1', NotificationType::TASK_DUE, false, Channel::cases());

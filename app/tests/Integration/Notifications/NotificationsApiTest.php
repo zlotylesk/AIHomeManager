@@ -44,6 +44,13 @@ final class NotificationsApiTest extends WebTestCase
         self::assertTrue($payload[0]['enabled']);
         self::assertSame(['email', 'push'], $payload[0]['channels']);
         self::assertNull($payload[0]['quietFrom']);
+
+        // The daily digest ships opt-in: it appears in the panel but defaults
+        // off, so the user is not double-notified out of the box. It still
+        // carries every channel, ready to deliver the moment it is enabled.
+        $digest = $this->preferenceFor($payload, 'daily_digest');
+        self::assertFalse($digest['enabled']);
+        self::assertSame(['email', 'push'], $digest['channels']);
     }
 
     public function testTogglingATypeIsReflectedInThePanel(): void
