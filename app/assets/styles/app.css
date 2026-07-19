@@ -466,3 +466,16 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 @media (max-width: 640px) {
     .movie-form { grid-template-columns: 1fr; }
 }
+
+/* Notifications settings panel (HMAI-283) */
+.notification-preference { border: 1px solid var(--color-border, #e0e0e0); border-radius: 8px; padding: 1rem; margin-bottom: .75rem; }
+.notification-preference-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.notification-quiet { color: var(--color-text-muted, #757575); font-size: .85rem; }
+.notification-channels { display: flex; gap: 1rem; margin-top: .5rem; flex-wrap: wrap; }
+.notification-quiet-hours { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; flex-wrap: wrap; font-size: .9rem; }
+.notification-history-item { display: flex; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid var(--color-border, #eee); list-style: none; flex-wrap: wrap; }
+.notification-history-status.is-sent { color: #2e7d32; }
+.notification-history-status.is-failed { color: #c62828; }
+.notification-history-status.is-pending { color: #ef6c00; }
+.notification-history-time { margin-left: auto; color: var(--color-text-muted, #757575); font-size: .85rem; }
+#notification-history { padding: 0; margin: 0; }
