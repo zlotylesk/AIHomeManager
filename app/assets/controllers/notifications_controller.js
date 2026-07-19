@@ -178,20 +178,19 @@ export default class extends Controller {
         }
     }
 
+    // The global banner is driven by the `hidden` class (`display: none !important`
+    // in app.css), so an inline style would be overridden and the message would
+    // be set but never seen.
     showError(message) {
         const banner = document.querySelector('#error-banner');
 
         if (banner) {
             banner.textContent = message;
-            banner.style.display = 'block';
+            banner.classList.remove('hidden');
         }
     }
 
     hideError() {
-        const banner = document.querySelector('#error-banner');
-
-        if (banner) {
-            banner.style.display = 'none';
-        }
+        document.querySelector('#error-banner')?.classList.add('hidden');
     }
 }
