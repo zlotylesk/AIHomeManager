@@ -46,9 +46,11 @@ final class SetChannelPreferenceHandlerTest extends TestCase
     {
         $repo = $this->createMock(NotificationPreferenceRepositoryInterface::class);
         $repo->method('findByType')->willReturn(null);
+        // The digest defaults off, and touching only a channel must not silently
+        // opt the user into the type — enabling it stays a separate axis.
         $repo->expects(self::once())->method('save')->with(self::callback(
             fn (NotificationPreference $p): bool => NotificationType::DAILY_DIGEST === $p->type()
-                && $p->isEnabled()
+                && !$p->isEnabled()
                 && !$p->isChannelEnabled(Channel::PUSH)
                 && $p->isChannelEnabled(Channel::EMAIL)
                 && null === $p->quietHours()

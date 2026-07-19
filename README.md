@@ -499,6 +499,30 @@ curl -H "X-API-Key: $API_KEY" "http://localhost:8080/api/books/export?format=csv
 curl -H "X-API-Key: $API_KEY" "http://localhost:8080/api/books/export?format=pdf" -o books.pdf
 ```
 
+### Notifications — enabling the daily digest
+
+Notification types are opt-in/out per type and per channel. Every type is **on by default except the daily digest** (`daily_digest`), which ships **off** — with every type enabled it would duplicate the individual reminders (task deadlines, the daily article, streak warnings) it summarises. Turn it on when you want the once-a-day summary instead of, or in addition to, the per-item notifications.
+
+Two ways to enable it:
+
+- **UI** — open `/notifications`, find the **Podsumowanie dnia** (Daily summary) row and tick its enable checkbox. Optionally pick the channels (e-mail / push) and quiet hours on the same row.
+- **API** — flip the type on directly:
+
+  ```bash
+  curl -X PATCH http://localhost:8080/api/notifications/preferences/daily_digest/enabled \
+    -H "X-API-Key: $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"enabled": true}'
+  ```
+
+  Read back the current preferences (every type, with its channels and quiet hours) any time:
+
+  ```bash
+  curl -H "X-API-Key: $API_KEY" http://localhost:8080/api/notifications/preferences
+  ```
+
+The digest is produced by the twice-daily scheduler sweep, so it starts arriving on the next run after you enable it. Disabling it again is the same call with `{"enabled": false}`.
+
 Full list of endpoints: `make routes`. Detailed API documentation: Confluence → API documentation.
 
 ---

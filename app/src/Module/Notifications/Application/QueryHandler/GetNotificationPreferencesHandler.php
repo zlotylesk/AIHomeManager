@@ -6,6 +6,7 @@ namespace App\Module\Notifications\Application\QueryHandler;
 
 use App\Module\Notifications\Application\DTO\NotificationPreferenceDTO;
 use App\Module\Notifications\Application\Query\GetNotificationPreferences;
+use App\Module\Notifications\Domain\Entity\NotificationPreference;
 use App\Module\Notifications\Domain\Enum\Channel;
 use App\Module\Notifications\Domain\Enum\NotificationType;
 use Doctrine\DBAL\Connection;
@@ -16,8 +17,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
  *
  * Every notification type is returned, whether or not it was ever configured:
  * a type with no row falls back to the same default the write side materialises
- * (wanted, every channel, no quiet period), so the settings screen shows the
- * state that actually governs delivery rather than an empty row.
+ * (every channel, no quiet period, enabled unless it is the opt-in digest), so
+ * the settings screen shows the state that actually governs delivery rather than
+ * an empty row.
  */
 #[AsMessageHandler(bus: 'query.bus')]
 final readonly class GetNotificationPreferencesHandler
@@ -69,10 +71,14 @@ final readonly class GetNotificationPreferencesHandler
 
     private function unconfigured(NotificationType $type): NotificationPreferenceDTO
     {
+        // Single-source the default with the write side rather than re-stating
+        // it here — that is what keeps the digest's opt-in default in one place.
+        $default = NotificationPreference::defaultFor('unconfigured', $type);
+
         return new NotificationPreferenceDTO(
             type: $type->value,
-            enabled: true,
-            channels: array_map(static fn (Channel $channel): string => $channel->value, Channel::cases()),
+            enabled: $default->isEnabled(),
+            channels: array_map(static fn (Channel $channel): string => $channel->value, $default->enabledChannels()),
             quietFrom: null,
             quietTo: null,
         );
