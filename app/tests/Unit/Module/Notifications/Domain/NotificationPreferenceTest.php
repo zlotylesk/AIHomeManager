@@ -116,4 +116,15 @@ final class NotificationPreferenceTest extends TestCase
         $preference->setQuietHours(null);
         self::assertNull($preference->quietHours());
     }
+
+    public function testDefaultForWantsTheTypeOnEveryChannelWithNoQuietPeriod(): void
+    {
+        $preference = NotificationPreference::defaultFor('p-0002', NotificationType::DAILY_DIGEST);
+
+        self::assertSame('p-0002', $preference->id());
+        self::assertSame(NotificationType::DAILY_DIGEST, $preference->type());
+        self::assertTrue($preference->isEnabled());
+        self::assertSame(Channel::cases(), $preference->enabledChannels());
+        self::assertNull($preference->quietHours());
+    }
 }

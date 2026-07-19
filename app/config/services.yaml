@@ -74,6 +74,9 @@ services:
     App\Module\Movies\Domain\Repository\MovieRepositoryInterface:
         alias: App\Module\Movies\Infrastructure\Persistence\DoctrineMovieRepository
 
+    App\Module\Notifications\Domain\Repository\NotificationPreferenceRepositoryInterface:
+        alias: App\Module\Notifications\Infrastructure\Persistence\DoctrineNotificationPreferenceRepository
+
     App\Module\Music\Application\QueryHandler\GetMusicComparisonHandler:
         arguments:
             $redis: '@app.redis'
