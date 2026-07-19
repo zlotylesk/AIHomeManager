@@ -4,6 +4,50 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.24.0] — 2026-07-19
+
+Wydanie modułu **Notifications** (epik **HMAI-275** — proaktywna warstwa dostarczania; 8 podzadań HMAI-277…284, każde z osobnym zielonym CI). Portal przestaje być bierny: powiadomienia trafiają do użytkownika **e-mailem** (Symfony Mailer) i **push** (WebPush + VAPID, bez FCM ani zewnętrznego dostawcy), wyzwalane **dwutorowo** — reaktywnie ze zdarzeń domenowych i cyklicznym przeglądem schedulera. Pełne preferencje: włącznik per typ, per kanał oraz ciche godziny. **1514/1514 PHP** (+131 vs 1383 w 1.23.0) + **89/89 Playwright** (+12) + **85 Vitest JS** (+14) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac **0 violations / 0 skip_violations** mimo czterech punktów styku cross-module.
+
+### Added
+
+- **Preferencje powiadomień** (HMAI-277) — jedna komenda na oś ustawienia (kanał / typ / ciche godziny), żeby przełącznik w UI nie musiał odsyłać pozostałych dwóch. Stan domyślny nieskonfigurowanego typu to pojęcie **domenowe** (`NotificationPreference::defaultFor()`), materializowane przy pierwszym zapisie. Nullowalne okno ciszy mapowane **własnym typem DBAL** `quiet_hours`, nie nullowalnym embeddable — ten drugi hydratuje kolumnę NULL jako niepusty obiekt z niezainicjowanym polem (pułapka, która wymusiła wcześniej typ `series_rating`).
+- **Silnik dyspozycji** (HMAI-278) — czysta domenowa `DispatchPolicy` (bez zegara i I/O) rozstrzyga kanały; orkiestracja żyje w handlerze aplikacyjnym, bo potrzebuje generowania id i czasu, których domena nie może importować. Ciche godziny **tłumią, nie odraczają** (odroczenie wymaga infrastruktury opóźnionych komunikatów, a przypomnienie o terminie źle się starzeje). Idempotencja przez `DedupKey` (`typ:podmiot:okno`) świadoma ponowień: blokuje wyłącznie stan `SENT`, więc chwilowa awaria nie gubi powiadomienia. Zapis **przed** wysyłką — crash w trakcie zostawia rekord `PENDING` do ponowienia, nie duplikat.
+- **Kanał e-mail** (HMAI-279) — treść renderowana z szablonu Twig per typ (bloki `subject`/`body`). Wysyłka **synchroniczna**: routowanie `SendEmailMessage` na async sprawiłoby, że adapter nie zobaczy odrzucenia SMTP i silnik zapisałby `SENT` mimo maila zgubionego w DLQ. Asynchroniczność wprowadzona poziom wyżej — komenda `DispatchNotification` idzie na transport `async`.
+- **Kanał push** (HMAI-280) — `WebPushNotificationChannel` (VAPID) rozsyła jedno powiadomienie na wszystkie subskrybowane przeglądarki; **404/410 usuwa subskrypcję**, błąd przejściowy ją zostawia, jedno działające urządzenie liczy się jako dostarczone. Biblioteka za cienkim szwem `WebPushSenderInterface`, więc reguły kanału są testowalne bez usługi push. Service Worker w `public/sw.js` **poza buildem Encore** — zahaszowana ścieżka zawęziłaby scope i zepsuła rejestrację.
+- **Wyzwalanie reaktywne** (HMAI-281) — kontrakt shared-kernel `NotifiableEvent` + `NotificationRequest`: moduł źródłowy zgłasza zdarzenie implementując interfejs, Notifications nasłuchuje **interfejsu**, więc deptrac zostaje 0/0 bez importu Tasks/Articles/Goals. O tym, czy zdarzenie zasługuje na ogłoszenie, decyduje samo zdarzenie — tylko moduł źródłowy rozumie własne dane.
+- **Wyzwalanie schedulerem** (HMAI-282) — cykliczny przegląd (`0 8` + `0 20`) znajduje to, czego żadne pojedyncze zdarzenie nie ogłosi: termin zadania zaplanowanego dawniej, serię gasnącą o północy, artykuł dnia, digest. Cztery adaptery DBAL za portem domenowym. Oba tory emitują ten sam `NotificationRequest`, więc **przegląd nie deduplikuje niczego sam** — jedna reguła, jedno miejsce.
+- **REST + panel ustawień** (HMAI-283) — 8 operacji pod nowym tagiem OpenAPI `Notifications`; odczyt preferencji zwraca **każdy** typ, także nieskonfigurowany, żeby panel pokazywał stan faktycznie rządzący dostarczaniem. Panel Stimulus z opt-inem push, edycją cichych godzin i historią.
+
+### Changed
+
+- `Tasks\Domain\Event\{TaskCreated,TaskUpdated}` implementują shared-kernelowy `NotifiableEvent` (zadanie zaplanowane na dziś → `task_due`).
+- Shared kernel rośnie o `Shared/Notification/` — trzeci sankcjonowany kontrakt cross-context po `CoverUrl` i portach tokenów.
+- Scheduler: 7 → **9** zadań cyklicznych.
+
+### Coverage
+
+- `DispatchQuietHoursDedupTest` — prawdziwy silnik na prawdziwej bazie, preferencje zapisywane przez prawdziwy `command.bus`; stubowane wyłącznie adaptery kanałów.
+- `NotificationsApiTest` (15), `NotificationsApiDocTest` (11), `WebPushNotificationChannelTest`, `EmailNotificationChannelTest`, `ScheduledNotificationSweepTest`, `ReactiveNotificationTriggerTest`.
+- `OpenApiContractTest` obejmuje `/notifications/preferences` i `/history` — **każdy udokumentowany moduł `^/api/*` jest pod runtime'owym gate'em konformancji**.
+- E2E `notifications.{desktop,mobile}.spec.ts` — stub API **przechwytuje zapisy**, więc asercje sprawdzają, co panel faktycznie wysłał. Wyłapały realny defekt: komunikat błędu ustawiany przez `style.display` przegrywał z `.hidden { display: none !important }` i był niewidoczny.
+
+### Migration
+
+1. **Migracje** — `make migrate` (`notification_preferences`, `notifications`, `push_subscriptions`).
+2. **ENV** — `MAILER_DSN`, `NOTIFICATIONS_MAIL_FROM`, `NOTIFICATIONS_MAIL_TO` oraz para kluczy VAPID (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`). Klucze wygenerujesz: `php -r "require 'vendor/autoload.php'; var_dump(Minishlink\WebPush\VAPID::createVapidKeys());"` — **klucz prywatny wyłącznie w `.env.local`**.
+3. **Zależności** — `composer install` (nowe: `symfony/mailer`, `minishlink/web-push`).
+4. **Assety** — `make assets-prod`.
+
+Brak operacji destrukcyjnych na bazie.
+
+### Closed Jira
+
+HMAI-275 (epik) + HMAI-277, HMAI-278, HMAI-279, HMAI-280, HMAI-281, HMAI-282, HMAI-283, HMAI-284.
+
+### Carried forward
+
+Decyzje produktowe zgłoszone w review, świadomie nierozstrzygnięte: digest nakłada się domyślnie z powiadomieniami jednostkowymi (wszystkie typy włączone domyślnie), oraz brak wyprzedzenia terminu T-1 („jutro mija termin"). Telegram pozostaje poza zakresem MVP — kolejny adapter kanału nie wymaga zmian rdzenia.
+
 ## [1.23.0] — 2026-07-18
 
 Wydanie modułu **Movies** (epik **HMAI-285** — katalog filmów obok modułu Series; 7 podzadań HMAI-286…292, każde z osobnym zielonym CI). Nowy moduł mediów: ręczny CRUD filmu, oznaczanie „obejrzane" + własna ocena 1–10, metadane katalogowe (poster/rok/status/opis), lista z filtrem obejrzane/nieobejrzane + widok szczegółów, oraz **jednokierunkowy import obejrzanych filmów i ocen z Trakt.tv**. Film to płaski agregat (bez hierarchii sezon/odcinek), więc lżejszy niż Series, ale wzorzec (agregat + VO + port + Doctrine XML + CQRS + cienki kontroler + Stimulus) identyczny. Import **reużywa istniejący klient Trakt + token OAuth bez couplingu cross-module** — read-only port `TraktTokenProviderInterface` wypromowany do warstwy Shared (precedens tokenu Google HMAI-237), więc deptrac zostaje 0/0. **1383/1383 PHP** (+184 vs 1199 w 1.21.0) + **77/77 Playwright** (+6) + **71 Vitest JS** (+7) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac 0 `skip_violations`.
