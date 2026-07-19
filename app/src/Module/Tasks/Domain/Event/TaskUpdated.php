@@ -6,10 +6,13 @@ namespace App\Module\Tasks\Domain\Event;
 
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
+use App\Shared\Notification\NotifiableEvent;
 use DateTimeImmutable;
 
-final readonly class TaskUpdated
+final readonly class TaskUpdated implements NotifiableEvent
 {
+    use AnnouncesTodaysTask;
+
     public DateTimeImmutable $occurredAt;
 
     public function __construct(
