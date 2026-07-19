@@ -17,6 +17,8 @@ nelmio_api_doc:
               description: 'Series catalog — full CRUD of series/seasons/episodes, own series & season ratings (disjoint from the computed episode average), episode watched flags, catalog metadata and a Trakt watched-shows import.'
             - name: Movies
               description: 'Films catalog — CRUD, a watched flag, an own 1–10 rating, catalog metadata (cover/year/status/description), a watched/unwatched filter and a Trakt watched-movies import.'
+            - name: Notifications
+              description: 'Proactive delivery — per-type and per-channel notification preferences, quiet hours, browser push subscriptions and the delivery history.'
             - name: Health
               description: 'Public readiness probe for orchestrators and uptime monitors — no API key required.'
             - name: Books

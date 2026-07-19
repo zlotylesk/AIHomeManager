@@ -20,6 +20,8 @@ use App\Module\Movies\Application\DTO\MovieDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
+use App\Module\Notifications\Application\DTO\NotificationDTO;
+use App\Module\Notifications\Application\DTO\NotificationPreferenceDTO;
 use App\Module\Search\Domain\Enum\SearchResultType;
 use App\Module\Search\Domain\ValueObject\SearchResult;
 use App\Module\Series\Application\DTO\EpisodeDTO;
@@ -36,6 +38,8 @@ use App\Serializer\DashboardDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
 use App\Serializer\MovieDTONormalizer;
+use App\Serializer\NotificationDTONormalizer;
+use App\Serializer\NotificationPreferenceDTONormalizer;
 use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
@@ -357,6 +361,51 @@ final class NormalizersTest extends TestCase
             'currentLength' => 3,
             'longestLength' => 7,
             'lastActivityDate' => '2026-07-10',
+        ], $n->normalize($dto));
+    }
+
+    public function testNotificationPreferenceNormalizer(): void
+    {
+        $n = new NotificationPreferenceDTONormalizer();
+        $dto = new NotificationPreferenceDTO('task_due', true, ['email', 'push'], '22:00', '07:00');
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(NotificationPreferenceDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'type' => 'task_due',
+            'enabled' => true,
+            'channels' => ['email', 'push'],
+            'quietFrom' => '22:00',
+            'quietTo' => '07:00',
+        ], $n->normalize($dto));
+    }
+
+    public function testNotificationNormalizer(): void
+    {
+        $n = new NotificationDTONormalizer();
+        $dto = new NotificationDTO(
+            'n-1',
+            'task_due',
+            'email',
+            'sent',
+            ['title' => 'Czynsz'],
+            '2026-07-19T08:15:00+02:00',
+            '2026-07-19T08:15:03+02:00',
+            null,
+        );
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertArrayHasKey(NotificationDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'id' => 'n-1',
+            'type' => 'task_due',
+            'channel' => 'email',
+            'status' => 'sent',
+            'payload' => ['title' => 'Czynsz'],
+            'createdAt' => '2026-07-19T08:15:00+02:00',
+            'sentAt' => '2026-07-19T08:15:03+02:00',
+            'failureReason' => null,
         ], $n->normalize($dto));
     }
 
