@@ -1,0 +1,2 @@
+{% block title %}Zbliża się termin{% endblock %}
+{% block body %}{{ payload.title|default('Zadanie czeka na wykonanie') }}{% if payload.dueAt is defined %} — {{ payload.dueAt }}{% endif %}{% endblock %}
