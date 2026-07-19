@@ -44,7 +44,7 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies');
+        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences');
 
         $content = $this->fetchSpecContent();
 
@@ -155,6 +155,24 @@ final class OpenApiContractTest extends WebTestCase
     {
         $id = $this->seedMovie();
         $this->assertResponseConformsToContract('GET', '/api/v1/movies/'.$id, '/api/v1/movies/{id}');
+    }
+
+    public function testNotificationsPreferencesResponseConformsToContract(): void
+    {
+        // The panel always returns every type, so the populated branch needs one
+        // configured preference (a narrowed channel set and a quiet window)
+        // alongside the defaults the other types fall back to.
+        $this->seedNotificationPreference();
+        $this->assertResponseConformsToContract('GET', '/api/v1/notifications/preferences', '/api/v1/notifications/preferences');
+    }
+
+    public function testNotificationsHistoryResponseConformsToContract(): void
+    {
+        // Both delivery outcomes: a sent notification (non-null sentAt, null
+        // failureReason) and a failed one (the inverse), so neither nullable
+        // branch of NotificationDTO goes unchecked.
+        $this->seedNotificationHistory();
+        $this->assertResponseConformsToContract('GET', '/api/v1/notifications/history', '/api/v1/notifications/history');
     }
 
     public function testContractValidationRejectsDriftingResponse(): void
@@ -420,6 +438,54 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client->request('PATCH', $uri, [], [], ['CONTENT_TYPE' => 'application/json'], (string) json_encode($payload));
         self::assertResponseStatusCodeSame(204);
+    }
+
+    /**
+     * Configure one type through the real write endpoints, so the response mixes
+     * a stored preference with the defaults the untouched types fall back to.
+     */
+    private function seedNotificationPreference(): void
+    {
+        $this->patch('/api/v1/notifications/preferences/task_due/channels/push', ['enabled' => false]);
+
+        $this->client->request(
+            'PUT',
+            '/api/v1/notifications/preferences/task_due/quiet-hours',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            (string) json_encode(['from' => '22:00', 'to' => '07:00']),
+        );
+        self::assertResponseStatusCodeSame(204);
+    }
+
+    private function seedNotificationHistory(): void
+    {
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+
+        $connection->insert('notifications', [
+            'id' => 'contract-notification-sent',
+            'type' => 'task_due',
+            'channel' => 'email',
+            'payload' => (string) json_encode(['title' => 'Zapłacić czynsz', 'dueAt' => '2026-07-16 18:00']),
+            'dedup_key' => 'task_due:contract-task:2026-07-16:email',
+            'created_at' => '2026-07-16 08:00:00',
+            'status' => 'sent',
+            'sent_at' => '2026-07-16 08:00:02',
+            'failure_reason' => null,
+        ]);
+
+        $connection->insert('notifications', [
+            'id' => 'contract-notification-failed',
+            'type' => 'article_daily',
+            'channel' => 'push',
+            'payload' => (string) json_encode(['title' => 'Artykuł dnia']),
+            'dedup_key' => 'article_daily:contract-article:2026-07-16:push',
+            'created_at' => '2026-07-16 09:00:00',
+            'status' => 'failed',
+            'sent_at' => null,
+            'failure_reason' => 'push endpoint gone',
+        ]);
     }
 
     private function truncate(string ...$tables): void
