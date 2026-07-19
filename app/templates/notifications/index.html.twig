@@ -1,0 +1,22 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Powiadomienia{% endblock %}
+
+{% block body %}
+<div class="panel" data-controller="notifications">
+    <div class="panel-header">
+        <h1>Powiadomienia</h1>
+        <button type="button" id="notification-push-toggle">Włącz powiadomienia push</button>
+    </div>
+
+    <section>
+        <h2>Ustawienia</h2>
+        <div id="notification-preferences"></div>
+    </section>
+
+    <section>
+        <h2>Ostatnie powiadomienia</h2>
+        <ul id="notification-history"></ul>
+    </section>
+</div>
+{% endblock %}
