@@ -1,7 +1,7 @@
 doctrine:
     dbal:
         url: '%env(resolve:DATABASE_URL)%'
-        schema_filter: '~^(?!google_oauth_tokens|discogs_oauth_tokens|trakt_oauth_tokens|watch_session_videos|search_documents)~'
+        schema_filter: '~^(?!google_oauth_tokens|discogs_oauth_tokens|trakt_oauth_tokens|spotify_oauth_tokens|watch_session_videos|search_documents)~'
         types:
             task_status: App\Module\Tasks\Infrastructure\Persistence\Doctrine\Type\TaskStatusType
             book_status: App\Module\Books\Infrastructure\Persistence\Doctrine\Type\BookStatusType
