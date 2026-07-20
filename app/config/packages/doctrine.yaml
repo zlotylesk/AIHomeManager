@@ -98,6 +98,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Notifications/Infrastructure/Persistence/Doctrine/Entity'
                 prefix: 'App\Module\Notifications\Domain\Entity'
+            PodcastsDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Podcasts/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Podcasts\Domain\Entity'
+            PodcastsDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Podcasts/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Podcasts\Domain\ValueObject'
 
 when@test:
     doctrine:

@@ -84,6 +84,12 @@ services:
     App\Module\Notifications\Domain\Repository\NotificationPreferenceRepositoryInterface:
         alias: App\Module\Notifications\Infrastructure\Persistence\DoctrineNotificationPreferenceRepository
 
+    App\Module\Podcasts\Domain\Repository\PodcastRepositoryInterface:
+        alias: App\Module\Podcasts\Infrastructure\Persistence\DoctrinePodcastRepository
+
+    App\Module\Podcasts\Domain\Repository\EpisodeRepositoryInterface:
+        alias: App\Module\Podcasts\Infrastructure\Persistence\DoctrineEpisodeRepository
+
     App\Module\Notifications\Domain\Repository\NotificationRepositoryInterface:
         alias: App\Module\Notifications\Infrastructure\Persistence\DoctrineNotificationRepository
 
