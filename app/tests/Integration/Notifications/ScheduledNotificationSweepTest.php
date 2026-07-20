@@ -51,15 +51,19 @@ final class ScheduledNotificationSweepTest extends KernelTestCase
      * The reactive rail announces a task created today; the sweep sees the same
      * task later the same day. Both must describe the *same* occurrence, or the
      * engine's dedup could not collapse them and the user would be told twice.
+     *
+     * Unlike its neighbours this case cannot pin a fixed date: TaskCreated stamps
+     * its own occurredAt from the real clock, and the trait only announces a task
+     * landing on that very day. A hard-coded date would therefore pass on one
+     * calendar day and fail from the next one on, so the fixture follows today.
      */
     public function testTheSweepAndTheEventAgreeOnTheOccurrenceIdentity(): void
     {
-        $at = new DateTimeImmutable('2026-07-19 20:00:00');
-        $this->givenTask('t-1', 'Zapłacić czynsz', '2026-07-19 18:00:00');
+        $startsAt = new DateTimeImmutable('today 18:00');
+        $this->givenTask('t-1', 'Zapłacić czynsz', $startsAt->format('Y-m-d H:i:s'));
 
-        $fromSweep = new UpcomingTaskCandidates($this->connection)->candidatesAt($at)[0];
+        $fromSweep = new UpcomingTaskCandidates($this->connection)->candidatesAt($startsAt->setTime(20, 0))[0];
 
-        $startsAt = new DateTimeImmutable('2026-07-19 18:00:00');
         $event = new TaskCreated('t-1', new TaskTitle('Zapłacić czynsz'), new TimeSlot($startsAt, $startsAt->modify('+1 hour')));
         $fromEvent = $event->toNotificationRequest();
 
