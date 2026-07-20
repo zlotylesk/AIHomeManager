@@ -191,6 +191,11 @@ services:
         arguments:
             $key: '%env(base64:TRAKT_TOKEN_KEY)%'
 
+    app.spotify_token_cipher:
+        class: App\Security\TokenCipher
+        arguments:
+            $key: '%env(base64:SPOTIFY_TOKEN_KEY)%'
+
     App\Module\Music\Infrastructure\Persistence\DiscogsTokenRepository:
         arguments:
             $cipher: '@app.discogs_token_cipher'
@@ -205,6 +210,13 @@ services:
 
     App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface:
         alias: App\Module\Series\Infrastructure\Persistence\TraktOAuthTokenRepository
+
+    App\Module\Podcasts\Infrastructure\Persistence\SpotifyOAuthTokenRepository:
+        arguments:
+            $cipher: '@app.spotify_token_cipher'
+
+    App\Module\Podcasts\Infrastructure\Persistence\SpotifyTokenRepositoryInterface:
+        alias: App\Module\Podcasts\Infrastructure\Persistence\SpotifyOAuthTokenRepository
 
     # Shared-kernel read port for the single Trakt OAuth token (HMAI-290): the
     # Movies Trakt adapter reads it without reaching into Series Infrastructure.
@@ -222,6 +234,12 @@ services:
             $clientId: '%env(TRAKT_CLIENT_ID)%'
             $clientSecret: '%env(TRAKT_CLIENT_SECRET)%'
             $redirectUri: '%env(TRAKT_REDIRECT_URI)%'
+
+    App\Controller\SpotifyAuthController:
+        arguments:
+            $clientId: '%env(SPOTIFY_CLIENT_ID)%'
+            $clientSecret: '%env(SPOTIFY_CLIENT_SECRET)%'
+            $redirectUri: '%env(SPOTIFY_REDIRECT_URI)%'
 
     App\Controller\DiscogsAuthController:
         arguments:
@@ -359,6 +377,29 @@ services:
             $inner: '@http_client'
             $limiterFactory: '@limiter.trakt_api'
             $limiterName: 'trakt_api'
+
+    app.spotify_http_client:
+        class: App\Http\RateLimitedHttpClient
+        arguments:
+            $inner: '@http_client'
+            $limiterFactory: '@limiter.spotify_api'
+            $limiterName: 'spotify_api'
+
+    # Podcasts listening source (HMAI-323). The token provider refreshes through
+    # the same rate-limited client, so a refresh storm cannot slip past the
+    # limiter that guards the reads.
+    App\Module\Podcasts\Infrastructure\External\SpotifyTokenProvider:
+        arguments:
+            $httpClient: '@app.spotify_http_client'
+            $clientId: '%env(SPOTIFY_CLIENT_ID)%'
+            $clientSecret: '%env(SPOTIFY_CLIENT_SECRET)%'
+
+    App\Module\Podcasts\Infrastructure\External\SpotifyPodcastApiClient:
+        arguments:
+            $httpClient: '@app.spotify_http_client'
+
+    App\Module\Podcasts\Domain\Port\PodcastListeningHistoryInterface:
+        alias: App\Module\Podcasts\Infrastructure\External\SpotifyPodcastApiClient
 
     App\Module\Series\Infrastructure\External\TraktApiClient:
         arguments:
