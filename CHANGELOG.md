@@ -4,6 +4,38 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.25.0] — 2026-07-20
+
+Wydanie platformowe: **propagacja request-id do workerów Messenger** (epik **HMAI-367** — 5 podzadań HMAI-368…372, każde z osobnym zielonym CI). Do tej pory korelacja logów kończyła się dokładnie tam, gdzie zaczynało się to, co trwa najdłużej i najczęściej zawodzi: praca zdjęta z żądania na kolejkę. Teraz identyfikator jedzie razem z kopertą, więc `request_id` z nagłówka HTTP pojawia się także w liniach logu zapisanych przez handler na workerze — jeden `grep` w Graylogu pokrywa całą operację, od żądania po ostatni skutek uboczny. **1543/1543 PHP** (+29 vs 1514 w 1.24.0) + **89/89 Playwright** + **85 Vitest JS** + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. Zero zmian w modelu domenowym — czysty zysk na obserwowalności.
+
+### Added
+
+- **Stempel korelacyjny + middleware nadawcy** (HMAI-368) — `RequestIdStamp` na kopercie Messengera, dokładany przy dispatchu, gdy koperta jeszcze go nie ma. Rejestracja **na busie**, nie per wiadomość: korelacja jest własnością infrastruktury, więc nowy moduł dostaje ją bez żadnej akcji i nie ma czego zapomnieć przy dodaniu kolejnej komendy.
+- **`RequestIdHolder`** (HMAI-369) — proces-scoped przechowanie identyfikatora po stronie workera, gdzie nie ma żądania HTTP. Zwykły serwis, bez konstrukcji typu thread-local: worker konsumuje wiadomości sekwencyjnie w jednym procesie, więc pojedyncza instancja wystarcza, a cokolwiek bardziej rozbudowanego byłoby złożonością bez pokrycia w realnym problemie.
+- **Middleware odbiorcy** (HMAI-370) — na czas obsługi wiadomości wystawia wartość ze stempla w holderze i czyści ją w `finally`, ale **tylko gdy ta ramka ją ustawiła**. Zagnieżdżony dispatch synchroniczny (poll Last.fm zlecający zapis sesji odsłuchu) nie ma własnego stempla — bezwarunkowe czyszczenie skasowałoby identyfikator zewnętrzny w połowie obsługi.
+- **Fallback w procesorze Monologu** (HMAI-371) — najpierw żądanie HTTP (kontekst web zostaje źródłem prawdy), w jego braku holder. Gdy oba źródła puste — zachowanie bez zmian: brak pola `request_id`, a nie puste ani odziedziczone po poprzedniej wiadomości.
+- **Pokrycie end-to-end** (HMAI-372) — test integracyjny na **realnych** busach i realnym transporcie prowadzi korelator od nagłówka żądania, przez stempel na kopercie, aż po log handlera; osobne przypadki pilnują, że wiadomość bez stempla loguje bez korelatora, że łańcuch wiadomości zostaje na jednym śladzie i że stemplowanie działa na obu busach.
+
+### Fixed
+
+- **Wiadomość łańcuchowana z handlera na workerze gubiła korelator** — middleware nadawczy czytał wyłącznie `RequestStack`, więc import ocen odpalany na końcu importu obejrzanych pozycji startował nowy, niepowiązany ślad, choć jest bezpośrednią konsekwencją tego samego żądania. Dodany fallback na `RequestIdHolder`, z zachowaniem pierwszeństwa żądania. Lukę odsłoniło dopiero złożenie części razem w teście e2e — każdy element z osobna przechodził swoje testy jednostkowe.
+- **Test przeglądu powiadomień zależny od daty** — przypadek uzgadniający tożsamość zdarzenia i cyklicznego przeglądu przypinał termin zadania do sztywnej daty, podczas gdy zdarzenie stempluje własny czas z prawdziwego zegara, a ogłaszane są tylko zadania na dziś. Test przechodził dokładnie jednego dnia w roku i od następnego czerwienił CI; fikstura chodzi teraz za „dzisiaj".
+- **`daily_digest` domyślnie wyłączony** — jedyny typ powiadomienia, którego wartość zależy od tego, czy użytkownik go chce; włączenie go z automatu uczy ignorowania digestów. Stan domyślny per typ pozostaje pojęciem domenowym, czytanym zarówno przez stronę zapisu, jak i politykę wysyłki.
+
+### Documentation
+
+- Sekcja „Request correlation" w CLAUDE.md przepisana — usunięte zdanie o świadomym pominięciu propagacji async, w zamian opis mechanizmu wraz z uzasadnieniami decyzji.
+- Nowa strona Confluence dla mechanizmu korelacji (obie warstwy, decyzje projektowe i ich powody, sposób weryfikacji) oraz strony modułów **Movies** i **Notifications**, których brakowało po wydaniach 1.23.0 i 1.24.0.
+- `scripts/confluence-page.ps1` — publikacja stron przez REST API v2, obejście dla konektora Rovo MCP działającego tylko do odczytu.
+
+### Migration
+
+Brak. Zmiana jest wyłącznie w warstwie logowania i transportu wiadomości — żadnych migracji bazy, żadnych nowych kluczy w `.env.local`, żadnych zmian kontraktu API.
+
+### Closed Jira
+
+HMAI-367 (epik), HMAI-368, HMAI-369, HMAI-370, HMAI-371, HMAI-372.
+
 ## [1.24.0] — 2026-07-19
 
 Wydanie modułu **Notifications** (epik **HMAI-275** — proaktywna warstwa dostarczania; 8 podzadań HMAI-277…284, każde z osobnym zielonym CI). Portal przestaje być bierny: powiadomienia trafiają do użytkownika **e-mailem** (Symfony Mailer) i **push** (WebPush + VAPID, bez FCM ani zewnętrznego dostawcy), wyzwalane **dwutorowo** — reaktywnie ze zdarzeń domenowych i cyklicznym przeglądem schedulera. Pełne preferencje: włącznik per typ, per kanał oraz ciche godziny. **1514/1514 PHP** (+131 vs 1383 w 1.23.0) + **89/89 Playwright** (+12) + **85 Vitest JS** (+14) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean (zero nowych baseline entries); deptrac **0 violations / 0 skip_violations** mimo czterech punktów styku cross-module.
