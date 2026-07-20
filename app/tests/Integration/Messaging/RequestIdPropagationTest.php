@@ -11,6 +11,7 @@ use App\Module\Movies\Application\Command\ImportMovieRatingsFromTrakt;
 use App\Module\Movies\Application\Command\ImportWatchedMoviesFromTrakt;
 use App\Module\Movies\Domain\Port\MovieRatingsProviderInterface;
 use App\Module\Movies\Domain\Port\WatchedMoviesProviderInterface;
+use App\Module\Series\Domain\Event\EpisodeRated;
 use App\Shared\Security\TraktTokenProviderInterface;
 use App\Tests\Support\AuthenticatedApiTrait;
 use Monolog\Handler\TestHandler;
@@ -135,6 +136,26 @@ final class RequestIdPropagationTest extends WebTestCase
             self::assertInstanceOf(RequestIdStamp::class, $stamp, $message.' was dispatched without a correlation stamp');
             self::assertSame('bus-wide-3', $stamp->requestId);
         }
+    }
+
+    /**
+     * The rail is registered on command.bus *and* event.bus, and a domain event is
+     * the one thing that travels the second one: EpisodeRated is dispatched from a
+     * request and routed async. Without this case, dropping the event.bus
+     * registration would keep every other test green while domain-event handling on
+     * the worker silently lost its correlator.
+     */
+    public function testADomainEventDispatchedDuringARequestIsAlsoStamped(): void
+    {
+        self::bootKernel();
+        $this->givenCurrentRequestId('event-corr-11');
+
+        $bus = static::getContainer()->get('event.bus');
+        $bus->dispatch(new EpisodeRated('series-1', 'season-1', 'episode-1', 9));
+
+        $stamp = $this->sentEnvelope(EpisodeRated::class)->last(RequestIdStamp::class);
+        self::assertInstanceOf(RequestIdStamp::class, $stamp, 'The event bus is missing the correlation middleware');
+        self::assertSame('event-corr-11', $stamp->requestId);
     }
 
     /**
