@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Trendy — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="trends">
+    <header class="app-header">
+        <h1 class="app-title">Trendy</h1>
+        <div class="app-header-actions">
+            <label class="trends-granularity">
+                <span class="trends-granularity-label">Zakres</span>
+                <select data-trends-target="granularity" data-action="change->trends#changeGranularity">
+                    <option value="week" selected>Tygodniowo</option>
+                    <option value="month">Miesięcznie</option>
+                </select>
+            </label>
+        </div>
+    </header>
+
+    <p class="trends-error hidden" data-trends-target="error" role="alert"></p>
+
+    <section class="trends-grid" data-trends-target="grid">
+        <p class="trends-loading">Ładowanie trendów…</p>
+    </section>
+</div>
+{% endblock %}
