@@ -59,6 +59,12 @@ final class FrontendController extends AbstractController
         return $this->render('music/index.html.twig');
     }
 
+    #[Route('/podcasts', name: 'app_frontend_podcasts', methods: ['GET'])]
+    public function podcasts(): Response
+    {
+        return $this->render('podcasts/index.html.twig');
+    }
+
     #[Route('/youtube-progress', name: 'app_frontend_youtube_progress', methods: ['GET'])]
     public function youtubeProgress(): Response
     {

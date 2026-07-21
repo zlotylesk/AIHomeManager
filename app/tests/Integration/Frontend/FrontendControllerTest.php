@@ -98,6 +98,16 @@ class FrontendControllerTest extends WebTestCase
         self::assertSelectorExists('#goals-list');
     }
 
+    public function testPodcastsPageReturns200WithHtml(): void
+    {
+        $this->client->request('GET', '/podcasts');
+
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('content-type', 'text/html; charset=UTF-8');
+        self::assertSelectorExists('nav.navbar');
+        self::assertSelectorExists('#podcasts-list');
+    }
+
     public function testNavbarContainsAllModuleLinks(): void
     {
         $this->client->request('GET', '/series');
@@ -108,6 +118,7 @@ class FrontendControllerTest extends WebTestCase
         self::assertSelectorExists('a[href="/articles"]');
         self::assertSelectorExists('a[href="/music"]');
         self::assertSelectorExists('a[href="/goals"]');
+        self::assertSelectorExists('a[href="/podcasts"]');
     }
 
     public function testActiveNavLinkMarkedOnSeriesPage(): void
