@@ -152,6 +152,28 @@ final class PodcastsApiTest extends WebTestCase
         self::assertSame('ep-1', $sessions[0]['episodeId']);
     }
 
+    /**
+     * A show the sweep has just materialized but never listened through — its
+     * detail must answer with empty collections rather than omitting the keys,
+     * because the UI iterates them unconditionally. The list already covers the
+     * zero-counter case; this is the same emptiness one layer deeper.
+     */
+    public function testDetailOfAShowWithNoEpisodesReturnsEmptyCollections(): void
+    {
+        $this->insertPodcast('pod-quiet', 'Cisza');
+
+        $this->client->request('GET', '/api/podcasts/pod-quiet');
+
+        self::assertResponseIsSuccessful();
+        $body = $this->jsonResponse($this->client);
+
+        self::assertSame('Cisza', $body['title']);
+        self::assertSame(0, $body['episodeCount']);
+        self::assertNull($body['lastListenedAt']);
+        self::assertSame([], $body['episodes']);
+        self::assertSame([], $body['sessions']);
+    }
+
     public function testDetailReturns404ForAnUnknownShow(): void
     {
         $this->client->request('GET', '/api/podcasts/'.self::UNKNOWN_UUID);

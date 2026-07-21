@@ -88,14 +88,28 @@ function Invoke-Confluence {
     param([string]$Method, [string]$Path, $BodyObject)
 
     $uri = "$base$Path"
+
     if ($null -eq $BodyObject) {
-        return Invoke-RestMethod -Method $Method -Uri $uri -Headers $headers
+        $response = Invoke-WebRequest -Method $Method -Uri $uri -Headers $headers -UseBasicParsing
+    }
+    else {
+        $json  = $BodyObject | ConvertTo-Json -Depth 12 -Compress
+        $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+        $response = Invoke-WebRequest -Method $Method -Uri $uri -Headers $headers -UseBasicParsing `
+            -ContentType 'application/json; charset=utf-8' -Body $bytes
     }
 
-    $json  = $BodyObject | ConvertTo-Json -Depth 12 -Compress
-    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
-    return Invoke-RestMethod -Method $Method -Uri $uri -Headers $headers `
-        -ContentType 'application/json; charset=utf-8' -Body $bytes
+    # Decode the response as UTF-8 explicitly instead of letting Invoke-RestMethod
+    # guess. Windows PowerShell 5.1 ignores the response charset and hands back
+    # mojibake for anything non-ASCII — which matters beyond cosmetics here,
+    # because 'update' re-sends the title it just read: a Polish page title was
+    # silently written back corrupted until this was fixed.
+    $raw = $response.RawContentStream.ToArray()
+    if ($raw.Length -eq 0) {
+        return $null    # e.g. DELETE answers 204 with no body
+    }
+
+    return [Text.Encoding]::UTF8.GetString($raw) | ConvertFrom-Json
 }
 
 switch ($Action) {
