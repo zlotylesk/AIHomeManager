@@ -62,7 +62,7 @@ NIGDY nie pushuj kodu bez przejścia tego stacku w całości. CI uruchamia dokł
   3. Jeśli zmienione pliki dotyczą ticketu — wrzuć w ten sam commit. Jeśli to ortogonalne pliki (poprzedni epic) — osobny follow-up commit `HMAI-XX - Apply rector cleanups` na tej samej gałęzi (precedens: PR #107).
 - **PHP CS Fixer** — `make cs-check` (= `vendor/bin/php-cs-fixer fix --dry-run --diff`). Jeśli pokazuje diff: `vendor/bin/php-cs-fixer fix src/Path/To/File.php` per plik (config odrzuca multi-path argument). Pełny `make cs-check` pokazuje cały dług projektu — wystarczy że Twoje pliki przechodzą.
 - **PHPStan level 8** — `make phpstan` lub `vendor/bin/phpstan analyse --memory-limit=1G --no-progress`. Zero nowych entries w baseline.
-- **Sanity check na końcu:** pełny `make test` (450+/450+ tests must pass) tuż przed commitem.
+- **Sanity check na końcu:** pełny `make test` tuż przed commitem — **wszystkie** testy zielone (rząd wielkości: 1684 na 1.26.0; liczba rośnie z każdym wydaniem, więc nie porównuj z zapamiętaną wartością, tylko sprawdź `Failures: 0` / `Errors: 0`).
 
 Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Rector/CS Fixer/PHPStan w CI = wstyd i forced-push do naprawy.
 
@@ -138,7 +138,7 @@ Tests: {N} nowych — {jeden bullet z najważniejszym}
 
 **Po utworzeniu PR — czekaj na zielone CI, NIE mergujesz.** Samodzielny `/start-task` kończy pracę na zielonym PR — merge nie należy do tego skilla:
 
-1. **Poczekaj na zielone CI.** `gh pr checks {PR}` aż wszystkie joby = `pass` (develop jest airtight-protected: wymagane checki + enforce_admins). **To oczekiwanie liczy się do worklogu** — patrz [worklog](#worklog).
+1. **Poczekaj na zielone CI.** `gh pr checks {PR}` aż wszystkie joby = `pass`. Ochrona gałęzi została zdjęta (2026-07-21), więc CI **nie blokuje** już mergu technicznie — tym bardziej czekaj sam: czerwony merge nikogo teraz nie zatrzyma. **To oczekiwanie liczy się do worklogu** — patrz [worklog](#worklog).
 2. **CI czerwone → napraw.** Przyczynę (Rector/CS Fixer/PHPStan/PHPUnit lub flaky) usuń na tej samej gałęzi i push. Nie zostawiaj czerwonego PR.
 3. **Merge zostaje po stronie usera.** PR zostaje otwarty; merguje go ręcznie user albo orkiestrator `/start-fixVersion`. Po zielonym CI ustaw status → **Code Review** (transition id `2`; jeśli id nie zadziała, pobierz listę przez `getJiraIssueTransitions`), zaloguj czas (Krok 13) i **zakończ** — nie idź dalej.
 
