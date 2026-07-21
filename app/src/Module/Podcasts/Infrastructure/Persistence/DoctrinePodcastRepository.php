@@ -25,6 +25,15 @@ final readonly class DoctrinePodcastRepository implements PodcastRepositoryInter
         return $this->entityManager->find(Podcast::class, $id);
     }
 
+    public function findByExternalId(string $externalId): ?Podcast
+    {
+        return $this->entityManager
+            ->createQuery('SELECT p FROM '.Podcast::class.' p WHERE p.externalId = :externalId')
+            ->setParameter('externalId', $externalId)
+            ->setMaxResults(1)
+            ->getOneOrNullResult();
+    }
+
     /** @return Podcast[] */
     public function findAll(): array
     {

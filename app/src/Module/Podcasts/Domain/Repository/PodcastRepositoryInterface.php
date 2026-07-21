@@ -12,6 +12,13 @@ interface PodcastRepositoryInterface
 
     public function findById(string $id): ?Podcast;
 
+    /**
+     * Look a show up by its id at the source. This is what makes the import
+     * idempotent: the same show observed on a later poll is recognized instead
+     * of being minted a second time under a fresh UUID.
+     */
+    public function findByExternalId(string $externalId): ?Podcast;
+
     /** @return Podcast[] */
     public function findAll(): array;
 

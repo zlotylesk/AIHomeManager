@@ -90,6 +90,9 @@ services:
     App\Module\Podcasts\Domain\Repository\EpisodeRepositoryInterface:
         alias: App\Module\Podcasts\Infrastructure\Persistence\DoctrineEpisodeRepository
 
+    App\Module\Podcasts\Domain\Repository\PodcastListeningSessionRepositoryInterface:
+        alias: App\Module\Podcasts\Infrastructure\Persistence\DoctrinePodcastListeningSessionRepository
+
     App\Module\Notifications\Domain\Repository\NotificationRepositoryInterface:
         alias: App\Module\Notifications\Infrastructure\Persistence\DoctrineNotificationRepository
 
