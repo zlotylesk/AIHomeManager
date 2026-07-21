@@ -4,6 +4,56 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.26.0] — 2026-07-21
+
+Nowy moduł domenowy **Podcasts** — lokalna historia odsłuchów podcastów obok modułu Music (epik **HMAI-313** — 7 podzadań HMAI-322…328, każde z osobnym zielonym CI). Źródłem jest **Spotify Web API** (decyzja właściciela: tam faktycznie słucha), co uczyniło ten moduł czwartym przepływem OAuth w projekcie. Kluczowa różnica wobec Music wyszła dopiero przy weryfikacji dokumentacji dostawcy: **Spotify nie udostępnia znacznika czasu odsłuchu odcinka** — endpoint historii odtwarzania obejmuje wyłącznie utwory i pomija odcinki. Odsłuchy są więc **wyprowadzane ze stanu** (punkt wznowienia odcinka), a nie pobierane jako zdarzenia, i cała reszta modułu wynika z tej jednej właściwości: zapisany moment znaczy „nie później niż wtedy”, deduplikacja idzie po dniu zamiast po sekundzie, a zastrzeżenie jest pokazywane w interfejsie, nie tylko opisane w kodzie. **1684/1684 PHP** (+141 vs 1543 w 1.25.0) + **103/103 Playwright** (+14) + **104 Vitest JS** (+19) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**.
+
+### Added
+
+- **Szkielet modułu** (HMAI-322) — `src/Module/Podcasts/` z agregatami `Podcast` i `Episode`, wspólnym VO `Title`, VO `ListeningProgress` (pozycja + flaga ukończenia trzymane razem, bo osobno są mylące: pozycja zerowa *z* flagą to „ukończony i przewinięty”, bez niej — „nigdy nieotwarty”), read modelem `ListenedEpisode` oraz warstwami deptrac. `Episode` jest osobnym agregatem spiętym stringowym kluczem obcym (ADR-007) — audycja ma tysiące odcinków, więc ładowanie ich jako kolekcji byłoby złym kształtem.
+- **Port źródła + adapter Spotify** (HMAI-323) — `PodcastListeningHistoryInterface` (Domain) i `SpotifyPodcastApiClient` za limiterem `spotify_api`, wraz z całym handshake'iem OAuth: `/auth/spotify`, token szyfrowany w spoczynku, odświeżanie z **scaleniem** odpowiedzi (Spotify rotuje `refresh_token` tylko okazjonalnie, więc odpowiedź bez niego nie może skasować jedynego poświadczenia zdolnego do kolejnego odświeżenia) i **stemplowaniem czasu wydania**, którego dostawca nie podaje.
+- **Rejestrowanie sesji odsłuchu** (HMAI-324) — komenda `LogPodcastListeningSession` + handler na `command.bus`, agregat `PodcastListeningSession`, tabela `podcast_listening_sessions`. Brakujący katalog jest **materializowany** (nie pomijany): historia wskazuje audycję po identyfikatorze, więc pominięcie zostawiłoby wiersze wskazujące na nic, czego interfejs nie potrafiłby wyświetlić.
+- **Cykliczny odczyt** (HMAI-325) — `PollPodcastListens` (routing `async`) co 30 minut w `Schedule.php` (teraz 10 zadań cyklicznych). Nieosiągalne źródło kończy przebieg po cichu, pojedynczy wadliwy odcinek jest pomijany — oba logowane zamiast przerywać zadanie.
+- **Warstwa odczytu + REST** (HMAI-326) — `GetAllPodcasts`/`GetPodcastDetail` na `query.bus` (DBAL), cienki `PodcastsController` (`/api/v1/podcasts` + alias `/api/podcasts`), normalizery, nowy tag `Podcasts` w kontrakcie OpenAPI.
+- **Frontend** (HMAI-327) — strona `/podcasts` w konwencji Stimulus: siatka audycji z licznikami, szczegóły z paskami postępu odcinków i historią grupowaną po dniach, przycisk „Synchronizuj”.
+
+### Changed
+
+- **Reguła deduplikacji świadomie różni się od Music.** `LogListeningSession` haszuje znacznik czasu z dokładnością do sekundy, bo scrobble *jest* zdarzeniem o realnym momencie. Tutaj zapisany moment to czas obserwacji — świeży przy każdym odczycie — więc ten sam schemat sprawiłby, że **każdy przebieg wstawiałby nowy wiersz i deduplikacja nie zadziałałaby ani razu**. Tożsamością odsłuchu jest audycja + odcinek + dzień (liczony w UTC).
+- **Idempotencja jest świadoma postępu**, nie tylko pomijająca: powtórna obserwacja domyka się w istniejącym wpisie i wyłącznie „do przodu” — cofnięcie jest ignorowane (ponowne odtworzenie ukończonego odcinka zeruje pozycję w źródle, a przyjęcie tej wartości przepisałoby dzień na „ledwie zaczęty”), raz ukończony pozostaje ukończony, a brak zmiany nie powoduje żadnego zapisu.
+- **Klucz zewnętrzny agregatów katalogu** (`externalId`) nazwany neutralnie wobec dostawcy zamiast `spotifyId` — dołożenie drugiego źródła nie wymaga zmiany schematu.
+
+### Fixed
+
+- **`scripts/confluence-page.ps1` cicho niszczył tytuły stron.** Helper czytał odpowiedzi zwykłym `Invoke-RestMethod`, a Windows PowerShell 5.1 ignoruje deklarowane kodowanie odpowiedzi — polski tytuł wracał jako mojibake i, ponieważ `update` odsyła tytuł, który przed chwilą odczytał, **był zapisywany z powrotem uszkodzony**. Trafiło to na stronę modułu Podcasts, zanim zostało wychwycone. Odpowiedź jest teraz dekodowana jawnie jako UTF-8, a pusta odpowiedź (204 z `delete`) zwraca `null` zamiast wywracać `ConvertFrom-Json`.
+- **Rozjazd kontraktu szczegółów audycji** wychwycony przez bramkę zgodności w CI: normalizer spłaszcza pola audycji na najwyższy poziom, więc dokumentacja opisuje odpowiedź jako złożenie (`allOf`), a nie odwołanie do modelu szczegółów.
+
+### Coverage
+
+- **Piramida testów** (HMAI-328) — idempotencja była dotąd dowiedziona wyłącznie na atrapach w pamięci, które nie wychwycą ani błędnego mapowania, ani klucza deduplikacji, z którym nie zgadza się baza. `LogPodcastListeningSessionDedupTest` prowadzi realną szynę komend przez realne repozytoria do realnego MySQL, a `PodcastPollIdempotencyTest` domyka złożenie odczytu cyklicznego z zapisem (nakładające się okna nie tworzą duplikatów). Reguła jest egzekwowana także unikalnym indeksem, więc równoległy odczyt nie przemyci drugiego wiersza obok kontroli aplikacyjnej.
+- Moduł dołączył do **bramki zgodności odpowiedzi ze schematem** już przy HMAI-326, więc każdy udokumentowany moduł `^/api/*` pozostawał pod bramką bez przerwy.
+
+### Documentation
+
+- Nowa strona Confluence modułu Podcasts (po polsku) — decyzja o wyprowadzaniu odsłuchów wraz z uzasadnieniem, reguła deduplikacji, materializacja katalogu, autoryzacja i świadome pominięcia.
+- CLAUDE.md — wpis modułu Podcasts (siedem sekcji, jedna na podzadanie), aktualizacja tabeli schedulera (10 zadań), listy tras async, tras frontendu i tabeli plików Encore.
+
+### Migration
+
+1. **Migracje bazy** — `make migrate` (3 nowe: `spotify_oauth_tokens`, `podcasts`+`podcast_episodes`, `podcast_listening_sessions` + klucze zewnętrzne katalogu).
+2. **Nowe zmienne ENV** — `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI`, `SPOTIFY_TOKEN_KEY` (klucz 32B base64, jak pozostałe `*_TOKEN_KEY`).
+3. **Autoryzacja Spotify** — jednorazowo wejść na `/auth/spotify`. Bez zakresu `user-read-playback-position` dostawca w ogóle pomija punkty wznowienia, więc integracja połączyłaby się poprawnie i nie raportowała niczego.
+4. **Przebudowa assetów** — `make assets-prod`.
+
+### Closed Jira
+
+HMAI-313 (epik), HMAI-322, HMAI-323, HMAI-324, HMAI-325, HMAI-326, HMAI-327, HMAI-328.
+
+### Carried forward
+
+- **Niestabilny test integracyjny** (poza zakresem tego epiku, nietknięty) — trzy różne przypadki (`SeriesApiTest`, `OpenApiContractTest`, `ArticlesApiTest`) padły przejściowo w trakcie wydania, zawsze na wzorcu „encja utworzona przed chwilą jest nie do znalezienia”, przy deterministycznej kolejności wykonania i zieleni w izolacji oraz w CI. Zaobserwowano też wyścig przebudowy kontenera w `var/cache/test`. Kandydat na osobne zgłoszenie w epiku jakościowym.
+- Persystowany streak z 1.19.0 wciąż nie jest czytany przez stronę odczytu (`GetStreaks` liczy w locie).
+
 ## [1.25.0] — 2026-07-20
 
 Wydanie platformowe: **propagacja request-id do workerów Messenger** (epik **HMAI-367** — 5 podzadań HMAI-368…372, każde z osobnym zielonym CI). Do tej pory korelacja logów kończyła się dokładnie tam, gdzie zaczynało się to, co trwa najdłużej i najczęściej zawodzi: praca zdjęta z żądania na kolejkę. Teraz identyfikator jedzie razem z kopertą, więc `request_id` z nagłówka HTTP pojawia się także w liniach logu zapisanych przez handler na workerze — jeden `grep` w Graylogu pokrywa całą operację, od żądania po ostatni skutek uboczny. **1543/1543 PHP** (+29 vs 1514 w 1.24.0) + **89/89 Playwright** + **85 Vitest JS** + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. Zero zmian w modelu domenowym — czysty zysk na obserwowalności.
