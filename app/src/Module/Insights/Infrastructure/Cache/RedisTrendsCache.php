@@ -6,6 +6,7 @@ namespace App\Module\Insights\Infrastructure\Cache;
 
 use App\Module\Insights\Application\Cache\TrendsCacheInterface;
 use App\Module\Insights\Application\DTO\TrendsDTO;
+use App\Module\Insights\Application\DTO\TrendSeriesDTO;
 use App\Module\Insights\Application\Query\GetTrends;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Cache\CacheInterface;
@@ -30,6 +31,13 @@ use Symfony\Contracts\Cache\ItemInterface;
  * is a whole week or month: fifteen minutes of staleness is invisible on a chart
  * that answers "how has this been going".
  *
+ * One composition is deliberately **not** stored: one where a metric came back
+ * unreadable. Per-metric fault isolation (HMAI-331) is there so a broken source
+ * costs one card rather than the dashboard — but caching that degraded answer
+ * would outlive the fault, leaving a metric reported as unavailable for the full
+ * TTL after its source recovered. Skipping the write costs one recomputation and
+ * lets the very next read find the source healthy again.
+ *
  * Hit/miss is logged at debug level so the effect is observable without
  * instrumenting the handler.
  */
@@ -48,16 +56,23 @@ final readonly class RedisTrendsCache implements TrendsCacheInterface
         $key = $this->cacheKey($query);
         $miss = false;
 
-        $trends = $this->cache->get($key, static function (ItemInterface $item) use ($compute, &$miss): TrendsDTO {
+        $degraded = false;
+
+        $trends = $this->cache->get($key, static function (ItemInterface $item, bool &$save) use ($compute, &$miss, &$degraded): TrendsDTO {
             $miss = true;
             $item->expiresAfter(self::TTL_SECONDS);
 
-            return $compute();
+            $trends = $compute();
+            $degraded = self::isDegraded($trends);
+            $save = !$degraded;
+
+            return $trends;
         });
 
         $this->logger->debug('Insights trends cache lookup.', [
             'key' => $key,
             'cache_hit' => !$miss,
+            'stored' => $miss && !$degraded,
         ]);
 
         return $trends;
@@ -66,6 +81,16 @@ final readonly class RedisTrendsCache implements TrendsCacheInterface
     public function invalidate(GetTrends $query): void
     {
         $this->cache->delete($this->cacheKey($query));
+    }
+
+    /**
+     * A healthy metric always fills its window — zero buckets included — so a
+     * series with no points is the module's agreed "could not be read" signal
+     * (see {@see TrendSeriesDTO}).
+     */
+    private static function isDegraded(TrendsDTO $trends): bool
+    {
+        return array_any($trends->series, static fn (TrendSeriesDTO $series): bool => [] === $series->points);
     }
 
     private function cacheKey(GetTrends $query): string

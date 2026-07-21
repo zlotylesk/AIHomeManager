@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Module\Insights\Infrastructure;
 
+use App\Module\Insights\Application\DTO\TrendPointDTO;
 use App\Module\Insights\Application\DTO\TrendsDTO;
+use App\Module\Insights\Application\DTO\TrendSeriesDTO;
 use App\Module\Insights\Application\Query\GetTrends;
 use App\Module\Insights\Domain\Enum\Granularity;
 use App\Module\Insights\Infrastructure\Cache\RedisTrendsCache;
@@ -30,7 +32,21 @@ final class RedisTrendsCacheTest extends TestCase
 
     private function trends(string $marker): TrendsDTO
     {
-        return new TrendsDTO($marker, '2026-07-31', 'week', []);
+        return new TrendsDTO($marker, '2026-07-31', 'week', [
+            new TrendSeriesDTO('books_pages_read', 'count', 40.0, 40.0, 40.0, [new TrendPointDTO('2026-07-06', 40.0)]),
+        ]);
+    }
+
+    /**
+     * The shape the handler produces when one source threw: the metric is listed
+     * with its unit, but carries no points.
+     */
+    private function degradedTrends(string $marker): TrendsDTO
+    {
+        return new TrendsDTO($marker, '2026-07-31', 'week', [
+            new TrendSeriesDTO('books_pages_read', 'count', 40.0, 40.0, 40.0, [new TrendPointDTO('2026-07-06', 40.0)]),
+            new TrendSeriesDTO('music_tracks_played', 'count', 0.0, 0.0, 0.0, []),
+        ]);
     }
 
     public function testComputesOnMissAndServesTheStoredValueAfterwards(): void
@@ -74,6 +90,39 @@ final class RedisTrendsCacheTest extends TestCase
 
         self::assertSame('weekly', $weekly->from);
         self::assertSame('monthly', $monthly->from);
+    }
+
+    /**
+     * Fault isolation exists so a broken source costs one card, not the
+     * dashboard. Storing that degraded answer would make the outage outlive the
+     * fault — the metric would keep reporting "unavailable" for the whole TTL
+     * after its source recovered.
+     */
+    public function testADegradedCompositionIsNotStored(): void
+    {
+        $cache = $this->cache();
+        $query = $this->query();
+
+        $first = $cache->remember($query, fn (): TrendsDTO => $this->degradedTrends('while-broken'));
+        $second = $cache->remember($query, fn (): TrendsDTO => $this->trends('after-recovery'));
+
+        self::assertSame('while-broken', $first->from);
+        self::assertSame('after-recovery', $second->from, 'the next read must retry the failing source');
+    }
+
+    public function testAHealthyCompositionIsStillStoredAfterADegradedOne(): void
+    {
+        $cache = $this->cache();
+        $query = $this->query();
+
+        $cache->remember($query, fn (): TrendsDTO => $this->degradedTrends('while-broken'));
+        $cache->remember($query, fn (): TrendsDTO => $this->trends('recovered'));
+
+        self::assertSame(
+            'recovered',
+            $cache->remember($query, fn (): TrendsDTO => $this->trends('recomputed-again'))->from,
+            'once every metric reads cleanly the window caches as usual',
+        );
     }
 
     public function testInvalidationForcesTheNextReadToRecompute(): void

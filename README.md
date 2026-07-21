@@ -1,6 +1,6 @@
 # AIHomeManager
 
-Single-user system for automating everyday activities — television (Series, Movies), calendar (Tasks), reading (Books / Articles), listening (Music, Podcasts), YouTube watching progress (YouTubeProgress), plus the cross-cutting Goals, Search, Dashboard and Notifications modules. A modular Symfony 8 monolith with hexagonal architecture and CQRS.
+Single-user system for automating everyday activities — television (Series, Movies), calendar (Tasks), reading (Books / Articles), listening (Music, Podcasts), YouTube watching progress (YouTubeProgress), plus the cross-cutting Goals, Search, Dashboard, Notifications and Insights modules. A modular Symfony 8 monolith with hexagonal architecture and CQRS.
 
 ---
 
@@ -27,7 +27,7 @@ Single-user system for automating everyday activities — television (Series, Mo
 
 ## About the project
 
-AIHomeManager aggregates one user's everyday activities across twelve domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: every module built since 1.19.0 uses Webpack Encore + Stimulus (Series, Books, YouTubeProgress, Goals, Search, Dashboard, Movies, Notifications, Podcasts), while three legacy panels (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
+AIHomeManager aggregates one user's everyday activities across thirteen domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: every module built since 1.19.0 uses Webpack Encore + Stimulus (Series, Books, YouTubeProgress, Goals, Search, Dashboard, Movies, Notifications, Podcasts, Insights), while three legacy panels (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
 
 **Core principles:**
 
@@ -60,6 +60,7 @@ AIHomeManager aggregates one user's everyday activities across twelve domain mod
 | **Search** | Global search spanning every module — MySQL FULLTEXT, relevance-ranked, type-filtered, Redis-cached, reindexed every 15 min | — |
 | **Dashboard** | The startup cockpit at `/` — one "today" slice per module (tasks, the daily article, goal snapshots, recommendations, recent tracks), each widget fault-isolated so one failing source degrades to an empty card | — |
 | **Notifications** | Proactive delivery — e-mail + WebPush channels, reactive (domain event) and scheduled triggers, per-type/per-channel opt-in with quiet hours | Symfony Mailer, WebPush + VAPID |
+| **Insights** | The trends dashboard at `/insights` — reading pace, episodes and YouTube minutes watched, tracks played and the task completion rate, charted per week or month. Read-only: no tables of its own, every metric read through a DBAL adapter behind one port and fault-isolated per metric | — |
 
 ---
 
@@ -90,7 +91,7 @@ src/Module/{Name}/
 
 - `grep -r "use Doctrine" src/Module/*/Domain/` MUST return an empty result. Enforced by `make deptrac` in CI — Domain → [`Shared`], cross-module coupling forbidden.
 - Genuinely cross-context value objects and contracts live in the **shared kernel** `src/Shared/` (`App\Shared\…`) — the one sanctioned exception to "no cross-module coupling". Everything else stays inside its module.
-- Cross-module reads (Goals, Search, Dashboard, Notifications) go through **DBAL adapters behind a Domain port**, reading the source module's tables with raw SQL rather than importing its classes — which is how those four modules stay at zero deptrac violations.
+- Cross-module reads (Goals, Search, Dashboard, Notifications, Insights) go through **DBAL adapters behind a Domain port**, reading the source module's tables with raw SQL rather than importing its classes — which is how those five modules stay at zero deptrac violations.
 - The aggregate root collects events in `$recordedEvents`, the handler dispatches them after `releaseEvents()` (pattern: the `Series` aggregate).
 - Query handlers use DBAL directly — we do not hydrate aggregates for reads.
 - Command handler: `#[AsMessageHandler(bus: 'command.bus')]`. Query handler: `#[AsMessageHandler(bus: 'query.bus')]`. Event handler: `#[AsMessageHandler]` (default bus).
@@ -184,7 +185,7 @@ Required — without `entrypoints.json` Twig throws 500 on the `encore_entry_*` 
 | Redis | localhost:6379 |
 | Graylog (optional) | http://localhost:9000 (admin/admin) — requires `make monitoring-up` |
 
-UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`. Global search lives in the navbar on every page.
+UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`, `/insights`. Global search lives in the navbar on every page.
 
 ### 5. (Optional) load fixtures + verify tests
 
@@ -486,9 +487,9 @@ Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confl
 │   │   ├── Http/                   ← RateLimitedHttpClient
 │   │   ├── Logging/                ← Monolog processors, request-id holder
 │   │   ├── Messaging/              ← typed Query/Command bus + Messenger middleware
-│   │   ├── Module/                 ← 12 modules (Series, Tasks, Books, Articles, Music,
+│   │   ├── Module/                 ← 13 modules (Series, Tasks, Books, Articles, Music,
 │   │   │   │                          YouTubeProgress, Goals, Search, Dashboard,
-│   │   │   │                          Movies, Notifications, Podcasts)
+│   │   │   │                          Movies, Notifications, Podcasts, Insights)
 │   │   │   └── {Name}/{Domain,Application,Infrastructure}/
 │   │   ├── Schedule.php
 │   │   ├── Security/
