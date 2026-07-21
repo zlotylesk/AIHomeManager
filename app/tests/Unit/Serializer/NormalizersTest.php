@@ -37,7 +37,13 @@ use App\Serializer\BookDTONormalizer;
 use App\Serializer\DashboardDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
+use App\Module\Podcasts\Application\DTO\PodcastDetailDTO;
+use App\Module\Podcasts\Application\DTO\PodcastDTO;
+use App\Module\Podcasts\Application\DTO\PodcastEpisodeDTO;
+use App\Module\Podcasts\Application\DTO\PodcastListeningSessionDTO;
 use App\Serializer\MovieDTONormalizer;
+use App\Serializer\PodcastDetailDTONormalizer;
+use App\Serializer\PodcastDTONormalizer;
 use App\Serializer\NotificationDTONormalizer;
 use App\Serializer\NotificationPreferenceDTONormalizer;
 use App\Serializer\SearchResultDTONormalizer;
@@ -478,6 +484,100 @@ final class NormalizersTest extends TestCase
                 'source' => 'manual',
             ]],
         ], $n->normalize($dto));
+    }
+
+    public function testPodcastNormalizer(): void
+    {
+        $n = new PodcastDTONormalizer();
+        $dto = $this->podcast();
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(PodcastDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'id' => 'pod-1',
+            'title' => 'Radio Nowak',
+            'publisher' => 'Studio Nowak',
+            'coverUrl' => 'https://img.test/show.jpg',
+            'description' => 'Rozmowy.',
+            'episodeCount' => 3,
+            'listenedEpisodeCount' => 2,
+            'lastListenedAt' => '2026-07-20T19:00:00+00:00',
+            'createdAt' => '2026-07-01T10:00:00+00:00',
+        ], $n->normalize($dto));
+    }
+
+    public function testPodcastNormalizerNullMetadata(): void
+    {
+        $n = new PodcastDTONormalizer();
+        $dto = new PodcastDTO('pod-2', 'Cisza', null, null, null, 0, 0, null, '2026-07-01T10:00:00+00:00');
+
+        self::assertSame([
+            'id' => 'pod-2',
+            'title' => 'Cisza',
+            'publisher' => null,
+            'coverUrl' => null,
+            'description' => null,
+            'episodeCount' => 0,
+            'listenedEpisodeCount' => 0,
+            'lastListenedAt' => null,
+            'createdAt' => '2026-07-01T10:00:00+00:00',
+        ], $n->normalize($dto));
+    }
+
+    /**
+     * The show half is delegated to the PodcastDTO normalizer and flattened to
+     * the top level (the BookDetailDTO shape), not nested under an envelope.
+     */
+    public function testPodcastDetailNormalizerFlattensTheShowAndDelegatesIt(): void
+    {
+        $n = new PodcastDetailDTONormalizer();
+        $n->setNormalizer(new PodcastDTONormalizer());
+
+        $dto = new PodcastDetailDTO(
+            $this->podcast(),
+            [new PodcastEpisodeDTO('ep-1', 'Odcinek', '2026-07-01T06:00:00+00:00', 1_800_000, true, 1_700_000, true)],
+            [new PodcastListeningSessionDTO('s-1', 'ep-1', 'Odcinek', '2026-07-20T19:00:00+00:00', 1_700_000, true)],
+        );
+
+        $result = $n->normalize($dto);
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertArrayHasKey(PodcastDetailDTO::class, $n->getSupportedTypes(null));
+        self::assertSame('Radio Nowak', $result['title'], 'Flattened, not nested under a "podcast" key.');
+        self::assertArrayNotHasKey('podcast', $result);
+        self::assertSame([[
+            'id' => 'ep-1',
+            'title' => 'Odcinek',
+            'publishedAt' => '2026-07-01T06:00:00+00:00',
+            'durationMs' => 1_800_000,
+            'listened' => true,
+            'resumePositionMs' => 1_700_000,
+            'fullyPlayed' => true,
+        ]], $result['episodes']);
+        self::assertSame([[
+            'id' => 's-1',
+            'episodeId' => 'ep-1',
+            'episodeTitle' => 'Odcinek',
+            'listenedAt' => '2026-07-20T19:00:00+00:00',
+            'resumePositionMs' => 1_700_000,
+            'fullyPlayed' => true,
+        ]], $result['sessions']);
+    }
+
+    private function podcast(): PodcastDTO
+    {
+        return new PodcastDTO(
+            'pod-1',
+            'Radio Nowak',
+            'Studio Nowak',
+            'https://img.test/show.jpg',
+            'Rozmowy.',
+            3,
+            2,
+            '2026-07-20T19:00:00+00:00',
+            '2026-07-01T10:00:00+00:00',
+        );
     }
 
     private function book(): BookDTO
