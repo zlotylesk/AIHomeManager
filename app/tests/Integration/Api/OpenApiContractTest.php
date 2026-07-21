@@ -147,6 +147,32 @@ final class OpenApiContractTest extends WebTestCase
         $this->assertResponseConformsToContract('GET', '/api/v1/search?q=contract', '/api/v1/search');
     }
 
+    public function testTrendsResponseConformsToContract(): void
+    {
+        // Seed one reading session and one completed-vs-pending task pair so both
+        // shapes a series can take are validated: a cumulative count metric and a
+        // rate metric, each with a populated point list rather than the all-zero
+        // window an empty database would return.
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $connection->insert('book_reading_sessions', [
+            'id' => 'contract-session', 'book_id' => 'contract-book', 'date' => '2026-07-08', 'pages_read' => 40,
+        ]);
+        $connection->insert('tasks', [
+            'id' => 'contract-task-done', 'title' => 'Done', 'status' => 'completed',
+            'time_start' => '2026-07-08 09:00:00', 'time_end' => '2026-07-08 10:00:00',
+        ]);
+        $connection->insert('tasks', [
+            'id' => 'contract-task-open', 'title' => 'Open', 'status' => 'pending',
+            'time_start' => '2026-07-08 11:00:00', 'time_end' => '2026-07-08 12:00:00',
+        ]);
+
+        $this->assertResponseConformsToContract(
+            'GET',
+            '/api/v1/trends?granularity=week&from=2026-07-01&to=2026-07-31',
+            '/api/v1/trends',
+        );
+    }
+
     public function testDashboardResponseConformsToContract(): void
     {
         // The cockpit composes every module's "today" slice. Seed one row per widget

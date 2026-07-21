@@ -35,6 +35,8 @@ nelmio_api_doc:
               description: 'Global cross-module search — a single full-text query over books, articles, series, music and tasks, ranked by relevance and paginated, optionally narrowed to one result type.'
             - name: Podcasts
               description: 'Podcast listening — followed shows with episode and listening counters, a show detail with per-episode progress and the listening history, and a Spotify sync trigger. Listens are derived from Spotify resume points, so timestamps mean "no later than".'
+            - name: Insights
+              description: 'Habit trends over time — one time series per metric (pages read, episodes watched, YouTube minutes, tracks played, task completion rate), bucketed by week or month. Orthogonal to the Dashboard cockpit: this answers "how has this been going", not "what about today".'
             - name: Dashboard
               description: 'Startup cockpit — one landing read-model aggregating each module''s "today" slice: pending tasks, the article of the day, goal snapshots with streaks, continue-watching/reading suggestions and recent listening.'
         # Every operation requires the API key by default. Public endpoints

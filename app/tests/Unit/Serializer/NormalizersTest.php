@@ -16,6 +16,9 @@ use App\Module\Dashboard\Domain\ReadModel\Recommendation;
 use App\Module\Dashboard\Domain\ReadModel\TodayTask;
 use App\Module\Goals\Application\DTO\GoalProgressDTO;
 use App\Module\Goals\Application\DTO\StreakDTO;
+use App\Module\Insights\Application\DTO\TrendPointDTO;
+use App\Module\Insights\Application\DTO\TrendsDTO;
+use App\Module\Insights\Application\DTO\TrendSeriesDTO;
 use App\Module\Movies\Application\DTO\MovieDTO;
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Domain\ReadModel\Album;
@@ -50,6 +53,7 @@ use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
 use App\Serializer\TaskDTONormalizer;
+use App\Serializer\TrendsDTONormalizer;
 use App\Serializer\VideoDTONormalizer;
 use App\Serializer\VinylRecordDTONormalizer;
 use App\Serializer\WatchSessionDTONormalizer;
@@ -583,5 +587,51 @@ final class NormalizersTest extends TestCase
     private function book(): BookDTO
     {
         return new BookDTO('b1', '978-3-16-148410-0', 'Clean Code', 'Martin', 'PH', 2008, null, 464, 100, 21.55, 'reading');
+    }
+
+    public function testTrendsNormalizer(): void
+    {
+        $n = new TrendsDTONormalizer();
+        $dto = new TrendsDTO('2026-07-01', '2026-07-31', 'week', [
+            new TrendSeriesDTO('books_pages_read', 'count', 50.0, 25.0, 50.0, [
+                new TrendPointDTO('2026-07-06', 40.0),
+                new TrendPointDTO('2026-07-13', 10.0),
+            ]),
+        ]);
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(TrendsDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'from' => '2026-07-01',
+            'to' => '2026-07-31',
+            'granularity' => 'week',
+            'series' => [[
+                'metric' => 'books_pages_read',
+                'unit' => 'count',
+                'total' => 50.0,
+                'average' => 25.0,
+                'headline' => 50.0,
+                'points' => [
+                    ['bucketStart' => '2026-07-06', 'value' => 40.0],
+                    ['bucketStart' => '2026-07-13', 'value' => 10.0],
+                ],
+            ]],
+        ], $n->normalize($dto));
+    }
+
+    /**
+     * A metric whose read failed is serialized with an empty point list — the
+     * signal the frontend uses to tell "unavailable" from "idle".
+     */
+    public function testTrendsNormalizerKeepsAnUnavailableSeriesEmpty(): void
+    {
+        $n = new TrendsDTONormalizer();
+        $dto = new TrendsDTO('2026-07-01', '2026-07-31', 'month', [
+            new TrendSeriesDTO('music_tracks_played', 'count', 0.0, 0.0, 0.0, []),
+        ]);
+
+        $normalized = $n->normalize($dto);
+        self::assertSame([], $normalized['series'][0]['points']);
     }
 }
