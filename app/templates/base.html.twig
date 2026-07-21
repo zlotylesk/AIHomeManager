@@ -22,6 +22,7 @@
                 <li><a href="{{ path('app_frontend_books') }}" {% if app.request.attributes.get('_route') == 'app_frontend_books' %}class="active"{% endif %}>Books</a></li>
                 <li><a href="{{ path('app_frontend_articles') }}" {% if app.request.attributes.get('_route') == 'app_frontend_articles' %}class="active"{% endif %}>Articles</a></li>
                 <li><a href="{{ path('app_frontend_music') }}" {% if app.request.attributes.get('_route') == 'app_frontend_music' %}class="active"{% endif %}>Music</a></li>
+                <li><a href="{{ path('app_frontend_podcasts') }}" {% if app.request.attributes.get('_route') == 'app_frontend_podcasts' %}class="active"{% endif %}>Podcasty</a></li>
                 <li><a href="{{ path('app_frontend_youtube_progress') }}" {% if app.request.attributes.get('_route') == 'app_frontend_youtube_progress' %}class="active"{% endif %}>YouTube</a></li>
                 <li><a href="{{ path('app_frontend_goals') }}" {% if app.request.attributes.get('_route') == 'app_frontend_goals' %}class="active"{% endif %}>Goals</a></li>
                 <li><a href="{{ path('app_frontend_notifications') }}" {% if app.request.attributes.get('_route') == 'app_frontend_notifications' %}class="active"{% endif %}>Powiadomienia</a></li>
