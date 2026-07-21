@@ -45,4 +45,17 @@ enum Granularity: string
             self::MONTH => $this->bucketStart($bucketStart)->modify('first day of next month'),
         };
     }
+
+    /**
+     * The start of the bucket preceding the given one — how a caller walks a
+     * window backwards from "now". Kept here with its forward twin so bucket
+     * arithmetic never leaks into a controller.
+     */
+    public function previousBucketStart(DateTimeImmutable $bucketStart): DateTimeImmutable
+    {
+        return match ($this) {
+            self::WEEK => $this->bucketStart($bucketStart)->modify('-7 days'),
+            self::MONTH => $this->bucketStart($bucketStart)->modify('first day of previous month'),
+        };
+    }
 }
