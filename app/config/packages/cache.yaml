@@ -12,6 +12,12 @@ framework:
             cache.dashboard:
                 adapter: cache.adapter.redis
                 default_lifetime: 300
+            # Trends read cache (HMAI-334). Longer than the cockpit's TTL because a
+            # trend bucket is a whole week or month — 15 minutes of staleness is
+            # invisible on a "how has this been going" chart.
+            cache.insights:
+                adapter: cache.adapter.redis
+                default_lifetime: 900
 
 when@test:
     framework:
@@ -22,4 +28,6 @@ when@test:
                 cache.search:
                     adapter: cache.adapter.array
                 cache.dashboard:
+                    adapter: cache.adapter.array
+                cache.insights:
                     adapter: cache.adapter.array
