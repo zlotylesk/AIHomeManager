@@ -4,6 +4,57 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.27.0] — 2026-07-21
+
+Nowy moduł domenowy **Insights** — dashboard trendów pokazujący, jak nawyki zmieniają się w czasie (epik **HMAI-314** — 7 podzadań HMAI-329…335, każde z osobnym zielonym CI). Moduł jest celowo **prostopadły do kokpitu startowego z 1.21.0**: kokpit odpowiada na pytanie „co dzisiaj”, Insights na „jak mi z tym idzie od dłuższego czasu” — tempo czytania, obejrzane odcinki, minuty wideo, odsłuchane utwory i odsetek ukończonych zadań, w kubełkach tygodniowych lub miesięcznych. To pierwszy moduł, który **nie ma ani jednej własnej tabeli i ani jednej migracji**: niczego nie przechowuje, tylko wylicza serie z danych modułów źródłowych. Motywem przewodnim jest odróżnianie ciszy od awarii — pusty kubełek jest zerem, nigdy brakiem punktu, więc pusta seria jednoznacznie znaczy „nie udało się odczytać”, i to rozróżnienie przechodzi przez każdą warstwę aż po dwa różne stany karty w interfejsie. **1768/1768 PHP** (+84 vs 1684 w 1.26.0) + **116/116 Playwright** (+13) + **122 Vitest JS** (+18) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**.
+
+### Added
+
+- **Szkielet modułu** (HMAI-329) — `src/Module/Insights/` z VO `MetricPoint`/`TrendSeries`, enumami `MetricType`/`MetricUnit`/`Granularity`, portem `TrendDataProviderInterface` i warstwami deptrac. **Jednostka metryki niesie reguły**, których reszta modułu nie musi wyprowadzać osobno: dopuszczalny zakres wartości (wskaźnik ograniczony do 100, licznik nie) oraz to, **które zwinięcie serii ma sens** — metryka kumulatywna sumuje się, wskaźnik uśrednia, więc zsumowany procent ukończeń nie ma jak trafić na dashboard.
+- **Adaptery danych cross-module** (HMAI-330) — pięć adapterów DBAL (Books/Series/YouTube/Music/Tasks) czytających tabele modułów źródłowych surowym SQL-em, bez importu choćby jednej obcej klasy, plus kompozyt **kierujący** metrykę do jedynego adaptera, który ją obsługuje. Wspólna baza adapterów agreguje dzień po dniu w SQL, a kubełkuje w PHP — rok aktywności to najwyżej kilkaset wierszy, a granica tygodnia zostaje w jednym miejscu, zamiast rozejść się po pięciu ręcznych wyrażeniach SQL.
+- **Warstwa odczytu** (HMAI-331) — `GetTrends` + handler na `query.bus` składający wszystkie metryki w jeden `TrendsDTO`, ze zwinięciami policzonymi w warstwie odczytu (nie przy serializacji) i **izolacją awarii per metryka**. Okno jest strzeżone: początek nie później niż koniec, liczba kubełków ograniczona (ponad dwa lata tygodni / dziesięć lat miesięcy) — nieograniczony zakres jest odrzucany, a nie obsługiwany wolno.
+- **REST API** (HMAI-332) — cienki `TrendsController` (`/api/v1/trends` + alias `/api/trends`), normalizer, nowy tag `Insights` w kontrakcie OpenAPI. **Wszystkie parametry są opcjonalne** — samo wywołanie bez nich zwraca ostatnie 12 kubełków tygodniowych, więc frontend nie musi wykonywać arytmetyki dat.
+- **Frontend** (HMAI-333) — strona `/insights` w konwencji Stimulus: przełącznik tydzień/miesiąc i karta na metrykę (liczba nagłówkowa z podpisem nazywającym użyte zwinięcie + wykres). **Chart.js 4 ładowany dynamicznym `import()`**, więc ~205 KB trafia do osobnej paczki zamiast do bundle'a ładowanego na każdej podstronie serwisu — zweryfikowane w wyniku builda, nie założone.
+- **Cache odczytu** (HMAI-334) — dedykowana przestrzeń Redis `cache.insights` (TTL 900 s) za portem aplikacyjnym, kluczowana granulacją i obydwoma końcami okna.
+
+### Changed
+
+- **Cache przy odczycie zamiast wygrzewania w harmonogramie** (ticket zostawiał wybór). Prekomputacja sprawdza się, gdy odczyt ma jeden ustalony kształt — kokpitowe „dziś”, kolekcja winyli. Tutaj okno wybiera wywołujący, więc harmonogram musiałby zgadywać, które z praktycznie nieograniczonej liczby zakresów wyliczyć, i tak nie trafiając w resztę. Powtarzalnie odpytywane jest domyślne okno frontendu — i to właśnie pokrywa cache przy odczycie, bez żadnego przewidywania.
+- **Odczyt cross-module przez DBAL zamiast `query.bus`** (wbrew literalnemu brzmieniu ticketów HMAI-314/330) — odczyt przez szynę oznaczałby import klasy Query obcego modułu i złamanie deptrac. Ta sama decyzja co w Goals, Search, Dashboard i Notifications.
+- **Kontroler w `src/Controller/Api/`** zamiast sugerowanego `src/Controller/TrendsController.php` — wymaga tego ADR-008 (trasy wersjonowane bez wersji w atrybucie).
+- Reguły poszczególnych metryk: odcinek oznaczony jako obejrzany, ale **bez daty obejrzenia**, jest pomijany zamiast zgadywany na dzisiaj; wskaźnik ukończeń **pomija zadania anulowane po obu stronach ułamka** (zadanie odwołane świadomie nie jest porażką) i zwija **sumy kubełka**, a nie średnią dziennych wskaźników — inaczej dzień z jednym zadaniem ważyłby tyle, co dzień z dziewięcioma.
+
+### Fixed
+
+- **Zdegradowana odpowiedź przeżywała awarię, która ją wywołała** (wykryte przy przeglądzie epiku, na styku dwóch mechanizmów poprawnych z osobna). Izolacja awarii degraduje nieodczytaną metrykę do pustej serii, żeby zepsute źródło kosztowało jedną kartę zamiast dashboardu — ale cache **zapisywał tę zdegradowaną odpowiedź**, więc chwilowa awaria była przypięta na pełne 900 s i metryka raportowała „brak danych” długo po powrocie źródła do sprawności. Cache pomija teraz zapis, gdy którakolwiek seria wróciła bez punktów; koszt to jedno ponowne wyliczenie, a najbliższy odczyt ponawia próbę.
+
+### Coverage
+
+- **Piramida testów** (HMAI-335) — `TrendsApiTest` czyni jedną tabelę źródłową **realnie nieczytelną** (zamiast podstawiać atrapę providera), więc izolacja awarii jest dowiedziona na prawdziwym okablowaniu: seria YouTube wraca pusta, pozostałe cztery zachowują dane, odpowiedź zostaje 200. E2E `trends.{desktop,mobile}.spec.ts` (13 testów) pokrywają dashboard na obu widokach, w tym **faktycznie wyrenderowany canvas Chart.js** (zerowa szerokość znaczyłaby, że leniwie ładowana paczka nigdy się nie uruchomiła), metrykę niedostępną obok bezczynnej oraz brak przewijania w poziomie na mobile.
+- Moduł dołączył do **bramki zgodności odpowiedzi ze schematem** już przy HMAI-332, więc każdy udokumentowany moduł `^/api/*` pozostawał pod bramką bez przerwy.
+
+### Documentation
+
+- Nowa strona Confluence modułu Insights (po polsku) — jednostka jako nośnik reguł, kubełkowanie w jednym miejscu, kontrakt „zero zamiast braku punktu”, izolacja awarii, strategia cache i świadome pominięcia.
+- README odświeżony pod trzynasty moduł: tabela modułów, licznik (dwanaście → trzynaście), lista modułów na Stimulus/Encore, trasy UI, lista odczytów cross-module przez DBAL i drzewo źródeł.
+- CLAUDE.md — wpis modułu Insights (siedem sekcji, jedna na podzadanie) plus akapit przeglądu epiku, tabela plików Encore i lista tras frontendu.
+
+### Migration
+
+1. **Brak migracji bazy** — moduł nie ma własnych tabel. `make migrate` nie jest potrzebne dla tego wydania.
+2. **Brak nowych zmiennych ENV** — Insights nie korzysta z żadnej usługi zewnętrznej.
+3. **Instalacja zależności frontendu** — `make node-install` (nowa paczka `chart.js`), następnie `make assets-prod`.
+
+### Closed Jira
+
+HMAI-314 (epik), HMAI-329, HMAI-330, HMAI-331, HMAI-332, HMAI-333, HMAI-334, HMAI-335.
+
+### Carried forward
+
+- **Niestabilny test integracyjny** (nietknięty, wciąż poza zakresem) — wzorzec „encja utworzona przed chwilą jest nie do znalezienia”, kandydat na osobne zgłoszenie w epiku jakościowym.
+- Persystowany streak z 1.19.0 wciąż nie jest czytany przez stronę odczytu (`GetStreaks` liczy w locie).
+- Tygodniowy raport aktywności (`GenerateWeeklyActivityReport`) nadal tylko loguje swoje liczby — Insights wizualizuje te same wielkości, ale zadanie harmonogramu zostało niezmienione.
+
 ## [1.26.0] — 2026-07-21
 
 Nowy moduł domenowy **Podcasts** — lokalna historia odsłuchów podcastów obok modułu Music (epik **HMAI-313** — 7 podzadań HMAI-322…328, każde z osobnym zielonym CI). Źródłem jest **Spotify Web API** (decyzja właściciela: tam faktycznie słucha), co uczyniło ten moduł czwartym przepływem OAuth w projekcie. Kluczowa różnica wobec Music wyszła dopiero przy weryfikacji dokumentacji dostawcy: **Spotify nie udostępnia znacznika czasu odsłuchu odcinka** — endpoint historii odtwarzania obejmuje wyłącznie utwory i pomija odcinki. Odsłuchy są więc **wyprowadzane ze stanu** (punkt wznowienia odcinka), a nie pobierane jako zdarzenia, i cała reszta modułu wynika z tej jednej właściwości: zapisany moment znaczy „nie później niż wtedy”, deduplikacja idzie po dniu zamiast po sekundzie, a zastrzeżenie jest pokazywane w interfejsie, nie tylko opisane w kodzie. **1684/1684 PHP** (+141 vs 1543 w 1.25.0) + **103/103 Playwright** (+14) + **104 Vitest JS** (+19) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**.
