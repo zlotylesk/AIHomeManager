@@ -1,6 +1,6 @@
 # AIHomeManager
 
-Single-user system for automating everyday activities — television (Series), calendar (Tasks), reading (Books / Articles), music collection (Music), and YouTube watching progress (YouTubeProgress). A modular Symfony 8 monolith with hexagonal architecture and CQRS.
+Single-user system for automating everyday activities — television (Series, Movies), calendar (Tasks), reading (Books / Articles), listening (Music, Podcasts), YouTube watching progress (YouTubeProgress), plus the cross-cutting Goals, Search, Dashboard and Notifications modules. A modular Symfony 8 monolith with hexagonal architecture and CQRS.
 
 ---
 
@@ -27,17 +27,18 @@ Single-user system for automating everyday activities — television (Series), c
 
 ## About the project
 
-AIHomeManager aggregates one user's everyday activities across six domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: the Series + Books + YouTubeProgress UI use Webpack Encore + Stimulus, while the remaining modules (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
+AIHomeManager aggregates one user's everyday activities across twelve domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: every module built since 1.19.0 uses Webpack Encore + Stimulus (Series, Books, YouTubeProgress, Goals, Search, Dashboard, Movies, Notifications, Podcasts), while three legacy panels (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
 
 **Core principles:**
 
 - Single user (no multi-tenant).
 - Stateless API protected by a key (`X-API-Key`); the UI is public.
-- Hexagonal architecture — `Domain` knows nothing about Doctrine or Symfony, boundaries enforced by Deptrac in CI.
+- Hexagonal architecture — `Domain` knows nothing about Doctrine or Symfony, boundaries enforced by Deptrac in CI (currently zero violations and zero `skip_violations`).
 - Doctrine XML mapping (ADR-001 — we do not migrate to PHP attributes).
 - CQRS with two buses: `command.bus` and `query.bus`, plus `event.bus` for domain events (Series.`EpisodeRated`, Books.`BookCompleted`).
-- Per-IP rate limiting on `^/api/*` (60/min), proactive throttling of external API clients (Last.fm, Discogs, National Library, YouTube Data API, Trakt).
-- OAuth tokens encrypted at rest (libsodium secretbox, separate key per provider: Google, Discogs, Trakt).
+- Versioned REST contract under `/api/v1` (ADR-008), documented as OpenAPI 3.1 and enforced in CI.
+- Per-IP rate limiting on `^/api/*` (60/min), proactive throttling of external API clients (Last.fm, Discogs, National Library, YouTube Data API, Trakt, Spotify).
+- OAuth tokens encrypted at rest (libsodium secretbox, separate key per provider: Google, Discogs, Trakt, Spotify).
 - Defense-in-depth security headers (dual-layer: nginx + Symfony listener).
 - Daily mysqldump → gzip + retention (30 daily + 12 monthly).
 
@@ -53,6 +54,12 @@ AIHomeManager aggregates one user's everyday activities across six domain module
 | **Articles** | Daily article to read, CSV import from Pocket, categories, CSV/PDF export | — |
 | **Music** | Top albums + local listening history (Last.fm), vinyl collection (Discogs), comparison of owned vs listened | Last.fm API, Discogs OAuth1 |
 | **YouTubeProgress** | Sync of the "watchlist" playlist from YouTube, auto-splitting of unwatched videos into sessions ≤30 min (grouped by channel), progress tracking, pushing a session back out as a new playlist | YouTube Data API v3 (OAuth2) |
+| **Movies** | Catalog of films alongside Series — CRUD, watched flag, own 1–10 rating, catalog metadata, import of watched movies + ratings from Trakt | Trakt.tv API (OAuth2) |
+| **Podcasts** | Podcast listening history. Spotify exposes no listen timestamp for episodes, so listens are **derived** from each episode's resume point — a stored moment means "no later than", never the exact listening time | Spotify Web API (OAuth2) |
+| **Goals** | Cross-module goals and day-continuity streaks over the other modules' activity (reading, watching, articles, video), read through DBAL adapters so no module is coupled to another | — |
+| **Search** | Global search spanning every module — MySQL FULLTEXT, relevance-ranked, type-filtered, Redis-cached, reindexed every 15 min | — |
+| **Dashboard** | The startup cockpit at `/` — one "today" slice per module (tasks, the daily article, goal snapshots, recommendations, recent tracks), each widget fault-isolated so one failing source degrades to an empty card | — |
+| **Notifications** | Proactive delivery — e-mail + WebPush channels, reactive (domain event) and scheduled triggers, per-type/per-channel opt-in with quiet hours | Symfony Mailer, WebPush + VAPID |
 
 ---
 
@@ -63,6 +70,8 @@ src/Module/{Name}/
 ├── Domain/             ← pure PHP, aggregates, VOs, events, repository interfaces
 │   ├── Entity/
 │   ├── ValueObject/
+│   ├── ReadModel/      ← what Domain ports return (never Application DTOs)
+│   ├── Port/           ← outbound contracts implemented in Infrastructure
 │   ├── Event/
 │   └── Repository/
 ├── Application/        ← orchestration: commands, queries, handlers, DTOs
@@ -79,7 +88,9 @@ src/Module/{Name}/
 
 **Inviolable rules:**
 
-- `grep -r "use Doctrine" src/Module/*/Domain/` MUST return an empty result. Enforced by `make deptrac` in CI — Domain → [], cross-module coupling forbidden.
+- `grep -r "use Doctrine" src/Module/*/Domain/` MUST return an empty result. Enforced by `make deptrac` in CI — Domain → [`Shared`], cross-module coupling forbidden.
+- Genuinely cross-context value objects and contracts live in the **shared kernel** `src/Shared/` (`App\Shared\…`) — the one sanctioned exception to "no cross-module coupling". Everything else stays inside its module.
+- Cross-module reads (Goals, Search, Dashboard, Notifications) go through **DBAL adapters behind a Domain port**, reading the source module's tables with raw SQL rather than importing its classes — which is how those four modules stay at zero deptrac violations.
 - The aggregate root collects events in `$recordedEvents`, the handler dispatches them after `releaseEvents()` (pattern: the `Series` aggregate).
 - Query handlers use DBAL directly — we do not hydrate aggregates for reads.
 - Command handler: `#[AsMessageHandler(bus: 'command.bus')]`. Query handler: `#[AsMessageHandler(bus: 'query.bus')]`. Event handler: `#[AsMessageHandler]` (default bus).
@@ -95,13 +106,15 @@ Architecture decisions (ADR): see Confluence space `H` → ADRs.
 | Language | PHP 8.5                                                  |
 | Framework | Symfony 8                                                |
 | ORM | Doctrine ORM (XML mapping)                               |
-| DB | MySQL 8                                                  |
+| DB | MySQL 8.4 LTS (image pinned to `mysql:8.4`)               |
 | Cache / KV | Redis 8                                                  |
 | Async messaging | RabbitMQ 4.x + Symfony Messenger                         |
-| Frontend (Series, Books, YouTubeProgress) | Webpack Encore + Stimulus (Node.js 24 LTS in a container)  |
+| API contract | OpenAPI 3.1 via NelmioApiDocBundle (`/api/doc`)           |
+| Frontend (all modules since 1.19.0) | Webpack Encore + Stimulus (Node.js 24 LTS in a container)  |
 | Frontend (Tasks, Articles, Music) | Twig + vanilla JavaScript (`public/js/`)                 |
 | Backend tests | PHPUnit 13                                               |
-| E2E tests | Playwright 1.49 (`tests-e2e/`)                           |
+| Frontend unit tests | Vitest 4 + jsdom (`app/assets/tests/`)                   |
+| E2E tests | Playwright 1.61 (`tests-e2e/`)                           |
 | API smoke tests | Newman / Postman v2.1 (`tests-e2e/postman/`)             |
 | Logging | Monolog → Graylog 6.3 (GELF UDP) + optionally New Relic |
 | PDF | dompdf/dompdf ^3.1                                       |
@@ -134,7 +147,7 @@ cd AIHomeManager
 cp app/.env app/.env.local
 ```
 
-Fill in `app/.env.local` according to the [Configuration](#configuration) section. **Without valid `API_KEY` + `DISCOGS_TOKEN_KEY` + `GOOGLE_TOKEN_KEY` + `TRAKT_TOKEN_KEY` keys the application will not start** (DI will not boot the value objects with empty arguments — the encryption keys must be valid 32-byte base64, otherwise `TokenCipher` throws). OAuth/API keys (`GOOGLE_CLIENT_*`, `DISCOGS_CONSUMER_*`, `LASTFM_*`, `TRAKT_CLIENT_*`, `YOUTUBE_WATCHLIST_PLAYLIST_ID`) can stay empty until you want to use a specific module — the dependent endpoints will then return 503/400 instead of 500.
+Fill in `app/.env.local` according to the [Configuration](#configuration) section. **Without valid `API_KEY` + `DISCOGS_TOKEN_KEY` + `GOOGLE_TOKEN_KEY` + `TRAKT_TOKEN_KEY` + `SPOTIFY_TOKEN_KEY` keys the application will not start** (DI will not boot the value objects with empty arguments — the encryption keys must be valid 32-byte base64, otherwise `TokenCipher` throws). OAuth/API keys (`GOOGLE_CLIENT_*`, `DISCOGS_CONSUMER_*`, `LASTFM_*`, `TRAKT_CLIENT_*`, `SPOTIFY_CLIENT_*`, `YOUTUBE_WATCHLIST_PLAYLIST_ID`) can stay empty until you want to use a specific module — the dependent endpoints will then return 503/400/409 instead of 500.
 
 ### 2. Start the stack
 
@@ -164,12 +177,14 @@ Required — without `entrypoints.json` Twig throws 500 on the `encore_entry_*` 
 |---|---|
 | Application (UI + API) | http://localhost:8080 |
 | Health check (public, no auth) | http://localhost:8080/api/health |
+| API documentation — Swagger UI (public) | http://localhost:8080/api/doc |
+| API documentation — Redoc / raw spec | http://localhost:8080/api/doc/redoc · http://localhost:8080/api/doc.json |
 | RabbitMQ Management | http://localhost:15672 (guest/guest) |
 | MySQL | localhost:3306 (homemanager/homemanager, DB `homemanager`) |
 | Redis | localhost:6379 |
 | Graylog (optional) | http://localhost:9000 (admin/admin) — requires `make monitoring-up` |
 
-UI routes: `/` (redirect → `/series`), `/series`, `/tasks`, `/books`, `/articles`, `/music`, `/youtube-progress`.
+UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`. Global search lives in the navbar on every page.
 
 ### 5. (Optional) load fixtures + verify tests
 
@@ -200,6 +215,7 @@ API_KEY=...
 DISCOGS_TOKEN_KEY=...
 GOOGLE_TOKEN_KEY=...
 TRAKT_TOKEN_KEY=...
+SPOTIFY_TOKEN_KEY=...
 
 # OAuth2 — Google Calendar (Tasks) + YouTube Data API (YouTubeProgress); one client, two scopes
 # https://console.cloud.google.com
@@ -220,10 +236,30 @@ DISCOGS_CALLBACK_URL=http://localhost:8080/auth/discogs/callback
 LASTFM_API_KEY=...
 LASTFM_USERNAME=...
 
-# OAuth2 — Trakt.tv (Series — import of watched shows) — https://trakt.tv/oauth/applications
+# OAuth2 — Trakt.tv (Series + Movies — import of watched shows/films) — https://trakt.tv/oauth/applications
 TRAKT_CLIENT_ID=...
 TRAKT_CLIENT_SECRET=...
 TRAKT_REDIRECT_URI=http://localhost:8080/auth/trakt/callback
+
+# OAuth2 — Spotify (Podcasts — derived listening history) — https://developer.spotify.com/dashboard
+# Scopes requested: user-library-read, user-read-playback-position, user-read-currently-playing.
+# WITHOUT user-read-playback-position Spotify omits resume points entirely — the integration
+# then connects successfully and reports nothing.
+SPOTIFY_CLIENT_ID=...
+SPOTIFY_CLIENT_SECRET=...
+SPOTIFY_REDIRECT_URI=http://localhost:8080/auth/spotify/callback
+
+# Notifications — e-mail channel (Symfony Mailer). null://null disables delivery without breaking.
+MAILER_DSN=null://null
+NOTIFICATIONS_MAIL_FROM=...
+NOTIFICATIONS_MAIL_TO=...
+
+# Notifications — WebPush. VAPID identifies this server to the push service (no FCM, no third party).
+# Generate the pair: php -r "require 'vendor/autoload.php'; var_dump(Minishlink\WebPush\VAPID::createVapidKeys());"
+# The private key never leaves the server; the public one is handed to the browser on subscribe.
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:you@example.com
 ```
 
 ### Generating encryption keys
@@ -232,7 +268,7 @@ TRAKT_REDIRECT_URI=http://localhost:8080/auth/trakt/callback
 docker compose exec php php -r "echo base64_encode(sodium_crypto_secretbox_keygen()), PHP_EOL;"
 ```
 
-Generate **three different** keys — a separate one for Discogs, Google, and Trakt. Separate keys isolate the blast radius if one provider is compromised.
+Generate **four different** keys — a separate one for Discogs, Google, Trakt, and Spotify. Separate keys isolate the blast radius if one provider is compromised.
 
 ### How to obtain keys and tokens
 
@@ -244,7 +280,8 @@ The full step-by-step guide (scopes, consent screen, common mistakes) is on Conf
 | **YouTube playlist** | YouTubeProgress | In your YouTube account create an "AIHM Watchlist" playlist and copy its ID from the URL (the part after `list=`) | `YOUTUBE_WATCHLIST_PLAYLIST_ID` |
 | **Discogs** | Music | [discogs.com/settings/developers](https://www.discogs.com/settings/developers) → *Create an Application* → callback `http://localhost:8080/auth/discogs/callback` | `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `DISCOGS_USERNAME` |
 | **Last.fm** | Music | [last.fm/api/account/create](https://www.last.fm/api/account/create) → create an API account | `LASTFM_API_KEY`, `LASTFM_USERNAME` |
-| **Trakt.tv** | Series | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) → *New Application* → Redirect URI `http://localhost:8080/auth/trakt/callback` | `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` |
+| **Trakt.tv** | Series, Movies | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) → *New Application* → Redirect URI `http://localhost:8080/auth/trakt/callback` | `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` |
+| **Spotify** | Podcasts | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → *Create app* → Redirect URI `http://localhost:8080/auth/spotify/callback`. One token covers the followed-show catalog and every episode's resume point | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` |
 | **National Library** | Books | no registration — public `data.bn.org.pl` API (throttled 60/min by a shared client) | — |
 
 Google cumulatively requires the `calendar.events` **and** `youtube` (read/write) scopes on a single token; after the first authorization both modules (Tasks + YouTubeProgress) work on the same encrypted token.
@@ -255,7 +292,8 @@ After starting the application and filling in `.env.local`, open in a browser:
 
 - `http://localhost:8080/auth/google` — OAuth2 Google (Calendar + YouTube; forces the consent screen for both scopes)
 - `http://localhost:8080/auth/discogs` — OAuth1 Discogs
-- `http://localhost:8080/auth/trakt` — OAuth2 Trakt.tv
+- `http://localhost:8080/auth/trakt` — OAuth2 Trakt.tv (Series + Movies imports)
+- `http://localhost:8080/auth/spotify` — OAuth2 Spotify (Podcasts)
 
 The tokens are encrypted (libsodium secretbox) and stored in MySQL. Last.fm and the National Library do not require an OAuth flow — Last.fm works right after setting the API key, and BN needs no keys at all.
 
@@ -283,7 +321,10 @@ The tokens are encrypted (libsodium secretbox) and stored in MySQL. Last.fm and 
 | Worker status | `make messenger-status` |
 | Logs | `make logs` |
 | Fixtures (demo data, dev only) | `make fixtures` |
-| Webpack Encore (Series + Books) | `make assets` / `make assets-watch` / `make assets-prod` |
+| Webpack Encore (frontend build) | `make assets` / `make assets-watch` / `make assets-prod` |
+| JS unit tests (Vitest) | `make test-js` |
+| Tests with coverage + threshold gate | `make test-coverage` |
+| OpenAPI contract dump / lint | `make openapi-dump` / `make openapi-lint` |
 | Reinstall npm in the node container | `make node-install` |
 | Static analysis (CS Fixer + PHPStan + Deptrac) | `make analyse` |
 | PHPStan | `make phpstan` / `make phpstan-baseline` |
@@ -304,16 +345,18 @@ The tokens are encrypted (libsodium secretbox) and stored in MySQL. Last.fm and 
 ### Branches
 
 ```
-master   ← stable, merge from develop only
+master   ← stable, synced from develop at each release
 develop  ← integration, default for PRs
 feature/fix branches  ← created from develop
 ```
 
-Branches are created from `develop`. Merge into `develop` via PR.
+Branches are created from `develop` and merged into it via PR. **Every PR is merged with "Rebase and merge"** (`gh pr merge <n> --rebase`) — the new commits are replayed on the target's tip, keeping both branches linear; merge commits are not used. Realigning two branches that have drifted is likewise done by rebasing and force-pushing, never by merging one into the other.
+
+At release time `develop` is synced onto `master` through a PR merged the same way, and `develop` is then rebased back onto `master` so both refs point at the same commit. **The release tag is created after that sync, never before** — a rebase creates new commit objects, so a tag made on the pre-sync commit would be left on an orphan that no branch can reach.
 
 ### Symfony Messenger worker
 
-Two workers: `messenger_worker` (async — `EpisodeRated`, `RefreshDiscogsCollection`, `PollLastFmRecentTracks`) and `scheduler_worker` (the `scheduler_default` transport — backup, weekly report, daily article reset, etc.). Command:
+Two workers: `messenger_worker` (async — `EpisodeRated`, the Trakt imports, `RefreshDiscogsCollection`, `PollLastFmRecentTracks`, `RecalculateStreaks`, `DispatchNotification`, `PollPodcastListens`) and `scheduler_worker` (the `scheduler_default` transport — 10 recurring tasks: backup, weekly report, daily article reset, Discogs refresh, Last.fm poll, streak recompute, search reindex, two notification sweeps, podcast poll). Command:
 
 ```
 bin/console messenger:consume async --time-limit=3600 -vv
@@ -328,6 +371,7 @@ Routing is defined in `app/config/packages/messenger.yaml`. In the test env the 
 |---|---|---|
 | Aggregate Root | `Series`, `Task`, `Book`, `Article` | `Domain/Entity/` |
 | Value Object (`final readonly`) | `Rating`, `ISBN`, `CoverUrl`, `TimeSlot` | `Domain/ValueObject/` |
+| Read Model (what a Domain port returns) | `BookMetadata`, `Album`, `ListenedEpisode` | `Domain/ReadModel/` |
 | Command | `CreateSeries`, `LogReadingSession` | `Application/Command/` |
 | Command Handler | `*Handler` | `Application/Handler/` |
 | Query | `GetAllSeries`, `GetSeriesDetail` | `Application/Query/` |
@@ -335,6 +379,7 @@ Routing is defined in `app/config/packages/messenger.yaml`. In the test env the 
 | DTO | `*DTO` | `Application/DTO/` |
 | Repository Interface | `*RepositoryInterface` | `Domain/Repository/` |
 | Repository Implementation | `Doctrine*Repository` | `Infrastructure/Persistence/` |
+| Serializer Normalizer (DTO → JSON) | `*DTONormalizer` | `src/Serializer/` (Glue) |
 
 ---
 
@@ -344,6 +389,8 @@ Routing is defined in `app/config/packages/messenger.yaml`. In the test env the 
 make test               # PHPUnit (Unit + Integration)
 make test-unit          # Domain only
 make test-integration   # integration only
+make test-js            # Vitest (frontend pure helpers, jsdom)
+make test-coverage      # PHPUnit + coverage report + threshold gate
 make test-e2e           # Playwright (desktop + mobile)
 make test-newman        # Newman/Postman smoke
 ```
@@ -353,6 +400,8 @@ make test-newman        # Newman/Postman smoke
 - `*ApiTest` tests use `App\Tests\Support\AuthenticatedApiTrait` — the `X-API-Key: test-api-key` header (see `app/.env.test`).
 - **E2E (Playwright)** in `tests-e2e/`, TypeScript. Files matching `*.desktop.spec.ts` (1440×900) or `*.mobile.spec.ts` (Pixel 5 viewport).
 - **Smoke (Newman)** in `tests-e2e/postman/AIHomeManager.postman_collection.json`. Run via `make test-newman` (truncate + newman with `--ignore-redirects`).
+- **JS unit (Vitest)** in `app/assets/tests/*.test.js` — fast jsdom tests for the frontend's pure helpers (labels, formatting, grouping, sorting). They must NOT live under `assets/controllers/`, where the Stimulus `webpackContext` would auto-mount every `.js` as a controller and break the build.
+- **Coverage gate:** `make test-coverage` measures line coverage via pcov and fails below the floor (`COVERAGE_MIN`, default 90; measured 93.66% at the 1.18.0 baseline). CI enforces the same floor and uploads the HTML report as an artifact.
 - **E2E/Newman prerequisite:** `API_KEY=e2e-test-key` in `app/.env.local`, Discogs/Last.fm/Google placeholders set to anything non-empty (DI will not boot with empty VOs).
 
 ---
@@ -370,9 +419,9 @@ make deptrac              # Deptrac architecture boundaries
 
 The PHPStan baseline (`app/phpstan-baseline.neon`) holds the existing debt. New errors require a fix or an explicit addition to the baseline via `make phpstan-baseline`.
 
-Deptrac formalizes the hexagonal boundaries: every module has separate Domain/Application/Infrastructure layers. Domain → [] (zero dependencies beyond PHP core), cross-module coupling forbidden. Pre-existing violations live in `skip_violations` (Domain ports returning Application DTOs in Books/Music; Music/Tasks Infrastructure → `App\Security\TokenCipher`).
+Deptrac formalizes the hexagonal boundaries: every module has separate Domain/Application/Infrastructure layers, plus a cross-cutting `Shared` kernel layer. Domain → [`Shared`] (otherwise zero dependencies beyond PHP core), cross-module coupling forbidden. It runs with **zero violations and zero `skip_violations`** — the four grandfathered exceptions were resolved rather than re-baselined, so a new violation is a hard failure with nothing to hide behind.
 
-CI (`.github/workflows/ci.yml`) runs four jobs on every push and PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac), `tests` (PHPUnit), `e2e-playwright` (Playwright desktop + mobile), and `e2e-newman` (Newman API smoke). The E2E jobs start the application via `symfony server:start` (env `test`, `in-memory://` transport) and upload HTML reports as artifacts (30-day retention).
+CI (`.github/workflows/ci.yml`) runs five jobs on every push and PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac + Composer audit), `openapi-contract` (dump `openapi.json` → Spectral lint → upload the spec artifact), `tests` (PHPUnit + the coverage threshold gate), `e2e-playwright` (Playwright desktop + mobile), and `e2e-newman` (Newman API smoke). The E2E jobs start the application via `symfony server:start` (env `test`, `in-memory://` transport) and upload HTML reports as artifacts (30-day retention).
 
 ---
 
@@ -413,7 +462,9 @@ Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confl
 │   │   ├── app.js
 │   │   ├── bootstrap.js
 │   │   ├── util.js                 ← ES module helpers
-│   │   ├── controllers/            ← Stimulus controllers
+│   │   ├── controllers/            ← Stimulus controllers (auto-mounted)
+│   │   ├── {series,goals,movies,…}/← pure helpers + view builders (NOT auto-mounted)
+│   │   ├── tests/                  ← Vitest unit tests
 │   │   └── styles/app.css
 │   ├── bin/console
 │   ├── config/
@@ -429,13 +480,20 @@ Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confl
 │   │   └── js/                     ← vanilla JS (Tasks/Articles/Music)
 │   ├── src/
 │   │   ├── Controller/
+│   │   │   └── Api/                ← version-agnostic API controllers (imported twice)
 │   │   ├── EventListener/
 │   │   ├── Health/
 │   │   ├── Http/                   ← RateLimitedHttpClient
-│   │   ├── Module/                 ← {Series,Tasks,Books,Articles,Music,YouTubeProgress}
+│   │   ├── Logging/                ← Monolog processors, request-id holder
+│   │   ├── Messaging/              ← typed Query/Command bus + Messenger middleware
+│   │   ├── Module/                 ← 12 modules (Series, Tasks, Books, Articles, Music,
+│   │   │   │                          YouTubeProgress, Goals, Search, Dashboard,
+│   │   │   │                          Movies, Notifications, Podcasts)
 │   │   │   └── {Name}/{Domain,Application,Infrastructure}/
 │   │   ├── Schedule.php
-│   │   └── Security/
+│   │   ├── Security/
+│   │   ├── Serializer/             ← *DTONormalizer (DTO → JSON)
+│   │   └── Shared/                 ← shared kernel (cross-context VOs + contracts)
 │   ├── templates/                  ← Twig
 │   ├── tests/
 │   │   ├── Unit/
@@ -459,9 +517,23 @@ Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confl
 
 ## API
 
+### Versioning and documentation
+
+The REST surface is served under the versioned base **`/api/v1`**, with the bare **`/api`** prefix kept as a backward-compatible alias — both resolve to the same controllers and return byte-identical responses (ADR-008). Versioning is by path prefix, not by an `Accept` header. A breaking change would ship as `/api/v2`; `/api/v1` is never mutated in place.
+
+The whole contract is generated as **OpenAPI 3.1** from the controllers' attributes and published without a key:
+
+| What | Where |
+|---|---|
+| Swagger UI (interactive) | `/api/doc` |
+| Redoc | `/api/doc/redoc` |
+| Raw spec (JSON) | `/api/doc.json` |
+
+The contract is a CI gate, not just documentation: a dedicated job dumps the spec, lints it with Spectral, and PHPUnit validates real responses against the schema documented for the status code they actually returned — so a normalizer drifting from its documented shape fails the build. Locally: `make openapi-dump` / `make openapi-lint`.
+
 ### Authentication
 
-The `^/api/*` endpoints are protected by the `api` firewall (stateless, custom authenticator). Add the header:
+The `^/api/*` endpoints are protected by the `api` firewall (stateless, custom authenticator) — the pattern covers both `/api/v1/*` and the `/api/*` alias. Add the header:
 
 ```
 X-API-Key: <value from .env.local>
@@ -469,9 +541,9 @@ X-API-Key: <value from .env.local>
 
 Missing / invalid key → `401 {"error": "..."}`.
 
-Exception: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + a 3-state disk probe).
+Exceptions: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + a 3-state disk probe) — and the three API-doc routes above.
 
-The `/auth/google*`, `/auth/discogs*`, `/auth/trakt*` endpoints and the UI (`/`, `/series`, …) are public.
+The `/auth/google*`, `/auth/discogs*`, `/auth/trakt*`, `/auth/spotify*` endpoints and the UI (`/`, `/series`, …) are public.
 
 ### Example — Series
 
