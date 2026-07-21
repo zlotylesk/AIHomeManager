@@ -145,6 +145,39 @@ final class GetTrendsHandlerTest extends TestCase
         self::assertEquals($first, $second);
     }
 
+    /**
+     * The two features have to compose: fault isolation keeps a broken source
+     * from blanking the dashboard, and the cache must not then pin that outage
+     * for the whole TTL. A source that recovers is picked up on the next read.
+     */
+    public function testATransientlyBrokenMetricIsRetriedRatherThanServedFromCache(): void
+    {
+        // Transient by construction: the music source throws the first time it is
+        // read and answers normally from then on.
+        $musicReads = 0;
+        $provider = $this->providerReturning(static function (MetricType $metric) use (&$musicReads): TrendSeries {
+            if (MetricType::MUSIC_TRACKS_PLAYED === $metric && 1 === ++$musicReads) {
+                throw new RuntimeException('source unavailable');
+            }
+
+            return new TrendSeries($metric, Granularity::WEEK, [self::point('2026-07-06', 1.0)]);
+        });
+
+        $handler = new GetTrendsHandler(
+            $provider,
+            new RedisTrendsCache(new ArrayAdapter(), new NullLogger()),
+            new NullLogger(),
+        );
+        $query = new GetTrends(Granularity::WEEK, new DateTimeImmutable(self::FROM), new DateTimeImmutable(self::TO));
+
+        $degraded = $handler($query);
+        self::assertSame([], self::seriesOf($degraded->series, MetricType::MUSIC_TRACKS_PLAYED)->points);
+
+        $recovered = $handler($query);
+
+        self::assertCount(1, self::seriesOf($recovered->series, MetricType::MUSIC_TRACKS_PLAYED)->points);
+    }
+
     private function handle(TrendDataProviderInterface $provider, ?LoggerInterface $logger = null): TrendsDTO
     {
         $handler = new GetTrendsHandler(
