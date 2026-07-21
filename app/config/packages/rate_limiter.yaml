@@ -36,6 +36,16 @@ framework:
             rate: { interval: '5 minutes', amount: 1000 }
             cache_pool: 'cache.rate_limiter'
 
+        # Spotify publishes no fixed quota — it rate-limits on a rolling 30-second
+        # window and answers 429 with Retry-After. A podcast poll is 1 + N calls
+        # across the saved shows, so this is sized to let a whole sweep through
+        # comfortably while still throttling a runaway loop.
+        spotify_api:
+            policy: 'token_bucket'
+            limit: 180
+            rate: { interval: '1 minute', amount: 180 }
+            cache_pool: 'cache.rate_limiter'
+
 when@test:
     services:
         rate_limiter.test_storage:
@@ -58,4 +68,6 @@ when@test:
             youtube_api:
                 policy: 'no_limit'
             trakt_api:
+                policy: 'no_limit'
+            spotify_api:
                 policy: 'no_limit'

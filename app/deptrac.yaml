@@ -123,6 +123,21 @@ deptrac:
               - type: directory
                 value: src/Module/Notifications/Infrastructure/.*
 
+        - name: PodcastsDomain
+          collectors:
+              - type: directory
+                value: src/Module/Podcasts/Domain/.*
+
+        - name: PodcastsApplication
+          collectors:
+              - type: directory
+                value: src/Module/Podcasts/Application/.*
+
+        - name: PodcastsInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Podcasts/Infrastructure/.*
+
         - name: SearchDomain
           collectors:
               - type: directory
@@ -235,6 +250,8 @@ deptrac:
             - Shared
         NotificationsDomain:
             - Shared
+        PodcastsDomain:
+            - Shared
         SearchDomain:
             - Shared
         SeriesDomain:
@@ -272,6 +289,10 @@ deptrac:
             - Vendor
         NotificationsApplication:
             - NotificationsDomain
+            - Shared
+            - Vendor
+        PodcastsApplication:
+            - PodcastsDomain
             - Shared
             - Vendor
         SearchApplication:
@@ -328,6 +349,11 @@ deptrac:
             - NotificationsApplication
             - Shared
             - Vendor
+        PodcastsInfrastructure:
+            - PodcastsDomain
+            - PodcastsApplication
+            - Shared
+            - Vendor
         SearchInfrastructure:
             - SearchDomain
             - SearchApplication
@@ -373,6 +399,9 @@ deptrac:
             - NotificationsDomain
             - NotificationsApplication
             - NotificationsInfrastructure
+            - PodcastsDomain
+            - PodcastsApplication
+            - PodcastsInfrastructure
             - SearchDomain
             - SearchApplication
             - SearchInfrastructure

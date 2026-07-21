@@ -44,7 +44,7 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences');
+        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences', 'podcast_listening_sessions', 'podcast_episodes', 'podcasts');
 
         $content = $this->fetchSpecContent();
 
@@ -115,6 +115,22 @@ final class OpenApiContractTest extends WebTestCase
         // lastActivityDate once activity exists — the populated branch of StreakDTO.
         $this->seedGoalWithActivity();
         $this->assertResponseConformsToContract('GET', '/api/v1/goals/streaks', '/api/v1/goals/streaks');
+    }
+
+    public function testPodcastsListResponseConformsToContract(): void
+    {
+        // A show with listening behind it, so the counters and lastListenedAt
+        // are populated rather than the empty-catalog branch.
+        $this->seedPodcast();
+        $this->assertResponseConformsToContract('GET', '/api/v1/podcasts', '/api/v1/podcasts');
+    }
+
+    public function testPodcastsDetailResponseConformsToContract(): void
+    {
+        // The flattened show plus both nested collections — the episode carrying
+        // aggregated progress and the session carrying its episode title.
+        $id = $this->seedPodcast();
+        $this->assertResponseConformsToContract('GET', '/api/v1/podcasts/'.$id, '/api/v1/podcasts/{id}');
     }
 
     public function testSearchResponseConformsToContract(): void
@@ -486,6 +502,50 @@ final class OpenApiContractTest extends WebTestCase
             'sent_at' => null,
             'failure_reason' => 'push endpoint gone',
         ]);
+    }
+
+    /**
+     * Podcasts has no write API — the catalog is materialized by the Spotify
+     * sweep — so the fixture goes in through the tables the read query reads.
+     * One show, one episode, one finished listen: every nullable field on both
+     * read models populated, so neither branch goes unchecked.
+     */
+    private function seedPodcast(): string
+    {
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+
+        $connection->insert('podcasts', [
+            'id' => 'contract-pod-1',
+            'title' => 'Radio Naukowe',
+            'external_id' => 'spotify-show-contract',
+            'publisher' => 'Karolina Głowacka',
+            'cover_url' => 'https://example.com/podcast-cover.jpg',
+            'description' => 'Nauka po ludzku.',
+            'created_at' => '2026-07-01 10:00:00',
+        ]);
+
+        $connection->insert('podcast_episodes', [
+            'id' => 'contract-ep-1',
+            'podcast_id' => 'contract-pod-1',
+            'external_id' => 'spotify-episode-contract',
+            'title' => 'Odcinek kontraktowy',
+            'published_at' => '2026-07-01 06:00:00',
+            'duration_ms' => 1_800_000,
+            'created_at' => '2026-07-01 10:00:00',
+        ]);
+
+        $connection->insert('podcast_listening_sessions', [
+            'id' => 'contract-session-1',
+            'podcast_id' => 'contract-pod-1',
+            'episode_id' => 'contract-ep-1',
+            'listened_at' => '2026-07-20 19:00:00',
+            'resume_position_ms' => 1_750_000,
+            'fully_played' => 1,
+            'dedup_hash' => hash('sha256', 'contract-session-1'),
+            'created_at' => '2026-07-20 19:05:00',
+        ]);
+
+        return 'contract-pod-1';
     }
 
     private function truncate(string ...$tables): void

@@ -1,7 +1,7 @@
 doctrine:
     dbal:
         url: '%env(resolve:DATABASE_URL)%'
-        schema_filter: '~^(?!google_oauth_tokens|discogs_oauth_tokens|trakt_oauth_tokens|watch_session_videos|search_documents)~'
+        schema_filter: '~^(?!google_oauth_tokens|discogs_oauth_tokens|trakt_oauth_tokens|spotify_oauth_tokens|watch_session_videos|search_documents)~'
         types:
             task_status: App\Module\Tasks\Infrastructure\Persistence\Doctrine\Type\TaskStatusType
             book_status: App\Module\Books\Infrastructure\Persistence\Doctrine\Type\BookStatusType
@@ -98,6 +98,16 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Notifications/Infrastructure/Persistence/Doctrine/Entity'
                 prefix: 'App\Module\Notifications\Domain\Entity'
+            PodcastsDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Podcasts/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Podcasts\Domain\Entity'
+            PodcastsDomainValueObjects:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Podcasts/Infrastructure/Persistence/Doctrine/ValueObject'
+                prefix: 'App\Module\Podcasts\Domain\ValueObject'
 
 when@test:
     doctrine:

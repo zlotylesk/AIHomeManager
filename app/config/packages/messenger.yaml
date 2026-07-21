@@ -52,6 +52,7 @@ framework:
             App\Module\Music\Application\Command\PollLastFmRecentTracks: async
             App\Module\Goals\Application\Command\RecalculateStreaks: async
             App\Module\Notifications\Application\Command\DispatchNotification: async
+            App\Module\Podcasts\Application\Command\PollPodcastListens: async
 
 when@test:
     framework:
