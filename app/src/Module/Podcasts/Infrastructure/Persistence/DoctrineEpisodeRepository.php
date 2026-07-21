@@ -25,6 +25,15 @@ final readonly class DoctrineEpisodeRepository implements EpisodeRepositoryInter
         return $this->entityManager->find(Episode::class, $id);
     }
 
+    public function findByExternalId(string $externalId): ?Episode
+    {
+        return $this->entityManager
+            ->createQuery('SELECT e FROM '.Episode::class.' e WHERE e.externalId = :externalId')
+            ->setParameter('externalId', $externalId)
+            ->setMaxResults(1)
+            ->getOneOrNullResult();
+    }
+
     /**
      * Newest episode first — the order a listener reads a show in, and the order
      * the detail view will render. Episodes with no publication date sort last

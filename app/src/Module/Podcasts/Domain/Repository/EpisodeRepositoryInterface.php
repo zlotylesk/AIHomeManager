@@ -12,6 +12,9 @@ interface EpisodeRepositoryInterface
 
     public function findById(string $id): ?Episode;
 
+    /** Recognize an episode already imported from the source — see PodcastRepositoryInterface::findByExternalId(). */
+    public function findByExternalId(string $externalId): ?Episode;
+
     /** @return Episode[] */
     public function findByPodcastId(string $podcastId): array;
 

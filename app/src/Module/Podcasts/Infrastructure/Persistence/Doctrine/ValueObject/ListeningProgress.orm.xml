@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <!--
+        A plain embeddable is safe here because the session always has a
+        progress: the nullable-embeddable hydration hazard that forced the
+        series_rating / movie_rating custom DBAL types only bites when the
+        column can be NULL.
+    -->
+    <embeddable name="App\Module\Podcasts\Domain\ValueObject\ListeningProgress">
+        <field name="resumePositionMs" type="integer" column="resume_position_ms" nullable="false"/>
+        <field name="fullyPlayed" type="boolean" column="fully_played" nullable="false"/>
+    </embeddable>
+
+</doctrine-mapping>

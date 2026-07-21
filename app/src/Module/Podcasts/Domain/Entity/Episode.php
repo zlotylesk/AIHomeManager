@@ -19,6 +19,8 @@ use InvalidArgumentException;
  */
 final class Episode
 {
+    private ?string $externalId = null;
+
     private ?DateTimeImmutable $publishedAt = null;
 
     private ?int $durationMs = null;
@@ -56,6 +58,21 @@ final class Episode
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /** The episode's id at the source it came from — see Podcast::externalId(). */
+    public function externalId(): ?string
+    {
+        return $this->externalId;
+    }
+
+    public function linkExternal(string $externalId): void
+    {
+        if ('' === trim($externalId)) {
+            throw new InvalidArgumentException('External id cannot be empty.');
+        }
+
+        $this->externalId = $externalId;
     }
 
     public function publishedAt(): ?DateTimeImmutable
