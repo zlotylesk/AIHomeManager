@@ -1,8 +1,10 @@
 Tworzy annotated tag oraz GitHub Release dla wersji **$ARGUMENTS** (np. `1.6.0`). Wykonuj kroki ściśle po kolei.
 
-> **Wymóg wejściowy:** `develop` ma zmergowane wszystkie PR-y domykające `fixVersion = $ARGUMENTS`. Sekcja `## [$ARGUMENTS]` w `CHANGELOG.md` i bump `CLAUDE.md` "Wydania" **NIE muszą** być wcześniej zmergowane — od 1.8.0 robimy je bezpośrednio na `develop` jako chore commit w kroku 1.5 tego workflow (precedens zmieniony 2026-05-21, bez mini-PR, bez zgody).
+> **Wymóg wejściowy:** `develop` ma zmergowane wszystkie PR-y domykające `fixVersion = $ARGUMENTS`. Sekcja `## [$ARGUMENTS]` w `CHANGELOG.md` i bump `CLAUDE.md` "Wydania" **NIE muszą** być wcześniej zmergowane — robimy je w kroku 1.5 tego workflow.
 >
 > **NIE tworzymy** `release-$ARGUMENTS.md` w root repo — od 1.7.0 porzucone (CHANGELOG wystarczy, niepotrzebna duplikacja).
+>
+> **⚠️ KOLEJNOŚĆ JEST KRYTYCZNA — tag powstaje PO synchronizacji mastera, nie przed.** Tag wskazuje na konkretny **obiekt commita (SHA)**, a rebase nie przesuwa commitów, tylko tworzy nowe (inny rodzic → inny hash, mimo identycznego drzewa). Jeśli otagujesz `develop` przed syncem, rebase-merge do `master` zrobi z tagowanego commita sierotę: tag przestanie być osiągalny z jakiejkolwiek gałęzi, `git describe` go nie zobaczy, a GitHub nie pokaże go na liście commitów. Tak osierociały tagi `1.24.0`, `1.25.0` i `1.26.0` (naprawione ręcznie 2026-07-21). Dlatego **sync mastera to krok 3, a tag krok 4** — tag zakłada się na końcu, po ostatnim przepisaniu historii.
 
 ---
 
@@ -26,11 +28,13 @@ Jeśli tag już istnieje lub PR-y `fixVersion` nie zmergowane — STOP, wypisz c
 
 ---
 
-## 1.5. Pre-release docs (chore commit na develop)
+## 1.5. Pre-release docs (chore PR na develop)
 
-Jeśli brakuje sekcji `## [$ARGUMENTS]` w `CHANGELOG.md` lub `CLAUDE.md` "Wydania" wciąż wskazuje na poprzedni tag — wygeneruj zawartość i commituj **bezpośrednio na develop**. NIE twórz brancha. NIE twórz mini-PR. NIE pytaj o zgodę.
+Jeśli brakuje sekcji `## [$ARGUMENTS]` w `CHANGELOG.md` lub `CLAUDE.md` "Wydania" wciąż wskazuje na poprzedni tag — wygeneruj zawartość i wypuść jako **chore PR** na brancha `chore-changelog-$ARGUMENTS`.
 
 ```bash
+git checkout -b chore-changelog-$ARGUMENTS
+
 # 1. Wygeneruj sekcję CHANGELOG (format z `release_notes_schema.md` + poprzednich sekcji)
 #    - Intro paragraph (closes epic / partial progress + test counts + PHPStan note)
 #    - ### Added / ### Changed / ### Coverage / ### Documentation / ### Migration / ### Closed Jira / ### Carried forward
@@ -41,16 +45,21 @@ Jeśli brakuje sekcji `## [$ARGUMENTS]` w `CHANGELOG.md` lub `CLAUDE.md` "Wydani
 #    - dopisz "$PREV" na początek listy "Poprzednie:"
 #    - update counts epików w tabeli jeśli zmienione
 
-# 3. Commit + push
+# 3. Commit + PR
 git add CHANGELOG.md CLAUDE.md
 git commit -m "chore - changelog and status notes for $ARGUMENTS"
-git push origin develop
-git log --oneline -3   # ostatni commit = chore — to będzie tag point
+git push -u origin chore-changelog-$ARGUMENTS
+gh pr create --base develop --title "chore - changelog and status notes for $ARGUMENTS" --body "..."
+# zielone CI → merge
+gh pr merge <NR> --rebase --delete-branch
+
+git checkout develop && git pull --ff-only origin develop
+git log --oneline -3   # ostatni commit = chore
 ```
 
-Po tym commicie wracaj do kroku 2.
+**Uwaga:** ten commit **nie** jest jeszcze punktem tagowania — tagujemy dopiero jego kopię, która wyląduje na `master` w kroku 3. Ochrona gałęzi została zdjęta (2026-07-21), więc technicznie dałoby się pchnąć wprost na `develop`, ale trzymamy PR-y dla spójnego trailu i przebiegu CI.
 
-**Why ten workflow:** mini-PR dla dwóch docfile'i to ceremoniał bez review value — branch protection na develop nie wymaga PR, a sekcja CHANGELOG jest derywowana z commitów już na develop (`git log PREV..HEAD`). Tworzenie brancha + PR + merge to 3 dodatkowe kroki bez gain'u. Patrz pamięć `feedback_release_changelog_direct_on_develop.md` w `~/.claude/projects/...`.
+Po zmergowaniu wracaj do kroku 2.
 
 ---
 
@@ -66,7 +75,38 @@ Po tym commicie wracaj do kroku 2.
 
 ---
 
-## 3. Annotated tag
+## 3. Sync master + wyrównanie develop (PRZED tagiem)
+
+Ten krok ustala commit, który stanie się punktem tagowania. Po nim historia nie jest już przepisywana.
+
+```bash
+# 3a. PR develop → master
+gh pr create --base master --head develop --title "Release $ARGUMENTS — sync master" --body "..."
+# zielone CI (5 jobów) → merge REBASE-em.
+# NIGDY --delete-branch: head brancha to develop!
+gh pr merge <NR> --rebase
+
+# 3b. Wyrównaj develop do mastera — TO JEST OBOWIĄZKOWE
+git fetch origin
+git checkout develop
+git rebase origin/master        # commity znikają jako "previously applied" (patch-id)
+git push --force-with-lease origin develop
+
+# 3c. Weryfikacja — obie gałęzie MUSZĄ wskazywać na ten sam commit
+git rev-parse origin/master origin/develop   # dwa identyczne SHA
+```
+
+**Dlaczego 3b nie jest opcjonalne:** rebase-merge odtwarza commity na masterze pod **nowymi SHA**, a `develop` trzyma oryginały. Bez rebase'u wracającego obie gałęzie niosą tę samą pracę pod różnymi SHA — i każdy kolejny sync się wykłada konfliktami (tak narastało od 1.24.0 do 1.26.0, patrz PR #399/#401 zamknięte konfliktowo).
+
+**Merge commit NIE jest rozwiązaniem** — decyzja ownera 2026-07-21: wyrównania robimy wyłącznie rebasem, master i develop zostają liniowe.
+
+Jeśli `git rebase origin/master` sypie konfliktami — STOP i pokaż userowi. Czysty rebase pomija już zastosowane commity po patch-id; konflikt oznacza realną rozbieżność treści, nie samych SHA.
+
+Zapamiętaj SHA z kroku 3c — to `{commit_sha}` dla tagu.
+
+---
+
+## 4. Annotated tag (na commicie z kroku 3c)
 
 Schemat tag message (English, plain text, ~120 linii — wzorzec z tagu `1.5.0` i `1.6.0`):
 
@@ -109,6 +149,8 @@ Not in this release
 Full upgrade notes: see CHANGELOG.md section [$ARGUMENTS].
 ```
 
+`Commit:` w treści tagu MUSI wskazywać SHA z kroku 3c (commit na `master`), nie stary SHA z develop sprzed rebase'u.
+
 Stwórz i pchnij:
 
 ```bash
@@ -120,11 +162,23 @@ git show $ARGUMENTS --no-patch --format='%h %s'   # sanity
 git push origin $ARGUMENTS
 ```
 
+**Weryfikacja osiągalności — obowiązkowa:**
+
+```bash
+git merge-base --is-ancestor $ARGUMENTS origin/master  && echo "tag on master OK"
+git merge-base --is-ancestor $ARGUMENTS origin/develop && echo "tag on develop OK"
+git describe --tags origin/master    # MUSI zwrócić dokładnie $ARGUMENTS
+```
+
+Jeśli któreś padnie — tag wylądował na sierocie; wróć do kroku 3 zamiast publikować Release.
+
+**Naprawa osieroconego tagu (gdyby kolejność kiedyś się rozjechała):** znajdź na `master` commit o identycznym drzewie (`git rev-parse $TAG^{tree}`, potem skan `git rev-list origin/master`), odtwórz tag z oryginalną treścią i datą tagowania (`git tag -l --format='%(contents)' $TAG > msg`, popraw w niej linię `Commit:`, `GIT_COMMITTER_DATE="<oryginalna data>" git tag -f -a $TAG <nowy_sha> -F msg`) i `git push --force origin refs/tags/$TAG`. GitHub Release podąża za tagiem sam — `target_commitish` i `published_at` zostają nietknięte.
+
 ---
 
-## 4. GitHub Release body — w schemacie 1.3.0/1.5.0
+## 5. GitHub Release body — w schemacie 1.3.0/1.5.0
 
-Zapisz body do **tymczasowego** pliku `release-$ARGUMENTS-github.md` w root repo. **NIE commituj go** — usunięcie w kroku 6.
+Zapisz body do **tymczasowego** pliku `release-$ARGUMENTS-github.md` w root repo. **NIE commituj go** — usunięcie w kroku 7.
 
 Schemat body (Markdown, EN, z `release_notes_schema.md` w persistent memory). Intro paragraph (scope + test counts) jest **opcjonalny** — jeśli user wprost powie "intro nie jest potrzebne" albo jeśli release jest trywialny w narrative (np. partial-epic batch), pomiń intro paragraph i zacznij od **Date:**/**Commit:** block:
 
@@ -175,9 +229,9 @@ Still open under `ai_code_review` (counts after $ARGUMENTS closure): [HMAI-AAA](
 
 ---
 
-## 5. Publikacja Release przez REST API
+## 6. Publikacja Release
 
-`gh` CLI nie jest dostępne; GitHub MCP nie ma `create_release`. Użyj PAT z `.env.local` (klucz `GITHUB_PERSONAL_ACCESS_TOKEN`).
+`gh` CLI **jest** dostępne (`gh release create $ARGUMENTS --notes-file release-$ARGUMENTS-github.md --title "Release $ARGUMENTS — {Theme}" --latest`) i to jest najprostsza droga. Poniższy wariant REST zostaje jako fallback, gdyby `gh` nie miał uprawnień — PAT z `.env.local` (klucz `GITHUB_PERSONAL_ACCESS_TOKEN`).
 
 **PowerShell (Windows):**
 
@@ -226,26 +280,13 @@ $r = Invoke-RestMethod -Uri "https://api.github.com/repos/zlotylesk/AIHomeManage
 
 ---
 
-## 6. Cleanup
+## 7. Cleanup
 
 ```bash
 rm release-$ARGUMENTS-github.md   # NIE commituj go
 ls release-*.md                    # MUSI zostać tylko historyczne release-1.6.0.md i wcześniejsze (nowych nie tworzymy)
 git status                         # clean
 ```
-
----
-
-## 7. Master fast-forward
-
-```bash
-git checkout master
-git merge --ff-only develop
-git push origin master
-git checkout develop
-```
-
-Jeśli `--ff-only` pada — STOP. Rozbieżność master vs develop wymaga decyzji usera, nie auto-merge.
 
 ---
 
