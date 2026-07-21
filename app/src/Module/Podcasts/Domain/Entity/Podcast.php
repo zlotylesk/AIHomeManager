@@ -20,6 +20,8 @@ use InvalidArgumentException;
  */
 final class Podcast
 {
+    private ?string $externalId = null;
+
     private ?string $publisher = null;
 
     private ?string $coverUrl = null;
@@ -49,6 +51,26 @@ final class Podcast
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /**
+     * The show's id at the source it was imported from, or null for a show
+     * created locally. Named provider-neutrally rather than `spotifyId` to match
+     * the port's `podcastExternalId` (HMAI-323) — a second source later needs no
+     * schema change, and nothing in the Domain should know which one it was.
+     */
+    public function externalId(): ?string
+    {
+        return $this->externalId;
+    }
+
+    public function linkExternal(string $externalId): void
+    {
+        if ('' === trim($externalId)) {
+            throw new InvalidArgumentException('External id cannot be empty.');
+        }
+
+        $this->externalId = $externalId;
     }
 
     public function publisher(): ?string
