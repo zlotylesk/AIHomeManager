@@ -59,7 +59,7 @@ Wykonaj **`/start-task {EPIC_KEY}`** — Ścieżka B (epic review): B1–B7 (ana
    - **B8 ⛔ STOP nadpisany:** przelot jest autonomiczny (wybór usera) — nie zatrzymuj się na B8. Implementuj braki znalezione w B5/B6; gdy brak braków — domknij epik (sam PR aktualizacji dokumentacji modułu/CLAUDE.md, jeśli trzeba). Zatrzymaj się **tylko** gdy epic review odsłoni realnie niejednoznaczną, trudno-odwracalną decyzję zakresu (rzadkie) — wtedy raport + czekaj.
    - Po zielonym CI: **merge** (recepta jak 3c) + status epiku → **Gotowe** (id `31`). Confluence — przy epiku zwykle TAK (aktualizacja strony modułu).
 
-**5. Release (automatyczny).** Po zamknięciu epiku uruchom **`/release-version $ARGUMENTS`** — pełny workflow wydania (CHANGELOG + CLAUDE.md status via chore-PR, tag, GitHub Release, sync master via PR). To świadomy wybór autonomii end-to-end (owner, ten skill).
+**5. Release (automatyczny).** Po zamknięciu epiku uruchom **`/release-version $ARGUMENTS`** — pełny workflow wydania: CHANGELOG + CLAUDE.md status via chore-PR → **sync master (rebase-merge) + wyrównanie developa rebasem → dopiero potem tag → GitHub Release**. Ta kolejność jest krytyczna i pilnuje jej sam skill: tag założony przed syncem zostaje na commicie, którego rebase-merge nie przenosi na mastera (osierocone tagi 1.24.0–1.26.0). To świadomy wybór autonomii end-to-end (owner, ten skill).
 
 **6. Podsumowanie przelotu.** Raport dla usera:
 - Tabela zrealizowanych zadań (`KEY | tytuł | worklog`).
