@@ -449,6 +449,32 @@ services:
     App\Module\Goals\Domain\Port\ActivityProviderInterface:
         alias: App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider
 
+    # Insights trend data (HMAI-330): one DBAL read adapter per habit metric,
+    # routed by the composite that backs the TrendDataProviderInterface port.
+    # Tagged explicitly (not via _instanceof) so the composite — which implements
+    # the same interface — cannot end up iterating over itself.
+    App\Module\Insights\Infrastructure\Provider\BooksPagesReadAdapter:
+        tags: ['insights.trend_provider']
+
+    App\Module\Insights\Infrastructure\Provider\SeriesEpisodesWatchedAdapter:
+        tags: ['insights.trend_provider']
+
+    App\Module\Insights\Infrastructure\Provider\YouTubeMinutesWatchedAdapter:
+        tags: ['insights.trend_provider']
+
+    App\Module\Insights\Infrastructure\Provider\MusicTracksPlayedAdapter:
+        tags: ['insights.trend_provider']
+
+    App\Module\Insights\Infrastructure\Provider\TasksCompletionRateAdapter:
+        tags: ['insights.trend_provider']
+
+    App\Module\Insights\Infrastructure\Provider\CompositeTrendDataProvider:
+        arguments:
+            $providers: !tagged_iterator insights.trend_provider
+
+    App\Module\Insights\Domain\Port\TrendDataProviderInterface:
+        alias: App\Module\Insights\Infrastructure\Provider\CompositeTrendDataProvider
+
     # Search indexing (HMAI-267): per-source-module DBAL read adapters expose
     # indexable documents, aggregated by the composite that backs the
     # SearchableProviderInterface port (deptrac-clean, no cross-module imports).
