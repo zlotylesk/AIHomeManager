@@ -11,6 +11,7 @@ use App\Module\Goals\Application\Command\RecalculateStreaks;
 use App\Module\Music\Application\Command\PollLastFmRecentTracks;
 use App\Module\Music\Application\Command\RefreshDiscogsCollection;
 use App\Module\Notifications\Application\Command\ReviewNotificationCandidates;
+use App\Module\Podcasts\Application\Command\PollPodcastListens;
 use App\Module\Search\Application\Command\ReindexSearchDocuments;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Scheduler\Attribute\AsSchedule;
@@ -28,6 +29,8 @@ use Symfony\Contracts\Cache\CacheInterface;
  *                 lapses, so the read-path never sees a cold cache.
  *  - Every 30m  — poll Last.fm recent tracks into the local listening history
  *                 (HMAI-144); the dedup hash makes re-polls idempotent.
+ *  - Every 30m  — poll Spotify for podcast listening (HMAI-325); likewise
+ *                 idempotent, so overlapping windows cost nothing.
  *
  * `stateful($cache)` means a worker restart replays any missed window once
  * (we accept the occasional duplicate; the handlers are idempotent).
@@ -64,6 +67,14 @@ final readonly class Schedule implements ScheduleProviderInterface
                 // first.
                 RecurringMessage::cron('0 8 * * *', new ReviewNotificationCandidates()),
                 RecurringMessage::cron('0 20 * * *', new ReviewNotificationCandidates()),
+                // Every 30 min like the Last.fm poll, though this one costs
+                // 1 + N calls (resume points only come attached to episodes,
+                // and episodes are only listable per show). The frequency earns
+                // its keep: `currently-playing` is the one endpoint naming a
+                // real listening moment, and it only reports while the episode
+                // is actually playing — a slower cadence would miss most of
+                // them and leave every listen dated by observation time.
+                RecurringMessage::cron('*/30 * * * *', new PollPodcastListens()),
             );
     }
 }
