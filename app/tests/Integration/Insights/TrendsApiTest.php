@@ -113,6 +113,38 @@ final class TrendsApiTest extends WebTestCase
         }
     }
 
+    /**
+     * The acceptance criterion "pusta metryka", proven against the real wiring
+     * rather than a stubbed provider: one source table is made unreadable, so its
+     * adapter genuinely throws. That metric must come back with an empty point
+     * list — the agreed "unavailable" signal — while the other four still carry
+     * their data and the response stays a 200.
+     */
+    public function testAnUnreadableSourceEmptiesOnlyItsOwnSeries(): void
+    {
+        $this->connection->insert('book_reading_sessions', ['id' => 'r-1', 'book_id' => 'b-1', 'date' => '2026-07-08', 'pages_read' => 40]);
+        $this->connection->executeStatement('RENAME TABLE videos TO videos_unavailable_probe');
+
+        try {
+            $this->get('/api/v1/trends?granularity=month&from=2026-07-01&to=2026-07-31');
+            self::assertResponseIsSuccessful();
+
+            $body = $this->jsonResponse($this->client);
+            self::assertCount(count(MetricType::cases()), $body['series']);
+
+            $youtube = $this->seriesOf($body, MetricType::YOUTUBE_MINUTES_WATCHED);
+            self::assertSame([], $youtube['points'], 'an unreadable metric reports no points');
+            self::assertEquals(0.0, $youtube['total']);
+            self::assertSame('minutes', $youtube['unit'], 'the unit stays known even when the read failed');
+
+            $pages = $this->seriesOf($body, MetricType::BOOKS_PAGES_READ);
+            self::assertEquals(40.0, $pages['total'], 'the healthy metrics are unaffected');
+            self::assertNotSame([], $pages['points']);
+        } finally {
+            $this->connection->executeStatement('RENAME TABLE videos_unavailable_probe TO videos');
+        }
+    }
+
     public function testUnknownGranularityIs422(): void
     {
         $this->get('/api/v1/trends?granularity=fortnight');
