@@ -33,6 +33,8 @@ nelmio_api_doc:
               description: 'Cross-module goals & streaks — define a target amount of an activity per rolling period, then read the computed progress and day-continuity streaks folded from the product-wide activity stream.'
             - name: Search
               description: 'Global cross-module search — a single full-text query over books, articles, series, music and tasks, ranked by relevance and paginated, optionally narrowed to one result type.'
+            - name: Podcasts
+              description: 'Podcast listening — followed shows with episode and listening counters, a show detail with per-episode progress and the listening history, and a Spotify sync trigger. Listens are derived from Spotify resume points, so timestamps mean "no later than".'
             - name: Dashboard
               description: 'Startup cockpit — one landing read-model aggregating each module''s "today" slice: pending tasks, the article of the day, goal snapshots with streaks, continue-watching/reading suggestions and recent listening.'
         # Every operation requires the API key by default. Public endpoints
