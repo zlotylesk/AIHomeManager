@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Insights\Application\QueryHandler;
 
+use App\Module\Insights\Application\Cache\TrendsCacheInterface;
 use App\Module\Insights\Application\DTO\TrendPointDTO;
 use App\Module\Insights\Application\DTO\TrendsDTO;
 use App\Module\Insights\Application\DTO\TrendSeriesDTO;
@@ -29,11 +30,19 @@ final readonly class GetTrendsHandler
 {
     public function __construct(
         private TrendDataProviderInterface $provider,
+        private TrendsCacheInterface $cache,
         private LoggerInterface $logger,
     ) {
     }
 
     public function __invoke(GetTrends $query): TrendsDTO
+    {
+        // A hit serves the whole window from Redis instead of re-running all five
+        // adapters; a miss composes and stores it for a short TTL (HMAI-334).
+        return $this->cache->remember($query, fn (): TrendsDTO => $this->compose($query));
+    }
+
+    private function compose(GetTrends $query): TrendsDTO
     {
         $series = [];
         foreach (MetricType::cases() as $metric) {

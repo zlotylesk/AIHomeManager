@@ -449,6 +449,17 @@ services:
     App\Module\Goals\Domain\Port\ActivityProviderInterface:
         alias: App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider
 
+    # Insights read cache (HMAI-334): the composed trends read model is cached in a
+    # dedicated Redis pool keyed by granularity + window. Cache-on-read rather than
+    # scheduler prewarming — the window is a caller-chosen range, so there is no one
+    # shape to precompute; the frontend's default window is what gets hit repeatedly.
+    App\Module\Insights\Infrastructure\Cache\RedisTrendsCache:
+        arguments:
+            $cache: '@cache.insights'
+
+    App\Module\Insights\Application\Cache\TrendsCacheInterface:
+        alias: App\Module\Insights\Infrastructure\Cache\RedisTrendsCache
+
     # Insights trend data (HMAI-330): one DBAL read adapter per habit metric,
     # routed by the composite that backs the TrendDataProviderInterface port.
     # Tagged explicitly (not via _instanceof) so the composite — which implements

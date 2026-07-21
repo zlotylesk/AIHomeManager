@@ -13,12 +13,14 @@ use App\Module\Insights\Domain\Enum\MetricType;
 use App\Module\Insights\Domain\Port\TrendDataProviderInterface;
 use App\Module\Insights\Domain\ValueObject\MetricPoint;
 use App\Module\Insights\Domain\ValueObject\TrendSeries;
+use App\Module\Insights\Infrastructure\Cache\RedisTrendsCache;
 use DateTimeImmutable;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 
 final class GetTrendsHandlerTest extends TestCase
 {
@@ -114,9 +116,42 @@ final class GetTrendsHandlerTest extends TestCase
         self::assertSame(0.0, $books->total);
     }
 
+    /**
+     * A second dispatch of the same window must not re-run the five adapters —
+     * that is the whole point of the cache the handler composes behind.
+     */
+    public function testASecondReadOfTheSameWindowIsServedFromCache(): void
+    {
+        $reads = 0;
+        $provider = $this->providerReturning(static function (MetricType $metric) use (&$reads): TrendSeries {
+            ++$reads;
+
+            return new TrendSeries($metric, Granularity::WEEK, [self::point('2026-07-06', 1.0)]);
+        });
+
+        $handler = new GetTrendsHandler(
+            $provider,
+            new RedisTrendsCache(new ArrayAdapter(), new NullLogger()),
+            new NullLogger(),
+        );
+        $query = new GetTrends(Granularity::WEEK, new DateTimeImmutable(self::FROM), new DateTimeImmutable(self::TO));
+
+        $first = $handler($query);
+        $afterCache = $reads;
+        $second = $handler($query);
+
+        self::assertSame(count(MetricType::cases()), $afterCache);
+        self::assertSame($afterCache, $reads, 'the cached read must not touch the provider again');
+        self::assertEquals($first, $second);
+    }
+
     private function handle(TrendDataProviderInterface $provider, ?LoggerInterface $logger = null): TrendsDTO
     {
-        $handler = new GetTrendsHandler($provider, $logger ?? new NullLogger());
+        $handler = new GetTrendsHandler(
+            $provider,
+            new RedisTrendsCache(new ArrayAdapter(), new NullLogger()),
+            $logger ?? new NullLogger(),
+        );
 
         return $handler(new GetTrends(
             Granularity::WEEK,
