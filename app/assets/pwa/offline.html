@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111827">
+    <title>Offline — AIHomeManager</title>
+    <!--
+      Standalone offline fallback (HMAI-347). Served straight from the Service
+      Worker precache when a navigation has no network and the target view was
+      never cached, so it must be fully self-contained — no Encore bundle, no
+      external asset (both would themselves need the network).
+    -->
+    <style>
+        :root { color-scheme: light dark; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            background: #f5f5f5; color: #111827;
+            font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; padding: 1.5rem;
+        }
+        .offline-card { max-width: 26rem; text-align: center; }
+        .offline-icon { font-size: 3.5rem; margin-bottom: .5rem; }
+        h1 { font-size: 1.4rem; margin: 0 0 .5rem; }
+        p { color: #6b7280; margin: 0 0 1.5rem; }
+        .retry {
+            display: inline-block; font: inherit; font-weight: 500; text-decoration: none;
+            background: #2563eb; color: #fff; border-radius: 8px; padding: .6rem 1.4rem;
+        }
+        .retry:hover { background: #1d4ed8; }
+        @media (prefers-color-scheme: dark) {
+            body { background: #111827; color: #f5f5f5; }
+            p { color: #9ca3af; }
+        }
+    </style>
+</head>
+<body>
+    <main class="offline-card">
+        <div class="offline-icon" aria-hidden="true">📡</div>
+        <h1>Jesteś offline</h1>
+        <p>Ten widok nie został jeszcze wczytany, więc nie ma go w pamięci podręcznej. Sprawdź połączenie i spróbuj ponownie — wcześniej odwiedzone widoki działają bez sieci.</p>
+        <a class="retry" href="/">Wróć do strony głównej</a>
+    </main>
+</body>
+</html>
