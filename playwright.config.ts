@@ -16,6 +16,13 @@ export default defineConfig({
     baseURL,
     extraHTTPHeaders: { 'X-API-Key': apiKey },
     trace: 'on-first-retry',
+    // Block the PWA Service Worker by default (HMAI-347): once it gained a fetch
+    // handler it intercepts `/api/*` and navigations, and a controlling worker
+    // bypasses these specs' `page.route()` API stubs (the worker fetches from its
+    // own context), so they would see real/empty data. The dedicated PWA specs
+    // that actually exercise the worker opt back in with
+    // `test.use({ serviceWorkers: 'allow' })` (HMAI-350).
+    serviceWorkers: 'block',
     screenshot: 'only-on-failure',
   },
   projects: [

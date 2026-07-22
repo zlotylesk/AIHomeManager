@@ -21,7 +21,7 @@ Encore
     // deliberately NOT content-hashed: the manifest is static JSON that points at
     // its icons by a fixed /build/icons/... path and could never reference a hash.
     .copyFiles([
-        { from: './assets/pwa', to: '[path][name].[ext]', pattern: /manifest\.webmanifest$/ },
+        { from: './assets/pwa', to: '[path][name].[ext]', pattern: /(manifest\.webmanifest|offline\.html)$/ },
         { from: './assets/pwa/icons', to: 'icons/[path][name].[ext]', pattern: /\.png$/ },
     ])
 
