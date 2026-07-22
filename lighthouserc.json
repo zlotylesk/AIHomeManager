@@ -1,0 +1,18 @@
+{
+    "//": "PWA installability gate (HMAI-350). Lighthouse 12 removed the whole PWA category, so we pin @lhci/cli@0.13 (Lighthouse 11) and assert the surviving `installable-manifest` audit — a valid, installable manifest (name, 192+512 icons, start_url, standalone) scores 1; a regression drops it and fails the merge. Run against the already-running Symfony server in the e2e-playwright job.",
+    "ci": {
+        "collect": {
+            "url": ["http://127.0.0.1:8080/"],
+            "numberOfRuns": 1,
+            "settings": {
+                "chromeFlags": "--no-sandbox --headless=new"
+            }
+        },
+        "assert": {
+            "assertions": {
+                "installable-manifest": ["error", { "minScore": 1 }],
+                "maskable-icon": ["warn", { "minScore": 1 }]
+            }
+        }
+    }
+}
