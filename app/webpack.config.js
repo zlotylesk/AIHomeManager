@@ -16,6 +16,14 @@ Encore
 
     .enableSingleRuntimeChunk()
 
+    // PWA manifest + icons copied verbatim into public/build (HMAI-345). They are
+    // deliberately NOT content-hashed: the manifest is static JSON that points at
+    // its icons by a fixed /build/icons/... path and could never reference a hash.
+    .copyFiles([
+        { from: './assets/pwa', to: '[path][name].[ext]', pattern: /manifest\.webmanifest$/ },
+        { from: './assets/pwa/icons', to: 'icons/[path][name].[ext]', pattern: /\.png$/ },
+    ])
+
     .cleanupOutputBeforeBuild()
 
 
