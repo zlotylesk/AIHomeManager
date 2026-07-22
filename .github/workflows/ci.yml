@@ -460,6 +460,18 @@ jobs:
           E2E_API_KEY: 'e2e-test-key'
         run: npx playwright test --reporter=github,html
 
+      # HMAI-350: PWA installability gate. Lighthouse 12 removed the PWA category,
+      # so @lhci/cli is pinned to 0.13 (Lighthouse 11) and asserts the surviving
+      # `installable-manifest` audit (config in lighthouserc.json) against the
+      # already-running server, using the runner's pre-installed Chrome. A broken
+      # manifest / lost icons drops the score below 1 and blocks the merge. The
+      # in-browser SW + offline behaviour is covered by pwa.mobile.spec.ts above.
+      - name: PWA installability audit (Lighthouse CI)
+        working-directory: ${{ github.workspace }}
+        run: |
+          npx --yes @lhci/cli@0.13.0 collect --config=lighthouserc.json
+          npx --yes @lhci/cli@0.13.0 assert --config=lighthouserc.json
+
       - name: Stop application server
         if: always()
         run: symfony server:stop || true
