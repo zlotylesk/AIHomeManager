@@ -7,6 +7,13 @@
         <meta name="api-key" content="{{ api_key }}">
         <title>{% block title %}AIHomeManager{% endblock %}</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🏠</text></svg>">
+        <link rel="manifest" href="{{ asset('build/manifest.webmanifest') }}">
+        <meta name="theme-color" content="#111827">
+        <meta name="mobile-web-app-capable" content="yes">
+        <link rel="apple-touch-icon" href="{{ asset('build/icons/apple-touch-icon.png') }}">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="AIHomeManager">
         {{ encore_entry_link_tags('app') }}
         {{ encore_entry_script_tags('app') }}
         {% block stylesheets %}{% endblock %}
