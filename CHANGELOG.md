@@ -4,6 +4,51 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.28.0] — 2026-07-22
+
+Web-frontend AIHomeManager staje się **Progressive Web App** — instalowalną, działającą offline i z powiadomieniami push (epik **HMAI-344** — 7 podzadań HMAI-345…351, każde z osobnym zielonym CI). To lżejsza, komplementarna ścieżka mobilności wobec natywnego klienta Android: aplikację można dodać do ekranu głównego, wcześniej odwiedzone widoki otwierają się bez sieci, offline'owe zapisy są kolejkowane i odtwarzane po powrocie łączności, a przypomnienia docierają przez WebPush. Całość powstaje **wewnątrz istniejącego pipeline Webpack Encore** (Workbox) — bez osobnego bundlera — a backend push (WebPush/VAPID) jest współdzielony z modułem Powiadomień, więc epik nie buduje własnego. Motywem przewodnim jest uczciwy graceful-degrade: przeglądarka bez Background Sync dostaje jawny komunikat „akcja wymaga sieci” zamiast obietnicy odtworzenia, którego nie ma jak wywołać, a zielony build nigdy nie jest brany za dowód działania — bramką jest realna przeglądarka (Playwright) plus audyt Lighthouse. Epik **nie dotyka ani jednej linii PHP**: **1768/1768 PHP** (bez zmian vs 1.27.0) + **120/120 Playwright** (+4) + **148 Vitest JS** (+26) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**.
+
+### Added
+
+- **Web App Manifest + instalowalność** (HMAI-345) — `manifest.webmanifest` (`name`/`short_name`, `display: standalone`, `start_url`/`scope` `/`, kolory motywu) z kompletem ikon **maskowalnych** 192/512 (+ apple-touch 180), generowanych czystym Node bez biblioteki graficznej i kopiowanych do `public/build` bez hasha. Własny install prompt (A2HS) przechwytuje `beforeinstallprompt`, pokazuje zamykalny baner i odtwarza przechwycone zdarzenie po kliknięciu — systemowy dialog może wystartować wyłącznie z niego.
+- **Service Worker (Workbox)** (HMAI-346) — jeden worker budowany przez `InjectManifest` w pipeline Encore (tylko build produkcyjny) i emitowany do **korzenia** serwisu, więc jego scope to całe origin. Precache app-shell (hashowane statyki) + `skipWaiting`/`clientsClaim` (natychmiastowe przejęcie), scalając dawny ręczny worker push w jeden.
+- **Tryb offline** (HMAI-347) — runtime cache `GET /api/*` (network-first, tylko 200, ograniczony) i nawigacji (network-first, z wykluczeniem `/auth` i `/api`), dedykowana samodzielna strona offline oraz nienachalny wskaźnik offline reagujący na zdarzenia `online`/`offline`.
+- **Kolejka zapisów offline — Background Sync** (HMAI-348) — `POST`/`PATCH`/`DELETE /api/*` idą przez network-only; gdy przeglądarka udostępnia Background Sync, offline'owy zapis trafia do kolejki IndexedDB i worker zwraca stronie syntetyczne **202 `{queued:true}`** („zapiszę po powrocie online”); bez Background Sync — jawne **503 `{requiresNetwork:true}`**, bez cichej utraty ani obietnicy odtworzenia. Obie warstwy `apiCall` wykrywają oznaczone 202/503 i pokazują jeden wspólny toast.
+- **Push — kontekstowa zgoda** (HMAI-349) — reużycie subskrypcji WebPush/VAPID z modułu Powiadomień; miękki baner zgody pokazywany **przy powrocie na stronę, nigdy przy pierwszym wejściu**, zamykalny na stałe, z cichą re-subskrypcją, gdy uprawnienie jest przyznane, a subskrypcja zniknęła. Każdy błąd połykany, więc niedostępność push nigdy nie psuje ładowania strony.
+
+### Changed
+
+- **Utwardzenie Service Workera** (HMAI-351) — wersjonowanie cache runtime (`aihm-runtime-*-vN`) z handlerem `activate` usuwającym każdy nie-bieżący kubełek runtime (brak „zombie”), przy czym kolejka zapisów offline nie jest czyszczona. nginx serwuje `/sw.js` z `Cache-Control: no-cache`, więc nowy deploy jest adoptowany od razu; lokacja `/sw.js` ponownie deklaruje wszystkie cztery nagłówki bezpieczeństwa (nginxowe `add_header` na poziomie `location` zastępuje serwerowe), a `SecurityHeadersListener` pozostaje nietknięty — w projekcie nie ma CSP, więc same-origin worker nie potrzebuje wyjątku.
+- **Pułapka kontroli SW utrwalona w E2E** — specyfikacje czekają na **kontrolera** strony (clientsClaim), a nie tylko na „aktywny” stan workera: przeładowanie w oknie aktywacji ściga się z `clients.claim()` i ląduje jako nawigacja niekontrolowana (zielony build ≠ działająca funkcja — precedens bootstrapa Stimulus pod ESM).
+
+### Coverage
+
+- **E2E + bramka instalowalności** (HMAI-350) — `tests-e2e/pwa.mobile.spec.ts` (viewport mobilny) dowodzi w realnej przeglądarce: manifest instalowalny w kształcie, SW rejestruje się → aktywuje → **kontroluje** stronę, offline wcześniej odwiedzony widok otwiera się z cache, a niecache'owany pokazuje stronę offline. Bramka CI: audyt **Lighthouse** `installable-manifest` w jobie `e2e-playwright` — `@lhci/cli@0.13.0` przypięte, bo Lighthouse 12 usunął całą kategorię PWA; zły manifest / utracone ikony / martwy worker zbijają wynik poniżej 1 i blokują merge.
+- **Przegląd epiku (HMAI-344)** — pokrycie zamknięte; dodano **czwarty** test E2E domykający kontrakt kolejki zapisów offline (Background Sync obecny, offline'owy `POST /api/*` zwraca syntetyczne 202 — nigdy utracony zapis), deterministyczny, bez zależności od niedeterministycznego zdarzenia `sync`. Czyste helpery PWA (install/offline/push/queue) pokryte Vitest (148 testów).
+
+### Documentation
+
+- Nowa strona Confluence modułu PWA (po polsku) — instalowalność, strategia aktualizacji i wersjonowanie cache, tryb offline, kolejka zapisów, push, zakres/nagłówki/CSP, procedura awaryjna (kill-switch) i testy.
+- README — nowa sekcja „Progressive Web App (PWA)” (EN): architektura SW, układ cache + dźwignia `CACHE_VERSION`, scope/nagłówki, bramka E2E+Lighthouse i gotowy do wdrożenia kill-switch.
+- CLAUDE.md — rozbudowany wpis PWA (podzadania 345…351 + przegląd epiku), tabela plików Encore.
+
+### Migration
+
+1. **Brak migracji bazy** — epik nie dodaje tabel. `make migrate` nie jest potrzebne.
+2. **Zależności frontendu** — `make node-install` (paczki Workbox), następnie `make assets-prod`; build produkcyjny emituje `public/sw.js` (artefakt, gitignored).
+3. **nginx** — przeładuj konfigurację, aby wejść w życie weszła lokacja `/sw.js` (`Cache-Control: no-cache` + nagłówki bezpieczeństwa): `docker compose exec nginx nginx -s reload`.
+4. **Push (opcjonalnie)** — powiadomienia push korzystają z pary kluczy VAPID modułu Powiadomień (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`); brak nowych zmiennych ENV w tym epiku.
+
+### Closed Jira
+
+HMAI-344 (epik), HMAI-345, HMAI-346, HMAI-347, HMAI-348, HMAI-349, HMAI-350, HMAI-351.
+
+### Carried forward
+
+- **Niestabilny test integracyjny** (nietknięty, wciąż poza zakresem) — wzorzec „encja utworzona przed chwilą jest nie do znalezienia”, kandydat na osobne zgłoszenie w epiku jakościowym.
+- Odtwarzanie kolejki Background Sync (samo zdarzenie `sync`) pozostaje niedeterministyczne w Playwright — pokryty jest kontrakt „offline'owy zapis w kolejce, nie utracony”, a nie realne odtworzenie po powrocie sieci.
+- Persystowany streak z 1.19.0 wciąż nie jest czytany przez stronę odczytu (`GetStreaks` liczy w locie).
+
 ## [1.27.0] — 2026-07-21
 
 Nowy moduł domenowy **Insights** — dashboard trendów pokazujący, jak nawyki zmieniają się w czasie (epik **HMAI-314** — 7 podzadań HMAI-329…335, każde z osobnym zielonym CI). Moduł jest celowo **prostopadły do kokpitu startowego z 1.21.0**: kokpit odpowiada na pytanie „co dzisiaj”, Insights na „jak mi z tym idzie od dłuższego czasu” — tempo czytania, obejrzane odcinki, minuty wideo, odsłuchane utwory i odsetek ukończonych zadań, w kubełkach tygodniowych lub miesięcznych. To pierwszy moduł, który **nie ma ani jednej własnej tabeli i ani jednej migracji**: niczego nie przechowuje, tylko wylicza serie z danych modułów źródłowych. Motywem przewodnim jest odróżnianie ciszy od awarii — pusty kubełek jest zerem, nigdy brakiem punktu, więc pusta seria jednoznacznie znaczy „nie udało się odczytać”, i to rozróżnienie przechodzi przez każdą warstwę aż po dwa różne stany karty w interfejsie. **1768/1768 PHP** (+84 vs 1684 w 1.26.0) + **116/116 Playwright** (+13) + **122 Vitest JS** (+18) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**.
