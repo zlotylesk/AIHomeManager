@@ -25,6 +25,23 @@ const WRITE_METHODS = ['POST', 'PATCH', 'DELETE'];
 const QUEUED_MESSAGE = 'Zapiszę po powrocie online.';
 const REQUIRES_NETWORK_MESSAGE = 'Ta akcja wymaga połączenia z internetem.';
 
+// Runtime cache versioning (HMAI-351). The precache is content-hashed and self-
+// invalidating (Workbox revisions + cleanupOutdatedCaches), but the runtime read
+// caches persist by design — so they need an explicit lever. Bump CACHE_VERSION to
+// orphan every runtime bucket at once (e.g. after an /api response-shape change
+// that would make a stale cached read render wrong); the activate handler below
+// deletes the orphans. The Background Sync WRITE queue is deliberately NOT
+// versioned here — it is an IndexedDB queue, not a Cache Storage bucket, and
+// dropping it would lose writes a user made offline.
+const CACHE_VERSION = 'v1';
+const RUNTIME_CACHE_PREFIX = 'aihm-runtime-';
+const API_READS_CACHE = `${RUNTIME_CACHE_PREFIX}api-reads-${CACHE_VERSION}`;
+const PAGES_CACHE = `${RUNTIME_CACHE_PREFIX}pages-${CACHE_VERSION}`;
+const CURRENT_RUNTIME_CACHES = new Set([API_READS_CACHE, PAGES_CACHE]);
+// Unversioned names used before HMAI-351 — swept once on upgrade so no client is
+// left holding a "zombie" bucket the code no longer writes to.
+const LEGACY_RUNTIME_CACHES = ['api-reads', 'pages'];
+
 // Update strategy: take over as soon as a new worker installs, so a shipped
 // app-shell update is never left stranded behind a still-controlling old SW.
 self.skipWaiting();
@@ -32,6 +49,29 @@ clientsClaim();
 
 // Remove precache buckets left by earlier Workbox revisions on activate.
 cleanupOutdatedCaches();
+
+// No-zombie-cache sweep (HMAI-351): on every activation delete any runtime bucket
+// that is not a current one — old CACHE_VERSIONs and the pre-HMAI-351 unversioned
+// names. Scoped to OUR runtime prefix + the known legacy names so it never touches
+// Workbox's precache (handled above), the api-writes queue, or another origin's
+// caches. This is what makes a shipped app-shell update actually reach the client
+// instead of being shadowed by a stale bucket.
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        (async () => {
+            const names = await caches.keys();
+            await Promise.all(
+                names
+                    .filter(
+                        (name) =>
+                            (name.startsWith(RUNTIME_CACHE_PREFIX) && !CURRENT_RUNTIME_CACHES.has(name)) ||
+                            LEGACY_RUNTIME_CACHES.includes(name),
+                    )
+                    .map((name) => caches.delete(name)),
+            );
+        })(),
+    );
+});
 
 // `self.__WB_MANIFEST` is replaced at build time with the hashed precache list
 // (the Encore app-shell assets, incl. the offline page). Precaching gives the
@@ -46,7 +86,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 registerRoute(
     ({ url, request }) => 'GET' === request.method && url.pathname.startsWith('/api/'),
     new NetworkFirst({
-        cacheName: 'api-reads',
+        cacheName: API_READS_CACHE,
         networkTimeoutSeconds: 5,
         plugins: [
             new CacheableResponsePlugin({ statuses: [200] }),
@@ -115,7 +155,7 @@ function jsonResponse(status, body) {
 registerRoute(
     new NavigationRoute(
         new NetworkFirst({
-            cacheName: 'pages',
+            cacheName: PAGES_CACHE,
             networkTimeoutSeconds: 5,
             plugins: [new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 7 * 24 * 60 * 60 })],
         }),
