@@ -1,0 +1,27 @@
+{
+    "name": "AIHomeManager",
+    "short_name": "AIHM",
+    "description": "Osobisty system automatyzacji codziennych aktywności — seriale, filmy, książki, muzyka, zadania i trendy w jednym miejscu.",
+    "lang": "pl",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#f5f5f5",
+    "theme_color": "#111827",
+    "icons": [
+        {
+            "src": "/build/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/build/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
