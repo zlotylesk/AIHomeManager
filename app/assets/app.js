@@ -4,8 +4,10 @@ import { registerPushServiceWorker } from './notifications/service-worker-regist
 import { initInstallPrompt } from './pwa/install.js';
 import { initOfflineIndicator } from './pwa/offline-indicator.js';
 import { initQueueUx } from './pwa/queue-ux.js';
+import { initPushPrompt } from './pwa/push.js';
 
 registerPushServiceWorker();
 initInstallPrompt();
 initOfflineIndicator();
 initQueueUx();
+initPushPrompt();
