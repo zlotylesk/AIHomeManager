@@ -10,15 +10,20 @@
  * to live in the standalone `public/sw.js` (HMAI-280).
  *
  * Runtime caching of API reads + the offline fallback page arrive in HMAI-347.
+ * Offline write queueing (Background Sync) arrives in HMAI-348.
  */
 import { clientsClaim } from 'workbox-core';
 import { cleanupOutdatedCaches, matchPrecache, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute, setCatchHandler } from 'workbox-routing';
-import { NetworkFirst } from 'workbox-strategies';
+import { NetworkFirst, NetworkOnly } from 'workbox-strategies';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { ExpirationPlugin } from 'workbox-expiration';
+import { BackgroundSyncPlugin } from 'workbox-background-sync';
 
 const OFFLINE_URL = '/build/offline.html';
+const WRITE_METHODS = ['POST', 'PATCH', 'DELETE'];
+const QUEUED_MESSAGE = 'Zapiszę po powrocie online.';
+const REQUIRES_NETWORK_MESSAGE = 'Ta akcja wymaga połączenia z internetem.';
 
 // Update strategy: take over as soon as a new worker installs, so a shipped
 // app-shell update is never left stranded behind a still-controlling old SW.
@@ -49,6 +54,58 @@ registerRoute(
         ],
     }),
 );
+
+// --- Offline write queue (HMAI-348) ---
+// POST/PATCH/DELETE to /api/* are network-only. Offline, the request is stored in
+// a Background Sync queue (IndexedDB) and replayed when connectivity returns; the
+// page gets a synthetic 202 {queued:true} so it can tell the user "saved when back
+// online" instead of treating the write as lost. On browsers without the Background
+// Sync API there is no reliable auto-replay trigger, so we deliberately do NOT queue
+// — the page gets a 503 {requiresNetwork:true} and says the action needs a
+// connection (honest graceful-degrade, never a silent loss or a duplicated write).
+const backgroundSyncSupported = 'sync' in self.registration;
+const writeHandler = backgroundSyncSupported
+    ? buildQueueingWriteHandler()
+    : buildRequiresNetworkWriteHandler();
+
+for (const method of WRITE_METHODS) {
+    registerRoute(({ url }) => url.pathname.startsWith('/api/'), writeHandler, method);
+}
+
+function buildQueueingWriteHandler() {
+    const strategy = new NetworkOnly({
+        plugins: [new BackgroundSyncPlugin('api-writes', { maxRetentionMinutes: 24 * 60 })],
+    });
+
+    return async (args) => {
+        try {
+            return await strategy.handle(args);
+        } catch {
+            // The plugin already enqueued the request in its fetchDidFail hook; the
+            // network is simply gone. Tell the page it is queued, not failed.
+            return jsonResponse(202, { queued: true, message: QUEUED_MESSAGE });
+        }
+    };
+}
+
+function buildRequiresNetworkWriteHandler() {
+    const strategy = new NetworkOnly();
+
+    return async (args) => {
+        try {
+            return await strategy.handle(args);
+        } catch {
+            return jsonResponse(503, { queued: false, requiresNetwork: true, message: REQUIRES_NETWORK_MESSAGE });
+        }
+    };
+}
+
+function jsonResponse(status, body) {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+    });
+}
 
 // --- Navigations (HMAI-347) ---
 // Page shells are network-first too, so a previously-visited view opens offline

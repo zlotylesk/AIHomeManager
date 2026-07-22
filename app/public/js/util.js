@@ -24,6 +24,26 @@ window.apiCall = async function apiCall(url, options = {}) {
 
     const res = await fetch(url, { ...options, headers });
 
+    // Offline write intercepted by the Service Worker (HMAI-348) — mirrors the
+    // Encore assets/pwa/queue-ux.js contract (this legacy vanilla file cannot import
+    // ES modules). A synthetic 202 {queued:true} or 503 {requiresNetwork:true} is
+    // surfaced as a distinct non-success outcome + the shared queue toast event; a
+    // real 202 (async import) / real 503 carries no marker and falls through.
+    if (res.status === 202 || res.status === 503) {
+        let marker = null;
+        try {
+            marker = await res.clone().json();
+        } catch (_) {
+        }
+
+        if (res.status === 202 && marker && marker.queued === true) {
+            return signalQueuedWrite('pwa:queued', marker.message || 'Zapiszę po powrocie online.', { queued: true });
+        }
+        if (res.status === 503 && marker && marker.requiresNetwork === true) {
+            return signalQueuedWrite('pwa:requires-network', marker.message || 'Ta akcja wymaga połączenia z internetem.', { requiresNetwork: true });
+        }
+    }
+
     if (!res.ok) {
         const text = await res.text();
         let payload = null;
@@ -48,3 +68,13 @@ window.apiCall = async function apiCall(url, options = {}) {
 
     return res.json();
 };
+
+function signalQueuedWrite(eventName, message, flags) {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: { message } }));
+    }
+
+    const error = new Error(message);
+    Object.assign(error, flags, { handled: true });
+    throw error;
+}
