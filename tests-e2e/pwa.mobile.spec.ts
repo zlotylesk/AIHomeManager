@@ -94,3 +94,40 @@ test('a visited view opens offline while an unvisited one shows the offline page
 
     await context.setOffline(false);
 });
+
+test('an offline write is queued (synthetic 202), never lost', async ({ page, context }) => {
+    await page.goto('/');
+    await waitForControllingWorker(page);
+
+    // The whole offline-write guarantee only exists when the browser exposes
+    // Background Sync (the SW's queue+replay trigger); a browser without it is
+    // served an honest "needs a connection" 503 instead. Chromium has it, so this
+    // proves the queueing branch of HMAI-348 rather than the graceful-degrade one.
+    const backgroundSyncSupported = await page.evaluate(async () => {
+        const registration = await navigator.serviceWorker.getRegistration();
+
+        return Boolean(registration) && 'sync' in (registration as ServiceWorkerRegistration);
+    });
+    expect(backgroundSyncSupported).toBe(true);
+
+    await context.setOffline(true);
+
+    // A write that cannot reach the network must never surface as a lost request:
+    // the SW enqueues it in Background Sync and answers with the synthetic
+    // 202 {queued:true} the page turns into "saved when back online". The payload
+    // never reaches the server (the 202 is minted offline), so its shape is moot.
+    const queued = await page.evaluate(async () => {
+        const response = await fetch('/api/goals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'series_episodes_watched', target: 1, period: 'day' }),
+        });
+
+        return { status: response.status, body: await response.json() };
+    });
+
+    expect(queued.status).toBe(202);
+    expect(queued.body.queued).toBe(true);
+
+    await context.setOffline(false);
+});
