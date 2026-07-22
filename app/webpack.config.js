@@ -1,4 +1,5 @@
 import Encore from '@symfony/webpack-encore';
+import { InjectManifest } from 'workbox-webpack-plugin';
 
 if (!Encore.isRuntimeEnvironmentConfigured()) {
     Encore.configureRuntimeEnvironment(process.env.NODE_ENV || 'dev');
@@ -45,5 +46,18 @@ Encore
 
 
 ;
+
+// PWA Service Worker (HMAI-346) — only in production builds. Workbox's
+// InjectManifest bundles assets/pwa/sw.js and injects the app-shell precache
+// manifest; swDest escapes public/build to the site ROOT (public/sw.js) so the
+// worker's scope is `/` (the whole site), matching the former root-served SW.
+if (Encore.isProduction()) {
+    Encore.addPlugin(new InjectManifest({
+        swSrc: './assets/pwa/sw.js',
+        swDest: '../sw.js',
+        exclude: [/\.map$/, /manifest\.json$/, /entrypoints\.json$/, /\.LICENSE\.txt$/],
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+    }));
+}
 
 export default await Encore.getWebpackConfig();
