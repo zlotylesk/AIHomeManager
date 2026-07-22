@@ -20,6 +20,7 @@ Single-user system for automating everyday activities — television (Series, Mo
 - [Monitoring](#monitoring)
 - [Project structure](#project-structure)
 - [API](#api)
+- [Progressive Web App (PWA)](#progressive-web-app-pwa)
 - [Links](#links)
 - [License](#license)
 
@@ -597,6 +598,59 @@ Two ways to enable it:
 The digest is produced by the twice-daily scheduler sweep, so it starts arriving on the next run after you enable it. Disabling it again is the same call with `{"enabled": false}`.
 
 Full list of endpoints: `make routes`. Detailed API documentation: Confluence → API documentation.
+
+---
+
+## Progressive Web App (PWA)
+
+The web frontend is an installable PWA (epic HMAI-344): a Web App Manifest + maskable icons (Add-to-Home-Screen), a Workbox Service Worker with an offline mode, an offline write queue, and Web Push. Everything is built inside the existing Encore pipeline — there is no separate bundler.
+
+### Service Worker
+
+- **Source:** `app/assets/pwa/sw.js`, built by Workbox `InjectManifest` and emitted to the site root as `public/sw.js` (a gitignored build artifact). It is served from the root **on purpose** so its scope is the whole origin (`/`) — a hashed `/build/` path would narrow the scope and break registration.
+- **Emitted in production builds only.** `make assets-prod` / `npm run build` produce `public/sw.js`; a dev build does not, and registration fails soft (nothing breaks in `make assets`).
+- **Registered** from `app.js` via `registerPushServiceWorker()` on every page.
+- **Caches:**
+  - *Precache* (`workbox-precache-*`) — the content-hashed app-shell (Encore statics + `offline.html`); self-invalidating via Workbox revisions + `cleanupOutdatedCaches()`.
+  - *Runtime* `aihm-runtime-api-reads-v1` — `GET /api/*`, NetworkFirst, 200-only, bounded (60 entries / 24 h).
+  - *Runtime* `aihm-runtime-pages-v1` — navigations, NetworkFirst, bounded (30 entries / 7 d); `/auth/*` and `/api/*` are denylisted (always network).
+  - *Queue* `api-writes` — offline `POST`/`PATCH`/`DELETE` (Background Sync, IndexedDB), replayed on reconnect.
+
+### Update strategy & cache versioning
+
+- `skipWaiting()` + `clientsClaim()` make a newly installed worker take over immediately, so a shipped app-shell update is never stranded behind the old worker.
+- `nginx` serves `/sw.js` with `Cache-Control: no-cache`, so the browser revalidates the worker script on every navigation and a new deploy is picked up at once (see `docker/nginx/default.conf`).
+- The **runtime** read caches persist by design, so they carry an explicit lever: bump `CACHE_VERSION` in `sw.js` (`v1` → `v2`) after a change that would make a stale cached read render wrong (e.g. an `/api` response-shape change). On the next activation a no-zombie sweep deletes every runtime bucket that is not current (old versions + the pre-versioning names). The `api-writes` queue is never swept — dropping it would lose a user's offline writes.
+
+### Scope, headers & CSP
+
+- Scope is `/` (root-served worker); `nginx` also sends `Service-Worker-Allowed: /` on `/sw.js` to pin the intent explicitly (redundant for a root-served worker, but future-proof).
+- A location-level `add_header` in nginx **replaces** the inherited server-level ones, so the `/sw.js` location re-declares all four security headers — `/sw.js` stays consistent with `SecurityHeadersListener` and every other response (verified by `SecurityHeadersTest`).
+- There is **no `Content-Security-Policy`** header in this project, so the same-origin Service Worker needs no CSP allowance; nothing in `SecurityHeadersListener` had to change for the PWA.
+
+### Emergency kill-switch
+
+If a bad worker ever traps clients on stale content, deploy a **self-unregistering** `public/sw.js` (overriding the Workbox build) and ship it — the `no-cache` header guarantees every client fetches it on the next navigation:
+
+```js
+// public/sw.js — emergency kill-switch. Unregisters itself and drops all caches.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await self.registration.unregister();
+    await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+    const clients = await self.clients.matchAll({ type: 'window' });
+    clients.forEach((c) => c.navigate(c.url)); // reload each tab, now uncontrolled
+  })());
+});
+```
+
+Once every client has updated, revert to the normal Workbox build.
+
+### Testing
+
+- E2E: `tests-e2e/pwa.mobile.spec.ts` (Pixel 5) — manifest installability, SW registers/activates/controls, offline serves cached view + offline page. Runs against a **production** build (the SW only exists there), opting into the worker with `test.use({ serviceWorkers: 'allow' })`.
+- CI gate: a Lighthouse `installable-manifest` audit in the `e2e-playwright` job (`@lhci/cli@0.13.0` pinned — Lighthouse 12 removed the PWA category; config `lighthouserc.json`). A broken manifest / lost icons / a dead SW drops the score below 1 and blocks the merge.
 
 ---
 
