@@ -36,11 +36,19 @@ jobs:
         id: composer-cache
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
+      # HMAI-353: also cache app/vendor (not just the download dir) so an
+      # unchanged composer.lock skips the extract step of composer install.
+      # PHP-versioned, vendor-scoped key: the autoloader is platform-checked and
+      # must not collide with the download-only key the other jobs still use.
+      # composer install stays — on a hit it is a fast verify + a rerun of the
+      # post-install scripts (autoloader dump, assets:install).
       - uses: actions/cache@v6
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('app/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
+          path: |
+            ${{ steps.composer-cache.outputs.dir }}
+            app/vendor
+          key: ${{ runner.os }}-php8.5-composer-vendor-${{ hashFiles('app/composer.lock') }}
+          restore-keys: ${{ runner.os }}-php8.5-composer-vendor-
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
@@ -223,11 +231,19 @@ jobs:
         id: composer-cache
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
+      # HMAI-353: also cache app/vendor (not just the download dir) so an
+      # unchanged composer.lock skips the extract step of composer install.
+      # PHP-versioned, vendor-scoped key: the autoloader is platform-checked and
+      # must not collide with the download-only key the other jobs still use.
+      # composer install stays — on a hit it is a fast verify + a rerun of the
+      # post-install scripts (autoloader dump, assets:install).
       - uses: actions/cache@v6
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('app/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
+          path: |
+            ${{ steps.composer-cache.outputs.dir }}
+            app/vendor
+          key: ${{ runner.os }}-php8.5-composer-vendor-${{ hashFiles('app/composer.lock') }}
+          restore-keys: ${{ runner.os }}-php8.5-composer-vendor-
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
