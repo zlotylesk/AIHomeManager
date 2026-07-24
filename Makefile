@@ -41,7 +41,7 @@ COVERAGE_MIN ?= 90
 
 test-coverage:
 	docker compose exec php sh -c "mkdir -p var/coverage && php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html"
-	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN)
+	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN) --history=var/coverage-history.txt
 
 # HMAI-355: parallel PHPUnit via paratest with per-process state isolation —
 # each worker gets its own database (homemanager_test{token}, via the
@@ -56,7 +56,7 @@ test-parallel:
 	docker compose exec -T mysql sh -c 'for i in $$(seq 1 $(PARATEST_PROCESSES)); do mysql -uroot -p"$$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS homemanager_test$$i CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON homemanager_test$$i.* TO \"homemanager\"@\"%\";"; done'
 	docker compose exec php sh -c 'for i in $$(seq 1 $(PARATEST_PROCESSES)); do TEST_TOKEN=$$i php bin/console doctrine:migrations:migrate --no-interaction --env=test -q; done'
 	docker compose exec php sh -c "mkdir -p var/coverage && php -d pcov.enabled=1 vendor/bin/paratest -p $(PARATEST_PROCESSES) --passthru-php='-d pcov.enabled=1' --coverage-clover var/coverage/clover.xml"
-	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN)
+	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN) --history=var/coverage-history.txt
 
 test-e2e-install:
 	npm install
