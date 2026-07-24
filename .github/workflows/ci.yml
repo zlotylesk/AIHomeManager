@@ -338,11 +338,24 @@ jobs:
       - name: PHPUnit (paratest, parallel) with coverage
         run: vendor/bin/paratest -p "$PARATEST_PROCESSES" --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html
 
+      # HMAI-357: a one-line history file holding the last run's coverage % so the
+      # gate step below can print a run-over-run trend in the job summary.
+      # restore-keys picks the most recent history cache; the run-id key persists
+      # this run's value at post-job for the next run to read.
+      - name: Restore coverage trend history
+        uses: actions/cache@v6
+        with:
+          path: app/var/coverage-history.txt
+          key: coverage-history-${{ github.run_id }}
+          restore-keys: coverage-history-
+
       # HMAI-245: informational baseline gate. Measured ~93.66% line coverage;
       # the build fails if coverage regresses below the floor (kept in sync with
-      # the Makefile COVERAGE_MIN). Tighten over time.
-      - name: Enforce coverage threshold
-        run: php bin/coverage-check.php var/coverage/clover.xml 90
+      # the Makefile COVERAGE_MIN). Tighten over time (HMAI-357 ratchet procedure
+      # in README). --history additionally publishes the run-over-run coverage
+      # trend to the job summary; it does not affect the pass/fail decision.
+      - name: Enforce coverage threshold + publish trend
+        run: php bin/coverage-check.php var/coverage/clover.xml 90 --history=var/coverage-history.txt
 
       - name: Upload coverage report
         if: always()
