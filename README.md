@@ -17,6 +17,7 @@ Single-user system for automating everyday activities — television (Series, Mo
 - [Development](#development)
 - [Tests](#tests)
 - [Static analysis](#static-analysis)
+- [Continuous integration (CI) pipeline](#continuous-integration-ci-pipeline)
 - [Monitoring](#monitoring)
 - [Project structure](#project-structure)
 - [API](#api)
@@ -427,6 +428,34 @@ The PHPStan baseline (`app/phpstan-baseline.neon`) holds the existing debt. New 
 Deptrac formalizes the hexagonal boundaries: every module has separate Domain/Application/Infrastructure layers, plus a cross-cutting `Shared` kernel layer. Domain → [`Shared`] (otherwise zero dependencies beyond PHP core), cross-module coupling forbidden. It runs with **zero violations and zero `skip_violations`** — the four grandfathered exceptions were resolved rather than re-baselined, so a new violation is a hard failure with nothing to hide behind.
 
 CI (`.github/workflows/ci.yml`) runs five jobs on every push and PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac + Composer audit), `openapi-contract` (dump `openapi.json` → Spectral lint → upload the spec artifact), `tests` (PHPUnit + the coverage threshold gate), `e2e-playwright` (Playwright desktop + mobile), and `e2e-newman` (Newman API smoke). The E2E jobs start the application via `symfony server:start` (env `test`, `in-memory://` transport) and upload HTML reports as artifacts (30-day retention).
+
+---
+
+## Continuous integration (CI) pipeline
+
+`.github/workflows/ci.yml` runs on every push to `master`/`develop` and on every PR. A **`concurrency` group per ref** (`ci-${{ github.ref }}`, `cancel-in-progress: true`) cancels a superseded run the moment a newer commit lands on the same branch — without touching runs on other branches.
+
+**Jobs** (all must be green to merge):
+
+| Job | Gate | Observed | `timeout-minutes` |
+|---|---|---|---|
+| `static-analysis` | Rector · CS Fixer · PHPStan L8 · Deptrac · Composer audit — **one parallel matrix leg per tool** (`fail-fast: false`, so every failure surfaces in one run) | ~20–51 s / leg | 6 |
+| `openapi-contract` | dump `openapi.json` → Spectral lint → upload the spec artifact | ~30 s | 5 |
+| `tests` | PHPUnit (unit + integration) via **paratest** + the coverage floor gate | ~2m15s | 12 |
+| `e2e-playwright` | Playwright desktop + mobile + the Lighthouse installability audit | ~3m10s | 15 |
+| `e2e-newman` | Newman API smoke | ~1m30s | 7 |
+
+**Dependency caching** (keyed on lockfiles / versions, so the right cache is invalidated on change):
+- **Composer** — the download dir + `app/vendor`, keyed on `composer.lock` (all PHP jobs).
+- **npm** — the npm cache via `setup-node`, keyed on the relevant `package-lock.json` (`app/` for Encore, root for Playwright/Newman).
+- **Playwright browsers** — `~/.cache/ms-playwright`, keyed on the exact `@playwright/test` version (a bump re-downloads a matching build).
+- **Coverage history** — a one-line file rolled across runs to feed the coverage trend.
+
+**Parallelism**: PHPUnit runs across `PARATEST_PROCESSES` (4) workers, each isolated on its own database (`homemanager_test{token}`) + Redis logical DB; the static-analysis tools run as parallel matrix legs; the `concurrency` block drops superseded runs.
+
+**Coverage trend + ratchet**: the `tests` job publishes a coverage summary (current % / floor / baseline / Δ-vs-previous-run / Δ-vs-baseline) to the GitHub job summary and gates on the floor — see [Tests](#tests) for the ratchet procedure.
+
+**Observability**: GitHub surfaces per-job and per-step durations natively in the Actions UI; the `tests` job additionally publishes its coverage metrics + wall-clock to the job summary. The `timeout-minutes` above were **re-based to this (post-caching, post-parallelism) profile** with deliberate headroom — a flaky timeout is worse than a loose one, so each sits well under 25 % utilisation at the observed peak and is raised (never lowered reactively) only if a job later approaches 70 % of its bound.
 
 ---
 
