@@ -23,9 +23,11 @@ jobs:
   static-analysis:
     name: Static analysis (${{ matrix.tool }})
     runs-on: ubuntu-latest
-    # HMAI-154: cap at ~2× observed peak (4 min). Default 360 min would let a
-    # runaway burn the entire free-tier budget on a single hang.
-    timeout-minutes: 10
+    # HMAI-154 / HMAI-358: re-based to the parallel-matrix profile (HMAI-356) —
+    # each leg is its own runner; the slowest (Rector) is ~51 s, plus a cold-cache
+    # composer buffer. Generous headroom; a runaway is still killed long before the
+    # 360-min default would burn the free-tier budget.
+    timeout-minutes: 6
     strategy:
       fail-fast: false
       matrix:
@@ -106,9 +108,9 @@ jobs:
   openapi-contract:
     name: OpenAPI contract (dump + Spectral lint)
     runs-on: ubuntu-latest
-    # HMAI-343: a kernel boot to dump + a Spectral lint of a ~150 KB spec is well
-    # under a minute; cap at ~5×.
-    timeout-minutes: 10
+    # HMAI-343 / HMAI-358: a kernel boot to dump + a Spectral lint of a ~150 KB
+    # spec is ~30 s; capped generously for a cold-cache boot.
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: app
@@ -173,9 +175,10 @@ jobs:
   tests:
     name: PHPUnit (unit + integration)
     runs-on: ubuntu-latest
-    # HMAI-154: cap at ~3× observed peak (5 min). Higher headroom than other
-    # jobs because integration tests spin up MySQL/Redis/RabbitMQ containers.
-    timeout-minutes: 15
+    # HMAI-154 / HMAI-358: paratest (HMAI-355) cut the peak to ~2m15s. Kept the
+    # highest headroom of any job — integration tests spin up MySQL/Redis
+    # containers and the coverage merge + cold caches add real variance.
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: app
@@ -228,6 +231,14 @@ jobs:
       PARATEST_PROCESSES: '4'
 
     steps:
+      # HMAI-358: record the job start so the final step can publish this job's
+      # wall-clock to the summary next to the coverage metrics (time-regression
+      # visibility per run). working-directory is the repo root — app/ does not
+      # exist until checkout.
+      - name: Record job start
+        working-directory: ${{ github.workspace }}
+        run: echo "CI_JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@v2
@@ -365,13 +376,21 @@ jobs:
           path: app/var/coverage/
           retention-days: 30
 
+      # HMAI-358: publish this job's wall-clock to the job summary, next to the
+      # coverage table above. GitHub also shows per-step timings natively in the
+      # Actions UI; this surfaces the headline number for time-regression watching.
+      - name: Publish job timing
+        if: always()
+        run: echo "⏱ **PHPUnit (tests) job** wall-clock — $(( $(date +%s) - ${CI_JOB_START:-$(date +%s)} ))s." >> "$GITHUB_STEP_SUMMARY"
+
   e2e-playwright:
     name: Playwright E2E (desktop + mobile)
     needs: tests
     runs-on: ubuntu-latest
-    # HMAI-154: cap at ~3× observed peak (7 min). Browser fixtures + Encore
-    # build push this job longest.
-    timeout-minutes: 20
+    # HMAI-154 / HMAI-358: ~3m10s observed. The Playwright browser cache
+    # (HMAI-354) removes the per-run download on a hit, but a cold-cache download +
+    # the Lighthouse audit keep the headroom generous. Longest job.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -567,8 +586,9 @@ jobs:
     name: Newman API smoke
     needs: tests
     runs-on: ubuntu-latest
-    # HMAI-154: cap at ~3× observed peak (3 min). Newman is the lightest job.
-    timeout-minutes: 10
+    # HMAI-154 / HMAI-358: ~1m30s observed (symfony-cli install + service startup
+    # dominate). Newman is the lightest job.
+    timeout-minutes: 7
     defaults:
       run:
         working-directory: app
