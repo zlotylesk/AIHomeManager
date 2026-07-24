@@ -393,6 +393,7 @@ make test-unit          # Domain only
 make test-integration   # integration only
 make test-js            # Vitest (frontend pure helpers, jsdom)
 make test-coverage      # PHPUnit + coverage report + threshold gate
+make test-parallel      # PHPUnit in parallel (paratest) — the CI test-run profile
 make test-e2e           # Playwright (desktop + mobile)
 make test-newman        # Newman/Postman smoke
 ```
@@ -404,6 +405,7 @@ make test-newman        # Newman/Postman smoke
 - **Smoke (Newman)** in `tests-e2e/postman/AIHomeManager.postman_collection.json`. Run via `make test-newman` (truncate + newman with `--ignore-redirects`).
 - **JS unit (Vitest)** in `app/assets/tests/*.test.js` — fast jsdom tests for the frontend's pure helpers (labels, formatting, grouping, sorting). They must NOT live under `assets/controllers/`, where the Stimulus `webpackContext` would auto-mount every `.js` as a controller and break the build.
 - **Coverage gate:** `make test-coverage` measures line coverage via pcov and fails below the floor (`COVERAGE_MIN`, default 90; measured 93.66% at the 1.18.0 baseline). CI enforces the same floor and uploads the HTML report as an artifact.
+- **Parallel run:** CI's `tests` job runs the PHPUnit suite through **paratest** across `PARATEST_PROCESSES` workers (default 4), each isolated on its own database (`homemanager_test{n}`, via the `dbname_suffix: '_test{TEST_TOKEN}'` in `doctrine.yaml`) and its own Redis logical DB (`tests/bootstrap.php`), so integration tests never collide on the shared MySQL/Redis. Per-worker coverage is merged into one clover and the floor still gates. `make test` stays **sequential** (fast for TDD); `make test-parallel` mirrors CI locally — it provisions the token databases (as root), migrates each, then runs paratest with coverage.
 - **E2E/Newman prerequisite:** `API_KEY=e2e-test-key` in `app/.env.local`, Discogs/Last.fm/Google placeholders set to anything non-empty (DI will not boot with empty VOs).
 
 ---

@@ -1,4 +1,4 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-coverage test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
 
 up:
 	docker compose --profile monitoring up -d
@@ -41,6 +41,21 @@ COVERAGE_MIN ?= 90
 
 test-coverage:
 	docker compose exec php sh -c "mkdir -p var/coverage && php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html"
+	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN)
+
+# HMAI-355: parallel PHPUnit via paratest with per-process state isolation —
+# each worker gets its own database (homemanager_test{token}, via the
+# dbname_suffix in doctrine.yaml) and its own Redis logical DB
+# (tests/bootstrap.php), so integration tests never collide on the shared
+# MySQL/Redis. CI mirrors this. Override the worker count:
+#   make test-parallel PARATEST_PROCESSES=8
+# pcov is off in php.ini, so it is passed through to each worker for coverage.
+PARATEST_PROCESSES ?= 4
+
+test-parallel:
+	docker compose exec -T mysql sh -c 'for i in $$(seq 1 $(PARATEST_PROCESSES)); do mysql -uroot -p"$$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS homemanager_test$$i CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON homemanager_test$$i.* TO \"homemanager\"@\"%\";"; done'
+	docker compose exec php sh -c 'for i in $$(seq 1 $(PARATEST_PROCESSES)); do TEST_TOKEN=$$i php bin/console doctrine:migrations:migrate --no-interaction --env=test -q; done'
+	docker compose exec php sh -c "mkdir -p var/coverage && php -d pcov.enabled=1 vendor/bin/paratest -p $(PARATEST_PROCESSES) --passthru-php='-d pcov.enabled=1' --coverage-clover var/coverage/clover.xml"
 	docker compose exec php php bin/coverage-check.php var/coverage/clover.xml $(COVERAGE_MIN)
 
 test-e2e-install:
