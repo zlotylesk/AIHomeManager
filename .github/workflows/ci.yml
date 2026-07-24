@@ -215,6 +215,10 @@ jobs:
       LOCK_DSN: 'redis://127.0.0.1:6379'
       MESSENGER_TRANSPORT_DSN: 'in-memory://'
       API_KEY: 'test-api-key'
+      # HMAI-355: paratest worker count. Each worker runs in its own database
+      # (homemanager_test{token}) + Redis logical DB, so the suite parallelises
+      # without integration tests colliding on shared MySQL/Redis.
+      PARATEST_PROCESSES: '4'
 
     steps:
       - uses: actions/checkout@v7
@@ -224,6 +228,7 @@ jobs:
           php-version: '8.5'
           extensions: intl, pdo_mysql, redis, amqp, bcmath, sodium
           # HMAI-245: pcov drives the coverage report + threshold gate below.
+          # setup-php enables it globally, so paratest worker processes inherit it.
           coverage: pcov
           tools: composer:v2
 
@@ -264,15 +269,31 @@ jobs:
           echo "MySQL did not become ready in time"
           exit 1
 
-      - name: Run database migrations
-        run: bin/console doctrine:migrations:migrate --no-interaction
+      # HMAI-355: paratest runs the suite across PARATEST_PROCESSES workers, each
+      # bound to its own database (homemanager_test{token}, via the dbname_suffix
+      # in doctrine.yaml) so integration tests never collide on shared MySQL. The
+      # root account provisions + grants one database per worker token; the app
+      # connects as `homemanager`.
+      - name: Create parallel test databases
+        run: |
+          for i in $(seq 1 "$PARATEST_PROCESSES"); do
+            mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS homemanager_test${i} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON homemanager_test${i}.* TO 'homemanager'@'%';"
+          done
+
+      - name: Run database migrations (per parallel test DB)
+        run: |
+          for i in $(seq 1 "$PARATEST_PROCESSES"); do
+            TEST_TOKEN=$i bin/console doctrine:migrations:migrate --no-interaction
+          done
 
       # HMAI-148: blocks merge if ORM XML mapping drifts from the migrated
       # MySQL schema (added field without migration, added column without
       # mapping, type mismatch). Surfaces drift as its own failure category
       # rather than as an opaque hydration exception inside PHPUnit.
+      # TEST_TOKEN=1 targets homemanager_test1 (migrated above); without a token
+      # it would hit the empty, unmigrated homemanager_test and report false drift.
       - name: Validate Doctrine schema
-        run: bin/console doctrine:schema:validate
+        run: TEST_TOKEN=1 bin/console doctrine:schema:validate
 
       # HMAI-41: FrontendControllerTest hits Twig templates that call
       # encore_entry_link_tags('app') / encore_entry_script_tags('app'),
@@ -302,8 +323,13 @@ jobs:
       - name: Build Webpack Encore assets
         run: npm run build
 
-      - name: PHPUnit with coverage
-        run: vendor/bin/phpunit --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html
+      # HMAI-355: paratest runs the suite in parallel across PARATEST_PROCESSES
+      # workers (per-worker DB isolation above; Redis isolation in
+      # tests/bootstrap.php), then merges the partial coverage into one clover
+      # the threshold gate reads. pcov is enabled globally by setup-php, so the
+      # worker processes inherit it.
+      - name: PHPUnit (paratest, parallel) with coverage
+        run: vendor/bin/paratest -p "$PARATEST_PROCESSES" --coverage-clover var/coverage/clover.xml --coverage-html var/coverage/html
 
       # HMAI-245: informational baseline gate. Measured ~93.66% line coverage;
       # the build fails if coverage regresses below the floor (kept in sync with
