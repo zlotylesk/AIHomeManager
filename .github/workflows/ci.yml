@@ -474,6 +474,23 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: npm ci
 
+      # HMAI-354: cache the Playwright browser binaries (~/.cache/ms-playwright,
+      # ~100-200 MB) so a run with an unchanged @playwright/test version skips the
+      # download. Keyed on the exact resolved version (no restore-keys) so a
+      # version bump misses and re-downloads a matching build. The install step
+      # below stays: on a cache hit it finds the browsers present and only ensures
+      # the OS deps (apt), on a miss it downloads and populates the cache.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: ${{ github.workspace }}
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright browsers
         working-directory: ${{ github.workspace }}
         run: npx playwright install --with-deps chromium
