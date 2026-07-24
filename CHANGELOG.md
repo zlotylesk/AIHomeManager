@@ -4,6 +4,48 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.29.0] — 2026-07-24
+
+Pipeline CI zostaje przyspieszony i wzbogacony o bogatszy feedback — bez osłabienia jakiejkolwiek istniejącej bramki jakości (epik **HMAI-352** — 6 podzadań HMAI-353…358, każde z osobnym zielonym CI). Cache zależności (Composer + `app/vendor`, npm, przeglądarki Playwright), realna równoległość (PHPUnit przez paratest z izolacją stanu per worker, static-analysis jako matryca), widoczny trend pokrycia z procedurą ratchet oraz observability przebiegów (job summaries + przeliczone timeouty) skracają pętlę feedbacku na każdym PR. Epik jest **czysto infrastrukturalny — nie dotyka warstwy PHP aplikacji ani modelu domenowego**, więc liczby testów są bez zmian: **1768/1768 PHP** + **120/120 Playwright** + **148 Vitest JS** + **43 Newman** (bez zmian vs 1.28.0) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. `1.29.0` to najwyższy numerowany tag i staje się GitHub `latest`.
+
+### Changed
+
+- **Cache zależności Composera** (HMAI-353) — joby `static-analysis` i `tests` cache'ują katalog pobrań Composera **oraz `app/vendor`** (pomija też krok rozpakowania), kluczem na `composer.lock` + wersji PHP; osobny, vendor-scoped klucz rozłączny z kluczem „tylko pobrania" pozostałych jobów.
+- **Cache npm + przeglądarek Playwright** (HMAI-354) — cache npm przez `setup-node` (klucze na właściwych `package-lock.json`) oraz cache binariów przeglądarek Playwright (`~/.cache/ms-playwright`, klucz na dokładnej wersji `@playwright/test`, bez restore-keys — bump wersji re-pobiera pasujący build).
+- **Zrównoleglenie PHPUnit przez paratest** (HMAI-355) — job `tests` uruchamia suite na `PARATEST_PROCESSES` (4) workerach, każdy z własną bazą (`homemanager_test{token}`, przez `dbname_suffix` w `doctrine.yaml`) i własną logiczną bazą Redis (przepisanie `REDIS_URL` w `tests/bootstrap.php`), więc testy integracyjne nie kolidują na współdzielonej MySQL/Redis; pokrycie cząstkowe scalane do jednego clovera. Lokalnie `make test-parallel` (a `make test` zostaje sekwencyjny). Dodano `brianium/paratest` (require-dev).
+- **Matryca static-analysis** (HMAI-356) — pięć niezależnych narzędzi (Rector, CS Fixer, PHPStan, Deptrac, `composer audit`) jako równoległe nogi matrycy (`fail-fast: false`), więc awaria jednego nie chowa pozostałych; każda noga nadal blokuje merge. Blok `concurrency`/`cancel-in-progress` był już wcześniej (HMAI-151) — udokumentowany, nie duplikowany.
+- **Przegląd timeoutów** (HMAI-358) — `timeout-minutes` przeliczone na profil po wejściu cache'owania i równoległości (static-analysis 6, openapi-contract 5, tests 12, e2e-playwright 15, e2e-newman 7) z celowym zapasem — każdy job siedzi poniżej 25% wykorzystania przy obserwowanym szczycie; zasada niezmieniona: podnosić przy zbliżeniu do 70% bounda, nigdy nie obniżać reaktywnie.
+
+### Coverage
+
+- **Trend pokrycia + ratchet** (HMAI-357) — job `tests` publikuje w GitHub job summary tabelę pokrycia (aktualny % / próg / baza / Δ względem poprzedniego runa i bazy) oraz zapisuje historię pokrycia (cache) między runami; bramka progu (`coverage-check.php`) pozostaje **bajt-w-bajt niezmieniona** — trend jest czysto dodatkowy. Udokumentowana procedura ratchet: próg rusza się tylko w górę. `make test-coverage`/`test-parallel` drukują to samo podsumowanie lokalnie.
+
+### Observability
+
+- **Job summaries + timings** (HMAI-358) — job `tests` publikuje do job summary swój wall-clock obok metryk pokrycia (widoczność regresji czasu na PR-ach); GitHub pokazuje czasy per-job/step natywnie.
+
+### Documentation
+
+- README — nowa sekcja „Continuous integration (CI) pipeline" (EN): tabela jobów z bramkami/czasami/timeoutami, cache, równoległość, trend pokrycia, observability.
+- CLAUDE.md — zaktualizowana notka „CI job timeouts" (nowy profil + uzasadnienie re-basingu) oraz wpis „Parallel test run".
+- Confluence — strona „Code quality — narzędzia i bramki CI" (PL) rozszerzona o cache, równoległość, trend pokrycia + ratchet, observability i przeliczone timeouty.
+
+### Migration
+
+1. **Brak migracji bazy** — epik nie dodaje tabel. `make migrate` nie jest potrzebne.
+2. **Zależności deweloperskie** — po pull `composer install` (dodany `brianium/paratest` w require-dev); lokalny bieg równoległy przez `make test-parallel` (provisionuje bazy tokenów jako root, migruje każdą, uruchamia paratest + próg).
+3. **Brak nowych zmiennych ENV** — `PARATEST_PROCESSES` ma domyślną wartość (4), nadpisywalną per-run.
+
+### Closed Jira
+
+HMAI-352 (epik), HMAI-353, HMAI-354, HMAI-355, HMAI-356, HMAI-357, HMAI-358.
+
+### Carried forward
+
+- Persystowany streak z 1.19.0 wciąż nie jest czytany przez stronę odczytu (`GetStreaks` liczy w locie).
+- Niestabilny test integracyjny (wzorzec „encja utworzona przed chwilą jest nie do znalezienia") — kandydat na osobne zgłoszenie w epiku jakościowym (HMAI-395).
+- Próg pokrycia zostaje na 90 — ratchet do wyższej wartości to świadoma osobna decyzja (trend już stabilnie ~93,7%).
+
 ## [1.28.0] — 2026-07-22
 
 Web-frontend AIHomeManager staje się **Progressive Web App** — instalowalną, działającą offline i z powiadomieniami push (epik **HMAI-344** — 7 podzadań HMAI-345…351, każde z osobnym zielonym CI). To lżejsza, komplementarna ścieżka mobilności wobec natywnego klienta Android: aplikację można dodać do ekranu głównego, wcześniej odwiedzone widoki otwierają się bez sieci, offline'owe zapisy są kolejkowane i odtwarzane po powrocie łączności, a przypomnienia docierają przez WebPush. Całość powstaje **wewnątrz istniejącego pipeline Webpack Encore** (Workbox) — bez osobnego bundlera — a backend push (WebPush/VAPID) jest współdzielony z modułem Powiadomień, więc epik nie buduje własnego. Motywem przewodnim jest uczciwy graceful-degrade: przeglądarka bez Background Sync dostaje jawny komunikat „akcja wymaga sieci” zamiast obietnicy odtworzenia, którego nie ma jak wywołać, a zielony build nigdy nie jest brany za dowód działania — bramką jest realna przeglądarka (Playwright) plus audyt Lighthouse. Epik **nie dotyka ani jednej linii PHP**: **1768/1768 PHP** (bez zmian vs 1.27.0) + **120/120 Playwright** (+4) + **148 Vitest JS** (+26) + **43 Newman** (bez zmian) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**.
