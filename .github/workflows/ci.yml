@@ -13,12 +13,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # HMAI-356: the five independent static-analysis tools run as parallel matrix
+  # legs (one gate per leg) instead of sequential steps, so a failure in one no
+  # longer hides the others — fail-fast: false keeps every leg running and each
+  # still blocks the merge (no false "success"). The workflow-level `concurrency`
+  # block (top of file, HMAI-151) already cancels superseded same-ref runs, so
+  # that half of the ticket was in place. Only PHPStan needs the warmed Symfony
+  # container, so the other legs skip the warmup and reach their check sooner.
   static-analysis:
-    name: Static analysis (Rector, CS Fixer, PHPStan, Deptrac)
+    name: Static analysis (${{ matrix.tool }})
     runs-on: ubuntu-latest
     # HMAI-154: cap at ~2× observed peak (4 min). Default 360 min would let a
     # runaway burn the entire free-tier budget on a single hang.
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: Rector
+            run: vendor/bin/rector process --dry-run
+          - tool: CS Fixer
+            run: vendor/bin/php-cs-fixer fix --dry-run --diff
+          # phpstan-symfony resolves service IDs from a warmed container.
+          - tool: PHPStan
+            run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+            warmup: true
+          # HMAI-146: enforces hexagonal layer boundaries + cross-module isolation.
+          - tool: Deptrac
+            run: vendor/bin/deptrac analyse --no-progress
+          # HMAI-149: CVEs in locked deps block the merge (bump, do not suppress);
+          # --abandoned=report keeps abandonment a warning, not a hard fail.
+          - tool: Composer audit
+            run: composer audit --abandoned=report
     defaults:
       run:
         working-directory: app
@@ -56,9 +82,10 @@ jobs:
       - name: Make console executable
         run: chmod +x bin/console
 
-      # phpstan-symfony needs a warmed container to resolve service IDs.
-      # Use env=dev — DB/Redis are not actually contacted during cache warmup.
+      # phpstan-symfony needs a warmed container to resolve service IDs — only the
+      # PHPStan leg. Use env=dev; DB/Redis are not actually contacted during warmup.
       - name: Warm cache for PHPStan-Symfony
+        if: ${{ matrix.warmup }}
         env:
           APP_ENV: dev
           APP_DEBUG: '1'
@@ -68,28 +95,8 @@ jobs:
           API_KEY: 'ci-api-key'
         run: bin/console cache:warmup --env=dev
 
-      - name: PHP Rector
-        run: vendor/bin/rector process --dry-run
-
-      - name: PHP CS Fixer
-        run: vendor/bin/php-cs-fixer fix --dry-run --diff
-
-      - name: PHPStan
-        run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
-
-      # HMAI-146: deptrac enforces hexagonal layer boundaries (Domain/Application
-      # /Infrastructure) and cross-module isolation. Pre-existing violations are
-      # in deptrac.yaml `skip_violations`; new ones must be fixed.
-      - name: Deptrac
-        run: vendor/bin/deptrac analyse --no-progress
-
-      # HMAI-149: composer audit queries FriendsOfPHP/security-advisories for
-      # known CVEs in installed deps. Blocks merge when an advisory exists for
-      # any locked version — bump the package or accept the breakage; do not
-      # suppress. --abandoned=report keeps abandoned packages as a warning
-      # (not a hard fail) — abandonment ≠ vulnerability.
-      - name: Composer audit
-        run: composer audit --abandoned=report
+      - name: ${{ matrix.tool }}
+        run: ${{ matrix.run }}
 
   # HMAI-343: the OpenAPI contract as a CI gate. Dumps the static openapi.json,
   # publishes it as a build artifact (input for the generated mobile client), and
