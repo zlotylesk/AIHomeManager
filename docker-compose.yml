@@ -122,6 +122,32 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  search:
+    # App-data search engine (HMAI-360, epic HMAI-359). A SEPARATE instance from
+    # the monitoring OpenSearch below (Graylog's log store): different lifecycle,
+    # different retention, and this one must come up with the lean stack too — so
+    # it carries no `monitoring` profile and starts on both `make up` and
+    # `make min-up`. OpenSearch 2.x (Apache-2.0, API-compatible with the app's
+    # opensearch-php client); the security plugin is off for a single-user
+    # dev/CI box. Single-node = dev mode, so the vm.max_map_count bootstrap check
+    # is a warning, not a fatal (matches the monitoring OpenSearch).
+    image: opensearchproject/opensearch:2
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=false
+    ports:
+      - "${SEARCH_HTTP_PORT:-9200}:9200"
+    volumes:
+      - search_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+
   mongodb:
     image: mongo:7
     profiles: [monitoring]
@@ -160,3 +186,4 @@ volumes:
   mysql_data:
   mongodb_data:
   opensearch_data:
+  search_data:

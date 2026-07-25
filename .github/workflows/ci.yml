@@ -209,6 +209,28 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
+      # HMAI-360 (epic HMAI-359): the app-data OpenSearch engine. Only the `tests`
+      # job runs it — the integration ping test asserts a real connection, and the
+      # follow-up tickets (361-366) add adapter/index/query integration tests.
+      # E2E/Newman don't touch search, so they stay lean: a missing engine there
+      # only makes /api/health report `search: degraded` (HTTP 200), which nothing
+      # in those jobs asserts. Single-node = dev mode, so the vm.max_map_count
+      # bootstrap check is a non-fatal warning on the runner.
+      search:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: 'true'
+          OPENSEARCH_JAVA_OPTS: '-Xms512m -Xmx512m'
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd="curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval=10s
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=40s
+
     env:
       APP_ENV: test
       APP_DEBUG: '1'
@@ -223,6 +245,8 @@ jobs:
       DATABASE_URL: 'mysql://homemanager:homemanager@127.0.0.1:3306/homemanager?serverVersion=8.0&charset=utf8mb4'
       REDIS_URL: 'redis://127.0.0.1:6379'
       LOCK_DSN: 'redis://127.0.0.1:6379'
+      # Points at the `search` service container above (runner localhost:9200).
+      SEARCH_ENGINE_DSN: 'http://127.0.0.1:9200'
       MESSENGER_TRANSPORT_DSN: 'in-memory://'
       API_KEY: 'test-api-key'
       # HMAI-355: paratest worker count. Each worker runs in its own database

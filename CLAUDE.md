@@ -103,6 +103,7 @@ The root `package.json` (Playwright + Newman) is **deliberately outside the gate
 |---|---|---|
 | MySQL 8.4 LTS | `mysql:3306` | Image pinned to `mysql:8.4` (the LTS line) in compose **and** CI (×3 jobs) — NOT the floating `mysql:8` (its tag currently still resolves to 8.4.9, but after 8.0 EOL it would jump to 9.x innovation; the pin = reproducibility dev↔CI↔prod). DB `homemanager`. **`serverVersion=8.0` in the DSN stays deliberately** (NOT 8.4): DBAL 4.4 for `8.4` picks `MySQL84Platform`, which is `@deprecated` and differs from `MySQL80Platform` **only** in the reserved-keyword list (zero changes in schema SQL generation) — the 8.0 platform is fully compatible with the 8.4 server, `schema:validate` with no drift. We stay on **8.4 LTS, not 9.x** (9.x = innovation, short support; LTS = predictability for a single-user/single-disk setup) |
 | Redis 8 | `redis:6379` | Keys `series:avg:{id}`, `season:avg:{id}` (TTL 3600) set directly via `\Redis` in `EpisodeRatedHandler` (not via a Symfony cache pool — the handler injects `\Redis`). The `cache.rate_limiter` pool is used by the RateLimiter; the `cache.search` pool caches Search results (HMAI-271) |
+| OpenSearch 2.x (search) | `search:9200` (host `${SEARCH_HTTP_PORT:-9200}`) | **App-data search engine (HMAI-360, epic HMAI-359)** — a SEPARATE instance from the Graylog OpenSearch (below): different lifecycle/retention, **no `monitoring` profile** so it starts on both `make up` and `make min-up`. `opensearchproject/opensearch:2` (Apache-2.0, opensearch-php-compatible), security plugin off for a single-user box; single-node = dev mode so the `vm.max_map_count` bootstrap check is a non-fatal warning. Client `opensearch-project/opensearch-php` (2.x) built by `App\SearchEngine\OpenSearchClientFactory` as the `app.search_client` service from `SEARCH_ENGINE_DSN`; **NOT wrapped in `RateLimitedHttpClient`** — opensearch-php uses its own ringphp/curl transport (not a Symfony `HttpClientInterface`), it is internal single-node traffic with no external quota (the Google Calendar SDK precedent). The ES/FULLTEXT search adapter behind the Search port (HMAI-265) lands in HMAI-361; CI runs the engine only in the `tests` job |
 | RabbitMQ 4.x | `rabbitmq:5672` (AMQP), `:15672` UI (guest/guest) | Image pinned to `rabbitmq:4-management-alpine` (3.12 was EOL; the major pin `:4` keeps the supported 4.x line — Khepri metadata backend, quorum queues by default). Transport `async`, exchange `series_events` (topic) + **classic queues** (NOT mirrored — removed in 4.0; we do not use them, so the bump = low BC risk), retry 3× (1s→2s→4s, max 30s), DLQ `failed`. Metadata is ephemeral (no data volume) — a restart = a fresh broker, Messenger auto-declares the exchange/queues on connect |
 | Worker Messenger | `messenger_worker` | `messenger:consume async --time-limit=3600 -vv` |
 | Worker Scheduler | `scheduler_worker` | `messenger:consume scheduler_default --time-limit=3600 -vv` |
@@ -142,6 +143,7 @@ Worker: `bin/console debug:scheduler` shows the state; `docker compose up -d sch
 DATABASE_URL=mysql://homemanager:homemanager@mysql:3306/homemanager?serverVersion=8.0&charset=utf8mb4
 MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages
 REDIS_URL=redis://redis:6379
+SEARCH_ENGINE_DSN=http://search:9200
 GRAYLOG_HOST, GRAYLOG_PORT=12201
 NEW_RELIC_LICENSE_KEY, NEW_RELIC_APP_NAME
 MAILER_DSN=null://null
@@ -262,9 +264,10 @@ Regression: `tests/Integration/Security/SecurityHeadersTest.php` (4 tests: front
 ## Health endpoint
 
 - `GET /api/health` — a public readiness probe (no `X-API-Key`)
-- Probes: MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP to the host from `MESSENGER_TRANSPORT_DSN`, timeout 1s), Disk (`disk_free_space('/')`)
-- 200 `{"status":"healthy", "components":{"mysql":"up", "redis":"up", "rabbitmq":"up", "disk":"up"}, "timestamp":"..."}` when everything is up
+- Probes: MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP to the host from `MESSENGER_TRANSPORT_DSN`, timeout 1s), Search (`ping()` on the `app.search_client` OpenSearch client), Disk (`disk_free_space('/')`)
+- 200 `{"status":"healthy", "components":{"mysql":"up", "redis":"up", "rabbitmq":"up", "search":"up", "disk":"up"}, "timestamp":"..."}` when everything is up
 - 503 `"status":"unhealthy"` + a `"down"` component when a probe fails (or disk >95% used) — orchestrators do not route traffic to a degraded instance
+- The **search probe** (HMAI-360) is **optional infra**: an unreachable engine reports `degraded` (HTTP 200), **never `down`** — global search falls back to the MySQL FULLTEXT adapter (epic HMAI-359), so a search outage must not 503 the app or take it out of rotation. Only `HealthChecker::checkSearch()` maps unreachable→`degraded`; the E2E/Newman jobs (which run no engine) simply show `search: degraded`, which nothing there asserts
 - The **disk probe** has 3 states, the rest are still binary up/down:
     - `< 80% used` → `up`
     - `80–95% used` → `degraded` (HTTP 200, `status: "degraded"` in the body — monitoring pages before escalation, traffic still routed)
