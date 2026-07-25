@@ -32,6 +32,18 @@ services:
         factory: ['Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection']
         arguments: ['%env(REDIS_URL)%']
 
+    # Search engine client (HMAI-360, epic HMAI-359): the app-data OpenSearch
+    # instance, separate from the Graylog log store. Built lazily from
+    # SEARCH_ENGINE_DSN — no connection until the first request. Deliberately NOT
+    # wrapped in RateLimitedHttpClient: opensearch-php 2.x uses its own ringphp
+    # transport (not a Symfony HttpClientInterface), and this is internal
+    # single-node traffic with no external quota (the Google Calendar SDK
+    # precedent). The ES/FULLTEXT search adapter (HMAI-361) will consume it.
+    app.search_client:
+        class: OpenSearch\Client
+        factory: ['App\SearchEngine\OpenSearchClientFactory', 'create']
+        arguments: ['%env(SEARCH_ENGINE_DSN)%']
+
     App\Module\Series\Infrastructure\Messenger\EpisodeRatedHandler:
         arguments:
             $redis: '@app.redis'
