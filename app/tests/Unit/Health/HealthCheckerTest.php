@@ -7,6 +7,8 @@ namespace App\Tests\Unit\Health;
 use App\Health\HealthChecker;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Result;
+use OpenSearch\Client;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Redis;
@@ -15,6 +17,8 @@ use RuntimeException;
 
 final class HealthCheckerTest extends TestCase
 {
+    private const string DSN = 'amqp://guest:guest@127.0.0.1:1/%2f/messages';
+
     public function testReportsMysqlDownWhenConnectionThrows(): void
     {
         $connection = $this->createMock(Connection::class);
@@ -25,10 +29,7 @@ final class HealthCheckerTest extends TestCase
             }
         });
 
-        $redis = $this->createStub(Redis::class);
-        $redis->method('ping')->willReturn('+PONG');
-
-        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+        $checker = new HealthChecker($connection, $this->upRedis(), self::DSN, $this->reachableSearch(), new NullLogger());
 
         $result = $checker->check();
 
@@ -38,13 +39,10 @@ final class HealthCheckerTest extends TestCase
 
     public function testReportsRedisDownWhenPingThrows(): void
     {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
-
         $redis = $this->createMock(Redis::class);
         $redis->method('ping')->willThrowException(new RedisException('lost connection'));
 
-        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+        $checker = new HealthChecker($this->upConnection(), $redis, self::DSN, $this->reachableSearch(), new NullLogger());
 
         $result = $checker->check();
 
@@ -54,72 +52,94 @@ final class HealthCheckerTest extends TestCase
 
     public function testReportsRedisDownWhenPingReturnsFalse(): void
     {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
-
         $redis = $this->createStub(Redis::class);
         $redis->method('ping')->willReturn(false);
 
-        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+        $checker = new HealthChecker($this->upConnection(), $redis, self::DSN, $this->reachableSearch(), new NullLogger());
 
-        $result = $checker->check();
-
-        self::assertSame('down', $result['redis']);
+        self::assertSame('down', $checker->check()['redis']);
     }
 
     public function testReportsRabbitMqDownWhenSocketUnreachable(): void
     {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), self::DSN, $this->reachableSearch(), new NullLogger());
 
-        $redis = $this->createStub(Redis::class);
-        $redis->method('ping')->willReturn('+PONG');
-
-        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
-
-        $result = $checker->check();
-
-        self::assertSame('down', $result['rabbitmq']);
+        self::assertSame('down', $checker->check()['rabbitmq']);
     }
 
     public function testReportsRabbitMqDownWhenDsnHasNoHost(): void
     {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), 'not-a-valid-dsn', $this->reachableSearch(), new NullLogger());
 
-        $redis = $this->createStub(Redis::class);
-        $redis->method('ping')->willReturn('+PONG');
+        self::assertSame('down', $checker->check()['rabbitmq']);
+    }
 
-        $checker = new HealthChecker($connection, $redis, 'not-a-valid-dsn', new NullLogger());
+    public function testReportsSearchUpWhenPingSucceeds(): void
+    {
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), self::DSN, $this->reachableSearch(), new NullLogger());
 
-        $result = $checker->check();
+        self::assertSame('up', $checker->check()['search']);
+    }
 
-        self::assertSame('down', $result['rabbitmq']);
+    public function testReportsSearchDegradedWhenPingReturnsFalse(): void
+    {
+        $search = $this->createStub(Client::class);
+        $search->method('ping')->willReturn(false);
+
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), self::DSN, $search, new NullLogger());
+
+        // 'degraded', never 'down': search falls back to the FULLTEXT adapter, so
+        // an engine outage must not fail the whole readiness probe.
+        self::assertSame('degraded', $checker->check()['search']);
+    }
+
+    public function testReportsSearchDegradedWhenPingThrows(): void
+    {
+        $search = $this->createStub(Client::class);
+        $search->method('ping')->willThrowException(new RuntimeException('no nodes available'));
+
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), self::DSN, $search, new NullLogger());
+
+        self::assertSame('degraded', $checker->check()['search']);
     }
 
     public function testCheckDiskReturnsOneOfThreeKnownStates(): void
     {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
-
-        $redis = $this->createStub(Redis::class);
-        $redis->method('ping')->willReturn('+PONG');
-
-        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), self::DSN, $this->reachableSearch(), new NullLogger());
 
         self::assertContains($checker->checkDisk(), ['up', 'degraded', 'down']);
     }
 
-    public function testCheckIncludesDiskComponent(): void
+    public function testCheckIncludesDiskAndSearchComponents(): void
+    {
+        $checker = new HealthChecker($this->upConnection(), $this->upRedis(), self::DSN, $this->reachableSearch(), new NullLogger());
+
+        $result = $checker->check();
+        self::assertArrayHasKey('disk', $result);
+        self::assertArrayHasKey('search', $result);
+    }
+
+    private function upConnection(): Connection
     {
         $connection = $this->createMock(Connection::class);
-        $connection->method('executeQuery')->willReturn($this->createStub(\Doctrine\DBAL\Result::class));
+        $connection->method('executeQuery')->willReturn($this->createStub(Result::class));
 
+        return $connection;
+    }
+
+    private function upRedis(): Redis
+    {
         $redis = $this->createStub(Redis::class);
         $redis->method('ping')->willReturn('+PONG');
 
-        $checker = new HealthChecker($connection, $redis, 'amqp://guest:guest@127.0.0.1:1/%2f/messages', new NullLogger());
+        return $redis;
+    }
 
-        self::assertArrayHasKey('disk', $checker->check());
+    private function reachableSearch(): Client
+    {
+        $search = $this->createStub(Client::class);
+        $search->method('ping')->willReturn(true);
+
+        return $search;
     }
 }

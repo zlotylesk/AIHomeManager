@@ -27,7 +27,11 @@ final class HealthEndpointTest extends WebTestCase
         self::assertArrayHasKey('mysql', $body['components']);
         self::assertArrayHasKey('redis', $body['components']);
         self::assertArrayHasKey('rabbitmq', $body['components']);
+        self::assertArrayHasKey('search', $body['components']);
         self::assertArrayHasKey('disk', $body['components']);
         self::assertContains($body['components']['disk'], ['up', 'degraded', 'down']);
+        // Search is optional infra (graceful degrade to FULLTEXT) — reachable or
+        // 'degraded', but never 'down'.
+        self::assertContains($body['components']['search'], ['up', 'degraded']);
     }
 }

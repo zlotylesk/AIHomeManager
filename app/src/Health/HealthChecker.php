@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Health;
 
 use Doctrine\DBAL\Connection;
+use OpenSearch\Client;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Redis;
@@ -33,6 +34,8 @@ readonly class HealthChecker
         private Redis $redis,
         #[Autowire(env: 'MESSENGER_TRANSPORT_DSN')]
         private string $messengerDsn,
+        #[Autowire(service: 'app.search_client')]
+        private Client $searchClient,
         #[Autowire(service: 'monolog.logger')]
         private LoggerInterface $logger = new NullLogger(),
         private float $rabbitMqTimeoutSeconds = 1.0,
@@ -48,8 +51,31 @@ readonly class HealthChecker
             'mysql' => $this->probe(fn () => $this->connection->executeQuery('SELECT 1'), 'mysql'),
             'redis' => $this->probe(fn () => $this->pingRedis(), 'redis'),
             'rabbitmq' => $this->probe(fn () => $this->openRabbitMqSocket(), 'rabbitmq'),
+            'search' => $this->checkSearch(),
             'disk' => $this->checkDisk(),
         ];
+    }
+
+    /**
+     * Search-engine readiness (HMAI-360, epic HMAI-359). Unlike the core
+     * dependencies, an unreachable engine is reported as 'degraded' (HTTP 200),
+     * never 'down': global search falls back to the MySQL FULLTEXT adapter, so a
+     * search outage must not fail the whole readiness probe and take the app out
+     * of rotation.
+     */
+    public function checkSearch(): string
+    {
+        try {
+            return $this->searchClient->ping() ? 'up' : 'degraded';
+        } catch (Throwable $e) {
+            $this->logger->warning('Health check failed', [
+                'component' => 'search',
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            return 'degraded';
+        }
     }
 
     public function checkDisk(): string
