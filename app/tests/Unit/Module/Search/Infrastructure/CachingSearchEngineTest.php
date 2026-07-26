@@ -66,4 +66,31 @@ final class CachingSearchEngineTest extends TestCase
         $engine->search(new SearchQuery('dune', SearchResultType::BOOK));
         $engine->search(new SearchQuery('dune', null, 2));
     }
+
+    /**
+     * HMAI-361: two backends now sit behind the port, so a cached answer belongs
+     * to the engine that produced it — otherwise flipping SEARCH_ENGINE_BACKEND
+     * would keep serving the old backend's results until the TTL ran out.
+     */
+    public function testBackendsDoNotShareCachedResults(): void
+    {
+        $query = new SearchQuery('dune');
+        $cache = new ArrayAdapter();
+
+        $first = new class implements SearchEngineInterface {
+            public function search(SearchQuery $query): array
+            {
+                return [new SearchResult(SearchResultType::BOOK, 'b1', 'Dune', 'from the first engine', '/books')];
+            }
+        };
+        $second = new class implements SearchEngineInterface {
+            public function search(SearchQuery $query): array
+            {
+                return [new SearchResult(SearchResultType::BOOK, 'b1', 'Dune', 'from the second engine', '/books')];
+            }
+        };
+
+        self::assertSame('from the first engine', new CachingSearchEngine($first, $cache)->search($query)[0]->snippet);
+        self::assertSame('from the second engine', new CachingSearchEngine($second, $cache)->search($query)[0]->snippet);
+    }
 }

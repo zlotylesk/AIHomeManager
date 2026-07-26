@@ -2,6 +2,10 @@
 
 parameters:
     app.discogs_clock_drift.threshold_seconds: 300
+    # Search backend flag fallback (HMAI-361): the value used when
+    # SEARCH_ENGINE_BACKEND is unset or empty. MySQL FULLTEXT stays the default —
+    # OpenSearch is switched on deliberately, never by merely deploying.
+    app.search_backend.default: 'fulltext'
 
 services:
     _defaults:
@@ -38,7 +42,7 @@ services:
     # wrapped in RateLimitedHttpClient: opensearch-php 2.x uses its own ringphp
     # transport (not a Symfony HttpClientInterface), and this is internal
     # single-node traffic with no external quota (the Google Calendar SDK
-    # precedent). The ES/FULLTEXT search adapter (HMAI-361) will consume it.
+    # precedent). Consumed by the OpenSearch engine adapter (HMAI-361).
     app.search_client:
         class: OpenSearch\Client
         factory: ['App\SearchEngine\OpenSearchClientFactory', 'create']
@@ -524,13 +528,30 @@ services:
         alias: App\Module\Search\Infrastructure\Provider\CompositeSearchableProvider
 
     # Search engine (HMAI-268): the FULLTEXT engine + index rebuilder sit behind
-    # their Domain ports so the read/write side stays swappable (e.g. an
-    # Elasticsearch engine later, HMAI-359).
-    # The FULLTEXT engine is fronted by a Redis result cache (HMAI-271); both sit
-    # behind the SearchEngineInterface port so the read side stays swappable.
+    # their Domain ports so the read/write side stays swappable.
+    #
+    # Two adapters now implement the read port (HMAI-361, epic HMAI-359): MySQL
+    # FULLTEXT and OpenSearch. SEARCH_ENGINE_BACKEND picks the active one at
+    # runtime — an alias could not, being resolved at compile time — with
+    # FULLTEXT as the fallback, so OpenSearch is only ever used on purpose.
+    App\Module\Search\Infrastructure\Engine\OpenSearchEngine:
+        arguments:
+            $client: '@app.search_client'
+
+    app.search_engine.backend:
+        class: App\Module\Search\Domain\Port\SearchEngineInterface
+        factory: ['App\Module\Search\Infrastructure\Engine\SearchEngineFactory', 'create']
+        arguments:
+            $backend: '%env(default:app.search_backend.default:SEARCH_ENGINE_BACKEND)%'
+            $fulltext: '@App\Module\Search\Infrastructure\Engine\FulltextSearchEngine'
+            $openSearch: '@App\Module\Search\Infrastructure\Engine\OpenSearchEngine'
+
+    # Whichever backend is active is fronted by a Redis result cache (HMAI-271);
+    # both sit behind the SearchEngineInterface port so the read side stays
+    # swappable.
     App\Module\Search\Infrastructure\Cache\CachingSearchEngine:
         arguments:
-            $engine: '@App\Module\Search\Infrastructure\Engine\FulltextSearchEngine'
+            $engine: '@app.search_engine.backend'
             $cache: '@cache.search'
 
     App\Module\Search\Domain\Port\SearchEngineInterface:
