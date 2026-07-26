@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Messaging\QueryBus;
+use App\Module\Search\Application\Query\GetSearchFacets;
 use App\Module\Search\Application\Query\Search;
 use App\Module\Search\Domain\Enum\SearchResultType;
+use App\Module\Search\Domain\ReadModel\SearchFacet;
 use App\Module\Search\Domain\ValueObject\SearchQuery;
 use App\Module\Search\Domain\ValueObject\SearchResult;
 use InvalidArgumentException;
@@ -70,5 +72,52 @@ final class SearchController extends AbstractController
         $results = $this->queryBus->ask(new Search($criteria));
 
         return new JsonResponse($this->normalizer->normalize($results));
+    }
+
+    #[Route('/facets', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Per-type match counts for a search phrase',
+        description: <<<'TEXT'
+            How many documents of each module/entity kind the phrase matches, so a client can
+            offer "Books (42)" instead of making the user page blindly.
+
+            Two properties that hold on every backend: the counts span the **whole** match set
+            rather than one page, and they deliberately **ignore any type filter** — facets are
+            the alternatives on offer, so narrowing them by the current selection would leave
+            exactly one. Types with no matches are omitted rather than returned as zero.
+
+            This is a separate resource on purpose: folding the counts into `GET /search` would
+            change that endpoint's array response into an envelope, which ADR-008 reserves for
+            `/api/v2`.
+            TEXT,
+        tags: ['Search'],
+        parameters: [
+            new OA\QueryParameter(name: 'q', description: 'The search phrase (required, non-blank).', required: true, schema: new OA\Schema(type: 'string', minLength: 1), example: 'dune'),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Match counts ordered by count descending, then type (an empty array when nothing matches).',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: SearchFacet::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+        ],
+    )]
+    public function facets(Request $request): JsonResponse
+    {
+        try {
+            // The page/perPage defaults are irrelevant here (the engine ignores
+            // them for facets) but the VO is what validates the phrase, so the
+            // endpoint reuses it rather than growing a second rule for "blank".
+            $criteria = new SearchQuery($request->query->getString('q'));
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        /** @var list<SearchFacet> $facets */
+        $facets = $this->queryBus->ask(new GetSearchFacets($criteria));
+
+        return new JsonResponse($this->normalizer->normalize($facets));
     }
 }

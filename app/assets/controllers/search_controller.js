@@ -1,6 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { apiCall, escHtml, safeUrl } from '../util.js';
-import { groupByType } from '../search/format.js';
+import { facetCounts, groupByType, groupHeading } from '../search/format.js';
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
@@ -15,8 +15,8 @@ function renderResult(result) {
     return `<a class="search-result" href="${escHtml(url)}"><span class="search-result-title">${title}</span>${snippet}</a>`;
 }
 
-function renderGroup(group) {
-    return `<div class="search-group"><div class="search-group-label">${escHtml(group.label)}</div>${group.items.map(renderResult).join('')}</div>`;
+function renderGroup(group, counts) {
+    return `<div class="search-group"><div class="search-group-label">${escHtml(groupHeading(group, counts))}</div>${group.items.map(renderResult).join('')}</div>`;
 }
 
 export default class extends Controller {
@@ -56,13 +56,25 @@ export default class extends Controller {
     async run(term) {
         this.show('<div class="search-loading">Szukam…</div>');
 
+        const query = encodeURIComponent(term);
+
         try {
-            const results = await apiCall(`/api/search?q=${encodeURIComponent(term)}`);
+            // Both reads are issued together so the counts do not add a second
+            // round trip to every keystroke. The facets are an enhancement, not
+            // a requirement: `catch` turns their failure into "no counts" so a
+            // broken facet read can never cost the user the results themselves.
+            const [results, facets] = await Promise.all([
+                apiCall(`/api/search?q=${query}`),
+                apiCall(`/api/search/facets?q=${query}`).catch(() => []),
+            ]);
+
             if (!Array.isArray(results) || 0 === results.length) {
                 this.show('<div class="search-empty">Brak wyników.</div>');
                 return;
             }
-            this.show(groupByType(results).map(renderGroup).join(''));
+
+            const counts = facetCounts(facets);
+            this.show(groupByType(results).map((group) => renderGroup(group, counts)).join(''));
         } catch {
             this.show('<div class="search-error">Wyszukiwanie nie powiodło się.</div>');
         }

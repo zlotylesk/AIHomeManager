@@ -52,6 +52,56 @@ final class SearchApiDocTest extends WebTestCase
         self::assertArrayHasKey('422', $responses);
     }
 
+    public function testFacetsEndpointIsDocumentedAndTagged(): void
+    {
+        $get = $this->nestedArray($this->fetchSpec(static::createClient()), 'paths', '/api/v1/search/facets', 'get');
+
+        self::assertContains('Search', $get['tags'] ?? [], 'GET /search/facets must be tagged "Search".');
+    }
+
+    /**
+     * HMAI-364: the facet endpoint takes the phrase and nothing else. Anything
+     * else in the contract — a type filter, a page — would promise a narrowing
+     * the engines deliberately ignore.
+     */
+    public function testFacetsDocumentOnlyThePhraseParameter(): void
+    {
+        $get = $this->nestedArray($this->fetchSpec(static::createClient()), 'paths', '/api/v1/search/facets', 'get');
+
+        $names = array_map(static fn (array $param): string => $param['name'] ?? '', $get['parameters'] ?? []);
+
+        self::assertSame(['q'], $names);
+        self::assertTrue($get['parameters'][0]['required'] ?? false, 'The "q" phrase must be required.');
+    }
+
+    public function testFacetsResponseIsAnArrayOfSearchFacetWithErrorResponses(): void
+    {
+        $get = $this->nestedArray($this->fetchSpec(static::createClient()), 'paths', '/api/v1/search/facets', 'get');
+
+        $schema = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
+        self::assertSame('array', $schema['type'] ?? null);
+        self::assertSame('#/components/schemas/SearchFacet', $schema['items']['$ref'] ?? null);
+
+        $responses = $this->nestedArray($get, 'responses');
+        self::assertArrayHasKey('401', $responses);
+        self::assertArrayHasKey('422', $responses);
+    }
+
+    public function testSearchFacetSchemaCarriesTypeAndCount(): void
+    {
+        $properties = $this->nestedArray(
+            $this->fetchSpec(static::createClient()),
+            'components',
+            'schemas',
+            'SearchFacet',
+            'properties',
+        );
+
+        self::assertArrayHasKey('type', $properties);
+        self::assertArrayHasKey('count', $properties);
+        self::assertSame('integer', $this->nestedArray($properties, 'count')['type'] ?? null);
+    }
+
     /**
      * @return array<mixed>
      */

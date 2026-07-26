@@ -8,12 +8,22 @@ const RESULTS: SearchResult[] = [
   { type: 'series', id: 's1', title: 'Deep Space Nine', snippet: 'station', url: '/series' },
 ];
 
+// HMAI-364: the facets endpoint is a sibling path, and a glob's `*` does not
+// cross a `/` — without its own stub the page would reach the real server for it.
+const FACETS = [
+  { type: 'book', count: 42 },
+  { type: 'series', count: 7 },
+];
+
 async function stubPage(page: Page, results: SearchResult[]): Promise<void> {
   await page.route('**/api/goals/streaks', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
   await page.route('**/api/goals', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.route('**/api/search/facets*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FACETS) }),
   );
   await page.route('**/api/search*', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(results) }),
@@ -28,9 +38,24 @@ test('typing shows grouped, ranked search results from the API', async ({ page }
 
   await expect(page.locator('.search-result')).toHaveCount(3);
   await expect(page.locator('.search-group')).toHaveCount(2);
-  await expect(page.locator('.search-group-label').first()).toHaveText('Książka');
+  // The heading carries the facet count, not the number of rows below it: two
+  // books are rendered, forty-two match (HMAI-364).
+  await expect(page.locator('.search-group-label').first()).toHaveText('Książka (42)');
   await expect(page.locator('.search-result').first()).toContainText('Dune');
   await expect(page.locator('.search-result').first()).toHaveAttribute('href', '/books');
+});
+
+test('a failed facet read costs the counts, never the results', async ({ page }) => {
+  await stubPage(page, RESULTS);
+  // Registered after stubPage, so it wins: Playwright matches the most recently
+  // added route first.
+  await page.route('**/api/search/facets*', (route) => route.fulfill({ status: 500, body: '' }));
+  await page.goto('/goals');
+
+  await page.locator('[data-search-target="input"]').fill('space');
+
+  await expect(page.locator('.search-result')).toHaveCount(3);
+  await expect(page.locator('.search-group-label').first()).toHaveText('Książka');
 });
 
 test('shows an empty state when nothing matches', async ({ page }) => {
@@ -61,6 +86,10 @@ test('does not query the API for a single character', async ({ page }) => {
   let called = false;
   await page.route('**/api/goals/streaks', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
   await page.route('**/api/goals', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await page.route('**/api/search/facets*', (route) => {
+    called = true;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+  });
   await page.route('**/api/search*', (route) => {
     called = true;
     return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
