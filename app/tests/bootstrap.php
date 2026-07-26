@@ -22,6 +22,16 @@ if (is_string($paratestToken) && ctype_digit($paratestToken)) {
     $redisUrl = $redisBase.'/'.$redisDb;
     $_SERVER['REDIS_URL'] = $_ENV['REDIS_URL'] = $redisUrl;
     putenv('REDIS_URL='.$redisUrl);
+
+    // HMAI-362: the app-data OpenSearch engine is a single node, and index names
+    // are global to it — there is no per-worker equivalent of a MySQL database
+    // or a Redis logical DB. Give each worker its own alias instead, so one
+    // worker reindexing (which deletes the superseded index) cannot pull the
+    // documents out from under another worker's assertions.
+    $aliasRaw = $_SERVER['SEARCH_INDEX_ALIAS'] ?? (getenv('SEARCH_INDEX_ALIAS') ?: 'search_documents');
+    $alias = (is_string($aliasRaw) ? $aliasRaw : 'search_documents').'_w'.$paratestToken;
+    $_SERVER['SEARCH_INDEX_ALIAS'] = $_ENV['SEARCH_INDEX_ALIAS'] = $alias;
+    putenv('SEARCH_INDEX_ALIAS='.$alias);
 }
 
 if ($_SERVER['APP_DEBUG']) {

@@ -7,10 +7,12 @@ namespace App\Tests\Integration\Search;
 use App\Module\Search\Domain\Enum\SearchResultType;
 use App\Module\Search\Domain\ValueObject\SearchQuery;
 use App\Module\Search\Infrastructure\Engine\OpenSearchEngine;
+use App\Module\Search\Infrastructure\Index\SearchIndexDefinition;
+use App\Module\Search\Infrastructure\Index\SearchIndexManager;
+use App\Tests\Support\ResetsSearchIndex;
 use OpenSearch\Client;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
-use Throwable;
 
 /**
  * HMAI-361: the OpenSearch adapter against the real engine (the docker-compose
@@ -22,12 +24,17 @@ use Throwable;
  * expectations through both proves it.
  *
  * The documents are indexed here rather than by the real pipeline because the
- * pipeline is HMAI-363's scope; the index is created without explicit mappings
- * for the same reason (HMAI-362).
+ * pipeline is HMAI-363's scope. The index itself is provisioned through the real
+ * {@see SearchIndexManager} (HMAI-362), so the adapter is exercised against the
+ * mappings and analyzers it will actually meet in production, and reads go
+ * through the alias rather than a physical index name.
  */
 final class OpenSearchEngineTest extends KernelTestCase
 {
+    use ResetsSearchIndex;
+
     private Client $client;
+    private SearchIndexDefinition $definition;
     private OpenSearchEngine $engine;
 
     protected function setUp(): void
@@ -36,11 +43,15 @@ final class OpenSearchEngineTest extends KernelTestCase
 
         /** @var Client $client */
         $client = static::getContainer()->get('app.search_client');
-        $this->client = $client;
-        $this->engine = new OpenSearchEngine($this->client);
+        /** @var SearchIndexDefinition $definition */
+        $definition = static::getContainer()->get(SearchIndexDefinition::class);
 
-        $this->dropIndex();
-        $this->client->indices()->create(['index' => OpenSearchEngine::INDEX]);
+        $this->client = $client;
+        $this->definition = $definition;
+        $this->engine = new OpenSearchEngine($client, $definition);
+
+        $this->resetSearchIndex($client, $definition);
+        new SearchIndexManager($client, $definition)->createIfMissing();
 
         $this->seed(SearchResultType::BOOK, 'b1', 'Dune', 'Frank Herbert desert planet', '/books');
         $this->seed(SearchResultType::BOOK, 'b2', 'Space Odyssey', 'a space voyage through space', '/books');
@@ -51,22 +62,24 @@ final class OpenSearchEngineTest extends KernelTestCase
 
         // Make the writes searchable before the assertions run — indexing is
         // near-real-time, not synchronous.
-        $this->client->indices()->refresh(['index' => OpenSearchEngine::INDEX]);
+        $this->refresh();
     }
 
-    private function dropIndex(): void
+    protected function tearDown(): void
     {
-        try {
-            $this->client->indices()->delete(['index' => OpenSearchEngine::INDEX]);
-        } catch (Throwable) {
-            // Absent on the first run — nothing to clean up.
-        }
+        $this->resetSearchIndex($this->client, $this->definition);
+        parent::tearDown();
+    }
+
+    private function refresh(): void
+    {
+        $this->client->indices()->refresh(['index' => $this->definition->alias()]);
     }
 
     private function seed(SearchResultType $type, string $id, string $title, string $content, string $url): void
     {
         $this->client->index([
-            'index' => OpenSearchEngine::INDEX,
+            'index' => $this->definition->alias(),
             'id' => $type->value.':'.$id,
             'body' => [
                 'type' => $type->value, 'source_id' => $id, 'title' => $title, 'content' => $content, 'url' => $url,
@@ -125,7 +138,7 @@ final class OpenSearchEngineTest extends KernelTestCase
     {
         $long = str_repeat('a', 200);
         $this->seed(SearchResultType::ARTICLE, 'a2', 'Longread', 'kaleidoscope '.$long, '/articles');
-        $this->client->indices()->refresh(['index' => OpenSearchEngine::INDEX]);
+        $this->refresh();
 
         $results = $this->engine->search(new SearchQuery('kaleidoscope'));
 
@@ -137,7 +150,7 @@ final class OpenSearchEngineTest extends KernelTestCase
 
     public function testReportsAnUnusableEngineInsteadOfAnEmptyResult(): void
     {
-        $this->dropIndex();
+        $this->resetSearchIndex($this->client, $this->definition);
 
         // No index means the backend is broken, not that the library is empty —
         // the read must fail loudly (the fallback to FULLTEXT is HMAI-365).
