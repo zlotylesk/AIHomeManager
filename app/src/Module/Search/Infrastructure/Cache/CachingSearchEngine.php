@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Search\Infrastructure\Cache;
 
 use App\Module\Search\Domain\Port\SearchEngineInterface;
+use App\Module\Search\Domain\ReadModel\SearchFacet;
 use App\Module\Search\Domain\ValueObject\SearchQuery;
 use App\Module\Search\Domain\ValueObject\SearchResult;
 use Symfony\Contracts\Cache\CacheInterface;
@@ -41,6 +42,18 @@ final readonly class CachingSearchEngine implements SearchEngineInterface
         return $results;
     }
 
+    public function facets(SearchQuery $query): array
+    {
+        /** @var list<SearchFacet> $facets */
+        $facets = $this->cache->get($this->facetsCacheKey($query), function (ItemInterface $item) use ($query): array {
+            $item->expiresAfter(self::TTL_SECONDS);
+
+            return $this->engine->facets($query);
+        });
+
+        return $facets;
+    }
+
     private function cacheKey(SearchQuery $query): string
     {
         $typeFilter = $query->typeFilter;
@@ -55,6 +68,21 @@ final readonly class CachingSearchEngine implements SearchEngineInterface
             null === $typeFilter ? '' : $typeFilter->value,
             $query->page,
             $query->perPage,
+        ));
+    }
+
+    /**
+     * Facets depend on the phrase alone — the port defines them as spanning the
+     * whole match set and ignoring both the type filter and the page. Keying
+     * them by those would split one answer across a dozen identical entries and
+     * miss the hit every time the user narrowed or paged.
+     */
+    private function facetsCacheKey(SearchQuery $query): string
+    {
+        return 'search_facets_'.sha1(sprintf(
+            '%s|%s',
+            $this->engine::class,
+            mb_strtolower(trim($query->term)),
         ));
     }
 }
