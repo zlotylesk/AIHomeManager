@@ -6,6 +6,12 @@ parameters:
     # SEARCH_ENGINE_BACKEND is unset or empty. MySQL FULLTEXT stays the default —
     # OpenSearch is switched on deliberately, never by merely deploying.
     app.search_backend.default: 'fulltext'
+    # Search index alias (HMAI-362): the name reads and writes go through, so a
+    # reindex can swap the physical index underneath without an outage. Only
+    # overridden per environment — the test suite points parallel workers at
+    # separate aliases, since they share one engine (unlike MySQL/Redis, which
+    # are isolated per worker).
+    app.search_index.default_alias: 'search_documents'
 
 services:
     _defaults:
@@ -534,6 +540,17 @@ services:
     # FULLTEXT and OpenSearch. SEARCH_ENGINE_BACKEND picks the active one at
     # runtime — an alias could not, being resolved at compile time — with
     # FULLTEXT as the fallback, so OpenSearch is only ever used on purpose.
+    # The index schema (HMAI-362). Everything that touches OpenSearch resolves
+    # the index name from here, so the adapter, the provisioning command and the
+    # tests cannot disagree about where the documents live.
+    App\Module\Search\Infrastructure\Index\SearchIndexDefinition:
+        arguments:
+            $alias: '%env(default:app.search_index.default_alias:SEARCH_INDEX_ALIAS)%'
+
+    App\Module\Search\Infrastructure\Index\SearchIndexManager:
+        arguments:
+            $client: '@app.search_client'
+
     App\Module\Search\Infrastructure\Engine\OpenSearchEngine:
         arguments:
             $client: '@app.search_client'

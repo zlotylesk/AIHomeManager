@@ -8,6 +8,7 @@ use App\Module\Search\Domain\Enum\SearchResultType;
 use App\Module\Search\Domain\Port\SearchEngineInterface;
 use App\Module\Search\Domain\ValueObject\SearchQuery;
 use App\Module\Search\Domain\ValueObject\SearchResult;
+use App\Module\Search\Infrastructure\Index\SearchIndexDefinition;
 use OpenSearch\Client;
 use RuntimeException;
 use Throwable;
@@ -26,32 +27,22 @@ use Throwable;
  *
  * The query is deliberately plain: relevance-ranked `multi_match` over
  * title+content, an exact `type` filter and offset pagination — the same three
- * things FULLTEXT does, so both backends answer alike. Field boosts, facets and
- * fuzziness are HMAI-364's scope; degrading to FULLTEXT when the engine is down
- * is HMAI-365's.
+ * things FULLTEXT does, so both backends answer alike. Field boosts, facets,
+ * fuzziness and the diacritic-insensitive `.folded` sub-fields HMAI-362 mapped
+ * are HMAI-364's scope; degrading to FULLTEXT when the engine is down is
+ * HMAI-365's.
  *
- * One ordering difference is knowingly left open: FULLTEXT breaks a score tie on
- * `title ASC`, while this engine leaves tied hits in the engine's own order, so
- * a tie straddling a page boundary could repeat or drop a row. Adding the
- * equivalent secondary sort needs `title` to carry a sortable keyword — which is
- * exactly what HMAI-362 decides — so it belongs to that ticket rather than to a
- * guess made here.
+ * Reads go through the alias rather than a physical index name (HMAI-362), so a
+ * reindex swaps the data underneath this adapter without it noticing.
  */
 final readonly class OpenSearchEngine implements SearchEngineInterface
 {
-    /**
-     * The index this adapter reads. It mirrors the FULLTEXT `search_documents`
-     * table field-for-field (`type`, `source_id`, `title`, `content`, `url`) so
-     * both backends build identical Domain read models. The explicit
-     * mappings/analyzers and the write alias arrive with HMAI-362, the pipeline
-     * that fills the index with HMAI-363.
-     */
-    public const string INDEX = 'search_documents';
-
     private const int SNIPPET_LENGTH = 160;
 
-    public function __construct(private Client $client)
-    {
+    public function __construct(
+        private Client $client,
+        private SearchIndexDefinition $definition,
+    ) {
     }
 
     public function search(SearchQuery $query): array
@@ -89,7 +80,7 @@ final readonly class OpenSearchEngine implements SearchEngineInterface
     {
         try {
             $response = $this->client->search([
-                'index' => self::INDEX,
+                'index' => $this->definition->alias(),
                 'body' => $this->body($query),
             ]);
         } catch (Throwable $e) {
@@ -119,9 +110,8 @@ final readonly class OpenSearchEngine implements SearchEngineInterface
         $typeFilter = $query->typeFilter;
         if (null !== $typeFilter) {
             // A filter clause, not a query clause: the type narrows the result
-            // set without contributing to the relevance score. `term` matches
-            // whether HMAI-362 maps `type` as a keyword or leaves it analyzed —
-            // every SearchResultType value is a single lowercase word.
+            // set without contributing to the relevance score. `type` is mapped
+            // as a keyword (HMAI-362), so the term matches the value verbatim.
             $bool['filter'] = [['term' => ['type' => $typeFilter->value]]];
         }
 
@@ -129,6 +119,18 @@ final readonly class OpenSearchEngine implements SearchEngineInterface
             'from' => ($query->page - 1) * $query->perPage,
             'size' => $query->perPage,
             'query' => ['bool' => $bool],
+            // Relevance first, then title — the same total order FULLTEXT
+            // produces. Without the tie-break, equally scored hits come back in
+            // whatever order the engine happens to produce, which is not stable
+            // between requests: a tie straddling a page boundary could then show
+            // the same row on both pages, or on neither. `title.keyword` is the
+            // sortable copy the mapping carries for exactly this; titles longer
+            // than its `ignore_above` have no keyword value and sort last rather
+            // than disappearing.
+            'sort' => [
+                ['_score' => ['order' => 'desc']],
+                ['title.keyword' => ['order' => 'asc', 'missing' => '_last']],
+            ],
         ];
     }
 }
