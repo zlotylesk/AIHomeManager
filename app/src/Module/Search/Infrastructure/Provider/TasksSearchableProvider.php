@@ -24,15 +24,31 @@ final readonly class TasksSearchableProvider implements SearchableProviderInterf
     {
         $rows = $this->connection->fetchAllAssociative('SELECT id, title FROM tasks');
 
-        return array_map(
-            static fn (array $row): SearchableDocument => new SearchableDocument(
-                SearchResultType::TASK,
-                (string) $row['id'],
-                (string) $row['title'],
-                '',
-                '/tasks',
-            ),
-            $rows,
+        return array_map($this->toDocument(...), $rows);
+    }
+
+    public function documentFor(SearchResultType $type, string $id): ?SearchableDocument
+    {
+        if (SearchResultType::TASK !== $type) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative('SELECT id, title FROM tasks WHERE id = ?', [$id]);
+
+        return false === $row ? null : $this->toDocument($row);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function toDocument(array $row): SearchableDocument
+    {
+        return new SearchableDocument(
+            SearchResultType::TASK,
+            (string) $row['id'],
+            (string) $row['title'],
+            '',
+            '/tasks',
         );
     }
 }

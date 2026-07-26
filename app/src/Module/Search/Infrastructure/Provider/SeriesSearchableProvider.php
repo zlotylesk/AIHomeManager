@@ -24,15 +24,31 @@ final readonly class SeriesSearchableProvider implements SearchableProviderInter
     {
         $rows = $this->connection->fetchAllAssociative('SELECT id, title, description FROM series');
 
-        return array_map(
-            static fn (array $row): SearchableDocument => new SearchableDocument(
-                SearchResultType::SERIES,
-                (string) $row['id'],
-                (string) $row['title'],
-                (string) ($row['description'] ?? ''),
-                '/series',
-            ),
-            $rows,
+        return array_map($this->toDocument(...), $rows);
+    }
+
+    public function documentFor(SearchResultType $type, string $id): ?SearchableDocument
+    {
+        if (SearchResultType::SERIES !== $type) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative('SELECT id, title, description FROM series WHERE id = ?', [$id]);
+
+        return false === $row ? null : $this->toDocument($row);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function toDocument(array $row): SearchableDocument
+    {
+        return new SearchableDocument(
+            SearchResultType::SERIES,
+            (string) $row['id'],
+            (string) $row['title'],
+            (string) ($row['description'] ?? ''),
+            '/series',
         );
     }
 }

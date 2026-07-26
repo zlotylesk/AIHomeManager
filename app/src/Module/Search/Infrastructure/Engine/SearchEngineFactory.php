@@ -43,7 +43,12 @@ final class SearchEngineFactory
         };
     }
 
-    private static function unknownBackend(string $backend): InvalidArgumentException
+    /**
+     * Public so the indexer factory (HMAI-363) rejects an unknown flag value
+     * with the identical message — the operator set one variable and should not
+     * get two different accounts of what is wrong with it.
+     */
+    public static function unknownBackend(string $backend): InvalidArgumentException
     {
         return new InvalidArgumentException(sprintf(
             'Unknown search backend "%s". Set SEARCH_ENGINE_BACKEND to "%s" or "%s".',

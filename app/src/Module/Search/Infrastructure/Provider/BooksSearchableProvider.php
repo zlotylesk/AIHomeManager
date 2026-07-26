@@ -24,15 +24,35 @@ final readonly class BooksSearchableProvider implements SearchableProviderInterf
     {
         $rows = $this->connection->fetchAllAssociative('SELECT id, title, author FROM books');
 
-        return array_map(
-            static fn (array $row): SearchableDocument => new SearchableDocument(
-                SearchResultType::BOOK,
-                (string) $row['id'],
-                (string) $row['title'],
-                (string) $row['author'],
-                '/books',
-            ),
-            $rows,
+        return array_map($this->toDocument(...), $rows);
+    }
+
+    public function documentFor(SearchResultType $type, string $id): ?SearchableDocument
+    {
+        if (SearchResultType::BOOK !== $type) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative('SELECT id, title, author FROM books WHERE id = ?', [$id]);
+
+        return false === $row ? null : $this->toDocument($row);
+    }
+
+    /**
+     * The single row-to-document mapping, shared by the bulk read and the
+     * single-document lookup so the two cannot drift into indexing different
+     * shapes for the same entity.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function toDocument(array $row): SearchableDocument
+    {
+        return new SearchableDocument(
+            SearchResultType::BOOK,
+            (string) $row['id'],
+            (string) $row['title'],
+            (string) $row['author'],
+            '/books',
         );
     }
 }

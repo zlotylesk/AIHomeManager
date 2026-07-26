@@ -24,15 +24,31 @@ final readonly class ArticlesSearchableProvider implements SearchableProviderInt
     {
         $rows = $this->connection->fetchAllAssociative('SELECT id, title, category FROM articles');
 
-        return array_map(
-            static fn (array $row): SearchableDocument => new SearchableDocument(
-                SearchResultType::ARTICLE,
-                (string) $row['id'],
-                (string) $row['title'],
-                (string) ($row['category'] ?? ''),
-                '/articles',
-            ),
-            $rows,
+        return array_map($this->toDocument(...), $rows);
+    }
+
+    public function documentFor(SearchResultType $type, string $id): ?SearchableDocument
+    {
+        if (SearchResultType::ARTICLE !== $type) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative('SELECT id, title, category FROM articles WHERE id = ?', [$id]);
+
+        return false === $row ? null : $this->toDocument($row);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function toDocument(array $row): SearchableDocument
+    {
+        return new SearchableDocument(
+            SearchResultType::ARTICLE,
+            (string) $row['id'],
+            (string) $row['title'],
+            (string) ($row['category'] ?? ''),
+            '/articles',
         );
     }
 }
