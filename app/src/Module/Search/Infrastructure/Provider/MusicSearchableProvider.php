@@ -27,15 +27,38 @@ final readonly class MusicSearchableProvider implements SearchableProviderInterf
             'SELECT MIN(id) AS id, artist, title FROM music_listening_sessions GROUP BY artist, title',
         );
 
-        return array_map(
-            static fn (array $row): SearchableDocument => new SearchableDocument(
-                SearchResultType::MUSIC,
-                (string) $row['id'],
-                (string) $row['title'],
-                (string) $row['artist'],
-                '/music',
-            ),
-            $rows,
+        return array_map($this->toDocument(...), $rows);
+    }
+
+    public function documentFor(SearchResultType $type, string $id): ?SearchableDocument
+    {
+        if (SearchResultType::MUSIC !== $type) {
+            return null;
+        }
+
+        // The document id is the *group's* lowest session id, not a row id, so
+        // the lookup has to reproduce the grouping and filter on it — selecting
+        // the session directly would resolve a repeat listen to a document that
+        // does not exist under that identity.
+        $row = $this->connection->fetchAssociative(
+            'SELECT MIN(id) AS id, artist, title FROM music_listening_sessions GROUP BY artist, title HAVING MIN(id) = ?',
+            [$id],
+        );
+
+        return false === $row ? null : $this->toDocument($row);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function toDocument(array $row): SearchableDocument
+    {
+        return new SearchableDocument(
+            SearchResultType::MUSIC,
+            (string) $row['id'],
+            (string) $row['title'],
+            (string) $row['artist'],
+            '/music',
         );
     }
 }

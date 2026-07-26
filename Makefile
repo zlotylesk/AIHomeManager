@@ -1,4 +1,4 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate search-index search-reindex test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
 
 up:
 	docker compose --profile monitoring up -d
@@ -33,6 +33,11 @@ search-index:
 
 search-reindex:
 	docker compose exec php bin/console app:search:index --reindex
+
+# HMAI-363: fills the index with documents (the scheduler does this every 15 min;
+# this is the manual handle — after a restore or a backend switch).
+search-populate:
+	docker compose exec php bin/console app:search:populate
 
 test:
 	docker compose exec php vendor/bin/phpunit

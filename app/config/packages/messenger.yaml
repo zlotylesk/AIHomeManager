@@ -53,6 +53,11 @@ framework:
             App\Module\Goals\Application\Command\RecalculateStreaks: async
             App\Module\Notifications\Application\Command\DispatchNotification: async
             App\Module\Podcasts\Application\Command\PollPodcastListens: async
+            # HMAI-363: incremental indexing rides the queue so a slow or
+            # unreachable engine never delays the write that triggered it, and a
+            # failed index retries through Messenger instead of surfacing as an
+            # error on an unrelated request.
+            App\Module\Search\Application\Command\IndexSearchDocument: async
 
 when@test:
     framework:
