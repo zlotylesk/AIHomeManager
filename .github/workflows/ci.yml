@@ -209,27 +209,12 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-      # HMAI-360 (epic HMAI-359): the app-data OpenSearch engine. Only the `tests`
-      # job runs it — the integration ping test asserts a real connection, and the
-      # follow-up tickets (361-366) add adapter/index/query integration tests.
-      # E2E/Newman don't touch search, so they stay lean: a missing engine there
-      # only makes /api/health report `search: degraded` (HTTP 200), which nothing
-      # in those jobs asserts. Single-node = dev mode, so the vm.max_map_count
-      # bootstrap check is a non-fatal warning on the runner.
-      search:
-        image: opensearchproject/opensearch:2
-        env:
-          discovery.type: single-node
-          DISABLE_SECURITY_PLUGIN: 'true'
-          OPENSEARCH_JAVA_OPTS: '-Xms512m -Xmx512m'
-        ports:
-          - 9200:9200
-        options: >-
-          --health-cmd="curl -sf http://localhost:9200/_cluster/health || exit 1"
-          --health-interval=10s
-          --health-timeout=10s
-          --health-retries=20
-          --health-start-period=40s
+      # NOTE (HMAI-362): the app-data OpenSearch engine is deliberately NOT a
+      # service container. It needs the `analysis-stempel` plugin for the Polish
+      # analyzer, which means a derived image (docker/opensearch/Dockerfile), and
+      # `services:` can only pull a published image. It is started as a step
+      # below instead — which also boots it in parallel with the Composer/npm
+      # installs rather than blocking the job on its health check.
 
     env:
       APP_ENV: test
@@ -264,6 +249,22 @@ jobs:
         run: echo "CI_JOB_START=$(date +%s)" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
+
+      # HMAI-362: the app-data search engine, built from docker/opensearch so it
+      # carries the Polish analysis plugin the index mappings require. Started
+      # detached and waited for further down, so the ~40s boot overlaps the
+      # dependency installs instead of adding to the job's wall-clock.
+      - name: Start app-data OpenSearch
+        # The job defaults to app/; the Dockerfile lives at the repo root.
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker build -t aihm-search:ci docker/opensearch
+          docker run -d --name aihm-search-ci -p 9200:9200 \
+            -e discovery.type=single-node \
+            -e DISABLE_SECURITY_PLUGIN=true \
+            -e OPENSEARCH_JAVA_OPTS='-Xms512m -Xmx512m' \
+            -e bootstrap.memory_lock=false \
+            aihm-search:ci
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -364,6 +365,27 @@ jobs:
 
       - name: Build Webpack Encore assets
         run: npm run build
+
+      # HMAI-362: the engine was started right after checkout; block here only
+      # for whatever boot time the installs above did not already absorb. A dead
+      # engine must fail here, loudly, rather than as a wall of red integration
+      # tests further down.
+      - name: Wait for app-data OpenSearch
+        working-directory: ${{ github.workspace }}
+        run: |
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:9200/_cluster/health > /dev/null; then
+              echo "OpenSearch is up."
+              curl -sf http://127.0.0.1:9200/_cat/plugins?h=component | grep -q stempel \
+                && echo "Polish analysis plugin present." && exit 0
+              echo "::error::analysis-stempel is missing from the search image."
+              exit 1
+            fi
+            sleep 3
+          done
+          echo "::error::OpenSearch did not become healthy in time."
+          docker logs aihm-search-ci | tail -50
+          exit 1
 
       # HMAI-355: paratest runs the suite in parallel across PARATEST_PROCESSES
       # workers (per-worker DB isolation above; Redis isolation in

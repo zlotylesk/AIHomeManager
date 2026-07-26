@@ -131,7 +131,12 @@ services:
     # opensearch-php client); the security plugin is off for a single-user
     # dev/CI box. Single-node = dev mode, so the vm.max_map_count bootstrap check
     # is a warning, not a fatal (matches the monitoring OpenSearch).
-    image: opensearchproject/opensearch:2
+    #
+    # Built from docker/opensearch (HMAI-362) rather than pulled: the stock image
+    # carries no Polish analysis, and the index mappings depend on it.
+    build:
+      context: docker/opensearch
+    image: aihm-search:local
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true

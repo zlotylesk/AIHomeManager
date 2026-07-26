@@ -1,4 +1,4 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: up min-up down build install migrate migrate-test schema-validate search-index search-reindex test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
 
 up:
 	docker compose --profile monitoring up -d
@@ -23,6 +23,16 @@ migrate-test:
 
 schema-validate:
 	docker compose exec php bin/console doctrine:schema:validate
+
+# HMAI-362: the OpenSearch index schema is code, so provisioning it is a command
+# — the search-side counterpart of doctrine:migrations. `search-index` is safe to
+# re-run (it only creates a missing index); `search-reindex` rebuilds under the
+# current mappings and switches the alias without a search outage.
+search-index:
+	docker compose exec php bin/console app:search:index
+
+search-reindex:
+	docker compose exec php bin/console app:search:index --reindex
 
 test:
 	docker compose exec php vendor/bin/phpunit
