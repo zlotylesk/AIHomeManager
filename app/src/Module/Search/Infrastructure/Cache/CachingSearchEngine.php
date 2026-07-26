@@ -11,12 +11,13 @@ use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
 /**
- * Caches search results in Redis, keyed by the normalized query (lower-cased +
- * trimmed phrase + type filter + pagination) with a short TTL. Repeated queries
- * — e.g. the frontend's debounced keystrokes — are served from Redis instead of
- * re-running FULLTEXT. The cache is wiped whenever the index is rebuilt
- * (SearchIndexer), so a hit never outlives a reindex. Decorates the FULLTEXT
- * engine behind the same {@see SearchEngineInterface} port.
+ * Caches search results in Redis, keyed by the decorated engine plus the
+ * normalized query (lower-cased + trimmed phrase + type filter + pagination)
+ * with a short TTL. Repeated queries — e.g. the frontend's debounced keystrokes
+ * — are served from Redis instead of re-running the search. The cache is wiped
+ * whenever the index is rebuilt (SearchIndexer), so a hit never outlives a
+ * reindex. Decorates whichever backend the SEARCH_ENGINE_BACKEND flag selected
+ * (HMAI-361), behind the same {@see SearchEngineInterface} port.
  */
 final readonly class CachingSearchEngine implements SearchEngineInterface
 {
@@ -45,7 +46,11 @@ final readonly class CachingSearchEngine implements SearchEngineInterface
         $typeFilter = $query->typeFilter;
 
         return 'search_'.sha1(sprintf(
-            '%s|%s|%d|%d',
+            '%s|%s|%s|%d|%d',
+            // The engine is part of the identity of a cached result (HMAI-361):
+            // without it, flipping SEARCH_ENGINE_BACKEND would keep serving the
+            // previous backend's answers until the TTL ran out.
+            $this->engine::class,
             mb_strtolower(trim($query->term)),
             null === $typeFilter ? '' : $typeFilter->value,
             $query->page,
