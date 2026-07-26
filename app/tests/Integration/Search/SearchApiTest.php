@@ -116,4 +116,56 @@ final class SearchApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(401);
     }
+
+    public function testFacetsReturnPerTypeCounts(): void
+    {
+        $this->client->request('GET', '/api/search/facets?q=space');
+        self::assertResponseIsSuccessful();
+
+        self::assertSame(
+            [['type' => 'book', 'count' => 1], ['type' => 'series', 'count' => 1]],
+            $this->jsonResponse($this->client),
+        );
+    }
+
+    public function testFacetsIgnoreTheTypeFilterParameter(): void
+    {
+        // The endpoint takes only the phrase on purpose: facets are the
+        // alternatives on offer, so a filter would leave exactly one of them.
+        $this->client->request('GET', '/api/search/facets?q=space&type=book');
+        self::assertResponseIsSuccessful();
+
+        self::assertCount(2, $this->jsonResponse($this->client));
+    }
+
+    public function testFacetsAreEmptyWhenNothingMatches(): void
+    {
+        $this->client->request('GET', '/api/search/facets?q=nonexistentqwerty');
+        self::assertResponseIsSuccessful();
+
+        self::assertSame([], $this->jsonResponse($this->client));
+    }
+
+    public function testFacetsRejectABlankPhrase(): void
+    {
+        $this->client->request('GET', '/api/search/facets?q=');
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testFacetsResolveOnBothTheVersionedAndAliasRoutes(): void
+    {
+        $this->client->request('GET', '/api/v1/search/facets?q=dune');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([['type' => 'book', 'count' => 1]], $this->jsonResponse($this->client));
+    }
+
+    public function testFacetsRequireTheApiKey(): void
+    {
+        $this->client->setServerParameter('HTTP_X_API_KEY', 'wrong-key');
+        $this->client->request('GET', '/api/search/facets?q=dune');
+
+        self::assertResponseStatusCodeSame(401);
+    }
 }

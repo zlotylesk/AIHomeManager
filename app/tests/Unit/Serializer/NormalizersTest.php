@@ -30,6 +30,7 @@ use App\Module\Podcasts\Application\DTO\PodcastDTO;
 use App\Module\Podcasts\Application\DTO\PodcastEpisodeDTO;
 use App\Module\Podcasts\Application\DTO\PodcastListeningSessionDTO;
 use App\Module\Search\Domain\Enum\SearchResultType;
+use App\Module\Search\Domain\ReadModel\SearchFacet;
 use App\Module\Search\Domain\ValueObject\SearchResult;
 use App\Module\Series\Application\DTO\EpisodeDTO;
 use App\Module\Series\Application\DTO\SeasonDTO;
@@ -49,6 +50,7 @@ use App\Serializer\NotificationDTONormalizer;
 use App\Serializer\NotificationPreferenceDTONormalizer;
 use App\Serializer\PodcastDetailDTONormalizer;
 use App\Serializer\PodcastDTONormalizer;
+use App\Serializer\SearchFacetNormalizer;
 use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
@@ -417,6 +419,17 @@ final class NormalizersTest extends TestCase
             'sentAt' => '2026-07-19T08:15:03+02:00',
             'failureReason' => null,
         ], $n->normalize($dto));
+    }
+
+    public function testSearchFacetNormalizer(): void
+    {
+        $n = new SearchFacetNormalizer();
+        $facet = new SearchFacet(SearchResultType::BOOK, 42);
+
+        self::assertTrue($n->supportsNormalization($facet));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(SearchFacet::class, $n->getSupportedTypes(null));
+        self::assertSame(['type' => 'book', 'count' => 42], $n->normalize($facet));
     }
 
     public function testSearchResultNormalizer(): void

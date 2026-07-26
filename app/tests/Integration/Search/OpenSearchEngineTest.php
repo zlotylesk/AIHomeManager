@@ -148,6 +148,114 @@ final class OpenSearchEngineTest extends KernelTestCase
         self::assertSame(160, mb_strlen($results[0]->snippet));
     }
 
+    /**
+     * HMAI-364, mirroring {@see SearchEngineTest::testATitleMatchOutranksABodyMatch}:
+     * the phrase sits once in each document, in mirror positions, and the titles
+     * are ordered so the alphabetical tie-break would place them the other way
+     * round.
+     */
+    public function testATitleMatchOutranksABodyMatch(): void
+    {
+        $this->seed(SearchResultType::BOOK, 'in-title', 'Zenit obserwacyjny', 'przewodnik testowy', '/books');
+        $this->seed(SearchResultType::BOOK, 'in-body', 'Almanach testowy', 'zenit obserwacyjny', '/books');
+        $this->refresh();
+
+        $results = $this->engine->search(new SearchQuery('zenit'));
+
+        self::assertCount(2, $results);
+        self::assertSame('in-title', $results[0]->id);
+        self::assertSame('in-body', $results[1]->id);
+    }
+
+    /**
+     * The capability FULLTEXT cannot offer at all (MySQL natural-language mode
+     * has no edit distance) — the concrete reason this epic exists.
+     */
+    public function testFindsAResultDespiteATypo(): void
+    {
+        $results = $this->engine->search(new SearchQuery('dume'));
+
+        self::assertCount(1, $results);
+        self::assertSame('b1', $results[0]->id, 'A single mistyped character still reaches "Dune".');
+    }
+
+    public function testAnExactMatchOutranksATypoMatch(): void
+    {
+        $this->seed(SearchResultType::BOOK, 'exact', 'Kometa', 'obserwacja nieba', '/books');
+        $this->seed(SearchResultType::BOOK, 'typo', 'Komela', 'obserwacja nieba', '/books');
+        $this->refresh();
+
+        $results = $this->engine->search(new SearchQuery('kometa'));
+
+        // Typo tolerance that can outrank a literal match is worse than none —
+        // it makes the top result feel random. Hence the deliberately small
+        // fuzzy boost.
+        self::assertSame('exact', $results[0]->id);
+        self::assertContains('typo', array_map(static fn ($result) => $result->id, $results));
+    }
+
+    /**
+     * The `.folded` sub-fields HMAI-362 mapped, finally wired into the query:
+     * someone typing Polish without diacritics still finds the entity.
+     */
+    public function testMatchesPolishTextTypedWithoutDiacritics(): void
+    {
+        $this->seed(SearchResultType::BOOK, 'pl1', 'Książka kucharska', 'przepisy regionalne', '/books');
+        $this->refresh();
+
+        self::assertSame('pl1', $this->engine->search(new SearchQuery('ksiazka'))[0]->id);
+    }
+
+    public function testMatchesAnInflectedPolishForm(): void
+    {
+        $this->seed(SearchResultType::BOOK, 'pl1', 'Książka kucharska', 'przepisy regionalne', '/books');
+        $this->refresh();
+
+        // The stemmed field's job: "książkami" and "książka" collapse onto one
+        // token, which is why the Polish analyzer is installed at all.
+        self::assertSame('pl1', $this->engine->search(new SearchQuery('książkami'))[0]->id);
+    }
+
+    public function testCountsMatchesPerType(): void
+    {
+        $facets = $this->engine->facets(new SearchQuery('space'));
+
+        self::assertCount(2, $facets);
+        self::assertSame(SearchResultType::BOOK, $facets[0]->type);
+        self::assertSame(1, $facets[0]->count);
+        self::assertSame(SearchResultType::SERIES, $facets[1]->type);
+        self::assertSame(1, $facets[1]->count);
+    }
+
+    public function testFacetsIgnoreTheTypeFilter(): void
+    {
+        $facets = $this->engine->facets(new SearchQuery('space', SearchResultType::BOOK));
+
+        self::assertSame(
+            [SearchResultType::BOOK, SearchResultType::SERIES],
+            array_map(static fn ($facet) => $facet->type, $facets),
+        );
+    }
+
+    public function testFacetsSpanTheWholeMatchSetNotTheRequestedPage(): void
+    {
+        $facets = $this->engine->facets(new SearchQuery('space', null, 2, 1));
+
+        self::assertSame(2, array_sum(array_map(static fn ($facet) => $facet->count, $facets)));
+    }
+
+    public function testFacetsAreEmptyWhenNothingMatches(): void
+    {
+        self::assertSame([], $this->engine->facets(new SearchQuery('nonexistentqwerty')));
+    }
+
+    public function testFacetsOmitTypesWithoutMatches(): void
+    {
+        $types = array_map(static fn ($facet) => $facet->type, $this->engine->facets(new SearchQuery('dune')));
+
+        self::assertSame([SearchResultType::BOOK], $types);
+    }
+
     public function testReportsAnUnusableEngineInsteadOfAnEmptyResult(): void
     {
         $this->resetSearchIndex($this->client, $this->definition);

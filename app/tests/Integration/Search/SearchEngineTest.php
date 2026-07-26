@@ -86,4 +86,69 @@ final class SearchEngineTest extends KernelTestCase
         self::assertStringContainsString('Frank Herbert', $result->snippet);
         self::assertSame('/books', $result->url);
     }
+
+    /**
+     * HMAI-364. The two documents carry the phrase exactly once each, in mirror
+     * positions, so the combined (title, content) index scores them alike. What
+     * separates them is only the title weight — and the titles are chosen so the
+     * alphabetical tie-break would order them the *other* way round, which is
+     * what makes this fail if the boost is ever dropped.
+     */
+    public function testATitleMatchOutranksABodyMatch(): void
+    {
+        $this->seed(SearchResultType::BOOK, 'in-title', 'Zenit obserwacyjny', 'przewodnik testowy', '/books');
+        $this->seed(SearchResultType::BOOK, 'in-body', 'Almanach testowy', 'zenit obserwacyjny', '/books');
+
+        $results = $this->engine->search(new SearchQuery('zenit'));
+
+        self::assertCount(2, $results);
+        self::assertSame('in-title', $results[0]->id);
+        self::assertSame('in-body', $results[1]->id);
+    }
+
+    public function testCountsMatchesPerType(): void
+    {
+        $facets = $this->engine->facets(new SearchQuery('space'));
+
+        self::assertCount(2, $facets);
+        self::assertSame(SearchResultType::BOOK, $facets[0]->type);
+        self::assertSame(1, $facets[0]->count);
+        self::assertSame(SearchResultType::SERIES, $facets[1]->type);
+        self::assertSame(1, $facets[1]->count);
+    }
+
+    public function testFacetsIgnoreTheTypeFilter(): void
+    {
+        // Narrowed to books, but the counts still offer series — otherwise the
+        // filter would hide the only route back out of it.
+        $facets = $this->engine->facets(new SearchQuery('space', SearchResultType::BOOK));
+
+        self::assertSame(
+            [SearchResultType::BOOK, SearchResultType::SERIES],
+            array_map(static fn ($facet) => $facet->type, $facets),
+        );
+    }
+
+    public function testFacetsSpanTheWholeMatchSetNotTheRequestedPage(): void
+    {
+        $facets = $this->engine->facets(new SearchQuery('space', null, 2, 1));
+
+        // One hit per page, second page requested — the counts describe all of
+        // it regardless.
+        self::assertSame(2, array_sum(array_map(static fn ($facet) => $facet->count, $facets)));
+    }
+
+    public function testFacetsAreEmptyWhenNothingMatches(): void
+    {
+        self::assertSame([], $this->engine->facets(new SearchQuery('nonexistentqwerty')));
+    }
+
+    public function testFacetsOmitTypesWithoutMatches(): void
+    {
+        $types = array_map(static fn ($facet) => $facet->type, $this->engine->facets(new SearchQuery('dune')));
+
+        // Only books match "dune"; a zero-count entry for the other four would
+        // invite the UI to offer a filter that leads nowhere.
+        self::assertSame([SearchResultType::BOOK], $types);
+    }
 }

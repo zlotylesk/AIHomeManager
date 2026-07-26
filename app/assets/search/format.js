@@ -38,3 +38,34 @@ export function groupByType(results) {
 
     return orderedTypes.map((type) => ({ type, label: typeLabel(type), items: byType.get(type) }));
 }
+
+// Folds the facet list from /api/search/facets into a type -> count lookup.
+// Entries without a usable type or a non-negative integer count are dropped,
+// so a partial or malformed payload degrades to "no counts" rather than
+// rendering "Książka (undefined)".
+export function facetCounts(facets) {
+    const counts = {};
+
+    for (const facet of Array.isArray(facets) ? facets : []) {
+        if (!facet || typeof facet.type !== 'string') {
+            continue;
+        }
+        if (!Number.isInteger(facet.count) || facet.count < 0) {
+            continue;
+        }
+        counts[facet.type] = facet.count;
+    }
+
+    return counts;
+}
+
+// The group header text. The count is the size of the whole match set, not of
+// the items rendered below it — that is the point of showing it, since the
+// dropdown only ever holds one page. Without a known count the header is just
+// the label, so a failed facet request costs the number and nothing else.
+export function groupHeading(group, counts) {
+    const label = group && typeof group.label === 'string' ? group.label : typeLabel(group?.type);
+    const count = counts ? counts[group?.type] : undefined;
+
+    return Number.isInteger(count) ? `${label} (${count})` : label;
+}

@@ -147,6 +147,24 @@ final class OpenApiContractTest extends WebTestCase
         $this->assertResponseConformsToContract('GET', '/api/v1/search?q=contract', '/api/v1/search');
     }
 
+    public function testSearchFacetsResponseConformsToContract(): void
+    {
+        // Two types behind one phrase, so the facet array is populated with more
+        // than a single element — the shape a client actually renders (HMAI-364).
+        $connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $connection->executeStatement('DELETE FROM search_documents');
+        $connection->insert('search_documents', [
+            'type' => 'book', 'source_id' => 'contract-book', 'title' => 'Contract Guide',
+            'content' => 'contract conformance handbook', 'url' => '/books',
+        ]);
+        $connection->insert('search_documents', [
+            'type' => 'task', 'source_id' => 'contract-task', 'title' => 'Review the contract',
+            'content' => '', 'url' => '/tasks',
+        ]);
+
+        $this->assertResponseConformsToContract('GET', '/api/v1/search/facets?q=contract', '/api/v1/search/facets');
+    }
+
     public function testTrendsResponseConformsToContract(): void
     {
         // Seed one reading session and one completed-vs-pending task pair so both
