@@ -53,6 +53,37 @@ final class CompositeSearchableProviderTest extends TestCase
             {
                 return $this->documents;
             }
+
+            public function documentFor(SearchResultType $type, string $id): ?SearchableDocument
+            {
+                foreach ($this->documents as $document) {
+                    if ($document->type === $type && $document->id === $id) {
+                        return $document;
+                    }
+                }
+
+                return null;
+            }
         };
+    }
+
+    public function testFindsADocumentHeldByAnyProvider(): void
+    {
+        $book = new SearchableDocument(SearchResultType::BOOK, 'b-1', 'Solaris', '', '/books');
+        $composite = new CompositeSearchableProvider([
+            $this->providerReturning([]),
+            $this->providerReturning([$book]),
+        ]);
+
+        self::assertSame($book, $composite->documentFor(SearchResultType::BOOK, 'b-1'));
+    }
+
+    public function testReturnsNullWhenNoProviderOwnsTheDocument(): void
+    {
+        $composite = new CompositeSearchableProvider([$this->providerReturning([])]);
+
+        // Not an error: this is how the indexer learns a document should be
+        // dropped rather than written.
+        self::assertNull($composite->documentFor(SearchResultType::BOOK, 'gone'));
     }
 }

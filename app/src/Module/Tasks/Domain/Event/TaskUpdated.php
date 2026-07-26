@@ -7,11 +7,13 @@ namespace App\Module\Tasks\Domain\Event;
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
 use App\Shared\Notification\NotifiableEvent;
+use App\Shared\Search\AffectsSearchIndex;
 use DateTimeImmutable;
 
-final readonly class TaskUpdated implements NotifiableEvent
+final readonly class TaskUpdated implements AffectsSearchIndex, NotifiableEvent
 {
     use AnnouncesTodaysTask;
+    use RefreshesTaskSearchDocument;
 
     public DateTimeImmutable $occurredAt;
 
