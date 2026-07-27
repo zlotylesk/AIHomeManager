@@ -9825,16 +9825,16 @@
         },
         {
             "name": "deptrac/deptrac",
-            "version": "4.6.2",
+            "version": "4.7.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/deptrac/deptrac.git",
-                "reference": "bc9c98102a3ed3acce5ad49f3da989dc9921c648"
+                "reference": "de3303ae1e280b1e58552fef496074b4ee5b143b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/deptrac/deptrac/zipball/bc9c98102a3ed3acce5ad49f3da989dc9921c648",
-                "reference": "bc9c98102a3ed3acce5ad49f3da989dc9921c648",
+                "url": "https://api.github.com/repos/deptrac/deptrac/zipball/de3303ae1e280b1e58552fef496074b4ee5b143b",
+                "reference": "de3303ae1e280b1e58552fef496074b4ee5b143b",
                 "shasum": ""
             },
             "require": {
@@ -9904,9 +9904,9 @@
             ],
             "support": {
                 "issues": "https://github.com/deptrac/deptrac/issues",
-                "source": "https://github.com/deptrac/deptrac/tree/4.6.2"
+                "source": "https://github.com/deptrac/deptrac/tree/4.7.1"
             },
-            "time": "2026-07-01T10:43:37+00:00"
+            "time": "2026-07-23T20:41:37+00:00"
         },
         {
             "name": "doctrine/data-fixtures",
@@ -10258,16 +10258,16 @@
         },
         {
             "name": "friendsofphp/php-cs-fixer",
-            "version": "v3.95.15",
+            "version": "v3.95.17",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
-                "reference": "3e47e5d50046f87e3244acde2fe655d1a3b72555"
+                "reference": "0ee88422118f3cc59c8c3def222ba7f1493b6d5b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/3e47e5d50046f87e3244acde2fe655d1a3b72555",
-                "reference": "3e47e5d50046f87e3244acde2fe655d1a3b72555",
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/0ee88422118f3cc59c8c3def222ba7f1493b6d5b",
+                "reference": "0ee88422118f3cc59c8c3def222ba7f1493b6d5b",
                 "shasum": ""
             },
             "require": {
@@ -10307,10 +10307,10 @@
                 "php-coveralls/php-coveralls": "^2.9.1",
                 "php-cs-fixer/phpunit-constraint-isidenticalstring": "^1.8",
                 "php-cs-fixer/phpunit-constraint-xmlmatchesxsd": "^1.8",
-                "phpunit/phpunit": "^9.6.35 || ^10.5.64 || ^11.5.56 || ^12.5.31",
+                "phpunit/phpunit": "^9.6.35 || ^10.5.64 || ^11.5.56 || ^12.5.31 || ^13.0.6",
                 "symfony/polyfill-php85": "^1.38",
-                "symfony/var-dumper": "^5.4.48 || ^6.4.36 || ^7.4.8 || ^8.1.0",
-                "symfony/yaml": "^5.4.53 || ^6.4.41 || ^7.4.13 || ^8.1.0"
+                "symfony/var-dumper": "^5.4.48 || ^6.4.36 || ^7.4.8 || ^8.1.1",
+                "symfony/yaml": "^5.4.53 || ^6.4.41 || ^7.4.13 || ^8.1.1"
             },
             "suggest": {
                 "ext-dom": "For handling output formats in XML",
@@ -10351,7 +10351,7 @@
             ],
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/issues",
-                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.95.15"
+                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.95.17"
             },
             "funding": [
                 {
@@ -10359,7 +10359,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-07-15T09:51:47+00:00"
+            "time": "2026-07-24T13:54:39+00:00"
         },
         {
             "name": "jean85/pretty-package-versions",
@@ -10936,11 +10936,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "2.2.5",
+            "version": "2.2.6",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/909c1e5fef7989ac0d0c1c5c42e32a5c4f6198a0",
-                "reference": "909c1e5fef7989ac0d0c1c5c42e32a5c4f6198a0",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/a6e9b5a9420f6109c091e87d82683bd1a80b87ed",
+                "reference": "a6e9b5a9420f6109c091e87d82683bd1a80b87ed",
                 "shasum": ""
             },
             "require": {
@@ -10996,7 +10996,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-07-05T06:31:06+00:00"
+            "time": "2026-07-26T21:22:49+00:00"
         },
         {
             "name": "phpstan/phpstan-doctrine",
@@ -11592,16 +11592,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "13.2.4",
+            "version": "13.2.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "8f5180f4627fc1978be2f61d8d9979dbe37e0c10"
+                "reference": "2beef9f448c9e04914a273c89ff6d039f8b97bc8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/8f5180f4627fc1978be2f61d8d9979dbe37e0c10",
-                "reference": "8f5180f4627fc1978be2f61d8d9979dbe37e0c10",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/2beef9f448c9e04914a273c89ff6d039f8b97bc8",
+                "reference": "2beef9f448c9e04914a273c89ff6d039f8b97bc8",
                 "shasum": ""
             },
             "require": {
@@ -11624,7 +11624,7 @@
                 "sebastian/comparator": "^8.3.0",
                 "sebastian/diff": "^9.0",
                 "sebastian/environment": "^9.3.2",
-                "sebastian/exporter": "^8.1.0",
+                "sebastian/exporter": "^8.1.1",
                 "sebastian/file-filter": "^1.0",
                 "sebastian/git-state": "^1.0",
                 "sebastian/global-state": "^9.0.1",
@@ -11672,7 +11672,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/13.2.4"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/13.2.5"
             },
             "funding": [
                 {
@@ -11680,7 +11680,7 @@
                     "type": "other"
                 }
             ],
-            "time": "2026-07-08T08:36:51+00:00"
+            "time": "2026-07-25T06:59:14+00:00"
         },
         {
             "name": "react/cache",
@@ -12137,21 +12137,21 @@
         },
         {
             "name": "rector/rector",
-            "version": "2.5.7",
+            "version": "2.5.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/rectorphp/rector.git",
-                "reference": "ba22f8c087848278fed6b4910d4cf1108096d8d3"
+                "reference": "861c77fd2a6d45317a401f4e0b617f947e8b6f96"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/rectorphp/rector/zipball/ba22f8c087848278fed6b4910d4cf1108096d8d3",
-                "reference": "ba22f8c087848278fed6b4910d4cf1108096d8d3",
+                "url": "https://api.github.com/repos/rectorphp/rector/zipball/861c77fd2a6d45317a401f4e0b617f947e8b6f96",
+                "reference": "861c77fd2a6d45317a401f4e0b617f947e8b6f96",
                 "shasum": ""
             },
             "require": {
                 "php": "^7.4|^8.0",
-                "phpstan/phpstan": "^2.2.2"
+                "phpstan/phpstan": "^2.2.6"
             },
             "conflict": {
                 "rector/rector-doctrine": "*",
@@ -12185,7 +12185,7 @@
             ],
             "support": {
                 "issues": "https://github.com/rectorphp/rector/issues",
-                "source": "https://github.com/rectorphp/rector/tree/2.5.7"
+                "source": "https://github.com/rectorphp/rector/tree/2.5.8"
             },
             "funding": [
                 {
@@ -12193,7 +12193,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-07-13T15:24:18+00:00"
+            "time": "2026-07-27T06:19:16+00:00"
         },
         {
             "name": "sebastian/cli-parser",
