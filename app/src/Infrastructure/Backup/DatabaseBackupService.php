@@ -44,7 +44,13 @@ readonly class DatabaseBackupService
             escapeshellarg($filepath),
         );
 
-        $process = new Process(['sh', '-c', $command]);
+        // HMAI-397: `sh` (POSIX) reports the exit code of the LAST pipeline
+        // member (gzip), so a failed mysqldump (bad host/user, no PROCESS
+        // privilege, MySQL down) would exit 0 and leave a corrupted-but-
+        // "successful" backup on disk. `bash -o pipefail` makes the pipeline's
+        // exit code the first non-zero member's, so a mysqldump failure is
+        // detected the same way a gzip failure already was.
+        $process = new Process(['bash', '-o', 'pipefail', '-c', $command]);
         $process->setTimeout(300);
         $process->setEnv(['MYSQL_PWD' => $params['password']]);
 
@@ -55,6 +61,11 @@ readonly class DatabaseBackupService
                 'exit_code' => $process->getExitCode(),
                 'stderr' => $process->getErrorOutput(),
             ]);
+
+            // gzip may still have written a partial/empty file before the
+            // pipeline failed — a backup that cannot be restored is worse
+            // than no backup at all, so it must not survive as if it were one.
+            @unlink($filepath);
 
             throw new RuntimeException('Database backup failed: '.$process->getErrorOutput());
         }
