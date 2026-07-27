@@ -19,6 +19,7 @@ Single-user system for automating everyday activities — television (Series, Mo
 - [Static analysis](#static-analysis)
 - [Continuous integration (CI) pipeline](#continuous-integration-ci-pipeline)
 - [Monitoring](#monitoring)
+- [Global search (OpenSearch)](#global-search-opensearch)
 - [Project structure](#project-structure)
 - [API](#api)
 - [Progressive Web App (PWA)](#progressive-web-app-pwa)
@@ -484,6 +485,52 @@ make restore BACKUP=backups/homemanager-2026-06-01.sql.gz
 ```
 
 Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confluence → Disaster recovery — MySQL restore.
+
+---
+
+## Global search (OpenSearch)
+
+Global search runs on one of two interchangeable backends behind the same domain port, selected by `SEARCH_ENGINE_BACKEND`:
+
+| Value | Backend | Notes |
+|---|---|---|
+| `fulltext` (default) | MySQL `search_documents` + `MATCH … AGAINST` | No extra service. Title boosting and per-type facets, no typo tolerance. |
+| `opensearch` | OpenSearch 2.x via `app.search_client` | Polish stemming (`analysis-stempel`), diacritic-free matching, fuzzy search, facets. |
+
+The flag is read by a **factory**, not a container alias (an alias is resolved at compile time and cannot read an env var), so switching backends is a restart, not a deploy. An unknown value is rejected at boot rather than silently defaulted — an operator who mistypes `opensarch` would otherwise never learn the switch did nothing.
+
+### Provisioning and filling the index
+
+```bash
+make search-index       # create the index + alias if missing (idempotent, safe on every deploy)
+make search-reindex     # rebuild into a new index and move the alias in one atomic step
+make search-populate    # fill the active backend's index from the source modules
+```
+
+Everything addresses the index through the **alias** (`SEARCH_INDEX_ALIAS`, default `search_documents`), never a physical index name — mappings are largely immutable once a field exists, so a schema change means building a new index and moving the alias. `make search-index` is the search-side counterpart of `doctrine:migrations:migrate`; run it on deploy. Beyond that the index maintains itself: the Scheduler rebuilds it every 15 minutes, and entity changes that emit domain events are indexed incrementally within seconds.
+
+### Resilience — what an engine outage costs
+
+OpenSearch is treated as **optional infrastructure**, and three mechanisms keep it that way:
+
+- **Reads degrade, they do not fail.** With `opensearch` selected, the engine is wrapped in a fallback to MySQL FULLTEXT: an unreachable engine costs relevance (no fuzzy matching, weaker ranking) but still answers, logging a `warning` per degraded query. Only a failure of *both* backends surfaces as an error — reporting "no results" when search is broken would be a lie about the library's contents.
+- **The standby index stays current.** Selecting `opensearch` also turns on a dual write, so the MySQL `search_documents` table keeps being maintained. Without it the table would freeze the day the flag was flipped and the fallback would serve a months-old library — plausible, wrong, and far harder to notice than an error.
+- **Health reports `degraded`, not `down`.** `GET /api/health` returns HTTP 200 with `search: degraded` when the engine is unreachable, so an orchestrator does not pull a working instance out of rotation over a search outage.
+
+### Recovery
+
+**The index is not backed up — it is rebuilt.** Every document in it is derived from the source module tables, so the MySQL backup already contains everything needed; a snapshot of the engine would only add a second thing to keep in sync. To recover from a lost, corrupted or half-migrated index:
+
+```bash
+make search-index       # recreate the index + alias
+make search-populate    # refill from the source modules
+```
+
+Search stays available throughout: the rebuild is mark-and-sweep (documents are upserted, then anything not touched by the run is deleted), so the index answers queries the whole time rather than going empty for the duration. If the engine is gone entirely, set `SEARCH_ENGINE_BACKEND=fulltext` and restart — search keeps working on MySQL while the engine is rebuilt.
+
+### Growth and retention
+
+The index holds one document per searchable entity, not a history — its size tracks the size of the library, not the passage of time, and the 15-minute rebuild sweeps documents whose source rows are gone. There is nothing to prune on a schedule. The one thing worth watching is that a **superseded index** left behind by an interrupted `make search-reindex` is dropped; a completed reindex removes it itself.
 
 ---
 

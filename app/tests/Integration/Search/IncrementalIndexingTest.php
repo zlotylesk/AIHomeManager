@@ -139,12 +139,24 @@ final class IncrementalIndexingTest extends KernelTestCase
 
         /** @var InMemoryTransport $transport */
         $transport = static::getContainer()->get('messenger.transport.async');
-        $sent = $transport->getSent();
-        self::assertCount(1, $sent, 'The event must produce exactly one indexing command.');
-        $message = $sent[0]->getMessage();
-        self::assertInstanceOf(IndexSearchDocument::class, $message);
-        self::assertSame('task', $message->type);
-        self::assertSame('t-9', $message->id);
+
+        // Filtered to this module's command on purpose. `TaskCreated` is opted
+        // into two shared-kernel rails — search indexing and the Notifications
+        // announcement — and which of them fire depends on the task's own data
+        // (a slot starting today is also a `task_due` occurrence). Counting
+        // every message on the transport made this assertion depend on the
+        // calendar: the fixture's slot date silently became "today" and a
+        // passing test turned red without a line of production code changing.
+        $indexing = array_values(array_filter(
+            array_map(static fn ($envelope) => $envelope->getMessage(), $transport->getSent()),
+            static fn ($message) => $message instanceof IndexSearchDocument,
+        ));
+
+        // Exactly one is still the claim worth making — a second would mean the
+        // same change being indexed twice.
+        self::assertCount(1, $indexing, 'The event must produce exactly one indexing command.');
+        self::assertSame('task', $indexing[0]->type);
+        self::assertSame('t-9', $indexing[0]->id);
     }
 
     public function testDeletingATaskUsesTheSameDocumentIdentityAsCreatingIt(): void

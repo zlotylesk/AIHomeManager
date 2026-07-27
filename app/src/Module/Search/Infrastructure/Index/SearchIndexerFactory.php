@@ -6,6 +6,7 @@ namespace App\Module\Search\Infrastructure\Index;
 
 use App\Module\Search\Domain\Port\SearchIndexerInterface;
 use App\Module\Search\Infrastructure\Engine\SearchEngineFactory;
+use Psr\Log\LoggerInterface;
 
 /**
  * Picks the index writer that matches the active read backend (HMAI-363).
@@ -25,10 +26,16 @@ final class SearchIndexerFactory
         string $backend,
         SearchIndexerInterface $fulltext,
         SearchIndexerInterface $openSearch,
+        LoggerInterface $logger,
     ): SearchIndexerInterface {
         return match (mb_strtolower(trim($backend))) {
             SearchEngineFactory::BACKEND_FULLTEXT => $fulltext,
-            SearchEngineFactory::BACKEND_OPENSEARCH => $openSearch,
+            // Selecting OpenSearch also keeps the FULLTEXT table current
+            // (HMAI-365). The read side degrades to it when the engine is
+            // unreachable, and a standby index nothing maintains would answer
+            // that outage with a frozen snapshot of the library — plausible,
+            // wrong, and harder to notice than an error.
+            SearchEngineFactory::BACKEND_OPENSEARCH => new DualWriteSearchIndexer($openSearch, $fulltext, $logger),
             default => throw SearchEngineFactory::unknownBackend($backend),
         };
     }
