@@ -131,6 +131,24 @@ final class SeriesApiDocTest extends WebTestCase
         self::assertSame('#/components/responses/ConflictError', $conflict['$ref'] ?? null);
     }
 
+    /**
+     * HMAI-402: adding a season with a number already used in the show is a
+     * 409, the same as renumbering onto a taken number — the contract must
+     * document both consistently.
+     */
+    public function testAddSeasonDocumentsTheConflictResponse(): void
+    {
+        $conflict = $this->nestedArray(
+            $this->fetchSpec(static::createClient()),
+            'paths',
+            '/api/v1/series/{seriesId}/seasons',
+            'post',
+            'responses',
+            '409',
+        );
+        self::assertSame('#/components/responses/ConflictError', $conflict['$ref'] ?? null);
+    }
+
     public function testSeriesDetailSchemaMirrorsTheNormalizerShape(): void
     {
         $doc = $this->fetchSpec(static::createClient());

@@ -144,6 +144,24 @@ class SeriesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
+    public function testAddSeasonWithNumberAlreadyUsedReturns409(): void
+    {
+        $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
+        $seriesId = $this->jsonResponse($this->client)['id'];
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+        self::assertResponseStatusCodeSame(201);
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 1]));
+
+        self::assertResponseStatusCodeSame(409);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('already used', $data['error']);
+
+        $this->client->request('POST', "/api/series/{$seriesId}/seasons", content: (string) json_encode(['number' => 2]));
+        self::assertResponseStatusCodeSame(201);
+    }
+
     public function testAddEpisodeReturns201WithId(): void
     {
         $this->client->request('POST', '/api/series', content: (string) json_encode(['title' => 'Breaking Bad']));
