@@ -4,6 +4,53 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.30.0] — 2026-07-27
+
+Globalne wyszukiwanie przechodzi na **OpenSearch** — docelowy silnik zapowiadany od MVP modułu Search (epik **HMAI-359** — 6 podzadań HMAI-360…366, każde z osobnym zielonym CI). Użytkownik dostaje to, czego MySQL FULLTEXT nie potrafił: polską odmianę (`analysis-stempel`), dopasowanie tekstu pisanego bez znaków diakrytycznych, tolerancję literówek i liczniki trafień per typ w pasku wyszukiwania. Silnik wchodzi jako **drugi adapter za istniejącym portem**, więc Application, API i UI pozostają nietknięte, a przełącznik `SEARCH_ENGINE_BACKEND` działa w obie strony. Zasada porządkująca cały epik: **lepszy silnik nie może stać się nowym pojedynczym punktem awarii** — niedostępny OpenSearch degraduje się do FULLTEXT z ostrzeżeniem w logu zamiast zwracać 500, a zapis podwójny utrzymuje indeks MySQL na bieżąco, żeby rollback nie wymagał żadnej pracy na danych. **1896/1896 PHP** + **120/120 Playwright** + **148 Vitest JS** + **43 Newman** — wszystko zielone (+128 PHP vs 1768 w 1.29.0). PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. `1.30.0` to najwyższy numerowany tag i staje się GitHub `latest`.
+
+### Added
+
+- **Silnik wyszukiwania jako usługa aplikacyjna** (HMAI-360) — OpenSearch 2.x w `docker-compose` (osobna instancja od tej obsługującej Graylog: inny cykl życia i retencja; bez profilu `monitoring`, więc startuje też przy `make min-up`), klient `opensearch-project/opensearch-php` budowany przez DI z `SEARCH_ENGINE_DSN`, oraz komponent `search` w sondzie `/api/health`. Niedostępny silnik raportuje `degraded` (HTTP 200), **nigdy `down`** — wyszukiwanie ma fallback, więc jego awaria nie może wyjąć instancji z ruchu.
+- **Adapter za portem Search + feature flag** (HMAI-361) — `OpenSearchEngine` implementuje ten sam port co adapter FULLTEXT i zwraca ten sam `SearchResult` z tym samym 160-znakowym snippetem, więc przełączenie backendu nie zmienia niczego, co renderuje UI. Flagę `SEARCH_ENGINE_BACKEND` rozwiązuje **fabryka, nie alias kontenera** (alias jest rozwiązywany przy kompilacji i nie odczyta zmiennej środowiskowej); nieznana wartość jest odrzucana przy starcie zamiast po cichu zastępowana domyślną.
+- **Schemat indeksu — mapowania, analizatory, alias** (HMAI-362) — deklaratywna definicja indeksu + menedżer wykonujący `create`/`reindex`. OpenSearch nie ma wbudowanego stemmera polskiego, więc `analysis-stempel` instalowany jest w obrazie pochodnym (`docker/opensearch/Dockerfile`). Kolejność filtrów niesie poprawność (`lowercase → polish_stop → polish_stem → asciifolding`), a każde pole przeszukiwalne dostaje pod-pole `.folded` dla tekstu pisanego bez diakrytyków. Wszystko adresuje indeks przez **alias**, a przebudowa przestawia go **jednym** wywołaniem `_aliases`. Komenda operatorska `app:search:index` (+ `--reindex`), `make search-index` / `make search-reindex`.
+- **Pipeline indeksowania — bulk + inkrementalny** (HMAI-363) — przebudowa masowa jako **mark-and-sweep** (upsert pod deterministycznym `{typ}:{id}` + stempel przebiegu, dopiero potem kasowanie starszych), więc indeks odpowiada przez cały czas przebudowy biegnącej co 15 minut; wariant FULLTEXT zostaje przy „wyczyść i wypełnij" w transakcji. Ścieżka przyrostowa jedzie po kontrakcie shared-kernel `AffectsSearchIndex`: handler nasłuchuje interfejsu, a komenda **odczytuje źródło ponownie** — dzięki czemu usunięcie nie potrzebuje osobnej wiadomości, powtórka jest nieszkodliwa, a awaria silnika ponawia się przez Messengera. Komenda `app:search:populate` (`make search-populate`).
+- **Trafność, facety i tolerancja literówek** (HMAI-364) — scoring jako `bool.should` z dopasowania dokładnego (`title^3` / `title.folded^2` / `content` / `content.folded^0.5`) i rozmytego o małej wadze; rozmycie biegnie **wyłącznie po polach `.folded`**, bo odległość edycyjna po rdzeniach ze stemmera to nie jest to, co użytkownik rozumie przez literówkę. Nowy endpoint `GET /api/v1/search/facets?q=` (+ alias `/api/search`) zwraca liczbę trafień per typ — jako **osobny zasób**, nie koperta wokół istniejącej listy wyników (to byłaby zmiana łamiąca kontrakt, zarezerwowana dla `/api/v2`). Facety implementują **oba** backendy; FULLTEXT dostał dodatkowo boost tytułu (migracja `Version20260726000001`). Nagłówki grup w pasku wyszukiwania pokazują teraz `Książka (42)`.
+- **Odporność operacyjna** (HMAI-365) — `FallbackSearchEngine` degraduje odczyty do FULLTEXT przy awarii silnika (ostrzeżenie w logu, bez 500); awaria **obu** backendów propaguje wyjątek, bo „brak wyników" przy zepsutej wyszukiwarce byłby kłamstwem o zawartości biblioteki. `DualWriteSearchIndexer` utrzymuje indeks MySQL na bieżąco, gdy czytany jest OpenSearch — bez tego fallback serwowałby bibliotekę zamrożoną na dniu przełączenia flagi.
+
+### Changed
+
+- **Cutover: domyślny backend to OpenSearch** (HMAI-366) — `app/.env` niesie `SEARCH_ENGINE_BACKEND=opensearch`. Dwie inne wartości domyślne **celowo zostają `fulltext`**: parametr kontenera `app.search_backend.default` (środowisko bez ustawionej zmiennej wstaje na backendzie niewymagającym dodatkowej usługi) oraz `app/.env.test` (większość testów Search zasila `search_documents` SQL-em, a joby E2E/Newman w CI nie uruchamiają silnika).
+- **Kontrakt obu backendów wymuszany, nie utrzymywany ręcznie** (HMAI-366) — abstrakcyjny `SearchEngineContractTestCase` trzyma korpus i dwanaście scenariuszy, które nie mogą się zmienić przy przełączeniu flagi; oba silniki go rozszerzają. Wcześniej obie klasy testowe odbijały się nawzajem ręcznie, czego nic nie pilnowało.
+- **Zawężony catch przy usuwaniu dokumentu** (HMAI-365) — `OpenSearchIndexer::remove()` łapał każdy `Throwable` jako „już nie ma", więc nieosiągalny silnik raportował udane usunięcie, dokument zostawał wyszukiwalny, a Messenger nigdy nie ponawiał. Teraz tylko `Missing404Exception` oznacza sukces.
+- **Cache wyników fronuje aktywny backend** (HMAI-361/364) — `CachingSearchEngine` dekoruje to, co wybrała flaga, a jego klucz zawiera klasę dekorowanego silnika, więc przełączenie nie serwuje odpowiedzi poprzedniego backendu przez resztę TTL. Facety mają osobny klucz wyprowadzony z samej frazy.
+
+### Coverage
+
+- **Testy adaptera przeciw realnemu silnikowi** — `OpenSearchEngineTest` (kontrakt wspólny + literówki, polski bez diakrytyków, forma odmieniona, dosłowne dopasowanie przebijające literówkę), `SearchIndexManagerTest` (odmiana zwijana do jednego tokenu, mapowanie faktycznie zapisane przez silnik, odrzucenie przy `strict`, przebudowa przestawiająca alias), `OpenSearchIndexerTest` (bulk, sweep, wyszukiwanie odpowiadające przez całą przebudowę).
+- **Cutover po HTTP** — `SearchCutoverApiTest` prowadzi realne endpointy przeciw OpenSearchowi z **celowo pustą** tabelą MySQL: skoro niedostępny silnik degraduje się do FULLTEXT, zepsuty odczyt zostałby po cichu obsłużony przez drugi backend i test świeciłby na zielono, nic nie dowodząc.
+- **Odporność** — `FallbackSearchEngineTest` i `DualWriteSearchIndexerTest` (jednostkowo), `SearchOutageResilienceTest` (cały stos HTTP przy padniętym silniku: 200 zamiast 500), `DualWriteIndexingTest` (oba realne indeksery, asercje **przez silniki**, bo rollback polega na tym, że przeszukanie zapasowego indeksu znajduje dokument).
+- **Wiring kontenera** — `SearchBackendFlagTest` pinuje, że flaga faktycznie przełącza port (z właściwą stroną fallbacku) oraz writer indeksu; odwrócona para w `services.yaml` po cichu odpowiadałaby z FULLTEXT.
+- **Kontrakt API** — `OpenApiContractTest` waliduje odpowiedź `/api/search/facets` względem udokumentowanego schematu; `ApiDocTest` porównuje udokumentowany przykład `/api/health` z tym, co faktycznie raportuje `HealthChecker::check()`.
+
+### Documentation
+
+- README: nowa sekcja **„Global search (OpenSearch)"** — tabela backendów, wyjaśnienie trzech wartości domyślnych flagi, komendy provisioningu, kontrakt awarii, **runbook cutover + rollback** (kolejność kroków jest nośna: przestawienie flagi przed zasileniem indeksu zostawiłoby wyszukiwanie odpowiadające z pustego silnika, a fallback zrobiłby to po cichu) oraz reguła odtwarzania: **indeks nie jest backupowany, tylko odtwarzany** ze źródeł.
+- Confluence: strona modułu Search przepisana pod epik (polski).
+- Kontrakt OpenAPI: opis `/api/health` wymienia komponent `search` i regułę `degraded`-nie-`down` (dryf od HMAI-360, niewidoczny dla bramki zgodności, bo `components` jest opisane przez `additionalProperties`).
+
+### Migration
+
+1. **Zbuduj obraz silnika** — `docker compose build search` (obraz pochodny z `analysis-stempel`), potem `make up` lub `make min-up`.
+2. **Zaprowiantuj i zasil indeks** — `make search-index && make search-populate`. Idempotentne, bezpieczne przy każdym wdrożeniu.
+3. **Migracja bazy** — `make migrate` (`Version20260726000001` dodaje indeks FULLTEXT na `title` pod boost tytułu).
+4. **Rollback, gdyby był potrzebny** — `SEARCH_ENGINE_BACKEND=fulltext` w `.env.local` + restart. Bez pracy na danych: zapis podwójny utrzymywał indeks MySQL na bieżąco.
+
+Nowe zmienne środowiskowe: `SEARCH_ENGINE_DSN`, `SEARCH_ENGINE_BACKEND`, `SEARCH_INDEX_ALIAS` (wszystkie z sensownymi domyślnymi w `app/.env`). Brak nowych kluczy w `.env.local`. Brak destrukcyjnych operacji na bazie.
+
+### Closed Jira
+
+HMAI-359 (epik), HMAI-360, HMAI-361, HMAI-362, HMAI-363, HMAI-364, HMAI-365, HMAI-366.
+
 ## [1.29.0] — 2026-07-24
 
 Pipeline CI zostaje przyspieszony i wzbogacony o bogatszy feedback — bez osłabienia jakiejkolwiek istniejącej bramki jakości (epik **HMAI-352** — 6 podzadań HMAI-353…358, każde z osobnym zielonym CI). Cache zależności (Composer + `app/vendor`, npm, przeglądarki Playwright), realna równoległość (PHPUnit przez paratest z izolacją stanu per worker, static-analysis jako matryca), widoczny trend pokrycia z procedurą ratchet oraz observability przebiegów (job summaries + przeliczone timeouty) skracają pętlę feedbacku na każdym PR. Epik jest **czysto infrastrukturalny — nie dotyka warstwy PHP aplikacji ani modelu domenowego**, więc liczby testów są bez zmian: **1768/1768 PHP** + **120/120 Playwright** + **148 Vitest JS** + **43 Newman** (bez zmian vs 1.28.0) — wszystko zielone. PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. `1.29.0` to najwyższy numerowany tag i staje się GitHub `latest`.
