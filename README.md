@@ -60,7 +60,7 @@ AIHomeManager aggregates one user's everyday activities across thirteen domain m
 | **Movies** | Catalog of films alongside Series — CRUD, watched flag, own 1–10 rating, catalog metadata, import of watched movies + ratings from Trakt | Trakt.tv API (OAuth2) |
 | **Podcasts** | Podcast listening history. Spotify exposes no listen timestamp for episodes, so listens are **derived** from each episode's resume point — a stored moment means "no later than", never the exact listening time | Spotify Web API (OAuth2) |
 | **Goals** | Cross-module goals and day-continuity streaks over the other modules' activity (reading, watching, articles, video), read through DBAL adapters so no module is coupled to another | — |
-| **Search** | Global search spanning every module — MySQL FULLTEXT, relevance-ranked, type-filtered, Redis-cached, reindexed every 15 min | — |
+| **Search** | Global search spanning every module — relevance-ranked, type-filtered with per-type counts, Redis-cached, reindexed every 15 min. Runs on OpenSearch (Polish stemming, diacritic-free and typo-tolerant matching) with MySQL FULLTEXT behind it as both the automatic fallback and the one-line rollback | OpenSearch 2.x |
 | **Dashboard** | The startup cockpit at `/` — one "today" slice per module (tasks, the daily article, goal snapshots, recommendations, recent tracks), each widget fault-isolated so one failing source degrades to an empty card | — |
 | **Notifications** | Proactive delivery — e-mail + WebPush channels, reactive (domain event) and scheduled triggers, per-type/per-channel opt-in with quiet hours | Symfony Mailer, WebPush + VAPID |
 | **Insights** | The trends dashboard at `/insights` — reading pace, episodes and YouTube minutes watched, tracks played and the task completion rate, charted per week or month. Read-only: no tables of its own, every metric read through a DBAL adapter behind one port and fault-isolated per metric | — |
@@ -113,6 +113,7 @@ Architecture decisions (ADR): see Confluence space `H` → ADRs.
 | DB | MySQL 8.4 LTS (image pinned to `mysql:8.4`)               |
 | Cache / KV | Redis 8                                                  |
 | Async messaging | RabbitMQ 4.x + Symfony Messenger                         |
+| Search engine | OpenSearch 2.x + `analysis-stempel` (Polish), MySQL FULLTEXT as fallback |
 | API contract | OpenAPI 3.1 via NelmioApiDocBundle (`/api/doc`)           |
 | Frontend (all modules since 1.19.0) | Webpack Encore + Stimulus (Node.js 24 LTS in a container)  |
 | Frontend (Tasks, Articles, Music) | Twig + vanilla JavaScript (`public/js/`)                 |
@@ -186,6 +187,7 @@ Required — without `entrypoints.json` Twig throws 500 on the `encore_entry_*` 
 | RabbitMQ Management | http://localhost:15672 (guest/guest) |
 | MySQL | localhost:3306 (homemanager/homemanager, DB `homemanager`) |
 | Redis | localhost:6379 |
+| Search engine (OpenSearch) | http://localhost:9200 — the app-data instance, separate from Graylog's |
 | Graylog (optional) | http://localhost:9000 (admin/admin) — requires `make monitoring-up` |
 
 UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`, `/insights`. Global search lives in the navbar on every page.
