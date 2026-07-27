@@ -168,12 +168,25 @@ final class MusicController extends AbstractController
         try {
             /** @var MusicComparisonDTO $result */
             $result = $this->queryBus->ask(new GetMusicComparison($period, $limit));
-        } catch (DiscogsAuthException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNAUTHORIZED);
-        } catch (DiscogsRateLimitException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_TOO_MANY_REQUESTS);
-        } catch (RuntimeException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
+        } catch (HandlerFailedException $e) {
+            // GetMusicComparisonHandler runs behind QueryBus::ask() (Messenger's
+            // HandleTrait), so any exception it throws arrives here wrapped in a
+            // HandlerFailedException (itself a RuntimeException) — unwrap via
+            // getPrevious() before mapping, the SeriesController/TasksController
+            // pattern, instead of catching Discogs exception types directly (they
+            // would never match the wrapper).
+            $previous = $e->getPrevious();
+            if ($previous instanceof DiscogsAuthException) {
+                return new JsonResponse(['error' => $previous->getMessage()], Response::HTTP_UNAUTHORIZED);
+            }
+            if ($previous instanceof DiscogsRateLimitException) {
+                return new JsonResponse(['error' => $previous->getMessage()], Response::HTTP_TOO_MANY_REQUESTS);
+            }
+            if ($previous instanceof RuntimeException) {
+                return new JsonResponse(['error' => $previous->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
+            }
+
+            throw $e;
         }
 
         return new JsonResponse([
