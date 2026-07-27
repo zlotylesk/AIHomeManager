@@ -388,7 +388,7 @@ final class TasksController extends AbstractController
 
         try {
             $from = null !== $fromStr ? new DateTimeImmutable($fromStr) : null;
-            $to = null !== $toStr ? new DateTimeImmutable($toStr) : null;
+            $to = null !== $toStr ? $this->parseUpperBound($toStr) : null;
         } catch (Exception) {
             return new JsonResponse(
                 ['error' => 'Invalid date format. Use YYYY-MM-DD.'],
@@ -473,7 +473,7 @@ final class TasksController extends AbstractController
 
         try {
             $from = new DateTimeImmutable($fromStr);
-            $to = new DateTimeImmutable($toStr);
+            $to = $this->parseUpperBound($toStr);
         } catch (Exception) {
             return new JsonResponse(
                 ['error' => 'Invalid date format. Use YYYY-MM-DD.'],
@@ -496,5 +496,28 @@ final class TasksController extends AbstractController
                 $report->breakdown
             ),
         ]);
+    }
+
+    /**
+     * Normalizes an inclusive upper-bound date/datetime for the [from, to]
+     * range filters used by export() and timeReport(). A pure date value
+     * (YYYY-MM-DD, no time component) parses to midnight, which — combined
+     * with the "time_start <= :to" / "BETWEEN :from AND :to" SQL — would
+     * silently exclude the entire day named by `to`, even though the OpenAPI
+     * contract documents `to` as an inclusive upper bound. A bare date is
+     * therefore pushed to the last second of that day; a value that already
+     * carries a time component (e.g. an ISO datetime) is left untouched, so
+     * a caller that deliberately passes a partial-day cutoff is not silently
+     * widened to end-of-day.
+     */
+    private function parseUpperBound(string $raw): DateTimeImmutable
+    {
+        $to = new DateTimeImmutable($raw);
+
+        if (1 === preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            $to = $to->setTime(23, 59, 59);
+        }
+
+        return $to;
     }
 }
