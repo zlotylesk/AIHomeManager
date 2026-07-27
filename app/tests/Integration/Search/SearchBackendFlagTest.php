@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Search;
 
 use App\Module\Search\Domain\Port\SearchEngineInterface;
+use App\Module\Search\Domain\Port\SearchIndexerInterface;
 use App\Module\Search\Infrastructure\Cache\CachingSearchEngine;
+use App\Module\Search\Infrastructure\Engine\FallbackSearchEngine;
 use App\Module\Search\Infrastructure\Engine\FulltextSearchEngine;
 use App\Module\Search\Infrastructure\Engine\OpenSearchEngine;
+use App\Module\Search\Infrastructure\Index\DualWriteSearchIndexer;
+use App\Module\Search\Infrastructure\Index\OpenSearchIndexer;
+use App\Module\Search\Infrastructure\Index\SearchIndexer;
 use ReflectionProperty;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -58,11 +63,50 @@ final class SearchBackendFlagTest extends KernelTestCase
         self::assertInstanceOf(FulltextSearchEngine::class, $this->activeBackend());
     }
 
-    public function testFlagSwitchesThePortToOpenSearch(): void
+    public function testFlagSwitchesThePortToOpenSearchBehindAFallback(): void
     {
         $this->putFlag('opensearch');
 
-        self::assertInstanceOf(OpenSearchEngine::class, $this->activeBackend());
+        $backend = $this->activeBackend();
+
+        // HMAI-365: OpenSearch is never wired alone — the better engine must not
+        // become a single point of failure.
+        self::assertInstanceOf(FallbackSearchEngine::class, $backend);
+        self::assertInstanceOf(OpenSearchEngine::class, $this->innerEngine($backend, 'primary'));
+        // The pair, not just the wrapper: reversed in `services.yaml`, every
+        // query would silently be answered by FULLTEXT.
+        self::assertInstanceOf(FulltextSearchEngine::class, $this->innerEngine($backend, 'standby'));
+    }
+
+    public function testTheFulltextIndexIsStillWrittenWhileOpenSearchIsTheBackend(): void
+    {
+        $this->putFlag('opensearch');
+        static::ensureKernelShutdown();
+        self::bootKernel();
+
+        $indexer = static::getContainer()->get(SearchIndexerInterface::class);
+
+        // Without the dual write the `search_documents` table would freeze the
+        // day the flag was flipped, and the fallback above would serve a stale
+        // library during an outage — plausible, wrong, and hard to notice.
+        self::assertInstanceOf(DualWriteSearchIndexer::class, $indexer);
+        $primary = new ReflectionProperty(DualWriteSearchIndexer::class, 'primary')->getValue($indexer);
+        $standby = new ReflectionProperty(DualWriteSearchIndexer::class, 'standby')->getValue($indexer);
+        self::assertInstanceOf(OpenSearchIndexer::class, $primary);
+        self::assertInstanceOf(SearchIndexer::class, $standby);
+    }
+
+    public function testTheFulltextBackendWritesOnlyTheFulltextIndex(): void
+    {
+        $this->putFlag(null);
+        unset($_SERVER[self::FLAG]);
+        static::ensureKernelShutdown();
+        self::bootKernel();
+
+        // Nothing to keep warm: FULLTEXT is both the reader and the standby, so
+        // a dual write here would be an OpenSearch dependency on a box that
+        // deliberately runs without one.
+        self::assertInstanceOf(SearchIndexer::class, static::getContainer()->get(SearchIndexerInterface::class));
     }
 
     private function putFlag(?string $value): void
@@ -91,6 +135,17 @@ final class SearchBackendFlagTest extends KernelTestCase
         // fronts the flag: were the port re-wired to something else, there
         // would be no `engine` to read and this would fail loudly.
         $engine = new ReflectionProperty(CachingSearchEngine::class, 'engine')->getValue($port);
+        self::assertInstanceOf(SearchEngineInterface::class, $engine);
+
+        return $engine;
+    }
+
+    /**
+     * @param 'primary'|'standby' $side
+     */
+    private function innerEngine(FallbackSearchEngine $fallback, string $side): SearchEngineInterface
+    {
+        $engine = new ReflectionProperty(FallbackSearchEngine::class, $side)->getValue($fallback);
         self::assertInstanceOf(SearchEngineInterface::class, $engine);
 
         return $engine;

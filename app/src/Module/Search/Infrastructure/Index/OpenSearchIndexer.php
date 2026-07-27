@@ -10,6 +10,7 @@ use App\Module\Search\Domain\Port\SearchIndexerInterface;
 use App\Module\Search\Domain\ReadModel\SearchableDocument;
 use DateTimeImmutable;
 use OpenSearch\Client;
+use OpenSearch\Common\Exceptions\Missing404Exception;
 use Psr\Cache\CacheItemPoolInterface;
 use RuntimeException;
 use Throwable;
@@ -115,11 +116,17 @@ final readonly class OpenSearchIndexer implements SearchIndexerInterface
                 'id' => $this->documentId($type, $id),
                 'refresh' => true,
             ]);
-        } catch (Throwable) {
-            // Already gone (or the index has not been provisioned yet). The
+        } catch (Missing404Exception) {
+            // Already gone, or the index has not been provisioned yet. The
             // caller wanted the document absent, and it is — a missing document
             // is not a failed deletion.
             return;
+        } catch (Throwable $e) {
+            // Anything else is the engine being unreachable or refusing the
+            // write. Swallowing that would report success while the document
+            // stayed searchable, and Messenger would never retry (HMAI-365 —
+            // the catch used to cover every Throwable).
+            throw new RuntimeException(sprintf('Removing the document from the index failed: %s', $e->getMessage()), 0, $e);
         }
 
         $this->cache->clear();
