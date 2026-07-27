@@ -27,7 +27,7 @@ final class GoalsApiTest extends WebTestCase
         $this->connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
 
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        foreach (['goals', 'book_reading_sessions', 'series_episodes', 'articles', 'videos'] as $table) {
+        foreach (['goals', 'book_reading_sessions', 'series_episodes', 'articles', 'videos', 'music_listening_sessions'] as $table) {
             $this->connection->executeStatement('TRUNCATE TABLE '.$table);
         }
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
@@ -56,6 +56,19 @@ final class GoalsApiTest extends WebTestCase
             'book_id' => 'book-1',
             'date' => $date->format('Y-m-d'),
             'pages_read' => $pagesRead,
+        ]);
+    }
+
+    private function insertListeningSession(string $id, DateTimeImmutable $playedAt): void
+    {
+        $this->connection->insert('music_listening_sessions', [
+            'id' => $id,
+            'artist' => 'Artist',
+            'title' => 'Album',
+            'played_at' => $playedAt->format('Y-m-d H:i:s'),
+            'source' => 'manual',
+            'dedup_hash' => 'dedup-'.$id,
+            'created_at' => $playedAt->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -145,6 +158,37 @@ final class GoalsApiTest extends WebTestCase
         self::assertSame('book_pages', $streaks[0]['type']);
         self::assertSame(2, $streaks[0]['currentLength']);
         self::assertSame(2, $streaks[0]['longestLength']);
+        self::assertSame($today->format('Y-m-d'), $streaks[0]['lastActivityDate']);
+    }
+
+    public function testMusicAlbumsGoalReflectsSeededListeningActivity(): void
+    {
+        // HMAI-401 regression: the music_albums goal type used to always report
+        // zero progress and an empty streak because Goals had no adapter reading
+        // Music's `music_listening_sessions` table.
+        $id = $this->createGoal(['type' => 'music_albums', 'target' => 2, 'period' => 'daily']);
+        $today = new DateTimeImmutable('today');
+        $this->insertListeningSession('listen-1', $today);
+        $this->insertListeningSession('listen-2', $today);
+
+        $this->client->request('GET', '/api/goals');
+        self::assertResponseIsSuccessful();
+
+        $list = $this->jsonResponse($this->client);
+        self::assertCount(1, $list);
+        self::assertSame($id, $list[0]['goalId']);
+        self::assertSame('music_albums', $list[0]['type']);
+        self::assertSame(2, $list[0]['achieved']);
+        self::assertSame(100, $list[0]['percent']);
+        self::assertTrue($list[0]['met']);
+
+        $this->client->request('GET', '/api/goals/streaks');
+        self::assertResponseIsSuccessful();
+
+        $streaks = $this->jsonResponse($this->client);
+        self::assertCount(1, $streaks);
+        self::assertSame('music_albums', $streaks[0]['type']);
+        self::assertGreaterThanOrEqual(1, $streaks[0]['currentLength']);
         self::assertSame($today->format('Y-m-d'), $streaks[0]['lastActivityDate']);
     }
 
