@@ -149,4 +149,56 @@ class TasksExportApiTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
     }
+
+    /**
+     * HMAI-400: `to` is documented as an inclusive upper bound on the task
+     * start. A task starting mid-day on the `to` date itself used to be
+     * silently excluded from the export because a bare date parses to
+     * midnight; this pins that the whole day named by `to` is now covered.
+     */
+    public function testExportIncludesTaskStartingOnLastDayOfRange(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('tasks', [
+            'id' => 'c0000001-0000-0000-0000-000000000000',
+            'title' => 'Last day export task',
+            'status' => 'completed',
+            'time_start' => '2025-01-31 22:00:00',
+            'time_end' => '2025-01-31 22:30:00',
+            'google_event_id' => null,
+        ]);
+
+        $this->client->request('GET', '/api/tasks/export?from=2025-01-31&to=2025-01-31&format=csv');
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+
+        self::assertStringContainsString('Last day export task', $body);
+    }
+
+    /**
+     * HMAI-400: the inclusive-day widening must stop exactly at the next
+     * day's midnight — a task starting at `D+1 00:00:00` is one range-width
+     * over and must stay excluded, otherwise the fix would have just moved
+     * the off-by-one bug forward by a day.
+     */
+    public function testExportExcludesTaskStartingAfterUpperBoundDay(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('tasks', [
+            'id' => 'c0000002-0000-0000-0000-000000000000',
+            'title' => 'February overflow task',
+            'status' => 'completed',
+            'time_start' => '2025-02-01 00:00:00',
+            'time_end' => '2025-02-01 00:30:00',
+            'google_event_id' => null,
+        ]);
+
+        $this->client->request('GET', '/api/tasks/export?from=2025-01-01&to=2025-01-31');
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+
+        self::assertStringNotContainsString('February overflow task', $body);
+    }
 }
