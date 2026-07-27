@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\Series\Infrastructure;
 
 use App\Module\Series\Infrastructure\External\TraktApiClient;
+use App\Module\Series\Infrastructure\External\TraktTokenProvider;
 use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -16,14 +17,33 @@ final class TraktApiClientTest extends TestCase
     private const string CLIENT_ID = 'test-trakt-client-id';
 
     /**
+     * Builds a real TraktTokenProvider (the class is final readonly, so it cannot
+     * be mocked) over a stub repository. Unless overridden, the token carries a
+     * fresh created_at/expires_in pair so getValidAccessToken() returns it as-is
+     * without ever touching the network (the refresh path is TraktTokenProviderTest's
+     * job, not this client's).
+     *
      * @param array<string, mixed>|null $token
      */
-    private function tokenRepo(?array $token = ['access_token' => 'access-123']): TraktTokenRepositoryInterface
+    private function tokenProvider(?array $token = ['access_token' => 'access-123']): TraktTokenProvider
     {
-        $repo = $this->createStub(TraktTokenRepositoryInterface::class);
-        $repo->method('get')->willReturn($token);
+        if (null !== $token) {
+            $token += [
+                'created_at' => time(),
+                'expires_in' => 7776000,
+            ];
+        }
 
-        return $repo;
+        $repository = $this->createStub(TraktTokenRepositoryInterface::class);
+        $repository->method('get')->willReturn($token);
+
+        return new TraktTokenProvider(
+            $repository,
+            new MockHttpClient([]),
+            self::CLIENT_ID,
+            'test-trakt-client-secret',
+            'https://localhost/auth/trakt/callback',
+        );
     }
 
     /**
@@ -52,7 +72,7 @@ final class TraktApiClientTest extends TestCase
     public function testParsesWatchedShowsIntoStructuredShape(): void
     {
         $httpClient = new MockHttpClient(new MockResponse((string) json_encode([$this->watchedShow()])));
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
 
         $shows = $client->fetchWatchedShows();
 
@@ -70,7 +90,7 @@ final class TraktApiClientTest extends TestCase
     public function testReturnsEmptyArrayWhenNoShows(): void
     {
         $httpClient = new MockHttpClient(new MockResponse('[]'));
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
 
         self::assertSame([], $client->fetchWatchedShows());
     }
@@ -81,7 +101,7 @@ final class TraktApiClientTest extends TestCase
         unset($noId['show']['ids']['trakt']);
 
         $httpClient = new MockHttpClient(new MockResponse((string) json_encode([$noId, $this->watchedShow()])));
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
 
         $shows = $client->fetchWatchedShows();
 
@@ -99,7 +119,7 @@ final class TraktApiClientTest extends TestCase
 
             return new MockResponse('[]');
         });
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(['access_token' => 'access-123']), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(['access_token' => 'access-123']), self::CLIENT_ID);
 
         $client->fetchWatchedShows();
 
@@ -114,7 +134,7 @@ final class TraktApiClientTest extends TestCase
     public function testThrowsWhenNoTokenStored(): void
     {
         $httpClient = new MockHttpClient(new MockResponse('[]'));
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(null), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(null), self::CLIENT_ID);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Trakt account not connected.');
@@ -125,7 +145,7 @@ final class TraktApiClientTest extends TestCase
     public function testThrowsWhenClientIdIsBlank(): void
     {
         $httpClient = new MockHttpClient(new MockResponse('[]'));
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(), '   ');
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), '   ');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Trakt client ID not configured.');
@@ -136,7 +156,7 @@ final class TraktApiClientTest extends TestCase
     public function testThrowsRuntimeExceptionOnTransportError(): void
     {
         $httpClient = new MockHttpClient(new MockResponse('', ['error' => 'Connection refused']));
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Trakt API unavailable.');
@@ -144,9 +164,56 @@ final class TraktApiClientTest extends TestCase
         $client->fetchWatchedShows();
     }
 
+    public function testThrowsRuntimeExceptionOnHttpClientErrorResponse(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('{"error":"invalid_token"}', ['http_code' => 401]));
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Trakt API error (HTTP 401).');
+
+        $client->fetchWatchedShows();
+    }
+
+    public function testHttpClientErrorMessageDoesNotLeakTheRequestUrl(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('{"error":"invalid_token"}', ['http_code' => 401]));
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
+
+        try {
+            $client->fetchWatchedShows();
+            self::fail('Expected a RuntimeException to be thrown.');
+        } catch (RuntimeException $e) {
+            self::assertStringNotContainsString('api.trakt.tv', $e->getMessage());
+            self::assertStringNotContainsString('/sync/watched/shows', $e->getMessage());
+        }
+    }
+
+    public function testThrowsRuntimeExceptionOnHttpServerErrorResponse(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 500]));
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Trakt API error (HTTP 500).');
+
+        $client->fetchWatchedShows();
+    }
+
+    public function testThrowsRuntimeExceptionOnInvalidJson(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('not-json', ['http_code' => 200, 'response_headers' => ['content-type' => 'application/json']]));
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Trakt API returned invalid JSON.');
+
+        $client->fetchWatchedShows();
+    }
+
     public function testParsesRatingsIntoStructuredShape(): void
     {
-        $client = new TraktApiClient($this->ratingsHttpClient(), $this->tokenRepo(), self::CLIENT_ID);
+        $client = new TraktApiClient($this->ratingsHttpClient(), $this->tokenProvider(), self::CLIENT_ID);
 
         $ratings = $client->fetchRatings();
 
@@ -168,7 +235,7 @@ final class TraktApiClientTest extends TestCase
 
             return new MockResponse((string) $body);
         });
-        $client = new TraktApiClient($httpClient, $this->tokenRepo(), self::CLIENT_ID);
+        $client = new TraktApiClient($httpClient, $this->tokenProvider(), self::CLIENT_ID);
 
         $ratings = $client->fetchRatings();
 
