@@ -195,7 +195,7 @@ nelmio_api_doc:
                     tags:
                         - Health
                     summary: 'Readiness probe (public).'
-                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / disk status for orchestrators and uptime monitors.'
+                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / search engine / disk status for orchestrators and uptime monitors. The search engine is optional infrastructure: an unreachable engine reports `degraded` (HTTP 200) rather than `down`, because global search falls back to MySQL FULLTEXT and must not take the instance out of rotation.'
                     security: []
                     responses:
                         '200':
@@ -230,6 +230,7 @@ nelmio_api_doc:
                                                     mysql: up
                                                     redis: up
                                                     rabbitmq: up
+                                                    search: up
                                                     disk: up
                                             timestamp:
                                                 type: string

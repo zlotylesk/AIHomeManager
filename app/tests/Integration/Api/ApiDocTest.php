@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Api;
 
 use App\EventListener\RequestIdListener;
+use App\Health\HealthChecker;
 use App\Security\ApiKeyAuthenticator;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -136,6 +137,29 @@ final class ApiDocTest extends WebTestCase
         $health = $this->nestedArray($doc, 'paths', '/api/health', 'get');
         self::assertArrayHasKey('security', $health, 'The public health probe must override the global security.');
         self::assertSame([], $health['security'], 'The health probe must be documented as public (security: []).');
+    }
+
+    /**
+     * The `components` map is documented with `additionalProperties`, so the
+     * conformance gate cannot notice a probe the contract never mentions — which
+     * is exactly what happened when the search engine was added: it shipped,
+     * validated fine, and stayed invisible to anyone reading the docs. The
+     * example is the only place a client learns which dependencies exist, so it
+     * is pinned against what the checker actually reports.
+     */
+    public function testEveryProbedComponentAppearsInTheDocumentedExample(): void
+    {
+        $client = static::createClient();
+        $doc = $this->fetchSpec($client);
+
+        /** @var HealthChecker $checker */
+        $checker = static::getContainer()->get(HealthChecker::class);
+        $probed = array_keys($checker->check());
+
+        $schema = $this->nestedArray($doc, 'paths', '/api/health', 'get', 'responses', '200', 'content');
+        $example = $this->nestedArray($schema, 'application/json', 'schema', 'properties', 'components', 'example');
+
+        self::assertSame($probed, array_keys($example), 'A new health probe must be added to the documented example.');
     }
 
     /**
