@@ -12,6 +12,9 @@ use JsonException;
 use Redis;
 use RuntimeException;
 use SimpleXMLElement;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -47,7 +50,7 @@ final readonly class NationalLibraryApiClient implements BookMetadataProviderInt
             ]);
 
             $content = $response->getContent();
-        } catch (TransportExceptionInterface $e) {
+        } catch (TransportExceptionInterface|ClientExceptionInterface|ServerExceptionInterface|RedirectionExceptionInterface $e) {
             throw new BookMetadataUnavailableException('National Library API is unavailable.', 0, $e);
         }
 

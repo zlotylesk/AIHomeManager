@@ -203,6 +203,35 @@ final class NationalLibraryApiClientTest extends TestCase
         $client->getByIsbn('9780306406157');
     }
 
+    /**
+     * HMAI-403: Symfony HttpClient's ->getContent() throws ServerExceptionInterface for a
+     * 5xx response — before the fix that was uncaught and reached ApiExceptionListener as
+     * a generic 500, even though the documented contract for POST /api/books is a 503
+     * "provider unavailable". A 5xx from the National Library must map onto the same
+     * BookMetadataUnavailableException as a transport failure.
+     */
+    public function testThrowsUnavailableOnServerError(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 500]));
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $this->expectException(BookMetadataUnavailableException::class);
+        $this->expectExceptionMessage('National Library API is unavailable.');
+
+        $client->getByIsbn('9780306406157');
+    }
+
+    public function testThrowsUnavailableOnClientError(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 401]));
+        $client = new NationalLibraryApiClient($httpClient, $this->redis);
+
+        $this->expectException(BookMetadataUnavailableException::class);
+        $this->expectExceptionMessage('National Library API is unavailable.');
+
+        $client->getByIsbn('9780306406157');
+    }
+
     public function testReturnsCachedResultWithoutHttpCall(): void
     {
         $cachePayload = json_encode([

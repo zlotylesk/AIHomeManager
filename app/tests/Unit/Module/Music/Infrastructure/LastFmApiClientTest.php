@@ -104,6 +104,74 @@ final class LastFmApiClientTest extends TestCase
         $client->getTopAlbums('testuser', '1month', 10);
     }
 
+    /**
+     * HMAI-403: Symfony HttpClient's ->toArray() throws ServerExceptionInterface for a
+     * 5xx response — before the fix that was uncaught, so the exception's own message
+     * (which embeds the full request URL, including the api_key query param) leaked
+     * straight through to whatever caught the base RuntimeException upstream
+     * (MusicController::topAlbums() returns getMessage() in its 503 body).
+     */
+    public function testThrowsRuntimeExceptionWithSafeMessageOnServerError(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 500]));
+        $client = new LastFmApiClient($httpClient, $this->redis, 'super-secret-api-key');
+
+        try {
+            $client->getTopAlbums('testuser', '1month', 10);
+            self::fail('Expected RuntimeException');
+        } catch (RuntimeException $e) {
+            self::assertSame('Last.fm API error (HTTP 500).', $e->getMessage());
+            self::assertStringNotContainsString('api_key', $e->getMessage());
+            self::assertStringNotContainsString('super-secret-api-key', $e->getMessage());
+            self::assertStringNotContainsString('audioscrobbler.com', $e->getMessage());
+        }
+    }
+
+    public function testThrowsRuntimeExceptionWithSafeMessageOnClientError(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 401]));
+        $client = new LastFmApiClient($httpClient, $this->redis, 'super-secret-api-key');
+
+        try {
+            $client->getTopAlbums('testuser', '1month', 10);
+            self::fail('Expected RuntimeException');
+        } catch (RuntimeException $e) {
+            self::assertSame('Last.fm API error (HTTP 401).', $e->getMessage());
+            self::assertStringNotContainsString('api_key', $e->getMessage());
+            self::assertStringNotContainsString('super-secret-api-key', $e->getMessage());
+        }
+    }
+
+    public function testThrowsRuntimeExceptionWithSafeMessageOnInvalidJson(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('not-valid-json', ['http_code' => 200]));
+        $client = new LastFmApiClient($httpClient, $this->redis, 'super-secret-api-key');
+
+        try {
+            $client->getTopAlbums('testuser', '1month', 10);
+            self::fail('Expected RuntimeException');
+        } catch (RuntimeException $e) {
+            self::assertSame('Last.fm API returned invalid JSON.', $e->getMessage());
+            self::assertStringNotContainsString('api_key', $e->getMessage());
+        }
+    }
+
+    public function testGetRecentTracksThrowsRuntimeExceptionWithSafeMessageOnServerError(): void
+    {
+        $httpClient = new MockHttpClient(new MockResponse('', ['http_code' => 503]));
+        $client = new LastFmApiClient($httpClient, $this->redis, 'super-secret-api-key');
+
+        try {
+            $client->getRecentTracks('testuser', 10);
+            self::fail('Expected RuntimeException');
+        } catch (RuntimeException $e) {
+            self::assertSame('Last.fm API error (HTTP 503).', $e->getMessage());
+            self::assertStringNotContainsString('api_key', $e->getMessage());
+            self::assertStringNotContainsString('super-secret-api-key', $e->getMessage());
+            self::assertStringNotContainsString('audioscrobbler.com', $e->getMessage());
+        }
+    }
+
     public function testThrowsWhenApiKeyIsEmpty(): void
     {
         $httpClient = new MockHttpClient();
