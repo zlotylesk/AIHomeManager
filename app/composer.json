@@ -14,7 +14,7 @@
         "dragonmantank/cron-expression": "^3.6",
         "google/apiclient": "^2.19.3",
         "graylog2/gelf-php": "^2.0.2",
-        "minishlink/web-push": "^10.1",
+        "minishlink/web-push": "^11.0",
         "nelmio/api-doc-bundle": "^5.10",
         "opensearch-project/opensearch-php": "^2.6",
         "phpdocumentor/reflection-docblock": "^6.0.3",
