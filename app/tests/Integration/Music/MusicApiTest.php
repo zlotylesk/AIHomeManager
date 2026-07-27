@@ -16,6 +16,7 @@ use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use Redis;
+use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Throwable;
@@ -112,6 +113,31 @@ class MusicApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(503);
         $data = $this->jsonResponse($this->client);
         self::assertStringContainsString('not configured', $data['error']);
+    }
+
+    /**
+     * HMAI-403 — a Last.fm HTTP 4xx/5xx must reach the client as a safe, controlled
+     * 503 message. This pins the controller passthrough (`$e->getMessage()`) against
+     * the message `LastFmApiClient` now throws for an HTTP error: the request URL
+     * (and therefore the `api_key` query param) must never appear in the response body.
+     */
+    public function testTopAlbumsWithLastFmHttpErrorReturns503WithoutLeakingApiKey(): void
+    {
+        $this->client->disableReboot();
+
+        $lastfm = $this->createMock(MusicListeningHistoryInterface::class);
+        $lastfm->method('getTopAlbums')->willThrowException(
+            new RuntimeException('Last.fm API error (HTTP 500).'),
+        );
+        self::getContainer()->set(MusicListeningHistoryInterface::class, $lastfm);
+
+        $this->client->request('GET', '/api/music/top-albums?period=1month');
+
+        self::assertResponseStatusCodeSame(503);
+        $data = $this->jsonResponse($this->client);
+        self::assertArrayHasKey('error', $data);
+        self::assertStringNotContainsString('api_key', $data['error']);
+        self::assertStringNotContainsString('audioscrobbler.com', $data['error']);
     }
 
     public function testComparisonWithInvalidPeriodReturns422(): void
