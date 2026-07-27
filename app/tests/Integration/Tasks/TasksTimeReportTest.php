@@ -120,4 +120,82 @@ class TasksTimeReportTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
     }
+
+    /**
+     * HMAI-400: `to` is documented as an inclusive upper bound on the task
+     * start. A task starting mid-day on the `to` date itself used to be
+     * silently excluded because a bare date parses to midnight; this pins
+     * that the whole day named by `to` is now covered.
+     */
+    public function testTimeReportIncludesTaskStartingOnLastDayOfRange(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('tasks', [
+            'id' => 'b0000001-0000-0000-0000-000000000000',
+            'title' => 'Last day task',
+            'status' => 'completed',
+            'time_start' => '2025-01-31 23:30:00',
+            'time_end' => '2025-01-31 23:59:00',
+            'google_event_id' => null,
+        ]);
+
+        $this->client->request('GET', '/api/tasks/time-report?from=2025-01-31&to=2025-01-31');
+
+        self::assertResponseIsSuccessful();
+        $data = $this->jsonResponse($this->client);
+        self::assertSame(29, $data['totalMinutes']);
+        self::assertCount(1, $data['breakdown']);
+        self::assertSame('Last day task', $data['breakdown'][0]['title']);
+    }
+
+    /**
+     * HMAI-400: the inclusive-day widening must stop exactly at the next
+     * day's midnight — a task starting at `D+1 00:00:00` is one range-width
+     * over and must stay excluded, otherwise the fix would have just moved
+     * the off-by-one bug forward by a day.
+     */
+    public function testTimeReportExcludesTaskStartingAfterUpperBoundDay(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('tasks', [
+            'id' => 'b0000002-0000-0000-0000-000000000000',
+            'title' => 'Next day task',
+            'status' => 'completed',
+            'time_start' => '2025-02-01 00:00:00',
+            'time_end' => '2025-02-01 00:30:00',
+            'google_event_id' => null,
+        ]);
+
+        $this->client->request('GET', '/api/tasks/time-report?from=2025-01-01&to=2025-01-31');
+
+        self::assertResponseIsSuccessful();
+        $data = $this->jsonResponse($this->client);
+        self::assertSame(0, $data['totalMinutes']);
+        self::assertSame([], $data['breakdown']);
+    }
+
+    /**
+     * HMAI-400: only a bare YYYY-MM-DD `to` is widened to end-of-day. A `to`
+     * that already carries a time component is a deliberate partial-day
+     * cutoff from the caller and must not be silently pushed to 23:59:59.
+     */
+    public function testTimeReportUpperBoundWithTimeComponentIsNotWidenedToEndOfDay(): void
+    {
+        $conn = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $conn->insert('tasks', [
+            'id' => 'b0000003-0000-0000-0000-000000000000',
+            'title' => 'Afternoon task',
+            'status' => 'completed',
+            'time_start' => '2025-01-15 16:00:00',
+            'time_end' => '2025-01-15 16:30:00',
+            'google_event_id' => null,
+        ]);
+
+        $this->client->request('GET', '/api/tasks/time-report?from=2025-01-15&to=2025-01-15T15:00:00');
+
+        self::assertResponseIsSuccessful();
+        $data = $this->jsonResponse($this->client);
+        self::assertSame(0, $data['totalMinutes']);
+        self::assertSame([], $data['breakdown']);
+    }
 }
