@@ -494,10 +494,12 @@ Global search runs on one of two interchangeable backends behind the same domain
 
 | Value | Backend | Notes |
 |---|---|---|
-| `fulltext` (default) | MySQL `search_documents` + `MATCH … AGAINST` | No extra service. Title boosting and per-type facets, no typo tolerance. |
-| `opensearch` | OpenSearch 2.x via `app.search_client` | Polish stemming (`analysis-stempel`), diacritic-free matching, fuzzy search, facets. |
+| `opensearch` (current) | OpenSearch 2.x via `app.search_client` | Polish stemming (`analysis-stempel`), diacritic-free matching, fuzzy search, facets. |
+| `fulltext` | MySQL `search_documents` + `MATCH … AGAINST` | No extra service. Title boosting and per-type facets, no typo tolerance. The rollback target, and the automatic fallback. |
 
 The flag is read by a **factory**, not a container alias (an alias is resolved at compile time and cannot read an env var), so switching backends is a restart, not a deploy. An unknown value is rejected at boot rather than silently defaulted — an operator who mistypes `opensarch` would otherwise never learn the switch did nothing.
+
+Two defaults sit behind the flag and they differ on purpose. `app/.env` ships `opensearch` — that is the configuration the project actually runs. The container parameter `app.search_backend.default` stays `fulltext`, so an environment with no `SEARCH_ENGINE_BACKEND` set at all still boots on the backend that needs no extra service. `app/.env.test` also pins `fulltext`: most of the search test suite seeds `search_documents` with SQL, and the CI E2E/Newman jobs run no engine, so inheriting the cutover would leave them exercising a backend they are not set up for. The engine path is covered by the tests that boot it deliberately.
 
 ### Provisioning and filling the index
 
@@ -508,6 +510,33 @@ make search-populate    # fill the active backend's index from the source module
 ```
 
 Everything addresses the index through the **alias** (`SEARCH_INDEX_ALIAS`, default `search_documents`), never a physical index name — mappings are largely immutable once a field exists, so a schema change means building a new index and moving the alias. `make search-index` is the search-side counterpart of `doctrine:migrations:migrate`; run it on deploy. Beyond that the index maintains itself: the Scheduler rebuilds it every 15 minutes, and entity changes that emit domain events are indexed incrementally within seconds.
+
+### Cutover and rollback
+
+Switching backends is a five-step procedure, and the order matters — flipping the flag before the index is filled would leave search answering from an empty engine (and, thanks to the fallback, doing so *quietly*).
+
+```bash
+# 1. Build the index the new backend will read (idempotent).
+make search-index
+
+# 2. Fill it from the source modules, and check the count against what you expect.
+make search-populate
+
+# 3. Validate relevance while still serving the old backend — the engine is
+#    readable before anything reads from it in anger.
+curl -s -H "X-API-Key: $API_KEY" 'http://localhost/api/v1/search?q=<a phrase you know the answer to>'
+
+# 4. Flip the flag and restart. SEARCH_ENGINE_BACKEND=opensearch in .env.local
+#    (or the deployment's environment), then:
+docker compose restart php messenger_worker scheduler_worker
+
+# 5. Observe. Any degrade is logged as a warning, so grep the logs for it:
+docker compose logs php | grep 'Search degraded to the fallback engine'
+```
+
+**Rollback is one line and needs no data work:** set `SEARCH_ENGINE_BACKEND=fulltext` and restart. The MySQL index was never allowed to go stale — the dual write keeps it current for exactly this moment — so FULLTEXT answers immediately with the same result shape, only ranked less well. Nothing has to be rebuilt, re-migrated or re-synced, which is why the flag is worth having at all rather than deleting the old backend on cutover day.
+
+Worth knowing while observing step 5: a degrade does **not** wait for a rollback. If the engine becomes unreachable the fallback already serves FULLTEXT automatically; the rollback is for the case where the engine is *up* but wrong — bad relevance, a broken mapping, a half-finished reindex — which no automatic mechanism can detect for you.
 
 ### Resilience — what an engine outage costs
 
