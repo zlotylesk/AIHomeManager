@@ -464,6 +464,9 @@ services:
     App\Module\Goals\Infrastructure\Activity\YouTubeActivityAdapter:
         tags: ['goals.activity_provider']
 
+    App\Module\Goals\Infrastructure\Activity\MusicActivityAdapter:
+        tags: ['goals.activity_provider']
+
     App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider:
         arguments:
             $providers: !tagged_iterator goals.activity_provider
