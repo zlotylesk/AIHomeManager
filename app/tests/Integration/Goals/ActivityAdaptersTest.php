@@ -7,6 +7,7 @@ namespace App\Tests\Integration\Goals;
 use App\Module\Goals\Domain\Enum\GoalType;
 use App\Module\Goals\Infrastructure\Activity\ArticlesActivityAdapter;
 use App\Module\Goals\Infrastructure\Activity\BooksActivityAdapter;
+use App\Module\Goals\Infrastructure\Activity\MusicActivityAdapter;
 use App\Module\Goals\Infrastructure\Activity\SeriesActivityAdapter;
 use App\Module\Goals\Infrastructure\Activity\YouTubeActivityAdapter;
 use DateTimeImmutable;
@@ -24,7 +25,7 @@ final class ActivityAdaptersTest extends KernelTestCase
         $this->connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
 
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        foreach (['book_reading_sessions', 'series_episodes', 'articles', 'videos'] as $table) {
+        foreach (['book_reading_sessions', 'series_episodes', 'articles', 'videos', 'music_listening_sessions'] as $table) {
             $this->connection->executeStatement('TRUNCATE TABLE '.$table);
         }
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
@@ -105,5 +106,32 @@ final class ActivityAdaptersTest extends KernelTestCase
         self::assertCount(1, $events);
         self::assertSame(GoalType::YOUTUBE_VIDEOS, $events[0]->type);
         self::assertSame(1, $events[0]->value);
+    }
+
+    public function testMusicAdapterReadsListeningSessionsWithinWindowOnly(): void
+    {
+        $this->connection->insert('music_listening_sessions', [
+            'id' => 'm-1', 'artist' => 'Artist A', 'title' => 'Album A', 'played_at' => '2026-07-10 20:00:00',
+            'source' => 'lastfm_scrobble', 'dedup_hash' => 'hash-1', 'created_at' => '2026-07-10 20:00:00',
+        ]);
+        $this->connection->insert('music_listening_sessions', [
+            'id' => 'm-2', 'artist' => 'Artist B', 'title' => 'Album B', 'played_at' => '2026-07-20 09:00:00',
+            'source' => 'manual', 'dedup_hash' => 'hash-2', 'created_at' => '2026-07-20 09:00:00',
+        ]);
+        $this->connection->insert('music_listening_sessions', [
+            'id' => 'm-3', 'artist' => 'Artist C', 'title' => 'Album C', 'played_at' => '2026-08-10 12:00:00',
+            'source' => 'lastfm_scrobble', 'dedup_hash' => 'hash-3', 'created_at' => '2026-08-10 12:00:00',
+        ]);
+
+        [$from, $to] = $this->window();
+        $events = new MusicActivityAdapter($this->connection)->activityBetween($from, $to);
+
+        self::assertCount(2, $events);
+        self::assertSame(GoalType::MUSIC_ALBUMS, $events[0]->type);
+        self::assertSame(1, $events[0]->value);
+        self::assertSame('2026-07-10', $events[0]->occurredAt->format('Y-m-d'));
+        self::assertSame(GoalType::MUSIC_ALBUMS, $events[1]->type);
+        self::assertSame(1, $events[1]->value);
+        self::assertSame('2026-07-20', $events[1]->occurredAt->format('Y-m-d'));
     }
 }
