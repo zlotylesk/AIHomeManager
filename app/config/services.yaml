@@ -562,6 +562,9 @@ services:
             $backend: '%env(default:app.search_backend.default:SEARCH_ENGINE_BACKEND)%'
             $fulltext: '@App\Module\Search\Infrastructure\Engine\FulltextSearchEngine'
             $openSearch: '@App\Module\Search\Infrastructure\Engine\OpenSearchEngine'
+            # Selecting OpenSearch wraps it in a fallback to FULLTEXT (HMAI-365);
+            # the logger is what makes a silent degrade visible.
+            $logger: '@logger'
 
     # Whichever backend is active is fronted by a Redis result cache (HMAI-271);
     # both sit behind the SearchEngineInterface port so the read side stays
@@ -593,6 +596,9 @@ services:
             $backend: '%env(default:app.search_backend.default:SEARCH_ENGINE_BACKEND)%'
             $fulltext: '@App\Module\Search\Infrastructure\Index\SearchIndexer'
             $openSearch: '@App\Module\Search\Infrastructure\Index\OpenSearchIndexer'
+            # …and keeps the FULLTEXT table current behind it (HMAI-365), so the
+            # standby the reader degrades to is not a frozen snapshot.
+            $logger: '@logger'
 
     App\Module\Search\Domain\Port\SearchIndexerInterface:
         alias: app.search_indexer.backend

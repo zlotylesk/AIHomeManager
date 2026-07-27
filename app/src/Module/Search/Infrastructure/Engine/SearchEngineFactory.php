@@ -6,6 +6,7 @@ namespace App\Module\Search\Infrastructure\Engine;
 
 use App\Module\Search\Domain\Port\SearchEngineInterface;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 
 /**
  * The ES/FULLTEXT feature flag (HMAI-361, epic HMAI-359): picks which adapter
@@ -32,10 +33,15 @@ final class SearchEngineFactory
         string $backend,
         SearchEngineInterface $fulltext,
         SearchEngineInterface $openSearch,
+        LoggerInterface $logger,
     ): SearchEngineInterface {
         return match (mb_strtolower(trim($backend))) {
             self::BACKEND_FULLTEXT => $fulltext,
-            self::BACKEND_OPENSEARCH => $openSearch,
+            // OpenSearch is used *with* FULLTEXT behind it (HMAI-365), never
+            // alone: the better engine must not become a single point of
+            // failure. FULLTEXT needs no such wrapper — it would be a fallback
+            // to itself, a layer that can never fire.
+            self::BACKEND_OPENSEARCH => new FallbackSearchEngine($openSearch, $fulltext, $logger),
             // A typo must not silently fall back to the default: the operator
             // asked for a specific backend and would otherwise never learn the
             // switch did nothing.
