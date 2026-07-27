@@ -6,11 +6,14 @@ namespace App\Module\Series\Infrastructure\External;
 
 use App\Module\Series\Domain\Port\RatingsProviderInterface;
 use App\Module\Series\Domain\Port\WatchedShowsProviderInterface;
-use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -38,7 +41,7 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface, Ra
 
     public function __construct(
         private HttpClientInterface $httpClient,
-        private TraktTokenRepositoryInterface $tokenRepository,
+        private TraktTokenProvider $tokenProvider,
         private string $clientId,
         #[Autowire(service: 'monolog.logger.series')]
         private LoggerInterface $logger = new NullLogger(),
@@ -73,8 +76,10 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface, Ra
 
     /**
      * Authenticated GET against the Trakt sync API, decoded to an array. Shared by
-     * the watched + ratings imports: guards the client id and stored token, records
-     * the call, and maps transport errors onto a readable RuntimeException.
+     * the watched + ratings imports: guards the client id, resolves a fresh access
+     * token (refreshing it via the provider when the stored one has expired),
+     * records the call, and maps transport/HTTP/decoding errors onto a readable
+     * RuntimeException.
      *
      * @param array<string, string> $query
      *
@@ -86,9 +91,8 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface, Ra
             throw new RuntimeException('Trakt client ID not configured.');
         }
 
-        $token = $this->tokenRepository->get();
-        $accessToken = is_array($token) ? trim((string) ($token['access_token'] ?? '')) : '';
-        if ('' === $accessToken) {
+        $accessToken = $this->tokenProvider->getValidAccessToken();
+        if (null === $accessToken || '' === $accessToken) {
             throw new RuntimeException('Trakt account not connected.');
         }
 
@@ -114,6 +118,15 @@ final readonly class TraktApiClient implements WatchedShowsProviderInterface, Ra
             $this->recordCall($path, $start, null, 'transport_error');
 
             throw new RuntimeException('Trakt API unavailable.', 0, $e);
+        } catch (ClientExceptionInterface|RedirectionExceptionInterface|ServerExceptionInterface $e) {
+            $statusCode = $e->getResponse()->getStatusCode();
+            $this->recordCall($path, $start, $statusCode, 'http_error');
+
+            throw new RuntimeException(sprintf('Trakt API error (HTTP %d).', $statusCode), 0, $e);
+        } catch (DecodingExceptionInterface $e) {
+            $this->recordCall($path, $start, null, 'decoding_error');
+
+            throw new RuntimeException('Trakt API returned invalid JSON.', 0, $e);
         }
 
         $this->recordCall($path, $start, $status);
