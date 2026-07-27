@@ -212,6 +212,7 @@ final class SeriesController extends AbstractController
     #[Route('/{seriesId}/seasons', methods: ['POST'])]
     #[OA\Post(
         summary: 'Add a season',
+        description: 'Adds a season with a series-unique number. A number already used by another season in the same show returns 409 Conflict.',
         tags: ['Series'],
         parameters: [
             new OA\PathParameter(name: 'seriesId', description: 'Series UUID.', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
@@ -228,6 +229,7 @@ final class SeriesController extends AbstractController
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
             new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 409, ref: '#/components/responses/ConflictError'),
             new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
@@ -238,7 +240,12 @@ final class SeriesController extends AbstractController
         try {
             $id = $this->commandBus->dispatchAndReturn(new AddSeason($seriesId, $number));
         } catch (HandlerFailedException $e) {
-            if ($e->getPrevious() instanceof DomainException) {
+            $original = $e->getPrevious();
+
+            if ($original instanceof SeasonNumberAlreadyTaken) {
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_CONFLICT);
+            }
+            if ($original instanceof DomainException) {
                 return new JsonResponse(['error' => 'Series not found.'], Response::HTTP_NOT_FOUND);
             }
             throw $e;
