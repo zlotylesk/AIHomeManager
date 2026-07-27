@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Music;
 
+use App\Module\Music\Application\Exception\DiscogsAuthException;
+use App\Module\Music\Application\Exception\DiscogsRateLimitException;
 use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
 use App\Tests\Support\AuthenticatedApiTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use Redis;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Throwable;
 
 class MusicApiTest extends WebTestCase
 {
@@ -66,6 +70,32 @@ class MusicApiTest extends WebTestCase
         return [$lastfm, $discogs];
     }
 
+    /**
+     * Makes the vinyl-collection port (Discogs) throw, so
+     * GetMusicComparisonHandler propagates it wrapped in the Messenger
+     * HandlerFailedException — pinning comparison()'s unwrap+mapping ladder
+     * (HMAI-396). The Last.fm port is stubbed to succeed so the failure is
+     * unambiguous: it comes from the Discogs call, not an incidental one.
+     */
+    private function installComparisonPortFailure(Throwable $vinylCollectionException): void
+    {
+        $this->client->disableReboot();
+
+        $lastfm = $this->createMock(MusicListeningHistoryInterface::class);
+        $lastfm->method('getTopAlbums')->willReturn([]);
+        self::getContainer()->set(MusicListeningHistoryInterface::class, $lastfm);
+
+        $discogs = $this->createMock(VinylCollectionInterface::class);
+        $discogs->method('getUserCollection')->willThrowException($vinylCollectionException);
+        self::getContainer()->set(VinylCollectionInterface::class, $discogs);
+
+        /** @var Redis $redis */
+        $redis = self::getContainer()->get('app.redis');
+        foreach ($redis->keys('music:comparison:*') as $key) {
+            $redis->del($key);
+        }
+    }
+
     public function testTopAlbumsWithInvalidPeriodReturns422(): void
     {
         $this->client->request('GET', '/api/music/top-albums?period=invalid');
@@ -109,6 +139,50 @@ class MusicApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(503);
         $data = $this->jsonResponse($this->client);
         self::assertArrayHasKey('error', $data);
+        // Regression (HMAI-396): comparison() used to catch DiscogsAuthException/
+        // DiscogsRateLimitException directly, which never matched because
+        // QueryBus::ask() wraps every handler exception in a Messenger
+        // HandlerFailedException — the generic `catch (RuntimeException)` caught
+        // that wrapper instead and leaked its internal
+        // `Handling "..." failed: ...` message into the response body.
+        self::assertStringNotContainsString('Handling ', (string) $data['error']);
+    }
+
+    public function testComparisonWhenDiscogsRateLimitedReturns429(): void
+    {
+        $this->installComparisonPortFailure(
+            new DiscogsRateLimitException('Discogs rate limit exceeded — try again shortly.')
+        );
+
+        $this->client->request('GET', '/api/music/comparison?period=1month&limit=5');
+
+        self::assertResponseStatusCodeSame(429);
+        $data = $this->jsonResponse($this->client);
+        self::assertSame('Discogs rate limit exceeded — try again shortly.', $data['error']);
+    }
+
+    public function testComparisonWhenDiscogsAuthFailsReturns401(): void
+    {
+        $this->installComparisonPortFailure(
+            new DiscogsAuthException('Discogs authorization expired or revoked.')
+        );
+
+        $this->client->request('GET', '/api/music/comparison?period=1month&limit=5');
+
+        self::assertResponseStatusCodeSame(401);
+        $data = $this->jsonResponse($this->client);
+        self::assertSame('Discogs authorization expired or revoked.', $data['error']);
+    }
+
+    public function testComparisonWhenHandlerThrowsUnexpectedExceptionReturns500(): void
+    {
+        $this->installComparisonPortFailure(new LogicException('Something went unexpectedly wrong.'));
+
+        $this->client->request('GET', '/api/music/comparison?period=1month&limit=5');
+
+        self::assertResponseStatusCodeSame(500);
+        $data = $this->jsonResponse($this->client);
+        self::assertSame('Internal server error.', $data['error']);
     }
 
     public function testTopAlbumsDefaultPeriodIsAccepted(): void
