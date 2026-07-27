@@ -14,6 +14,10 @@ use Psr\Log\NullLogger;
 use Redis;
 use RuntimeException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -71,6 +75,14 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
             $this->recordCall('user.gettopalbums', $start, null, 'transport_error');
 
             throw new RuntimeException('Last.fm API unavailable.', 0, $e);
+        } catch (ClientExceptionInterface|ServerExceptionInterface|RedirectionExceptionInterface $e) {
+            $this->recordCall('user.gettopalbums', $start, $e->getResponse()->getStatusCode(), 'http_error');
+
+            throw new RuntimeException(sprintf('Last.fm API error (HTTP %d).', $e->getResponse()->getStatusCode()), 0, $e);
+        } catch (DecodingExceptionInterface $e) {
+            $this->recordCall('user.gettopalbums', $start, $status, 'decoding_error');
+
+            throw new RuntimeException('Last.fm API returned invalid JSON.', 0, $e);
         }
 
         $this->recordCall('user.gettopalbums', $start, $status);
@@ -115,6 +127,14 @@ final readonly class LastFmApiClient implements MusicListeningHistoryInterface
             $this->recordCall('user.getrecenttracks', $start, null, 'transport_error');
 
             throw new RuntimeException('Last.fm API unavailable.', 0, $e);
+        } catch (ClientExceptionInterface|ServerExceptionInterface|RedirectionExceptionInterface $e) {
+            $this->recordCall('user.getrecenttracks', $start, $e->getResponse()->getStatusCode(), 'http_error');
+
+            throw new RuntimeException(sprintf('Last.fm API error (HTTP %d).', $e->getResponse()->getStatusCode()), 0, $e);
+        } catch (DecodingExceptionInterface $e) {
+            $this->recordCall('user.getrecenttracks', $start, $status, 'decoding_error');
+
+            throw new RuntimeException('Last.fm API returned invalid JSON.', 0, $e);
         }
 
         $this->recordCall('user.getrecenttracks', $start, $status);
