@@ -11,7 +11,7 @@ test('music page renders without horizontal overflow at 393px (Pixel 5)', async 
   expect(seed.ok(), `session seed failed: ${seed.status()}`).toBeTruthy();
 
   await page.goto('/music');
-  await expect(page.locator('.app-title')).toHaveText('Music');
+  await expect(page.locator('.app-title')).toHaveText('Muzyka');
   // history loads independently of the (slow/external) top-albums and Discogs sections
   await expect(page.locator('#history-list .loading')).toHaveCount(0, { timeout: 10_000 });
   await expect(page.locator('.history-row', { hasText: title })).toBeVisible();
