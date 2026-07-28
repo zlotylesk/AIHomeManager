@@ -84,6 +84,61 @@ final class FrontendHttpBasicAuthTest extends WebTestCase
     }
 
     /**
+     * HMAI-395 (epic review): `/auth/*` was the half of this firewall nobody
+     * proved. `security.yaml` puts the OAuth entry points under `main` (no
+     * `pattern`, so it is the catch-all) and `access_control`'s `^/` ROLE_USER
+     * rule, and both this class's docblock and the config comment claim they
+     * are gated — but every existing case only exercised `/series`, and the
+     * `httpCredentials` in `playwright.config.ts` never fire (E2E runs
+     * `APP_ENV=test`, where `main.security: false`). That is worse than an
+     * untested path: it is configuration that reads as if it were covered.
+     *
+     * This is the security-critical half — an anonymous OAuth entry point
+     * would let a stranger start (and, on callback, complete) an
+     * authorization flow that binds *this* server's account.
+     */
+    public function testOAuthEntryPointWithoutCredentialsReturns401(): void
+    {
+        self::bootKernel(['environment' => 'dev', 'debug' => false]);
+        $kernel = self::$kernel;
+        self::assertNotNull($kernel);
+
+        $response = $kernel->handle(Request::create('/auth/trakt', 'GET'));
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertStringContainsString(
+            'Basic realm="AIHomeManager"',
+            (string) $response->headers->get('WWW-Authenticate'),
+        );
+    }
+
+    /**
+     * The counterpart: valid credentials must get *past* the firewall, so a
+     * logged-in browser can still complete an OAuth round trip (it resends the
+     * same Basic credentials for the rest of the realm automatically).
+     *
+     * Deliberately a negative assertion rather than a check for 302: `.env`
+     * ships an empty `TRAKT_CLIENT_ID`, so what the controller does next is an
+     * environment detail, not the claim under test. Pinning a redirect here
+     * would make this case fail for a reason that has nothing to do with
+     * authentication. `assertNotSame(401, …)` states exactly the invariant
+     * HMAI-404 must preserve — the same idiom the API case below uses.
+     */
+    public function testOAuthEntryPointWithValidCredentialsPassesTheFirewall(): void
+    {
+        self::bootKernel(['environment' => 'dev', 'debug' => false]);
+        $kernel = self::$kernel;
+        self::assertNotNull($kernel);
+
+        $response = $kernel->handle(Request::create('/auth/trakt', 'GET', [], [], [], [
+            'PHP_AUTH_USER' => 'admin',
+            'PHP_AUTH_PW' => 'test',
+        ]));
+
+        self::assertNotSame(401, $response->getStatusCode());
+    }
+
+    /**
      * The `api` and `main` firewalls are disjoint — this HMAI-404 change must
      * not affect the API surface. Uses the standard `test`-environment client
      * (the real, migrated `homemanager_test` database), the same environment
