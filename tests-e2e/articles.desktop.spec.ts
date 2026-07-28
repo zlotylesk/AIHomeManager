@@ -5,7 +5,7 @@ const uniqueTitle = (prefix: string) => `${prefix} ${Date.now()}-${Math.random()
 
 async function gotoArticles(page: Page): Promise<void> {
   await page.goto('/articles');
-  await expect(page.locator('.app-title')).toHaveText('Articles');
+  await expect(page.locator('.app-title')).toHaveText('Artykuły');
   // The list spinner is replaced once the fetch resolves.
   await expect(page.locator('#articles-list .loading')).toHaveCount(0, { timeout: 10_000 });
 }
@@ -21,7 +21,7 @@ test('an article created through the New Article form appears in the list', asyn
   await page.fill('#article-read-time', '7');
   await page.click('#form-create-article [type=submit]');
 
-  await expect(page.locator('#info-banner')).toHaveText(/article added/i);
+  await expect(page.locator('#info-banner')).toHaveText(/artykuł dodany/i);
   const row = page.locator('#articles-list .article-row', { hasText: title });
   await expect(row).toBeVisible();
   await expect(row.locator('.tag')).toHaveText('Tech');
@@ -78,7 +78,7 @@ test('editing an article updates its title and category in the list', async ({ p
   await page.fill('#edit-category', 'Published');
   await page.click('#form-edit-article [type=submit]');
 
-  await expect(page.locator('#info-banner')).toHaveText(/article updated/i);
+  await expect(page.locator('#info-banner')).toHaveText(/artykuł zaktualizowany/i);
   const updatedRow = page.locator('#articles-list .article-row', { hasText: newTitle });
   await expect(updatedRow).toBeVisible();
   await expect(updatedRow.locator('.tag')).toHaveText('Published');
@@ -119,7 +119,7 @@ test('deleting an article removes its row from the list', async ({ page }) => {
   page.on('dialog', (dialog) => dialog.accept());
   await row.locator('.btn-delete').click();
 
-  await expect(page.locator('#info-banner')).toHaveText(/article deleted/i);
+  await expect(page.locator('#info-banner')).toHaveText(/artykuł usunięty/i);
   await expect(page.locator('#articles-list .article-row', { hasText: title })).toHaveCount(0);
 });
 
