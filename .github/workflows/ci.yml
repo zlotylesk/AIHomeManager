@@ -323,6 +323,20 @@ jobs:
             mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS homemanager_test${i} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON homemanager_test${i}.* TO 'homemanager'@'%';"
           done
 
+      # HMAI-397: DatabaseBackupService intentionally dumps the RAW dbname from
+      # DATABASE_URL ("homemanager", with no `_test{n}` suffix) — that IS the
+      # correct target in prod, where the suffix does not exist at all, so the
+      # service must not read it through Doctrine's dbname_suffix. Locally this
+      # bare schema already exists (docker-compose's dev MySQL_DATABASE), which
+      # is why `make test` never caught this; in CI only the suffixed per-worker
+      # databases above exist, so BackupCommandTest (which drives the real
+      # `app:backup-database` command through a real mysqldump) needs this bare
+      # schema too, or mysqldump fails with "Unknown database" — a failure that
+      # was invisible before this ticket's fix (the very `sh`-pipeline masking
+      # bug HMAI-397 closes) and is now correctly surfaced.
+      - name: Create backup-test database
+        run: mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS homemanager CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON homemanager.* TO 'homemanager'@'%';"
+
       - name: Run database migrations (per parallel test DB)
         run: |
           for i in $(seq 1 "$PARATEST_PROCESSES"); do
