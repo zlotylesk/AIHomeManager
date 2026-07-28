@@ -35,28 +35,28 @@ function formatDate(dateStr) {
 function renderArticle(article, compact = false) {
     const today = isToday(article.addedAt);
     const readBtn = article.isRead
-        ? `<span class="read-badge">✓ Read ${formatDate(article.readAt)}</span>`
-        : `<button class="btn btn-secondary btn-sm btn-mark-read" data-id="${escHtml(article.id)}">Mark as Read</button>`;
+        ? `<span class="read-badge">✓ Przeczytano ${formatDate(article.readAt)}</span>`
+        : `<button class="btn btn-secondary btn-sm btn-mark-read" data-id="${article.id}">Oznacz jako przeczytany</button>`;
 
     const safeHref = window.safeUrl(article.url) ?? '#';
 
     return `
-        <div class="article-row${today && !compact ? ' article-today' : ''}" data-id="${escHtml(article.id)}">
+        <div class="article-row${today && !compact ? ' article-today' : ''}" data-id="${article.id}">
             <div class="article-main">
                 <a class="article-title" href="${escHtml(safeHref)}" target="_blank" rel="noopener">
                     ${escHtml(article.title)}${today ? ' <span class="badge-today">Dziś</span>' : ''}
                 </a>
                 <div class="article-meta">
                     ${article.category ? `<span class="tag">${escHtml(article.category)}</span>` : ''}
-                    ${article.estimatedReadTime ? `<span>${escHtml(String(article.estimatedReadTime))} min read</span>` : ''}
-                    <span>Added ${formatDate(article.addedAt)}</span>
+                    ${article.estimatedReadTime ? `<span>${article.estimatedReadTime} min czytania</span>` : ''}
+                    <span>Dodano ${formatDate(article.addedAt)}</span>
                 </div>
             </div>
             <div class="article-actions">
-                <button class="btn btn-secondary btn-sm btn-view-details" data-id="${escHtml(article.id)}">Details</button>
-                <button class="btn btn-secondary btn-sm btn-edit" data-id="${escHtml(article.id)}">Edit</button>
+                <button class="btn btn-secondary btn-sm btn-view-details" data-id="${article.id}">Szczegóły</button>
+                <button class="btn btn-secondary btn-sm btn-edit" data-id="${article.id}">Edytuj</button>
                 ${readBtn}
-                <button class="btn btn-danger btn-sm btn-delete" data-id="${escHtml(article.id)}">Delete</button>
+                <button class="btn btn-danger btn-sm btn-delete" data-id="${article.id}">Usuń</button>
             </div>
         </div>
     `;
@@ -78,7 +78,7 @@ function renderList() {
         filtered = filtered.filter(a => !a.isRead);
     }
     if (!filtered.length) {
-        list.innerHTML = '<div class="empty-state">No articles found.</div>';
+        list.innerHTML = '<div class="empty-state">Nie znaleziono artykułów.</div>';
         return;
     }
     list.innerHTML = filtered.map(a => renderArticle(a)).join('');
@@ -97,16 +97,16 @@ function populateCategoryFilter() {
 
 function renderDetail(a) {
     const safeHref = window.safeUrl(a.url) ?? '#';
-    const status = a.isRead ? `Read${a.readAt ? ' · ' + formatDate(a.readAt) : ''}` : 'Unread';
+    const status = a.isRead ? `Przeczytano${a.readAt ? ' · ' + formatDate(a.readAt) : ''}` : 'Nieprzeczytany';
     return `
         <dl class="detail-list">
             <dt>URL</dt>
             <dd><a href="${escHtml(safeHref)}" target="_blank" rel="noopener">${escHtml(a.url)}</a></dd>
-            <dt>Category</dt>
+            <dt>Kategoria</dt>
             <dd>${a.category ? escHtml(a.category) : '—'}</dd>
-            <dt>Read time</dt>
+            <dt>Czas czytania</dt>
             <dd>${a.estimatedReadTime ? escHtml(String(a.estimatedReadTime)) + ' min' : '—'}</dd>
-            <dt>Added</dt>
+            <dt>Dodano</dt>
             <dd>${escHtml(formatDate(a.addedAt))}</dd>
             <dt>Status</dt>
             <dd>${escHtml(status)}</dd>
@@ -116,7 +116,7 @@ function renderDetail(a) {
 
 async function openDetail(id) {
     const modal = $('article-detail-modal');
-    $('detail-title').textContent = 'Loading…';
+    $('detail-title').textContent = 'Ładowanie…';
     $('detail-body').innerHTML = '';
     modal.classList.remove('hidden');
     try {
@@ -125,7 +125,7 @@ async function openDetail(id) {
         $('detail-body').innerHTML = renderDetail(article);
     } catch (err) {
         closeDetail();
-        showError(err.message || 'Failed to load article.');
+        showError(err.message || 'Nie udało się wczytać artykułu.');
     }
 }
 
@@ -160,7 +160,7 @@ async function saveEdit(form) {
 
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.textContent = 'Zapisywanie…';
     try {
         await window.apiCall(`/api/articles/${id}`, {
             method: 'PUT',
@@ -168,35 +168,35 @@ async function saveEdit(form) {
             body: JSON.stringify(body),
         });
         closeEdit();
-        showInfo('Article updated.');
+        showInfo('Artykuł zaktualizowany.');
         await loadArticles();
     } catch (err) {
-        showError(err.message || 'Failed to update article.');
+        showError(err.message || 'Nie udało się zaktualizować artykułu.');
     }
     btn.disabled = false;
-    btn.textContent = 'Save';
+    btn.textContent = 'Zapisz';
 }
 
 async function deleteArticle(id, btn) {
-    if (!confirm('Delete this article? This cannot be undone.')) {
+    if (!confirm('Usunąć ten artykuł? Tej operacji nie można cofnąć.')) {
         return;
     }
     btn.disabled = true;
-    btn.textContent = 'Deleting…';
+    btn.textContent = 'Usuwanie…';
     try {
         await window.apiCall(`/api/articles/${id}`, {method: 'DELETE'});
-        showInfo('Article deleted.');
+        showInfo('Artykuł usunięty.');
         await loadArticles();
     } catch (err) {
-        showError(err.message || 'Failed to delete article.');
+        showError(err.message || 'Nie udało się usunąć artykułu.');
         btn.disabled = false;
-        btn.textContent = 'Delete';
+        btn.textContent = 'Usuń';
     }
 }
 
 async function markAsRead(id, btn) {
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.textContent = 'Zapisywanie…';
     try {
         await window.apiCall(`/api/articles/${id}/read`, {method: 'POST'});
         const article = allArticles.find(a => a.id === id);
@@ -206,9 +206,9 @@ async function markAsRead(id, btn) {
         }
         renderList();
     } catch (err) {
-        showError(err.message || 'Failed to mark as read.');
+        showError(err.message || 'Nie udało się oznaczyć jako przeczytany.');
         btn.disabled = false;
-        btn.textContent = 'Mark as Read';
+        btn.textContent = 'Oznacz jako przeczytany';
     }
 }
 
@@ -225,7 +225,7 @@ async function createArticle(form) {
 
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true;
-    btn.textContent = 'Adding…';
+    btn.textContent = 'Dodawanie…';
     try {
         await window.apiCall('/api/articles', {
             method: 'POST',
@@ -233,13 +233,13 @@ async function createArticle(form) {
             body: JSON.stringify(body),
         });
         form.reset();
-        showInfo('Article added.');
+        showInfo('Artykuł dodany.');
         await loadArticles();
     } catch (err) {
-        showError(err.message || 'Failed to add article.');
+        showError(err.message || 'Nie udało się dodać artykułu.');
     }
     btn.disabled = false;
-    btn.textContent = 'Add Article';
+    btn.textContent = 'Dodaj artykuł';
 }
 
 async function importArticles(form) {
@@ -256,26 +256,26 @@ async function importArticles(form) {
     const resultBox = $('import-result');
     resultBox.classList.add('hidden');
     btn.disabled = true;
-    btn.textContent = 'Importing…';
+    btn.textContent = 'Importowanie…';
     try {
         const res = await window.apiCall('/api/articles/import', {method: 'POST', body: fd});
-        resultBox.textContent = `${res.dryRun ? '[Dry run] ' : ''}Imported: ${res.imported} · Skipped (duplicates): ${res.skipped} · Errors: ${res.errors}`;
+        resultBox.textContent = `${res.dryRun ? '[Test] ' : ''}Zaimportowano: ${res.imported} · Pominięto (duplikaty): ${res.skipped} · Błędy: ${res.errors}`;
         resultBox.classList.remove('hidden');
         form.reset();
         if (!res.dryRun && res.imported > 0) {
             await loadArticles();
         }
     } catch (err) {
-        showError(err.message || 'Import failed.');
+        showError(err.message || 'Import nie powiódł się.');
     }
     btn.disabled = false;
-    btn.textContent = 'Import';
+    btn.textContent = 'Importuj';
 }
 
 async function downloadExport(format, btn) {
     const original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Exporting…';
+    btn.textContent = 'Eksportowanie…';
     try {
         const meta = document.querySelector('meta[name="api-key"]');
         const apiKey = meta ? meta.getAttribute('content') : '';
@@ -285,7 +285,7 @@ async function downloadExport(format, btn) {
         }
         const res = await fetch(`/api/articles/export?format=${encodeURIComponent(format)}`, {headers});
         if (!res.ok) {
-            let message = `Export failed (${res.status}).`;
+            let message = `Eksport nie powiódł się (${res.status}).`;
             try {
                 const payload = await res.json();
                 if (payload && 'string' === typeof payload.error) {
@@ -304,9 +304,9 @@ async function downloadExport(format, btn) {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        showInfo(`Articles exported as ${format.toUpperCase()}.`);
+        showInfo(`Artykuły wyeksportowane jako ${format.toUpperCase()}.`);
     } catch (err) {
-        showError(err.message || 'Failed to export articles.');
+        showError(err.message || 'Nie udało się wyeksportować artykułów.');
     } finally {
         btn.disabled = false;
         btn.textContent = original;
@@ -314,7 +314,7 @@ async function downloadExport(format, btn) {
 }
 
 async function loadArticles() {
-    $('articles-list').innerHTML = '<div class="loading">Loading…</div>';
+    $('articles-list').innerHTML = '<div class="loading">Ładowanie…</div>';
 
     const [listResult, todayResult] = await Promise.allSettled([
         window.apiCall('/api/articles'),
@@ -322,7 +322,7 @@ async function loadArticles() {
     ]);
 
     if (listResult.status !== 'fulfilled') {
-        showError('Failed to load articles.');
+        showError('Nie udało się wczytać artykułów.');
         $('articles-list').innerHTML = '';
         return;
     }

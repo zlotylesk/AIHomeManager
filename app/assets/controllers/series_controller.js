@@ -41,12 +41,12 @@ export default class extends Controller {
         btn.disabled = true;
         try {
             await API.importFromTrakt();
-            showInfo('Trakt import started in the background. Your watched shows will appear shortly.');
+            showInfo('Import z Trakt uruchomiony w tle. Obejrzane seriale pojawią się wkrótce.');
         } catch (err) {
             if (err.status === 409) {
                 showTraktConnectPrompt();
             } else {
-                showError(err.message || 'Failed to start the Trakt import.');
+                showError(err.message || 'Nie udało się uruchomić importu z Trakt.');
             }
         } finally {
             btn.disabled = false;
@@ -80,7 +80,7 @@ export default class extends Controller {
 
         if (!this.allSeries.length) {
             if (toolbar) this.hide(toolbar);
-            container.innerHTML = '<div class="empty-state">No series yet. Add your first one!</div>';
+            container.innerHTML = '<div class="empty-state">Brak seriali. Dodaj pierwszy!</div>';
             return;
         }
 
@@ -89,7 +89,7 @@ export default class extends Controller {
         const filtered = filterSeries(this.allSeries, this.searchTerm);
 
         if (!filtered.length) {
-            container.innerHTML = '<div class="empty-state">No series match your search.</div>';
+            container.innerHTML = '<div class="empty-state">Żaden serial nie pasuje do wyszukiwania.</div>';
             return;
         }
 
@@ -98,12 +98,12 @@ export default class extends Controller {
 
     async loadSeriesList() {
         const container = this.$('series-list');
-        container.innerHTML = '<div class="loading">Loading…</div>';
+        container.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
             this.allSeries = await API.series();
             this.applyListView();
         } catch {
-            showError('Failed to load series. Is the backend running?');
+            showError('Nie udało się wczytać seriali. Czy backend działa?');
             container.innerHTML = '';
         }
     }
@@ -112,7 +112,7 @@ export default class extends Controller {
         this.hide(this.$('series-list-view'));
         this.show(this.$('series-detail-view'));
         const content = this.$('series-detail-content');
-        content.innerHTML = '<div class="loading">Loading…</div>';
+        content.innerHTML = '<div class="loading">Ładowanie…</div>';
         hideError();
 
         try {
@@ -126,7 +126,7 @@ export default class extends Controller {
                 },
             });
         } catch {
-            showError('Failed to load series detail.');
+            showError('Nie udało się wczytać szczegółów serialu.');
             content.innerHTML = '';
         }
     }
@@ -150,19 +150,19 @@ export default class extends Controller {
             if (!title) return;
             const submitBtn = form.querySelector('[type=submit]');
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Creating…';
+            submitBtn.textContent = 'Tworzenie…';
             hideError();
 
             try {
                 await API.createSeries({title, ...readMetadataInputs(form)});
                 this.hide(modal);
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create';
+                submitBtn.textContent = 'Utwórz';
                 await this.loadSeriesList();
             } catch (err) {
-                showError(err.message || 'Failed to create series.');
+                showError(err.message || 'Nie udało się utworzyć serialu.');
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create';
+                submitBtn.textContent = 'Utwórz';
             }
         });
     }

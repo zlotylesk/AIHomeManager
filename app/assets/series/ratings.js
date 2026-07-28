@@ -13,7 +13,7 @@ export function cardRating(label, value) {
 }
 
 export function statusLabel(status) {
-    return {ongoing: 'Ongoing', ended: 'Ended'}[status] ?? null;
+    return {ongoing: 'Emitowany', ended: 'Zakończony'}[status] ?? null;
 }
 
 export function ratingHighlight(entity) {

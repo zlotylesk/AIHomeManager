@@ -26,7 +26,7 @@ test('books page renders without horizontal overflow at 393px (Pixel 5)', async 
   expect(seed.ok(), `seed failed: ${seed.status()}`).toBeTruthy();
 
   await page.goto('/books');
-  await expect(page.locator('.app-title')).toHaveText('Books');
+  await expect(page.locator('.app-title')).toHaveText('Książki');
   await expect(page.locator('.book-card', { hasText: title })).toBeVisible();
 
   const layout = await page.evaluate(() => {
@@ -72,8 +72,8 @@ test('book detail view renders without horizontal overflow at 393px (Pixel 5)', 
   expect(session.ok(), `session failed: ${session.status()}`).toBeTruthy();
 
   await page.goto('/books');
-  await expect(page.locator('.app-title')).toHaveText('Books');
-  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'View' }).click();
+  await expect(page.locator('.app-title')).toHaveText('Książki');
+  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'Szczegóły' }).click();
   await expect(page.locator('.book-detail-title')).toHaveText(title);
 
   const layout = await page.evaluate(() => {

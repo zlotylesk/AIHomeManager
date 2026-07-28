@@ -1,25 +1,25 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Books — AIHomeManager{% endblock %}
+{% block title %}Książki — AIHomeManager{% endblock %}
 
 {% block body %}
 <div class="app" data-controller="books">
     <header class="app-header">
-        <h1 class="app-title">Books</h1>
+        <h1 class="app-title">Książki</h1>
         <div class="header-actions">
             <select class="select-filter"
                     data-books-target="filterStatus"
                     data-action="change->books#filterChange">
-                <option value="">All</option>
-                <option value="to_read">To Read</option>
-                <option value="reading">Reading</option>
-                <option value="completed">Completed</option>
+                <option value="">Wszystkie</option>
+                <option value="to_read">Do przeczytania</option>
+                <option value="reading">Czytam</option>
+                <option value="completed">Przeczytana</option>
             </select>
             <button class="btn btn-secondary btn-export"
-                    data-format="csv" data-action="click->books#exportBooks">Export CSV</button>
+                    data-format="csv" data-action="click->books#exportBooks">Eksportuj CSV</button>
             <button class="btn btn-secondary btn-export"
-                    data-format="pdf" data-action="click->books#exportBooks">Export PDF</button>
-            <button class="btn btn-primary" data-action="click->books#openAddBook">+ Add Book</button>
+                    data-format="pdf" data-action="click->books#exportBooks">Eksportuj PDF</button>
+            <button class="btn btn-primary" data-action="click->books#openAddBook">+ Dodaj książkę</button>
         </div>
     </header>
 
@@ -27,44 +27,44 @@
          data-books-target="addBookModal"
          data-action="click->books#closeAddBookBackdrop">
         <div class="modal-box">
-            <h2>Add Book</h2>
+            <h2>Dodaj książkę</h2>
             <form data-books-target="addBookForm"
                   data-action="submit->books#submitAddBook">
-                <div class="add-mode-toggle" role="radiogroup" aria-label="Add mode">
+                <div class="add-mode-toggle" role="radiogroup" aria-label="Tryb dodawania">
                     <label><input type="radio" name="add-mode" value="isbn" checked
                                   data-books-target="modeIsbn"
-                                  data-action="change->books#toggleAddMode"> By ISBN (auto-fetch)</label>
+                                  data-action="change->books#toggleAddMode"> Po ISBN (automatyczne pobranie)</label>
                     <label><input type="radio" name="add-mode" value="manual"
                                   data-books-target="modeManual"
-                                  data-action="change->books#toggleAddMode"> Enter details manually</label>
+                                  data-action="change->books#toggleAddMode"> Wpisz dane ręcznie</label>
                 </div>
 
-                <label for="input-isbn">ISBN (13 digits)</label>
+                <label for="input-isbn">ISBN (13 cyfr)</label>
                 <input id="input-isbn"
                        type="text"
-                       placeholder="e.g. 9780306406157"
+                       placeholder="np. 9780306406157"
                        required
                        data-books-target="isbnInput">
-                <p class="form-hint" data-books-target="isbnHint">Metadata (title, author, cover) will be fetched automatically.</p>
+                <p class="form-hint" data-books-target="isbnHint">Dane (tytuł, autor, okładka) zostaną pobrane automatycznie.</p>
 
                 <div class="manual-fields hidden" data-books-target="manualFields">
-                    <label for="input-title">Title</label>
+                    <label for="input-title">Tytuł</label>
                     <input id="input-title" type="text" data-books-target="titleInput">
-                    <label for="input-author">Author</label>
+                    <label for="input-author">Autor</label>
                     <input id="input-author" type="text" data-books-target="authorInput">
-                    <label for="input-publisher">Publisher</label>
+                    <label for="input-publisher">Wydawca</label>
                     <input id="input-publisher" type="text" data-books-target="publisherInput">
-                    <label for="input-year">Year</label>
+                    <label for="input-year">Rok</label>
                     <input id="input-year" type="number" min="0" data-books-target="yearInput">
-                    <label for="input-total-pages">Total pages</label>
+                    <label for="input-total-pages">Liczba stron</label>
                     <input id="input-total-pages" type="number" min="1" data-books-target="totalPagesInput">
-                    <label for="input-cover-url">Cover URL (optional)</label>
+                    <label for="input-cover-url">Adres URL okładki (opcjonalnie)</label>
                     <input id="input-cover-url" type="url" placeholder="https://…" data-books-target="coverUrlInput">
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Add Book</button>
-                    <button type="button" class="btn btn-secondary" data-action="click->books#closeAddBook">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Dodaj książkę</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeAddBook">Anuluj</button>
                 </div>
             </form>
         </div>
@@ -74,30 +74,30 @@
          data-books-target="sessionModal"
          data-action="click->books#closeSessionBackdrop">
         <div class="modal-box">
-            <h2 data-books-target="sessionTitle">Log Reading Session</h2>
+            <h2 data-books-target="sessionTitle">Zapisz sesję czytania</h2>
             <form data-books-target="sessionForm"
                   data-action="submit->books#submitSession">
                 <input type="hidden" data-books-target="sessionBookId">
-                <label for="input-pages">Pages read</label>
+                <label for="input-pages">Przeczytane strony</label>
                 <input id="input-pages"
                        type="number"
                        min="1"
-                       placeholder="e.g. 30"
+                       placeholder="np. 30"
                        required
                        data-books-target="pagesInput">
-                <label for="input-session-date">Date</label>
+                <label for="input-session-date">Data</label>
                 <input id="input-session-date"
                        type="date"
                        required
                        data-books-target="sessionDateInput">
-                <label for="input-notes">Notes (optional)</label>
+                <label for="input-notes">Notatki (opcjonalnie)</label>
                 <input id="input-notes"
                        type="text"
-                       placeholder="Optional notes"
+                       placeholder="Opcjonalne notatki"
                        data-books-target="notesInput">
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Save Session</button>
-                    <button type="button" class="btn btn-secondary" data-action="click->books#closeSession">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Zapisz sesję</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeSession">Anuluj</button>
                 </div>
             </form>
         </div>
@@ -107,35 +107,35 @@
          data-books-target="editBookModal"
          data-action="click->books#closeEditBackdrop">
         <div class="modal-box">
-            <h2>Edit Book</h2>
+            <h2>Edytuj książkę</h2>
             <form data-books-target="editBookForm"
                   data-action="submit->books#submitEdit">
                 <input type="hidden" data-books-target="editBookId">
-                <label for="edit-title">Title</label>
+                <label for="edit-title">Tytuł</label>
                 <input id="edit-title" type="text" required data-books-target="editTitleInput">
-                <label for="edit-author">Author</label>
+                <label for="edit-author">Autor</label>
                 <input id="edit-author" type="text" required data-books-target="editAuthorInput">
-                <label for="edit-publisher">Publisher</label>
+                <label for="edit-publisher">Wydawca</label>
                 <input id="edit-publisher" type="text" required data-books-target="editPublisherInput">
-                <label for="edit-year">Year</label>
+                <label for="edit-year">Rok</label>
                 <input id="edit-year" type="number" required data-books-target="editYearInput">
-                <label for="edit-cover-url">Cover URL (optional)</label>
+                <label for="edit-cover-url">Adres URL okładki (opcjonalnie)</label>
                 <input id="edit-cover-url" type="url" placeholder="https://…" data-books-target="editCoverUrlInput">
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    <button type="button" class="btn btn-secondary" data-action="click->books#closeEdit">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Zapisz</button>
+                    <button type="button" class="btn btn-secondary" data-action="click->books#closeEdit">Anuluj</button>
                 </div>
             </form>
         </div>
     </div>
 
     <div id="books-grid" class="books-grid" data-books-target="list">
-        <div class="loading">Loading…</div>
+        <div class="loading">Ładowanie…</div>
     </div>
 
     <section class="book-detail hidden" data-books-target="detailView">
         <button class="btn btn-secondary back-btn"
-                data-action="click->books#backToList">← Back to list</button>
+                data-action="click->books#backToList">← Wróć do listy</button>
         <div data-books-target="detailContent"></div>
     </section>
 </div>

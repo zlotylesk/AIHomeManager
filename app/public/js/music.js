@@ -17,7 +17,7 @@ function escHtml(str) {
 
 function albumRow(a) {
     const img = a.imageUrl ? `<img class="album-thumb" src="${escHtml(a.imageUrl)}" alt="" loading="lazy">` : '<div class="album-thumb album-thumb--placeholder">🎵</div>';
-    const plays = a.playCount != null ? `<span class="plays">${a.playCount} plays</span>` : '';
+    const plays = a.playCount != null ? `<span class="plays">${a.playCount} odtworzeń</span>` : '';
     return `<div class="album-row">${img}<div class="album-info"><strong>${escHtml(a.title ?? '—')}</strong><span>${escHtml(a.artist ?? '—')}</span></div>${plays}</div>`;
 }
 
@@ -28,7 +28,7 @@ function vinylRow(r) {
 const SOURCE_LABELS = {
     lastfm_scrobble: 'Last.fm scrobble',
     lastfm_top_delta: 'Last.fm top delta',
-    manual: 'Manual',
+    manual: 'Ręcznie',
 };
 
 function formatPlayedAt(iso) {
@@ -36,7 +36,7 @@ function formatPlayedAt(iso) {
 }
 
 function sessionRow(s) {
-    const plays = s.playCount != null ? `<span class="plays">${s.playCount} plays</span>` : '';
+    const plays = s.playCount != null ? `<span class="plays">${s.playCount} odtworzeń</span>` : '';
     return `<div class="history-row">
         <div class="album-info"><strong>${escHtml(s.title ?? '—')}</strong><span>${escHtml(s.artist ?? '—')}</span></div>
         <span class="history-source">${escHtml(SOURCE_LABELS[s.source] ?? s.source ?? '')}</span>
@@ -63,7 +63,7 @@ async function submitLogSession(e) {
 
     const btn = $('log-session-form').querySelector('[type=submit]');
     btn.disabled = true;
-    btn.textContent = 'Logging…';
+    btn.textContent = 'Zapisywanie…';
     try {
         await window.apiCall('/api/music/sessions', {
             method: 'POST',
@@ -74,15 +74,15 @@ async function submitLogSession(e) {
         $('log-played-at').value = localDateTimeNow();
         await loadHistory();
     } catch (err) {
-        showError(err.message || 'Failed to log play.');
+        showError(err.message || 'Nie udało się zapisać odtworzenia.');
     }
     btn.disabled = false;
-    btn.textContent = 'Log play';
+    btn.textContent = 'Zapisz odtworzenie';
 }
 
 async function loadHistory() {
     const list = $('history-list');
-    list.innerHTML = '<div class="loading">Loading…</div>';
+    list.innerHTML = '<div class="loading">Ładowanie…</div>';
 
     const params = new URLSearchParams({limit: '100'});
     const from = $('history-from').value;
@@ -96,10 +96,10 @@ async function loadHistory() {
         const sessions = await window.apiCall(`/api/music/history?${params}`);
         list.innerHTML = sessions.length
             ? sessions.map(sessionRow).join('')
-            : '<div class="empty-state">No listening sessions.</div>';
+            : '<div class="empty-state">Brak sesji odsłuchu.</div>';
     } catch (err) {
         list.innerHTML = '';
-        showError(err.message || 'Failed to load listening history.');
+        showError(err.message || 'Nie udało się wczytać historii odsłuchu.');
     }
 }
 
@@ -127,15 +127,15 @@ async function loadMusic(period) {
 
         function readSection(result, label) {
             if (result.status === 'rejected') {
-                errors.push(`${label}: ${result.reason.message ?? 'network error'}`);
+                errors.push(`${label}: ${result.reason.message ?? 'błąd sieci'}`);
                 return null;
             }
             return result.value;
         }
 
-        const topAlbums = readSection(topResult, 'Top albums') ?? [];
-        const collection = readSection(collResult, 'Collection') ?? [];
-        const comparison = readSection(cmpResult, 'Comparison');
+        const topAlbums = readSection(topResult, 'Najlepsze albumy') ?? [];
+        const collection = readSection(collResult, 'Kolekcja') ?? [];
+        const comparison = readSection(cmpResult, 'Porównanie');
 
         if (errors.length) {
             errDiv.innerHTML = errors.map(e => `<div class="error-banner" style="margin-bottom:.5rem">${escHtml(e)}</div>`).join('');
@@ -145,27 +145,27 @@ async function loadMusic(period) {
         $('top-albums-period').textContent = `(${period})`;
         $('top-albums-list').innerHTML = topAlbums.length
             ? topAlbums.map(albumRow).join('')
-            : '<div class="empty-state">No data.</div>';
+            : '<div class="empty-state">Brak danych.</div>';
 
         $('collection-list').innerHTML = collection.length
             ? collection.map(vinylRow).join('')
-            : '<div class="empty-state">No vinyl records.</div>';
+            : '<div class="empty-state">Brak płyt winylowych.</div>';
 
         if (comparison) {
             const score = comparison.matchScore ?? 0;
-            $('match-score-badge').innerHTML = `<span class="match-score-value">${Math.round(score)}%</span> match`;
+            $('match-score-badge').innerHTML = `<span class="match-score-value">${Math.round(score)}%</span> dopasowania`;
 
             $('owned-list').innerHTML = comparison.ownedAndListened?.length
                 ? comparison.ownedAndListened.map(a => albumRow(a)).join('')
-                : '<div class="empty-state">None.</div>';
+                : '<div class="empty-state">Brak.</div>';
 
             $('want-list').innerHTML = comparison.wantList?.length
                 ? comparison.wantList.map(a => albumRow(a)).join('')
-                : '<div class="empty-state">None.</div>';
+                : '<div class="empty-state">Brak.</div>';
 
             $('dusty-list').innerHTML = comparison.dustyShelf?.length
                 ? comparison.dustyShelf.map(r => vinylRow(r)).join('')
-                : '<div class="empty-state">None.</div>';
+                : '<div class="empty-state">Brak.</div>';
         } else {
             document.querySelector('.comparison-header').closest('section').style.display = 'none';
         }
@@ -173,7 +173,7 @@ async function loadMusic(period) {
         content.classList.remove('hidden');
     } catch {
         loading.classList.add('hidden');
-        showError('Network error while loading music data.');
+        showError('Błąd sieci podczas wczytywania danych muzycznych.');
     }
 }
 

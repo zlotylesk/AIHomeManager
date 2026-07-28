@@ -32,7 +32,7 @@ async function seedBook(request: APIRequestContext, overrides: Record<string, un
 
 async function gotoBooksList(page: Page): Promise<void> {
   await page.goto('/books');
-  await expect(page.locator('.app-title')).toHaveText('Books');
+  await expect(page.locator('.app-title')).toHaveText('Książki');
   await expect(page.locator('[data-books-target="list"] .loading')).toHaveCount(0, { timeout: 10_000 });
 }
 
@@ -52,10 +52,10 @@ test('add book modal opens, cancel closes it without a page reload', async ({ pa
   const modal = page.locator('[data-books-target="addBookModal"]');
   await expect(modal).toHaveClass(/hidden/);
 
-  await page.getByRole('button', { name: '+ Add Book' }).click();
+  await page.getByRole('button', { name: '+ Dodaj książkę' }).click();
   await expect(modal).not.toHaveClass(/hidden/);
 
-  await modal.getByRole('button', { name: 'Cancel' }).click();
+  await modal.getByRole('button', { name: 'Anuluj' }).click();
   await expect(modal).toHaveClass(/hidden/);
 
   const survived = await page.evaluate(() => (window as unknown as Record<string, string>).__e2eSentinel);
@@ -74,7 +74,7 @@ test('book detail view shows metadata and reading session history, back returns 
 
   const card = page.locator('.book-card', { hasText: title });
   await expect(card).toBeVisible();
-  await card.getByRole('button', { name: 'View' }).click();
+  await card.getByRole('button', { name: 'Szczegóły' }).click();
 
   const detail = page.locator('[data-books-target="detailView"]');
   await expect(detail).toBeVisible();
@@ -87,7 +87,7 @@ test('book detail view shows metadata and reading session history, back returns 
 
   await expect(page.locator('[data-books-target="list"]')).toBeHidden();
 
-  await detail.getByRole('button', { name: /Back to list/ }).click();
+  await detail.getByRole('button', { name: /Wróć do listy/ }).click();
   await expect(detail).toBeHidden();
   await expect(page.locator('[data-books-target="list"]')).toBeVisible();
 });
@@ -96,12 +96,12 @@ test('edit book details from the detail view updates the book', async ({ page, r
   const { title } = await seedBook(request, { total_pages: 200 });
 
   await gotoBooksList(page);
-  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'View' }).click();
+  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'Szczegóły' }).click();
 
   const detail = page.locator('[data-books-target="detailView"]');
   await expect(detail.locator('.book-detail-title')).toHaveText(title);
 
-  await detail.getByRole('button', { name: /Edit details/ }).click();
+  await detail.getByRole('button', { name: /Edytuj szczegóły/ }).click();
   const editModal = page.locator('[data-books-target="editBookModal"]');
   await expect(editModal).not.toHaveClass(/hidden/);
   await expect(page.locator('[data-books-target="editAuthorInput"]')).toHaveValue('E2E Author');
@@ -120,14 +120,14 @@ test('add book in manual mode creates a book with full details', async ({ page }
   const isbn = uniqueIsbn();
   const title = uniqueTitle('E2E Manual Book');
 
-  await page.getByRole('button', { name: '+ Add Book' }).click();
+  await page.getByRole('button', { name: '+ Dodaj książkę' }).click();
   const modal = page.locator('[data-books-target="addBookModal"]');
   await expect(modal).not.toHaveClass(/hidden/);
 
   const manualFields = page.locator('[data-books-target="manualFields"]');
   await expect(manualFields).toHaveClass(/hidden/);
 
-  await modal.getByRole('radio', { name: /Enter details manually/ }).check();
+  await modal.getByRole('radio', { name: /Wpisz dane ręcznie/ }).check();
   await expect(manualFields).not.toHaveClass(/hidden/);
 
   await page.locator('[data-books-target="isbnInput"]').fill(isbn);
@@ -148,13 +148,13 @@ test('delete book from the detail view removes it and returns to the list', asyn
   const { title } = await seedBook(request);
 
   await gotoBooksList(page);
-  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'View' }).click();
+  await page.locator('.book-card', { hasText: title }).getByRole('button', { name: 'Szczegóły' }).click();
 
   const detail = page.locator('[data-books-target="detailView"]');
   await expect(detail.locator('.book-detail-title')).toHaveText(title);
 
   page.once('dialog', (dialog) => dialog.accept());
-  await detail.getByRole('button', { name: /Delete/ }).click();
+  await detail.getByRole('button', { name: /Usuń/ }).click();
 
   await expect(detail).toBeHidden();
   await expect(page.locator('[data-books-target="list"]')).toBeVisible();
@@ -166,7 +166,7 @@ test('export CSV downloads the books library', async ({ page, request }) => {
   await gotoBooksList(page);
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export CSV' }).click();
+  await page.getByRole('button', { name: 'Eksportuj CSV' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('books.csv');
 });
@@ -186,7 +186,7 @@ test('API error surfaces in the shared error banner', async ({ page }) => {
     await route.fallback();
   });
 
-  await page.getByRole('button', { name: '+ Add Book' }).click();
+  await page.getByRole('button', { name: '+ Dodaj książkę' }).click();
   await page.locator('[data-books-target="isbnInput"]').fill('9780000000000');
   await page.locator('[data-books-target="addBookForm"] button[type=submit]').click();
 

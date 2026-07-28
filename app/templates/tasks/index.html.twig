@@ -1,75 +1,75 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Tasks — AIHomeManager{% endblock %}
+{% block title %}Zadania — AIHomeManager{% endblock %}
 
 {% block body %}
 <div class="app">
     <header class="app-header">
-        <h1 class="app-title">Tasks</h1>
+        <h1 class="app-title">Zadania</h1>
     </header>
 
     <section class="card">
-        <h2 class="section-title">New Task</h2>
+        <h2 class="section-title">Nowe zadanie</h2>
         <form id="form-create-task" class="time-report-form">
             <div class="form-group">
-                <label for="task-title">Title</label>
+                <label for="task-title">Tytuł</label>
                 <input id="task-title" type="text" maxlength="255" required>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="task-start">Start</label>
+                    <label for="task-start">Początek</label>
                     <input id="task-start" type="datetime-local" required>
                 </div>
                 <div class="form-group">
-                    <label for="task-end">End</label>
+                    <label for="task-end">Koniec</label>
                     <input id="task-end" type="datetime-local" required>
                 </div>
                 <div class="form-group form-group--action">
-                    <button type="submit" class="btn btn-primary">Create Task</button>
+                    <button type="submit" class="btn btn-primary">Utwórz zadanie</button>
                 </div>
             </div>
         </form>
     </section>
 
     <section class="card">
-        <h2 class="section-title">All tasks</h2>
+        <h2 class="section-title">Wszystkie zadania</h2>
         <div class="form-group">
-            <label for="task-filter-status">Filter by status</label>
+            <label for="task-filter-status">Filtruj według statusu</label>
             <select id="task-filter-status">
-                <option value="">All</option>
-                <option value="pending">Pending</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="">Wszystkie</option>
+                <option value="pending">Oczekujące</option>
+                <option value="completed">Zakończone</option>
+                <option value="cancelled">Anulowane</option>
             </select>
         </div>
         <div class="form-group form-group--action">
-            <button type="button" id="btn-export-csv" class="btn btn-secondary btn-sm">Export CSV</button>
-            <button type="button" id="btn-export-pdf" class="btn btn-secondary btn-sm">Export PDF</button>
+            <button type="button" id="btn-export-csv" class="btn btn-secondary btn-sm">Eksportuj CSV</button>
+            <button type="button" id="btn-export-pdf" class="btn btn-secondary btn-sm">Eksportuj PDF</button>
         </div>
-        <div id="tasks-loading" class="loading">Loading tasks…</div>
+        <div id="tasks-loading" class="loading">Wczytywanie zadań…</div>
         <table class="data-table hidden" id="tasks-table">
             <thead>
-                <tr><th>Title</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>Tytuł</th><th>Początek</th><th>Koniec</th><th>Czas trwania</th><th>Status</th><th>Akcje</th></tr>
             </thead>
             <tbody></tbody>
         </table>
-        <div id="tasks-empty" class="empty-state hidden">No tasks yet.</div>
+        <div id="tasks-empty" class="empty-state hidden">Brak zadań.</div>
     </section>
 
     <section class="card">
-        <h2 class="section-title">Time Report</h2>
+        <h2 class="section-title">Raport czasu</h2>
         <form id="form-time-report" class="time-report-form">
             <div class="form-row">
                 <div class="form-group">
-                    <label for="input-from">From</label>
+                    <label for="input-from">Od</label>
                     <input id="input-from" type="date" required>
                 </div>
                 <div class="form-group">
-                    <label for="input-to">To</label>
+                    <label for="input-to">Do</label>
                     <input id="input-to" type="date" required>
                 </div>
                 <div class="form-group form-group--action">
-                    <button type="submit" class="btn btn-primary">Generate Report</button>
+                    <button type="submit" class="btn btn-primary">Wygeneruj raport</button>
                 </div>
             </div>
         </form>
@@ -79,63 +79,63 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value" id="stat-hours">—</div>
-                <div class="stat-label">Total hours</div>
+                <div class="stat-label">Suma godzin</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="stat-minutes">—</div>
-                <div class="stat-label">Total minutes</div>
+                <div class="stat-label">Suma minut</div>
             </div>
         </div>
         <div class="card">
-            <h2 class="section-title">Breakdown</h2>
+            <h2 class="section-title">Podział</h2>
             <table class="data-table" id="breakdown-table">
-                <thead><tr><th>Task</th><th>Minutes</th><th>Hours</th></tr></thead>
+                <thead><tr><th>Zadanie</th><th>Minuty</th><th>Godziny</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
     </div>
 
-    <div id="report-empty" class="empty-state hidden">No tasks found in selected period.</div>
+    <div id="report-empty" class="empty-state hidden">Brak zadań w wybranym okresie.</div>
 </div>
 
 <div id="task-detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title">
     <div class="modal-box">
-        <h2 id="detail-title">Task details</h2>
+        <h2 id="detail-title">Szczegóły zadania</h2>
         <dl class="detail-list">
             <dt>Status</dt><dd id="detail-status">—</dd>
-            <dt>Start</dt><dd id="detail-start">—</dd>
-            <dt>End</dt><dd id="detail-end">—</dd>
-            <dt>Duration</dt><dd id="detail-duration">—</dd>
-            <dt>Google Calendar</dt><dd id="detail-google">—</dd>
+            <dt>Początek</dt><dd id="detail-start">—</dd>
+            <dt>Koniec</dt><dd id="detail-end">—</dd>
+            <dt>Czas trwania</dt><dd id="detail-duration">—</dd>
+            <dt>Kalendarz Google</dt><dd id="detail-google">—</dd>
         </dl>
         <div class="form-actions">
-            <button type="button" class="btn btn-secondary js-detail-close">Close</button>
+            <button type="button" class="btn btn-secondary js-detail-close">Zamknij</button>
         </div>
     </div>
 </div>
 
 <div id="task-edit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="edit-title">
     <div class="modal-box">
-        <h2 id="edit-title">Edit task</h2>
+        <h2 id="edit-title">Edytuj zadanie</h2>
         <form id="form-edit-task">
             <input type="hidden" id="edit-task-id">
             <div class="form-group">
-                <label for="edit-task-title">Title</label>
+                <label for="edit-task-title">Tytuł</label>
                 <input id="edit-task-title" type="text" maxlength="255" required>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="edit-task-start">Start</label>
+                    <label for="edit-task-start">Początek</label>
                     <input id="edit-task-start" type="datetime-local" required>
                 </div>
                 <div class="form-group">
-                    <label for="edit-task-end">End</label>
+                    <label for="edit-task-end">Koniec</label>
                     <input id="edit-task-end" type="datetime-local" required>
                 </div>
             </div>
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Save</button>
-                <button type="button" class="btn btn-secondary js-edit-close">Cancel</button>
+                <button type="submit" class="btn btn-primary">Zapisz</button>
+                <button type="button" class="btn btn-secondary js-edit-close">Anuluj</button>
             </div>
         </form>
     </div>

@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, safeUrl, escHtml } from '../util.js';
 
-const STATUS_LABELS = {to_read: 'To Read', reading: 'Reading', completed: 'Completed'};
+const STATUS_LABELS = {to_read: 'Do przeczytania', reading: 'Czytam', completed: 'Przeczytana'};
 const STATUS_COLORS = {to_read: '#6b7280', reading: '#2563eb', completed: '#16a34a'};
 
 function renderBook(book) {
@@ -25,20 +25,20 @@ function renderBook(book) {
                     <progress value="${pct}" max="100"></progress>
                     <span class="progress-pct">${pct}%</span>
                 </div>
-                <p class="progress-pages">${book.currentPage ?? 0} / ${book.totalPages} pages</p>
+                <p class="progress-pages">${book.currentPage ?? 0} / ${book.totalPages} stron</p>
                 ` : ''}
                 <div class="book-actions">
                     <button class="btn btn-secondary btn-sm btn-view-detail"
                             data-id="${book.id}"
                             data-action="click->books#openDetail">
-                        View
+                        Szczegóły
                     </button>
                     ${book.status === 'reading' ? `
                     <button class="btn btn-secondary btn-sm btn-log-session"
                             data-id="${book.id}"
                             data-title="${escHtml(book.title ?? '')}"
                             data-action="click->books#openSession">
-                        + Log Session
+                        + Zapisz sesję
                     </button>
                     ` : ''}
                 </div>
@@ -63,7 +63,7 @@ function renderBookDetail(book) {
                 <td>${escHtml(s.notes ?? '')}</td>
             </tr>
         `).join('')
-        : '<tr><td colspan="3" class="book-sessions-empty">No reading sessions logged yet.</td></tr>';
+        : '<tr><td colspan="3" class="book-sessions-empty">Brak zapisanych sesji czytania.</td></tr>';
 
     return `
         <div class="book-detail-header">
@@ -75,22 +75,22 @@ function renderBookDetail(book) {
                     ${STATUS_LABELS[book.status] ?? book.status}
                 </span>
                 <dl class="book-detail-meta">
-                    <div><dt>Publisher</dt><dd>${escHtml(book.publisher || '—')}</dd></div>
-                    <div><dt>Year</dt><dd>${book.year || '—'}</dd></div>
+                    <div><dt>Wydawca</dt><dd>${escHtml(book.publisher || '—')}</dd></div>
+                    <div><dt>Rok</dt><dd>${book.year || '—'}</dd></div>
                     <div><dt>ISBN</dt><dd>${escHtml(book.isbn || '—')}</dd></div>
-                    <div><dt>Progress</dt><dd>${book.currentPage ?? 0} / ${book.totalPages ?? 0} pages (${pct}%)</dd></div>
+                    <div><dt>Postęp</dt><dd>${book.currentPage ?? 0} / ${book.totalPages ?? 0} stron (${pct}%)</dd></div>
                 </dl>
                 <div class="section-actions">
                     <button type="button" class="btn btn-secondary btn-sm btn-edit-book"
-                            data-action="click->books#openEditForm">✎ Edit details</button>
+                            data-action="click->books#openEditForm">✎ Edytuj szczegóły</button>
                     <button type="button" class="btn btn-danger btn-sm btn-delete-book"
-                            data-action="click->books#deleteBook">🗑 Delete</button>
+                            data-action="click->books#deleteBook">🗑 Usuń</button>
                 </div>
             </div>
         </div>
-        <h3 class="book-sessions-heading">Reading sessions</h3>
+        <h3 class="book-sessions-heading">Sesje czytania</h3>
         <table class="book-sessions-table">
-            <thead><tr><th>Date</th><th>Pages</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Data</th><th>Strony</th><th>Notatki</th></tr></thead>
             <tbody>${sessionRows}</tbody>
         </table>
     `;
@@ -155,7 +155,7 @@ export default class extends Controller {
 
 
     async loadList(status) {
-        this.listTarget.innerHTML = '<div class="loading">Loading…</div>';
+        this.listTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
 
         const url = status
             ? `/api/books?${new URLSearchParams({status})}`
@@ -163,12 +163,12 @@ export default class extends Controller {
         try {
             const books = await apiCall(url);
             if (!books.length) {
-                this.listTarget.innerHTML = '<div class="empty-state">No books found.</div>';
+                this.listTarget.innerHTML = '<div class="empty-state">Nie znaleziono książek.</div>';
                 return;
             }
             this.listTarget.innerHTML = books.map(renderBook).join('');
         } catch {
-            this.showError('Failed to load books.');
+            this.showError('Nie udało się wczytać książek.');
             this.listTarget.innerHTML = '';
         }
     }
@@ -182,7 +182,7 @@ export default class extends Controller {
         const format = btn.dataset.format;
         const original = btn.textContent;
         btn.disabled = true;
-        btn.textContent = 'Exporting…';
+        btn.textContent = 'Eksportowanie…';
         try {
             const meta = document.querySelector('meta[name="api-key"]');
             const headers = {};
@@ -191,7 +191,7 @@ export default class extends Controller {
 
             const res = await fetch(`/api/books/export?format=${encodeURIComponent(format)}`, {headers});
             if (!res.ok) {
-                let message = `Export failed (${res.status}).`;
+                let message = `Eksport nie powiódł się (${res.status}).`;
                 try {
                     const payload = await res.json();
                     if (payload && typeof payload.error === 'string') message = payload.error;
@@ -211,7 +211,7 @@ export default class extends Controller {
             a.remove();
             URL.revokeObjectURL(url);
         } catch (err) {
-            this.showError(err.message || 'Failed to export books.');
+            this.showError(err.message || 'Nie udało się wyeksportować książek.');
         }
         btn.disabled = false;
         btn.textContent = original;
@@ -227,13 +227,13 @@ export default class extends Controller {
     }
 
     async loadDetail(id) {
-        this.detailContentTarget.innerHTML = '<div class="loading">Loading…</div>';
+        this.detailContentTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
             const book = await apiCall(`/api/books/${id}`);
             this.currentBook = book;
             this.detailContentTarget.innerHTML = renderBookDetail(book);
         } catch {
-            this.showError('Failed to load book detail.');
+            this.showError('Nie udało się wczytać szczegółów książki.');
             this.backToList();
         }
     }
@@ -262,13 +262,13 @@ export default class extends Controller {
     async deleteBook() {
         const book = this.currentBook;
         if (!book) return;
-        if (!confirm(`Delete "${book.title}"? This cannot be undone.`)) return;
+        if (!confirm(`Usunąć "${book.title}"? Tej operacji nie można cofnąć.`)) return;
         try {
             await apiCall(`/api/books/${book.id}`, {method: 'DELETE'});
             this.backToList();
             await this.loadList(this.filterStatusTarget.value);
         } catch (err) {
-            this.showError(err.message || 'Failed to delete book.');
+            this.showError(err.message || 'Nie udało się usunąć książki.');
         }
     }
 
@@ -293,7 +293,7 @@ export default class extends Controller {
         };
         const submitBtn = this.editBookFormTarget.querySelector('[type=submit]');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Saving…';
+        submitBtn.textContent = 'Zapisywanie…';
         try {
             await apiCall(`/api/books/${id}`, {
                 method: 'PUT',
@@ -304,10 +304,10 @@ export default class extends Controller {
             await this.loadDetail(id);
             await this.loadList(this.filterStatusTarget.value);
         } catch (err) {
-            this.showError(err.message || 'Failed to update book.');
+            this.showError(err.message || 'Nie udało się zaktualizować książki.');
         }
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Save';
+        submitBtn.textContent = 'Zapisz';
     }
 
 
@@ -325,12 +325,12 @@ export default class extends Controller {
             this.show(this.manualFieldsTarget);
             this.titleInputTarget.required = true;
             this.totalPagesInputTarget.required = true;
-            this.isbnHintTarget.textContent = 'Enter all book details manually — nothing is fetched.';
+            this.isbnHintTarget.textContent = 'Wpisz wszystkie dane książki ręcznie — nic nie zostanie pobrane.';
         } else {
             this.hide(this.manualFieldsTarget);
             this.titleInputTarget.required = false;
             this.totalPagesInputTarget.required = false;
-            this.isbnHintTarget.textContent = 'Metadata (title, author, cover) will be fetched automatically.';
+            this.isbnHintTarget.textContent = 'Dane (tytuł, autor, okładka) zostaną pobrane automatycznie.';
         }
     }
 
@@ -366,7 +366,7 @@ export default class extends Controller {
 
         const submitBtn = this.addBookFormTarget.querySelector('[type=submit]');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Adding…';
+        submitBtn.textContent = 'Dodawanie…';
         try {
             await apiCall('/api/books', {
                 method: 'POST',
@@ -376,10 +376,10 @@ export default class extends Controller {
             this.hide(this.addBookModalTarget);
             await this.loadList(this.filterStatusTarget.value);
         } catch (err) {
-            this.showError(err.message || 'Failed to add book.');
+            this.showError(err.message || 'Nie udało się dodać książki.');
         }
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Add Book';
+        submitBtn.textContent = 'Dodaj książkę';
     }
 
 
@@ -387,7 +387,7 @@ export default class extends Controller {
         const btn = event.target.closest('.btn-log-session');
         if (!btn) return;
         this.sessionBookIdTarget.value = btn.dataset.id;
-        this.sessionTitleTarget.textContent = `Log Session — ${btn.dataset.title}`;
+        this.sessionTitleTarget.textContent = `Zapisz sesję — ${btn.dataset.title}`;
         this.pagesInputTarget.value = '';
         this.sessionDateInputTarget.value = new Date().toISOString().slice(0, 10);
         this.notesInputTarget.value = '';
@@ -413,7 +413,7 @@ export default class extends Controller {
         if (!pages || !date) return;
         const submitBtn = this.sessionFormTarget.querySelector('[type=submit]');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Saving…';
+        submitBtn.textContent = 'Zapisywanie…';
         try {
             await apiCall(`/api/books/${bookId}/reading-sessions`, {
                 method: 'POST',
@@ -423,9 +423,9 @@ export default class extends Controller {
             this.hide(this.sessionModalTarget);
             await this.loadList(this.filterStatusTarget.value);
         } catch (err) {
-            this.showError(err.message || 'Failed to log session.');
+            this.showError(err.message || 'Nie udało się zapisać sesji.');
         }
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Save Session';
+        submitBtn.textContent = 'Zapisz sesję';
     }
 }

@@ -16,7 +16,7 @@ export function buildInlineEditable(value, {inputType = 'text', min = 1, ariaLab
         btn.type = 'button';
         btn.className = 'inline-editable-value js-inline-edit';
         btn.textContent = value;
-        btn.title = ariaLabel ? `Edit ${ariaLabel}` : 'Click to edit';
+        btn.title = ariaLabel ? `Edytuj ${ariaLabel}` : 'Kliknij, aby edytować';
         btn.addEventListener('click', showEditor);
         wrap.appendChild(btn);
     };
@@ -42,7 +42,7 @@ export function buildInlineEditable(value, {inputType = 'text', min = 1, ariaLab
                 await onSave(next);
                 value = next;
             } catch (err) {
-                showError(err.message || 'Failed to save.');
+                showError(err.message || 'Nie udało się zapisać.');
             }
             showDisplay();
         };
