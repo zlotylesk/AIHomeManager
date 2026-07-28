@@ -65,6 +65,43 @@ class TasksCrudApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testCreateTaskWithArrayTitleReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/tasks', [], [], ['CONTENT_TYPE' => 'application/json'], (string) json_encode([
+            'title' => ['x' => 1],
+            'start' => '2025-06-01T09:00:00+02:00',
+            'end' => '2025-06-01T10:00:00+02:00',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertStringContainsString('title', $data['error']);
+    }
+
+    public function testCreateTaskWithIntegerStartReturns422(): void
+    {
+        $this->client->request('POST', '/api/tasks', [], [], ['CONTENT_TYPE' => 'application/json'], (string) json_encode([
+            'title' => 'Task',
+            'start' => 123,
+            'end' => '2025-06-01T10:00:00+02:00',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertStringContainsString('start', $data['error']);
+    }
+
+    public function testCreateTaskWithTitleZeroStringIsAccepted(): void
+    {
+        $this->client->request('POST', '/api/tasks', [], [], ['CONTENT_TYPE' => 'application/json'], (string) json_encode([
+            'title' => '0',
+            'start' => '2025-06-01T09:00:00+02:00',
+            'end' => '2025-06-01T10:00:00+02:00',
+        ]));
+
+        self::assertResponseStatusCodeSame(201);
+    }
+
     public function testListTasksReturnsArray(): void
     {
         $this->createTask('Task A');
@@ -131,6 +168,19 @@ class TasksCrudApiTest extends WebTestCase
         $this->client->request('GET', '/api/tasks/'.$id);
         $data = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertSame('Updated title', $data['title']);
+    }
+
+    public function testUpdateTaskWithArrayTitleReturns422InsteadOf500(): void
+    {
+        $id = $this->createTask();
+
+        $this->client->request('PATCH', '/api/tasks/'.$id, [], [], ['CONTENT_TYPE' => 'application/json'], (string) json_encode([
+            'title' => ['not', 'a', 'string'],
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertStringContainsString('title', $data['error']);
     }
 
     public function testUpdateTaskNotFoundReturns404(): void

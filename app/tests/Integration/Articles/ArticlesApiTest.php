@@ -90,19 +90,64 @@ class ArticlesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
-    public function testCreateArticleWithInvalidUrlReturnsGenericErrorMessage(): void
+    public function testCreateArticleWithInvalidUrlReturnsTheHandlerValidationMessage(): void
     {
+        // Unified with update(): create() now surfaces $original->getMessage() instead of a
+        // generic "Invalid article data." string, so both endpoints behave consistently (HMAI-406).
         $this->client->request('POST', '/api/articles', content: (string) json_encode([
             'title' => 'XSS Attempt',
             'url' => 'javascript:alert(1)',
         ]));
 
         self::assertResponseStatusCodeSame(422);
-        $body = (string) $this->client->getResponse()->getContent();
-        $data = json_decode($body, true);
-        self::assertSame('Invalid article data.', $data['error']);
-        self::assertStringNotContainsString('scheme', strtolower($body));
-        self::assertStringNotContainsString('javascript', strtolower($body));
+        $data = $this->jsonResponse($this->client);
+        self::assertSame('Article URL scheme must be http or https, got "javascript".', $data['error']);
+    }
+
+    public function testCreateArticleWithArrayTitleReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => ['x' => 1],
+            'url' => 'https://example.com/test',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateArticleWithArrayUrlReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Test',
+            'url' => ['x' => 1],
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateArticleWithStringEstimatedReadTimeReturns422(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Test',
+            'url' => 'https://example.com/test',
+            'estimated_read_time' => 'ten',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('estimated_read_time', $data['error']);
+    }
+
+    public function testCreateArticleWithArrayCategoryReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Test',
+            'url' => 'https://example.com/test',
+            'category' => ['x' => 1],
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('category', $data['error']);
     }
 
     public function testGetArticleDetailReturnsCorrectData(): void
@@ -186,6 +231,39 @@ class ArticlesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
         $data = $this->jsonResponse($this->client);
         self::assertStringContainsString('estimatedReadTime must be a positive integer', $data['error']);
+    }
+
+    public function testUpdateArticleWithStringEstimatedReadTimeReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Original',
+            'url' => 'https://example.com/ert-type',
+        ]));
+        $id = $this->jsonResponse($this->client)['id'];
+
+        $this->client->request('PUT', "/api/articles/{$id}", content: (string) json_encode([
+            'title' => 'Updated',
+            'estimated_read_time' => 'ten',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('estimated_read_time', $data['error']);
+    }
+
+    public function testUpdateArticleWithArrayTitleReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/articles', content: (string) json_encode([
+            'title' => 'Original',
+            'url' => 'https://example.com/title-type',
+        ]));
+        $id = $this->jsonResponse($this->client)['id'];
+
+        $this->client->request('PUT', "/api/articles/{$id}", content: (string) json_encode([
+            'title' => ['not', 'a', 'string'],
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testDeleteArticleReturns204(): void

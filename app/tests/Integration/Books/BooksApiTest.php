@@ -87,6 +87,46 @@ class BooksApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testCreateBookWithStringYearReturns422InsteadOfSilentlyCoercingToZero(): void
+    {
+        $this->client->request('POST', '/api/books', content: (string) json_encode([
+            'isbn' => '9780306406157',
+            'title' => 'Clean Code',
+            'author' => 'Robert C. Martin',
+            'publisher' => 'Prentice Hall',
+            'year' => 'abc',
+            'total_pages' => 300,
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('year', $data['error']);
+    }
+
+    public function testCreateBookWithArrayTitleReturns422InsteadOf500(): void
+    {
+        $this->client->request('POST', '/api/books', content: (string) json_encode([
+            'isbn' => '9780306406157',
+            'title' => ['x' => 1],
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('title', $data['error']);
+    }
+
+    public function testCreateBookWithStringTotalPagesReturns422(): void
+    {
+        $this->client->request('POST', '/api/books', content: (string) json_encode([
+            'isbn' => '9780306406157',
+            'total_pages' => '300',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('total_pages', $data['error']);
+    }
+
     public function testCreateBookRejectsJavascriptCoverUrlAs422(): void
     {
         $this->client->request('POST', '/api/books', content: (string) json_encode([
@@ -256,6 +296,22 @@ class BooksApiTest extends WebTestCase
         $data = $this->jsonResponse($this->client);
         self::assertSame('Clean Code Updated', $data['title']);
         self::assertSame(2009, $data['year']);
+    }
+
+    public function testUpdateBookWithStringYearReturns422(): void
+    {
+        $id = $this->createBook()['id'];
+
+        $this->client->request('PUT', '/api/books/'.$id, content: (string) json_encode([
+            'title' => 'Clean Code',
+            'author' => 'Robert C. Martin',
+            'publisher' => 'Prentice Hall',
+            'year' => 'abc',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('year', $data['error']);
     }
 
     public function testUpdateBookReturns404ForUnknownId(): void
@@ -474,6 +530,21 @@ class BooksApiTest extends WebTestCase
         ]));
 
         self::assertResponseStatusCodeSame(201);
+    }
+
+    public function testLogReadingSessionRejectsArrayNotesAs422InsteadOf500(): void
+    {
+        $id = $this->createBook(['total_pages' => 200])['id'];
+
+        $this->client->request('POST', '/api/books/'.$id.'/reading-sessions', content: (string) json_encode([
+            'pages_read' => 20,
+            'date' => '2025-01-15',
+            'notes' => ['not', 'a', 'string'],
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $data = $this->jsonResponse($this->client);
+        self::assertStringContainsString('notes', $data['error']);
     }
 
     public function testLogReadingSessionRejectsExplicitNullDateAs422(): void

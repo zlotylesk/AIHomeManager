@@ -226,8 +226,34 @@ final class BooksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        if (empty($data['isbn'])) {
-            return new JsonResponse(['error' => 'Field "isbn" is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        $isbn = $data['isbn'] ?? null;
+        if (!is_string($isbn) || '' === trim($isbn)) {
+            return new JsonResponse(['error' => 'Field "isbn" is required and must be a non-empty string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $title = $data['title'] ?? null;
+        if (null !== $title && !is_string($title)) {
+            return new JsonResponse(['error' => 'Field "title" must be a string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $author = $data['author'] ?? null;
+        if (null !== $author && !is_string($author)) {
+            return new JsonResponse(['error' => 'Field "author" must be a string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $publisher = $data['publisher'] ?? null;
+        if (null !== $publisher && !is_string($publisher)) {
+            return new JsonResponse(['error' => 'Field "publisher" must be a string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $year = $data['year'] ?? null;
+        if (null !== $year && !is_int($year)) {
+            return new JsonResponse(['error' => 'Field "year" must be an integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $totalPages = $data['total_pages'] ?? null;
+        if (null !== $totalPages && !is_int($totalPages)) {
+            return new JsonResponse(['error' => 'Field "total_pages" must be an integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         try {
@@ -238,13 +264,13 @@ final class BooksController extends AbstractController
 
         try {
             $id = $this->commandBus->dispatchAndReturn(new AddBook(
-                isbn: trim((string) $data['isbn']),
-                title: isset($data['title']) ? trim((string) $data['title']) : null,
-                author: isset($data['author']) ? trim((string) $data['author']) : null,
-                publisher: isset($data['publisher']) ? trim((string) $data['publisher']) : null,
-                year: isset($data['year']) ? (int) $data['year'] : null,
+                isbn: trim($isbn),
+                title: null !== $title ? trim($title) : null,
+                author: null !== $author ? trim($author) : null,
+                publisher: null !== $publisher ? trim($publisher) : null,
+                year: $year,
                 coverUrl: $coverUrl,
-                totalPages: isset($data['total_pages']) ? (int) $data['total_pages'] : null,
+                totalPages: $totalPages,
             ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
@@ -299,14 +325,36 @@ final class BooksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        $required = ['title', 'author', 'publisher', 'year'];
-        foreach ($required as $field) {
-            if (empty($data[$field])) {
-                return new JsonResponse(
-                    ['error' => sprintf('Field "%s" is required.', $field)],
-                    Response::HTTP_UNPROCESSABLE_ENTITY
-                );
-            }
+        $title = $data['title'] ?? null;
+        if (!is_string($title) || '' === trim($title)) {
+            return new JsonResponse(
+                ['error' => 'Field "title" is required and must be a non-empty string.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $author = $data['author'] ?? null;
+        if (!is_string($author) || '' === trim($author)) {
+            return new JsonResponse(
+                ['error' => 'Field "author" is required and must be a non-empty string.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $publisher = $data['publisher'] ?? null;
+        if (!is_string($publisher) || '' === trim($publisher)) {
+            return new JsonResponse(
+                ['error' => 'Field "publisher" is required and must be a non-empty string.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $year = $data['year'] ?? null;
+        if (!is_int($year)) {
+            return new JsonResponse(
+                ['error' => 'Field "year" is required and must be an integer.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
         }
 
         try {
@@ -318,10 +366,10 @@ final class BooksController extends AbstractController
         try {
             $this->commandBus->dispatch(new UpdateBook(
                 id: $id,
-                title: trim((string) $data['title']),
-                author: trim((string) $data['author']),
-                publisher: trim((string) $data['publisher']),
-                year: (int) $data['year'],
+                title: trim($title),
+                author: trim($author),
+                publisher: trim($publisher),
+                year: $year,
                 coverUrl: $coverUrl,
             ));
         } catch (HandlerFailedException $e) {
@@ -419,12 +467,17 @@ final class BooksController extends AbstractController
             $date = date('Y-m-d');
         }
 
+        $notes = $data['notes'] ?? null;
+        if (null !== $notes && !is_string($notes)) {
+            return new JsonResponse(['error' => 'Field "notes" must be a string or null.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         try {
             $this->commandBus->dispatch(new LogReadingSession(
                 bookId: $id,
                 pagesRead: $pagesRead,
                 date: $date,
-                notes: $data['notes'] ?? null,
+                notes: $notes,
             ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
