@@ -4,6 +4,60 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.31.0] — 2026-07-28
+
+Wydanie jakościowe: usunięcie błędów i niespójności znalezionych podczas pełnego code review projektu (epik **HMAI-395** — 13 podzadań HMAI-396…408, każde z osobnym zielonym CI, plus epic review). Nie przybywa tu żadnej funkcji dla użytkownika — przybywa rzeczy, które **działają naprawdę**, a nie tylko wyglądały na działające: tokeny Trakt i Google odświeżają się zamiast wygasać w połowie importu, cel typu `music_albums` przestaje w nieskończoność pokazywać zero, `to` w raportach obejmuje wreszcie cały ostatni dzień, a klucz API nie jest już wydawany anonimowym gościom razem z każdą stroną frontendu. Motyw przewodni całego epiku to **awarie, które udawały sukces** — i to on doprowadził do najpoważniejszego znaleziska, opisanego niżej.
+
+**Backupy bazy nie działały od co najmniej 30 czerwca.** Wszystkie 27 plików w `backups/` miało 20 bajtów — pusty strumień gzip, zero po rozpakowaniu. Odtworzenie bazy po awarii było niemożliwe, a nic tego nie zgłaszało. Przyczyną było spotkanie dwóch niezależnych rzeczy: alpine'owy pakiet `mysql-client` to w rzeczywistości klient MariaDB, który nie zawiera modułu `caching_sha2_password` — domyślnego pluginu uwierzytelniania MySQL 8.4 — więc `mysqldump` nigdy się nie logował; a ponieważ potok działał pod POSIX-owym `sh`, raportowany był wyłącznie kod wyjścia udanego `gzip` i komenda meldowała „Backup created". Naprawa obu warstw daje zrzut o rozmiarze 305 KB obejmujący 27 tabel.
+
+**1951/1951 PHP** + **121/121 Playwright** + **156 Vitest JS** + **43 Newman** — wszystko zielone (+55 PHP vs 1896 w 1.30.0). PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. `1.31.0` to najwyższy numerowany tag i staje się GitHub `latest`.
+
+### Fixed
+
+- **Backup bazy — cichy, pusty zrzut (HMAI-397 + epic review).** Potok `mysqldump | gzip` działa teraz pod `bash -o pipefail`, więc awaria zrzutu nie jest już maskowana przez powodzenie kompresji, a częściowy plik jest kasowany — backup nie do odtworzenia jest gorszy niż jego brak. Do obrazu PHP dochodzi `mariadb-connector-c`, bez którego `mysqldump` w ogóle nie uwierzytelniał się wobec MySQL 8.4.
+- **Trakt — import umierał po wygaśnięciu tokenu (HMAI-398).** `TraktApiClient` czytał surowy token z repozytorium zamiast korzystać z `TraktTokenProvider`, który istniał od HMAI-181, ale nie był przez nic wywoływany. Doszła też obsługa błędów HTTP z `toArray()`.
+- **YouTube — synchronizacja działała tylko przez godzinę (HMAI-399).** `YouTubeApiClient` czytał surowy `access_token` Google bez odświeżania, więc działał wyłącznie w oknie po refreshu wykonanym przez moduł Tasks. Wprowadzony port `GoogleAccessTokenProviderInterface` gwarantuje token ważny *teraz*, wspólny dla obu modułów.
+- **Tasks — raporty gubiły ostatni dzień (HMAI-400).** Parametr `to` w `/tasks/export` i `/tasks/time-report` wykluczał cały ostatni dzień, mimo że kontrakt deklarował przedział obustronnie domknięty.
+- **Goals — cel `music_albums` zawsze pokazywał zero (HMAI-401).** Typ celu istniał od HMAI-249, ale żaden adapter nie emitował tego rodzaju aktywności, więc postęp i streak pozostawały puste bez żadnego sygnału błędu. Doszedł `MusicActivityAdapter`.
+- **Series — dwa sezony o tym samym numerze (HMAI-402).** `POST /api/series/{id}/seasons` pozwalał utworzyć duplikat numeru, choć renumeracja tego samego sezonu zwracała 409. Teraz oba zachowują się tak samo.
+- **Music — martwe mapowanie błędów Discogs (HMAI-396).** Bloki `catch` dla 401/429 w `MusicController::comparison()` były nieosiągalne, a wewnętrzny komunikat wyjątku wyciekał do odpowiedzi.
+
+### Security
+
+- **Klucz API nie jest już wydawany anonimowo (HMAI-404).** Każda strona frontendu renderuje produkcyjny `API_KEY` do znacznika `<meta name="api-key">`, a firewall `main` był ustawiony na `security: false` — samo otwarcie `/series` oddawało klucz, a wraz z nim pełny dostęp do `^/api/*`. Frontend i endpointy `/auth/*` wymagają teraz **HTTP Basic** (`FRONTEND_USER` / `FRONTEND_PASSWORD_HASH`). Oba firewalle pozostają rozłączne: `/api/*` uwierzytelnia się wyłącznie nagłówkiem `X-API-Key`, a `/api/health` zostaje publiczny.
+- **Sekrety nie wyciekają w komunikatach błędów (HMAI-403).** Nieobsłużone błędy HTTP 4xx/5xx z klientów zewnętrznych trafiały do treści odpowiedzi API — w tym `api_key` Last.fm w ciele 503.
+
+### Changed
+
+- **Ścisła walidacja typów payloadów JSON (HMAI-406).** Kontrolery Books/Articles/Tasks zwracają 422 zamiast 500 lub cichej konwersji typu.
+- **Konwencje HMAI-240/HMAI-241 przywrócone (HMAI-405).** Surowy `MessageBusInterface` w kontrolerze YouTubeProgress ustąpił typowanym wrapperom, a ręczna serializacja `timeReport` — normalizerowi `TimeReportDTONormalizer`.
+- **Język interfejsu ujednolicony do polskiego (HMAI-408).** Moduły sprzed 1.19.0 (Series, Books, YouTubeProgress, Tasks, Articles, Music) dostały polskie etykiety, dopasowane do modułów budowanych od Goals wzwyż. Żargon związany z usługą zewnętrzną (Trakt, Discogs, Spotify, OpenSearch, YouTube, scrobble) zostaje bez zmian, a **komunikaty błędów API pozostają angielskie** — to kontrakt przypięty testami i bramką zgodności OpenAPI, nie warstwa prezentacji.
+- **Porządki po review (HMAI-407).** Martwy kod, puste katalogi, zdublowane bloki `catch`, escaping w `articles.js`, dryf CLAUDE.md.
+
+### Coverage
+
+- 2 nowe testy przypinają ochronę endpointów OAuth: `/auth/trakt` odrzucany anonimowo (401 + `WWW-Authenticate`) i przepuszczany przy poprawnych poświadczeniach. Wcześniej HTTP Basic był potwierdzony wyłącznie na `/series`, podczas gdy `playwright.config.ts` nosi `httpCredentials`, które **nigdy się nie aktywują** — E2E biegnie z `APP_ENV=test`, gdzie firewall frontendu jest wyłączony. Była to konfiguracja wyglądająca jak pokrycie.
+- `make doctor` pokrywa lukę, której CI nie jest w stanie złapać: PHPUnit biegnie na runnerze GitHuba, gdzie `bash` i oracle'owy `mysqldump` istnieją, **nigdy wewnątrz obrazu, w którym aplikacja działa**. Doszły kontrole obecności `bash`, obecności pluginu uwierzytelniania oraz — kontrola generalizująca poza obie znane przyczyny — czy najnowszy plik backupu nie jest podejrzanie mały. Pętla kluczy szyfrujących sprawdzała trzy zamiast czterech (`SPOTIFY_TOKEN_KEY` pominięty od 1.26.0), a zastępcze hasło frontendu nie było w ogóle zgłaszane.
+
+### Documentation
+
+- README twierdził, że UI i endpointy `/auth/*` **są publiczne** — odwrotnie niż stan faktyczny po HMAI-404 — i pomijał wymaganą parę `FRONTEND_*`, więc świeży klon trafiał na 401 bez wyjaśnienia. Lista sondy health nie wymieniała OpenSearch.
+- CLAUDE.md: zamknięta wyliczanka shared kernela nie zawierała `GoogleAccessTokenProviderInterface`, a `TimeReportDTO` był wciąż opisany jako ręcznie budowana tablica, którą HMAI-405 zastąpił normalizerem.
+- Strona Confluence „Uruchomienie systemu i wymagane klucze/uprawnienia" opisuje nową parę sekretów, wpływ na flow OAuth i przebudowę obrazu.
+
+### Migration
+
+1. **Przebudowa obrazu PHP — wymagana.** `docker compose build php && docker compose up -d`. To pierwsze wydanie z nową zależnością na poziomie obrazu (`bash` + `mariadb-connector-c`). Bez przebudowy zaplanowany backup przerywa się z `bash: not found` — głośno (wpis `error` w logu plus retry i DLQ w Messengerze), ale backup nie powstaje.
+2. **Poświadczenia frontendu.** `app/.env` zawiera parę zastępczą (`admin` + hash trywialnego hasła), żeby świeży klon wstał. Wygeneruj własne przez `bin/console security:hash-password` i umieść `FRONTEND_USER` oraz `FRONTEND_PASSWORD_HASH` w `app/.env.local`, zanim wystawisz aplikację poza `localhost`.
+3. **Weryfikacja stanu.** `make doctor` — sprawdza obraz, plugin uwierzytelniania i rozmiar najnowszego backupu.
+4. **Pierwszy działający backup.** `make backup-now`; poprawny zrzut tej bazy ma kilkaset kilobajtów, nie 20 bajtów.
+
+Brak migracji bazy danych. Brak operacji destrukcyjnych.
+
+### Closed Jira
+
+HMAI-395 (epik), HMAI-396, HMAI-397, HMAI-398, HMAI-399, HMAI-400, HMAI-401, HMAI-402, HMAI-403, HMAI-404, HMAI-405, HMAI-406, HMAI-407, HMAI-408.
+
 ## [1.30.0] — 2026-07-27
 
 Globalne wyszukiwanie przechodzi na **OpenSearch** — docelowy silnik zapowiadany od MVP modułu Search (epik **HMAI-359** — 6 podzadań HMAI-360…366, każde z osobnym zielonym CI). Użytkownik dostaje to, czego MySQL FULLTEXT nie potrafił: polską odmianę (`analysis-stempel`), dopasowanie tekstu pisanego bez znaków diakrytycznych, tolerancję literówek i liczniki trafień per typ w pasku wyszukiwania. Silnik wchodzi jako **drugi adapter za istniejącym portem**, więc Application, API i UI pozostają nietknięte, a przełącznik `SEARCH_ENGINE_BACKEND` działa w obie strony. Zasada porządkująca cały epik: **lepszy silnik nie może stać się nowym pojedynczym punktem awarii** — niedostępny OpenSearch degraduje się do FULLTEXT z ostrzeżeniem w logu zamiast zwracać 500, a zapis podwójny utrzymuje indeks MySQL na bieżąco, żeby rollback nie wymagał żadnej pracy na danych. **1896/1896 PHP** + **120/120 Playwright** + **148 Vitest JS** + **43 Newman** — wszystko zielone (+128 PHP vs 1768 w 1.29.0). PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations**. `1.30.0` to najwyższy numerowany tag i staje się GitHub `latest`.
