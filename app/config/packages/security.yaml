@@ -1,7 +1,24 @@
 security:
+    # HMAI-404: the production API_KEY used to be rendered into every frontend
+    # page's <meta name="api-key"> tag while the `main` firewall ran fully
+    # public (`security: false`) — so an anonymous GET of e.g. /series handed
+    # over the key and, with it, full ^/api/* access. `main` now requires HTTP
+    # Basic (a single in-memory operator account) so the page carrying the key
+    # is no longer anonymously readable. The `api` firewall + ApiKeyAuthenticator
+    # are untouched: the two firewalls are disjoint, so /api/* keeps working via
+    # X-API-Key alone, and /api/health stays public.
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+
     providers:
         api_key_provider:
             id: App\Security\ApiUserProvider
+        frontend_user_provider:
+            memory:
+                users:
+                    '%env(FRONTEND_USER)%':
+                        password: '%env(FRONTEND_PASSWORD_HASH)%'
+                        roles: ['ROLE_USER']
 
     firewalls:
         dev:
@@ -14,4 +31,29 @@ security:
             custom_authenticators:
                 - App\Security\ApiKeyAuthenticator
         main:
-            security: false
+            provider: frontend_user_provider
+            http_basic:
+                realm: 'AIHomeManager'
+
+    # ^/api stays PUBLIC_ACCESS here (the `api` firewall already enforces its own
+    # X-API-Key auth — ApiUser only ever carries ROLE_API, never ROLE_USER, so a
+    # bare ROLE_USER rule matching ^/ would otherwise also gate the API); every
+    # other path (the frontend pages + /auth/* OAuth callbacks — the browser
+    # resends the same Basic credentials automatically once logged in) requires
+    # the operator account.
+    access_control:
+        - { path: ^/api, roles: PUBLIC_ACCESS }
+        - { path: ^/, roles: ROLE_USER }
+
+when@test:
+    security:
+        firewalls:
+            # The frontend page tests (FrontendControllerTest, SecurityHeadersTest,
+            # every *AuthControllerTest hitting /auth/*) exercise the application,
+            # not Basic auth itself — the ticket explicitly sanctions this simpler
+            # route over adding PHP_AUTH_USER/PHP_AUTH_PW to every one of those call
+            # sites. The real config (http_basic + access_control above) is proven
+            # by FrontendHttpBasicAuthTest, which boots the kernel in `dev` (no
+            # `when@test` override applies there) instead.
+            main:
+                security: false

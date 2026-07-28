@@ -15,6 +15,13 @@ export default defineConfig({
   use: {
     baseURL,
     extraHTTPHeaders: { 'X-API-Key': apiKey },
+    // HMAI-404: the `main` firewall now requires HTTP Basic. CI runs the app
+    // with APP_ENV=test, where security.yaml's `when@test` keeps `main` fully
+    // public (see that file's comment), so this is a no-op there today — but
+    // it is the credential a dev running the app for real (dev/prod, where the
+    // gate is live) needs, and keeps these specs from silently depending on the
+    // test-env simplification.
+    httpCredentials: { username: 'admin', password: 'test' },
     trace: 'on-first-retry',
     // Block the PWA Service Worker by default (HMAI-347): once it gained a fetch
     // handler it intercepts `/api/*` and navigations, and a controlling worker
