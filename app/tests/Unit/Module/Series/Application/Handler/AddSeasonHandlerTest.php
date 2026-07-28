@@ -20,7 +20,7 @@ final class AddSeasonHandlerTest extends TestCase
         $series = new Series('series-1', 'Breaking Bad');
 
         $repo = $this->createMock(SeriesRepositoryInterface::class);
-        $repo->method('findById')->with('series-1')->willReturn($series);
+        $repo->expects(self::once())->method('findById')->with('series-1')->willReturn($series);
         $repo->expects(self::once())->method('save')->with($series);
 
         $handler = new AddSeasonHandler($repo);
@@ -54,7 +54,7 @@ final class AddSeasonHandlerTest extends TestCase
         $series->addSeason(new Season('season-1', 'series-1', 1));
 
         $repo = $this->createMock(SeriesRepositoryInterface::class);
-        $repo->method('findById')->with('series-1')->willReturn($series);
+        $repo->expects(self::once())->method('findById')->with('series-1')->willReturn($series);
         $repo->expects(self::never())->method('save');
 
         $handler = new AddSeasonHandler($repo);
@@ -69,7 +69,7 @@ final class AddSeasonHandlerTest extends TestCase
         $series->addSeason(new Season('season-1', 'series-1', 1));
 
         $repo = $this->createMock(SeriesRepositoryInterface::class);
-        $repo->method('findById')->with('series-1')->willReturn($series);
+        $repo->expects(self::once())->method('findById')->with('series-1')->willReturn($series);
         $repo->expects(self::once())->method('save')->with($series);
 
         $handler = new AddSeasonHandler($repo);
