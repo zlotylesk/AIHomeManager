@@ -36,6 +36,8 @@ use App\Module\Series\Application\DTO\EpisodeDTO;
 use App\Module\Series\Application\DTO\SeasonDTO;
 use App\Module\Series\Application\DTO\SeriesDetailDTO;
 use App\Module\Tasks\Application\DTO\TaskDTO;
+use App\Module\Tasks\Application\DTO\TaskTimeDTO;
+use App\Module\Tasks\Application\DTO\TimeReportDTO;
 use App\Module\YouTubeProgress\Application\DTO\VideoDTO;
 use App\Module\YouTubeProgress\Application\DTO\WatchSessionDTO;
 use App\Serializer\AlbumDTONormalizer;
@@ -55,6 +57,7 @@ use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
 use App\Serializer\TaskDTONormalizer;
+use App\Serializer\TimeReportDTONormalizer;
 use App\Serializer\TrendsDTONormalizer;
 use App\Serializer\VideoDTONormalizer;
 use App\Serializer\VinylRecordDTONormalizer;
@@ -103,6 +106,39 @@ final class NormalizersTest extends TestCase
             'durationMinutes' => 60,
             'status' => 'pending',
             'googleEventId' => null,
+        ], $n->normalize($dto));
+    }
+
+    public function testTimeReportNormalizer(): void
+    {
+        $n = new TimeReportDTONormalizer();
+        $dto = new TimeReportDTO(125, 2.08, [
+            new TaskTimeDTO('t1', 'Do it', 60),
+            new TaskTimeDTO('t2', 'Do it too', 65),
+        ]);
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(TimeReportDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'totalMinutes' => 125,
+            'totalHours' => 2.08,
+            'breakdown' => [
+                ['taskId' => 't1', 'title' => 'Do it', 'minutes' => 60],
+                ['taskId' => 't2', 'title' => 'Do it too', 'minutes' => 65],
+            ],
+        ], $n->normalize($dto));
+    }
+
+    public function testTimeReportNormalizerEmptyBreakdown(): void
+    {
+        $n = new TimeReportDTONormalizer();
+        $dto = new TimeReportDTO(0, 0.0, []);
+
+        self::assertSame([
+            'totalMinutes' => 0,
+            'totalHours' => 0.0,
+            'breakdown' => [],
         ], $n->normalize($dto));
     }
 
