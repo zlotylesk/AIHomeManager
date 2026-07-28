@@ -35,7 +35,7 @@ test('youtube-progress page renders without horizontal overflow at 393px (Pixel 
   );
 
   await page.goto('/youtube-progress');
-  await expect(page.locator('.app-title')).toHaveText('YouTube Progress');
+  await expect(page.locator('.app-title')).toHaveText('Postępy YouTube');
   await expect(page.locator('.loading')).toHaveCount(0, { timeout: 10_000 });
   await expect(page.locator('.youtube-progress-session-card')).toHaveCount(1);
 
