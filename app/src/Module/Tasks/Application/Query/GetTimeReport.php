@@ -11,7 +11,6 @@ final readonly class GetTimeReport
     public function __construct(
         public DateTimeImmutable $dateFrom,
         public DateTimeImmutable $dateTo,
-        public ?string $taskTitle = null,
     ) {
     }
 }

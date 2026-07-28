@@ -295,14 +295,7 @@ final class SeriesController extends AbstractController
         try {
             $id = $this->commandBus->dispatchAndReturn(new AddEpisode($seriesId, $seasonId, $title, $number, $rating));
         } catch (HandlerFailedException $e) {
-            $original = $e->getPrevious();
-            if ($original instanceof DomainException) {
-                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
-            }
-            if ($original instanceof InvalidArgumentException) {
-                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
-            throw $e;
+            return $this->mapRatingFailure($e);
         }
 
         return new JsonResponse(['id' => $id], Response::HTTP_CREATED);
@@ -340,14 +333,7 @@ final class SeriesController extends AbstractController
                 rating: $rating,
             ));
         } catch (HandlerFailedException $e) {
-            $original = $e->getPrevious();
-            if ($original instanceof DomainException) {
-                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_NOT_FOUND);
-            }
-            if ($original instanceof InvalidArgumentException) {
-                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
-            throw $e;
+            return $this->mapRatingFailure($e);
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
