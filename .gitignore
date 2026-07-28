@@ -22,6 +22,7 @@ node_modules/
 test-results/
 playwright-report/
 playwright/.cache/
+.playwright-mcp/
 backups/
 
 # HMAI-343: generated OpenAPI contract — a build artifact (`make openapi-dump`,

@@ -27,14 +27,8 @@ final readonly class GetTimeReportHandler
 
         $sql = 'SELECT id, title, TIMESTAMPDIFF(MINUTE, time_start, time_end) AS minutes
                 FROM tasks
-                WHERE status = :status AND time_start BETWEEN :from AND :to';
-
-        if (null !== $query->taskTitle) {
-            $sql .= ' AND title LIKE :title';
-            $params['title'] = '%'.$query->taskTitle.'%';
-        }
-
-        $sql .= ' ORDER BY time_start ASC';
+                WHERE status = :status AND time_start BETWEEN :from AND :to
+                ORDER BY time_start ASC';
 
         /** @var list<array{id: string, title: string, minutes: int|string|null}> $rows */
         $rows = $this->connection->fetchAllAssociative($sql, $params);
