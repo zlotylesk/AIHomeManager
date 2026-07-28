@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Security;
 
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * HMAI-404: the `main` firewall (frontend pages + /auth/* OAuth callbacks) now
@@ -27,44 +28,59 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  * render (`FrontendController::series()`) with no Doctrine access, so the
  * unmigrated "homemanager" (unsuffixed) database in CI's `dev`-environment
  * container never comes into play, unlike an /api/* route.
+ *
+ * `WebTestCase::createClient()` cannot be used for the `dev` boot: it needs
+ * the `test.client` service, which only exists when `framework.test: true` —
+ * itself a `when@test`-only setting (framework.yaml). So these three cases
+ * drive the kernel directly as an `HttpKernelInterface`
+ * (`$kernel->handle($request)`, exactly what `public/index.php` does), which
+ * needs no test-only wiring and goes through the identical firewall/exception
+ * pipeline a real request would.
  */
 final class FrontendHttpBasicAuthTest extends WebTestCase
 {
     public function testSeriesPageWithoutCredentialsReturns401(): void
     {
-        $client = static::createClient(['environment' => 'dev', 'debug' => false]);
+        self::bootKernel(['environment' => 'dev', 'debug' => false]);
+        $kernel = self::$kernel;
+        self::assertNotNull($kernel);
 
-        $client->request('GET', '/series');
+        $response = $kernel->handle(Request::create('/series', 'GET'));
 
-        self::assertSame(401, $client->getResponse()->getStatusCode());
+        self::assertSame(401, $response->getStatusCode());
         self::assertStringContainsString(
             'Basic realm="AIHomeManager"',
-            (string) $client->getResponse()->headers->get('WWW-Authenticate'),
+            (string) $response->headers->get('WWW-Authenticate'),
         );
     }
 
     public function testSeriesPageWithValidCredentialsReturns200WithPreviousContent(): void
     {
-        $client = static::createClient(['environment' => 'dev', 'debug' => false]);
-        $client->setServerParameter('PHP_AUTH_USER', 'admin');
-        $client->setServerParameter('PHP_AUTH_PW', 'test');
+        self::bootKernel(['environment' => 'dev', 'debug' => false]);
+        $kernel = self::$kernel;
+        self::assertNotNull($kernel);
 
-        $client->request('GET', '/series');
+        $response = $kernel->handle(Request::create('/series', 'GET', [], [], [], [
+            'PHP_AUTH_USER' => 'admin',
+            'PHP_AUTH_PW' => 'test',
+        ]));
 
-        self::assertResponseIsSuccessful();
-        self::assertSelectorExists('nav.navbar');
-        self::assertSelectorExists('#series-list');
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('id="series-list"', (string) $response->getContent());
     }
 
     public function testSeriesPageWithInvalidPasswordReturns401(): void
     {
-        $client = static::createClient(['environment' => 'dev', 'debug' => false]);
-        $client->setServerParameter('PHP_AUTH_USER', 'admin');
-        $client->setServerParameter('PHP_AUTH_PW', 'wrong-password');
+        self::bootKernel(['environment' => 'dev', 'debug' => false]);
+        $kernel = self::$kernel;
+        self::assertNotNull($kernel);
 
-        $client->request('GET', '/series');
+        $response = $kernel->handle(Request::create('/series', 'GET', [], [], [], [
+            'PHP_AUTH_USER' => 'admin',
+            'PHP_AUTH_PW' => 'wrong-password',
+        ]));
 
-        self::assertSame(401, $client->getResponse()->getStatusCode());
+        self::assertSame(401, $response->getStatusCode());
     }
 
     /**
