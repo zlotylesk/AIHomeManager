@@ -13,7 +13,6 @@ use App\Module\Tasks\Application\Command\CreateTask;
 use App\Module\Tasks\Application\Command\DeleteTask;
 use App\Module\Tasks\Application\Command\UpdateTask;
 use App\Module\Tasks\Application\DTO\TaskDTO;
-use App\Module\Tasks\Application\DTO\TaskTimeDTO;
 use App\Module\Tasks\Application\DTO\TimeReportDTO;
 use App\Module\Tasks\Application\Exception\TaskNotFoundException;
 use App\Module\Tasks\Application\Query\GetAllTasks;
@@ -484,18 +483,7 @@ final class TasksController extends AbstractController
         /** @var TimeReportDTO $report */
         $report = $this->queryBus->ask(new GetTimeReport($from, $to));
 
-        return new JsonResponse([
-            'totalMinutes' => $report->totalMinutes,
-            'totalHours' => $report->totalHours,
-            'breakdown' => array_map(
-                fn (TaskTimeDTO $t) => [
-                    'taskId' => $t->taskId,
-                    'title' => $t->title,
-                    'minutes' => $t->minutes,
-                ],
-                $report->breakdown
-            ),
-        ]);
+        return new JsonResponse($this->normalizer->normalize($report));
     }
 
     /**
