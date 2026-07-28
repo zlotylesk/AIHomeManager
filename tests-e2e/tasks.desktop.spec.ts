@@ -14,7 +14,7 @@ async function seedTask(request: APIRequestContext, title: string): Promise<stri
 
 async function gotoTasks(page: Page): Promise<void> {
   await page.goto('/tasks');
-  await expect(page.locator('.app-title')).toHaveText('Tasks');
+  await expect(page.locator('.app-title')).toHaveText('Zadania');
   await expect(page.locator('#tasks-loading')).toBeHidden({ timeout: 10_000 });
 }
 
@@ -26,7 +26,7 @@ test('task list renders a seeded task with its status badge', async ({ page, req
 
   const row = page.locator('#tasks-table tbody tr', { hasText: title });
   await expect(row).toBeVisible();
-  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+  await expect(row.locator('.status-badge--pending')).toHaveText('Oczekujące');
 });
 
 test('a task created through the New Task form appears in the list', async ({ page }) => {
@@ -39,10 +39,10 @@ test('a task created through the New Task form appears in the list', async ({ pa
   await page.fill('#task-end', '2026-07-01T10:30');
   await page.click('#form-create-task [type=submit]');
 
-  await expect(page.locator('#info-banner')).toHaveText(/task created/i);
+  await expect(page.locator('#info-banner')).toHaveText(/zadanie utworzone/i);
   const row = page.locator('#tasks-table tbody tr', { hasText: title });
   await expect(row).toBeVisible();
-  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+  await expect(row.locator('.status-badge--pending')).toHaveText('Oczekujące');
 });
 
 test('completing a pending task flips its badge and removes the Complete button', async ({ page, request }) => {
@@ -52,13 +52,13 @@ test('completing a pending task flips its badge and removes the Complete button'
   await gotoTasks(page);
 
   const row = page.locator('#tasks-table tbody tr', { hasText: title });
-  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+  await expect(row.locator('.status-badge--pending')).toHaveText('Oczekujące');
 
   await row.locator('.js-task-complete').click();
 
-  await expect(page.locator('#info-banner')).toHaveText(/task completed/i);
+  await expect(page.locator('#info-banner')).toHaveText(/zadanie zakończone/i);
   const completedRow = page.locator('#tasks-table tbody tr', { hasText: title });
-  await expect(completedRow.locator('.status-badge--completed')).toHaveText('Completed');
+  await expect(completedRow.locator('.status-badge--completed')).toHaveText('Zakończone');
   await expect(completedRow.locator('.js-task-complete')).toHaveCount(0);
 });
 
@@ -69,15 +69,15 @@ test('cancelling a pending task flips its badge and removes the action buttons',
   await gotoTasks(page);
 
   const row = page.locator('#tasks-table tbody tr', { hasText: title });
-  await expect(row.locator('.status-badge--pending')).toHaveText('Pending');
+  await expect(row.locator('.status-badge--pending')).toHaveText('Oczekujące');
 
   // Cancel goes through a confirm() dialog — auto-accept it before clicking.
   page.on('dialog', (dialog) => dialog.accept());
   await row.locator('.js-task-cancel').click();
 
-  await expect(page.locator('#info-banner')).toHaveText(/task cancelled/i);
+  await expect(page.locator('#info-banner')).toHaveText(/zadanie anulowane/i);
   const cancelledRow = page.locator('#tasks-table tbody tr', { hasText: title });
-  await expect(cancelledRow.locator('.status-badge--cancelled')).toHaveText('Cancelled');
+  await expect(cancelledRow.locator('.status-badge--cancelled')).toHaveText('Anulowane');
   await expect(cancelledRow.locator('.js-task-cancel')).toHaveCount(0);
   await expect(cancelledRow.locator('.js-task-complete')).toHaveCount(0);
 });
@@ -128,7 +128,7 @@ test('editing a pending task pre-fills the form and updates its row in place', a
   await modal.locator('#edit-task-title').fill(newTitle);
   await modal.locator('[type=submit]').click();
 
-  await expect(page.locator('#info-banner')).toHaveText(/task updated/i);
+  await expect(page.locator('#info-banner')).toHaveText(/zadanie zaktualizowane/i);
   await expect(modal).toBeHidden();
   await expect(page.locator('#tasks-table tbody tr', { hasText: newTitle })).toBeVisible();
   await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toHaveCount(0);
@@ -147,7 +147,7 @@ test('deleting a task removes its row from the list', async ({ page, request }) 
   page.on('dialog', (dialog) => dialog.accept());
   await row.locator('.js-task-delete').click();
 
-  await expect(page.locator('#info-banner')).toHaveText(/task deleted/i);
+  await expect(page.locator('#info-banner')).toHaveText(/zadanie usunięte/i);
   await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toHaveCount(0);
 });
 
@@ -195,9 +195,9 @@ test('viewing a task opens a detail modal with its fields and closes', async ({ 
   const modal = page.locator('#task-detail-modal');
   await expect(modal).toBeVisible();
   await expect(modal.locator('#detail-title')).toHaveText(title);
-  await expect(modal.locator('#detail-status .status-badge--pending')).toHaveText('Pending');
+  await expect(modal.locator('#detail-status .status-badge--pending')).toHaveText('Oczekujące');
   await expect(modal.locator('#detail-duration')).toHaveText('1h 30m');
-  await expect(modal.locator('#detail-google')).toHaveText('Not synced');
+  await expect(modal.locator('#detail-google')).toHaveText('Niezsynchronizowane');
 
   await modal.locator('.js-detail-close').click();
   await expect(modal).toBeHidden();
