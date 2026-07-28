@@ -294,19 +294,30 @@ final class ArticlesController extends AbstractController
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
-        $title = trim($data['title'] ?? '');
-        $url = trim($data['url'] ?? '');
 
-        if ('' === $title || '' === $url) {
+        $titleRaw = $data['title'] ?? null;
+        $urlRaw = $data['url'] ?? null;
+
+        if (!is_string($titleRaw) || '' === trim($titleRaw) || !is_string($urlRaw) || '' === trim($urlRaw)) {
             return new JsonResponse(['error' => 'Title and url are required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $category = $data['category'] ?? null;
+        if (null !== $category && !is_string($category)) {
+            return new JsonResponse(['error' => 'Field "category" must be a string or null.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $estimatedReadTime = $data['estimated_read_time'] ?? null;
+        if (null !== $estimatedReadTime && !is_int($estimatedReadTime)) {
+            return new JsonResponse(['error' => 'Field "estimated_read_time" must be an integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         try {
             $id = $this->commandBus->dispatchAndReturn(new CreateArticle(
-                title: $title,
-                url: $url,
-                category: $data['category'] ?? null,
-                estimatedReadTime: isset($data['estimated_read_time']) ? (int) $data['estimated_read_time'] : null,
+                title: trim($titleRaw),
+                url: trim($urlRaw),
+                category: $category,
+                estimatedReadTime: $estimatedReadTime,
             ));
         } catch (HandlerFailedException $e) {
             $original = $e->getPrevious();
@@ -316,7 +327,7 @@ final class ArticlesController extends AbstractController
                     'exception' => $original,
                 ]);
 
-                return new JsonResponse(['error' => 'Invalid article data.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+                return new JsonResponse(['error' => $original->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             throw $e;
         }
@@ -353,18 +364,28 @@ final class ArticlesController extends AbstractController
     public function update(string $id, Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
-        $title = trim($data['title'] ?? '');
 
-        if ('' === $title) {
+        $titleRaw = $data['title'] ?? null;
+        if (!is_string($titleRaw) || '' === trim($titleRaw)) {
             return new JsonResponse(['error' => 'Title is required.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $category = $data['category'] ?? null;
+        if (null !== $category && !is_string($category)) {
+            return new JsonResponse(['error' => 'Field "category" must be a string or null.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $estimatedReadTime = $data['estimated_read_time'] ?? null;
+        if (null !== $estimatedReadTime && !is_int($estimatedReadTime)) {
+            return new JsonResponse(['error' => 'Field "estimated_read_time" must be an integer.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         try {
             $this->commandBus->dispatch(new UpdateArticle(
                 id: $id,
-                title: $title,
-                category: $data['category'] ?? null,
-                estimatedReadTime: isset($data['estimated_read_time']) ? (int) $data['estimated_read_time'] : null,
+                title: trim($titleRaw),
+                category: $category,
+                estimatedReadTime: $estimatedReadTime,
             ));
         } catch (HandlerFailedException $e) {
             $original = $e->getPrevious();
