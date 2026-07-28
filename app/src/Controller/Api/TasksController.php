@@ -155,20 +155,35 @@ final class TasksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        foreach (['title', 'start', 'end'] as $field) {
-            if (empty($data[$field])) {
-                return new JsonResponse(
-                    ['error' => sprintf('Field "%s" is required.', $field)],
-                    Response::HTTP_UNPROCESSABLE_ENTITY
-                );
-            }
+        $title = $data['title'] ?? null;
+        if (!is_string($title) || '' === trim($title)) {
+            return new JsonResponse(
+                ['error' => 'Field "title" is required and must be a non-empty string.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $start = $data['start'] ?? null;
+        if (!is_string($start) || '' === trim($start)) {
+            return new JsonResponse(
+                ['error' => 'Field "start" is required and must be a non-empty string.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $end = $data['end'] ?? null;
+        if (!is_string($end) || '' === trim($end)) {
+            return new JsonResponse(
+                ['error' => 'Field "end" is required and must be a non-empty string.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
         }
 
         try {
             $id = $this->commandBus->dispatchAndReturn(new CreateTask(
-                title: trim((string) $data['title']),
-                start: trim((string) $data['start']),
-                end: trim((string) $data['end']),
+                title: trim($title),
+                start: trim($start),
+                end: trim($end),
             ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
@@ -215,12 +230,27 @@ final class TasksController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
+        $title = $data['title'] ?? null;
+        if (null !== $title && !is_string($title)) {
+            return new JsonResponse(['error' => 'Field "title" must be a string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $start = $data['start'] ?? null;
+        if (null !== $start && !is_string($start)) {
+            return new JsonResponse(['error' => 'Field "start" must be a string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $end = $data['end'] ?? null;
+        if (null !== $end && !is_string($end)) {
+            return new JsonResponse(['error' => 'Field "end" must be a string.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         try {
             $this->commandBus->dispatch(new UpdateTask(
                 id: $id,
-                title: isset($data['title']) ? trim((string) $data['title']) : null,
-                start: isset($data['start']) ? trim((string) $data['start']) : null,
-                end: isset($data['end']) ? trim((string) $data['end']) : null,
+                title: null !== $title ? trim($title) : null,
+                start: null !== $start ? trim($start) : null,
+                end: null !== $end ? trim($end) : null,
             ));
         } catch (HandlerFailedException $e) {
             $prev = $e->getPrevious();
