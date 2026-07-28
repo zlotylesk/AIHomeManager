@@ -141,11 +141,7 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
         try {
             return $this->httpClient->request($method, $url, $options)->toArray();
         } catch (ClientExceptionInterface|ServerExceptionInterface $e) {
-            throw new RuntimeException(
-                sprintf('YouTube API error (HTTP %d).', $e->getResponse()->getStatusCode()),
-                0,
-                $e,
-            );
+            throw new RuntimeException(sprintf('YouTube API error (HTTP %d).', $e->getResponse()->getStatusCode()), 0, $e);
         }
     }
 

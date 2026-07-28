@@ -24,8 +24,8 @@ interface GoogleAccessTokenProviderInterface
 {
     /**
      * @return string|null a valid access token, silently refreshed if the
-     *                      stored one had expired, or null when there is no
-     *                      token / no refresh token / the refresh failed
+     *                     stored one had expired, or null when there is no
+     *                     token / no refresh token / the refresh failed
      */
     public function getValidAccessToken(): ?string;
 }
