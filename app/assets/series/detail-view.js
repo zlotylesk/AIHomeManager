@@ -24,30 +24,30 @@ export function renderDetail(container, series, {reloadDetail, backToList}) {
             <div class="series-detail-poster">
                 ${poster
                     ? `<img src="${escHtml(poster)}" alt="" loading="lazy">`
-                    : '<span class="series-card-poster-empty">No poster</span>'}
+                    : '<span class="series-card-poster-empty">Brak plakatu</span>'}
             </div>
             <div class="series-detail-info">
                 <h2 id="series-title-edit"></h2>
                 ${catalogBits.length ? `<div class="series-catalog-meta">${escHtml(catalogBits.join(' · '))}</div>` : ''}
                 <div class="meta">
-                    ${seriesAvg !== null ? `Average rating: <strong>★ ${seriesAvg}</strong>` : 'No ratings yet'}
-                    · ${series.seasons.length} season(s)
+                    ${seriesAvg !== null ? `Średnia ocena: <strong>★ ${seriesAvg}</strong>` : 'Brak ocen'}
+                    · ${series.seasons.length} sezonów
                 </div>
                 <div class="own-rating-row" id="series-own-rating"></div>
                 ${series.description ? `<p class="series-description">${escHtml(series.description)}</p>` : ''}
             </div>
         </div>
         <div class="section-actions">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-details">✎ Edit details</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-season">+ Add Season</button>
-            <button type="button" class="btn btn-danger btn-sm" id="btn-delete-series">🗑 Delete series</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-edit-details">✎ Edytuj szczegóły</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-season">+ Dodaj sezon</button>
+            <button type="button" class="btn btn-danger btn-sm" id="btn-delete-series">🗑 Usuń serial</button>
         </div>
         <div id="seasons-container"></div>
     `;
 
     container.querySelector('#series-title-edit').appendChild(
         buildInlineEditable(series.title, {
-            ariaLabel: 'series title',
+            ariaLabel: 'tytuł serialu',
             onSave: async (title) => {
                 await API.renameSeries(series.id, title);
                 series.title = title;
@@ -65,7 +65,7 @@ export function renderDetail(container, series, {reloadDetail, backToList}) {
     const updateMeta = () => {
         const detailAvg = avg(series.seasons.flatMap(s => s.episodes.map(e => e.rating)));
         container.querySelector('.meta').innerHTML =
-            `${detailAvg !== null ? `Average rating: <strong>★ ${detailAvg}</strong>` : 'No ratings yet'} · ${series.seasons.length} season(s)`;
+            `${detailAvg !== null ? `Średnia ocena: <strong>★ ${detailAvg}</strong>` : 'Brak ocen'} · ${series.seasons.length} sezonów`;
     };
 
     const seasonsContainer = container.querySelector('#seasons-container');
@@ -101,13 +101,13 @@ export function renderDetail(container, series, {reloadDetail, backToList}) {
     });
 
     container.querySelector('#btn-delete-series').addEventListener('click', async () => {
-        if (!confirm(`Delete "${series.title}" and all its seasons and episodes?`)) return;
+        if (!confirm(`Usunąć "${series.title}" wraz ze wszystkimi sezonami i odcinkami?`)) return;
         hideError();
         try {
             await API.deleteSeries(series.id);
             backToList();
         } catch (err) {
-            showError(err.message || 'Failed to delete series.');
+            showError(err.message || 'Nie udało się usunąć serialu.');
         }
     });
 }
@@ -116,10 +116,10 @@ export function buildAddSeasonForm(series, onAdded) {
     const form = document.createElement('form');
     form.className = 'add-season-form';
     form.innerHTML = `
-        <label>Season number</label>
+        <label>Numer sezonu</label>
         <input type="number" min="1" value="${series.seasons.length + 1}" required>
-        <button type="submit" class="btn btn-primary btn-sm">Add Season</button>
-        <button type="button" class="btn btn-secondary btn-sm js-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Dodaj sezon</button>
+        <button type="button" class="btn btn-secondary btn-sm js-cancel">Anuluj</button>
     `;
     form.querySelector('.js-cancel').addEventListener('click', () => form.remove());
     form.addEventListener('submit', async e => {
@@ -128,7 +128,7 @@ export function buildAddSeasonForm(series, onAdded) {
         if (!number || number < 1) return;
         const submitBtn = form.querySelector('[type=submit]');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Adding…';
+        submitBtn.textContent = 'Dodawanie…';
         hideError();
         try {
             const {id} = await API.addSeason(series.id, number);
@@ -136,9 +136,9 @@ export function buildAddSeasonForm(series, onAdded) {
             form.remove();
             onAdded();
         } catch (err) {
-            showError(err.message || 'Failed to add season.');
+            showError(err.message || 'Nie udało się dodać sezonu.');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Add Season';
+            submitBtn.textContent = 'Dodaj sezon';
         }
     });
     return form;
@@ -148,21 +148,21 @@ export function buildEditDetailsForm(series, onSaved) {
     const form = document.createElement('form');
     form.className = 'edit-details-form';
     form.innerHTML = `
-        <label>Poster URL</label>
+        <label>Adres URL plakatu</label>
         <input type="url" class="js-meta-cover" placeholder="https://…">
-        <label>Year</label>
-        <input type="number" min="1900" class="js-meta-year" placeholder="e.g. 2008">
+        <label>Rok</label>
+        <input type="number" min="1900" class="js-meta-year" placeholder="np. 2008">
         <label>Status</label>
         <select class="js-meta-status">
             <option value="">—</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="ended">Ended</option>
+            <option value="ongoing">Emitowany</option>
+            <option value="ended">Zakończony</option>
         </select>
-        <label>Description</label>
-        <textarea class="js-meta-description" rows="3" placeholder="Short synopsis…"></textarea>
+        <label>Opis</label>
+        <textarea class="js-meta-description" rows="3" placeholder="Krótki opis…"></textarea>
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Save details</button>
-            <button type="button" class="btn btn-secondary btn-sm js-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">Zapisz szczegóły</button>
+            <button type="button" class="btn btn-secondary btn-sm js-cancel">Anuluj</button>
         </div>
     `;
 
@@ -177,15 +177,15 @@ export function buildEditDetailsForm(series, onSaved) {
         e.preventDefault();
         const submitBtn = form.querySelector('[type=submit]');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Saving…';
+        submitBtn.textContent = 'Zapisywanie…';
         hideError();
         try {
             await API.updateSeries(series.id, {title: series.title, ...readMetadataInputs(form)});
             onSaved();
         } catch (err) {
-            showError(err.message || 'Failed to save details.');
+            showError(err.message || 'Nie udało się zapisać szczegółów.');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Save details';
+            submitBtn.textContent = 'Zapisz szczegóły';
         }
     });
 

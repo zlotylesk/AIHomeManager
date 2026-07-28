@@ -178,8 +178,8 @@ describe('cardRating', () => {
 
 describe('statusLabel', () => {
     it('maps known statuses and returns null for the rest', () => {
-        expect(statusLabel('ongoing')).toBe('Ongoing');
-        expect(statusLabel('ended')).toBe('Ended');
+        expect(statusLabel('ongoing')).toBe('Emitowany');
+        expect(statusLabel('ended')).toBe('Zakończony');
         expect(statusLabel('cancelled')).toBeNull();
         expect(statusLabel(null)).toBeNull();
     });

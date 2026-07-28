@@ -4,7 +4,7 @@ const uniqueTitle = (prefix: string) => `${prefix} ${Date.now()}-${Math.random()
 
 async function gotoSeriesList(page: Page): Promise<void> {
   await page.goto('/series');
-  await expect(page.locator('.app-title')).toHaveText('Series');
+  await expect(page.locator('.app-title')).toHaveText('Seriale');
   await expect(page.locator('#series-list .loading')).toHaveCount(0, { timeout: 10_000 });
 }
 
@@ -53,15 +53,15 @@ test('adding a rated episode updates season and series average immediately', asy
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  await expect(page.locator('.meta')).toContainText('No ratings yet');
+  await expect(page.locator('.meta')).toContainText('Brak ocen');
 
   await page.locator('.js-add-episode').click();
   await page.locator('.add-episode-form input[type=text]').fill('Pilot');
   await page.locator('.rating-btn', { hasText: '8' }).first().click();
   await page.locator('.add-episode-form button[type=submit]').click();
 
-  await expect(page.locator('.season-block .season-header small')).toContainText('avg 8');
-  await expect(page.locator('.meta')).toContainText('Average rating');
+  await expect(page.locator('.season-block .season-header small')).toContainText('śr. 8');
+  await expect(page.locator('.meta')).toContainText('Średnia ocena');
   await expect(page.locator('.meta strong')).toContainText('★ 8');
 });
 
@@ -77,12 +77,12 @@ test('marking an episode watched updates the season counter (HMAI-188)', async (
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  await expect(page.locator('.season-block .season-header small')).toContainText('0/1 watched');
+  await expect(page.locator('.season-block .season-header small')).toContainText('0/1 obejrzanych');
   const checkbox = page.locator('.episodes-table .js-episode-watched');
   await expect(checkbox).not.toBeChecked();
 
   await checkbox.check();
-  await expect(page.locator('.season-block .season-header small')).toContainText('1/1 watched');
+  await expect(page.locator('.season-block .season-header small')).toContainText('1/1 obejrzanych');
   await expect(page.locator('.episodes-table tr.episode-watched')).toHaveCount(1);
 });
 
@@ -98,21 +98,21 @@ test('rating an existing episode updates season and series average immediately',
   await gotoSeriesList(page);
   await openSeriesDetail(page, title);
 
-  await expect(page.locator('.meta')).toContainText('No ratings yet');
+  await expect(page.locator('.meta')).toContainText('Brak ocen');
   const rateCell = page.locator('.episodes-table .rating-cell-btn');
-  await expect(rateCell).toHaveText('Rate');
+  await expect(rateCell).toHaveText('Oceń');
 
   await rateCell.click();
   await page.locator('.rating-editor .rating-btn', { hasText: '7' }).first().click();
 
-  await expect(page.locator('.season-block .season-header small')).toContainText('avg 7');
+  await expect(page.locator('.season-block .season-header small')).toContainText('śr. 7');
   await expect(page.locator('.meta strong')).toContainText('★ 7');
   await expect(page.locator('.episodes-table .rating-cell-btn')).toHaveText('★ 7');
 
   await page.locator('.episodes-table .rating-cell-btn').click();
   await page.locator('.rating-editor .rating-btn', { hasText: '9' }).first().click();
 
-  await expect(page.locator('.season-block .season-header small')).toContainText('avg 9');
+  await expect(page.locator('.season-block .season-header small')).toContainText('śr. 9');
   await expect(page.locator('.meta strong')).toContainText('★ 9');
 });
 
@@ -127,13 +127,13 @@ test('setting own series and season ratings persists independently of the averag
   await openSeriesDetail(page, title);
 
   const seriesOwn = page.locator('#series-own-rating .rating-cell-btn');
-  await expect(seriesOwn).toHaveText('Rate');
+  await expect(seriesOwn).toHaveText('Oceń');
   await seriesOwn.click();
   await page.locator('#series-own-rating .rating-editor .rating-btn', { hasText: '9' }).first().click();
   await expect(page.locator('#series-own-rating .rating-cell-btn')).toHaveText('★ 9');
 
   const seasonOwn = page.locator('.season-block [data-season-own-rating] .rating-cell-btn');
-  await expect(seasonOwn).toHaveText('Rate');
+  await expect(seasonOwn).toHaveText('Oceń');
   await seasonOwn.click();
   await page.locator('[data-season-own-rating] .rating-editor .rating-btn', { hasText: '6' }).first().click();
   await expect(page.locator('.season-block [data-season-own-rating] .rating-cell-btn')).toHaveText('★ 6');
@@ -232,7 +232,7 @@ test('Import from Trakt button kicks off the async import and shows a started ba
 
   const banner = page.locator('#info-banner');
   await expect(banner).toBeVisible();
-  await expect(banner).toHaveText(/import started/i);
+  await expect(banner).toHaveText(/uruchomiony/i);
   expect(importCalled).toBeTruthy();
 });
 

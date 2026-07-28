@@ -18,16 +18,16 @@ export function buildAddEpisodeForm(seriesId, season, onAdded) {
         : 1;
 
     form.innerHTML = `
-        <label>Episode number</label>
+        <label>Numer odcinka</label>
         <input type="number" min="1" class="js-episode-number" value="${nextNumber}" required>
-        <label>Episode title</label>
-        <input type="text" placeholder="e.g. Pilot" required>
+        <label>Tytuł odcinka</label>
+        <input type="text" placeholder="np. Pilot" required>
         <div class="rating-row">
-            <label style="margin:0">Rating (optional):</label>
+            <label style="margin:0">Ocena (opcjonalnie):</label>
         </div>
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Add Episode</button>
-            <button type="button" class="btn btn-secondary btn-sm js-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">Dodaj odcinek</button>
+            <button type="button" class="btn btn-secondary btn-sm js-cancel">Anuluj</button>
         </div>
     `;
 
@@ -42,7 +42,7 @@ export function buildAddEpisodeForm(seriesId, season, onAdded) {
 
         const submitBtn = form.querySelector('[type=submit]');
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Adding…';
+        submitBtn.textContent = 'Dodawanie…';
         hideError();
 
         try {
@@ -50,9 +50,9 @@ export function buildAddEpisodeForm(seriesId, season, onAdded) {
             season.episodes.push({id, title, number, rating: selectedRating});
             onAdded();
         } catch (err) {
-            showError(err.message || 'Failed to add episode.');
+            showError(err.message || 'Nie udało się dodać odcinka.');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Add Episode';
+            submitBtn.textContent = 'Dodaj odcinek';
         }
     });
 
@@ -73,15 +73,15 @@ export function renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
 
     block.innerHTML = `
         <div class="season-header${seasonFlag.cls ? ` ${seasonFlag.cls}` : ''}"${seasonFlag.title ? ` title="${escHtml(seasonFlag.title)}"` : ''}>
-            <h3>Season <span class="js-season-number"></span> <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} watched${seasonAvg !== null ? ` · avg ${seasonAvg}` : ''}</small></h3>
+            <h3>Sezon <span class="js-season-number"></span> <small style="font-weight:normal;color:#6b7280">${watchedCount}/${season.episodes.length} obejrzanych${seasonAvg !== null ? ` · śr. ${seasonAvg}` : ''}</small></h3>
             <div class="season-header-actions">
-                <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Add Episode</button>
-                <button type="button" class="btn btn-danger btn-sm js-delete-season" title="Delete season">🗑</button>
+                <button type="button" class="btn btn-secondary btn-sm js-add-episode">+ Dodaj odcinek</button>
+                <button type="button" class="btn btn-danger btn-sm js-delete-season" title="Usuń sezon">🗑</button>
             </div>
         </div>
         <div class="own-rating-row" data-season-own-rating></div>
         <table class="episodes-table">
-            <thead><tr><th>#</th><th>Title</th><th>Watched</th><th>Rating</th></tr></thead>
+            <thead><tr><th>#</th><th>Tytuł</th><th>Obejrzano</th><th>Ocena</th></tr></thead>
             <tbody class="episodes-tbody">${
                 season.episodes.map((ep, i) => `
                     <tr class="${ep.watched ? 'episode-watched' : ''}">
@@ -100,7 +100,7 @@ export function renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
         buildInlineEditable(season.number, {
             inputType: 'number',
             min: 1,
-            ariaLabel: 'season number',
+            ariaLabel: 'numer sezonu',
             onSave: async (number) => {
                 await API.renumberSeason(seriesId, season.id, number);
                 season.number = number;
@@ -111,7 +111,7 @@ export function renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
     block.querySelectorAll('.episode-title').forEach(td => {
         const ep = season.episodes[Number(td.dataset.epIndex)];
         td.appendChild(buildInlineEditable(ep.title, {
-            ariaLabel: 'episode title',
+            ariaLabel: 'tytuł odcinka',
             onSave: async (title) => {
                 await API.renameEpisode(seriesId, season.id, ep.id, title);
                 ep.title = title;
@@ -142,9 +142,9 @@ export function renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
         del.type = 'button';
         del.className = 'btn-icon-danger js-delete-episode';
         del.textContent = '🗑';
-        del.title = 'Delete episode';
+        del.title = 'Usuń odcinek';
         del.addEventListener('click', async () => {
-            if (!confirm(`Delete episode "${ep.title}"?`)) return;
+            if (!confirm(`Usunąć odcinek "${ep.title}"?`)) return;
             del.disabled = true;
             hideError();
             try {
@@ -152,7 +152,7 @@ export function renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
                 season.episodes = season.episodes.filter(e => e.id !== ep.id);
                 onUpdate();
             } catch (err) {
-                showError(err.message || 'Failed to delete episode.');
+                showError(err.message || 'Nie udało się usunąć odcinka.');
                 del.disabled = false;
             }
         });
@@ -160,13 +160,13 @@ export function renderSeasonBlock(seriesId, season, onUpdate, onDelete) {
     });
 
     block.querySelector('.js-delete-season').addEventListener('click', async () => {
-        if (!confirm(`Delete Season ${season.number} and all its episodes?`)) return;
+        if (!confirm(`Usunąć sezon ${season.number} wraz ze wszystkimi odcinkami?`)) return;
         hideError();
         try {
             await API.deleteSeason(seriesId, season.id);
             onDelete();
         } catch (err) {
-            showError(err.message || 'Failed to delete season.');
+            showError(err.message || 'Nie udało się usunąć sezonu.');
         }
     });
 
@@ -188,7 +188,7 @@ function renderWatchedCell(td, seriesId, season, ep, onUpdate) {
     checkbox.type = 'checkbox';
     checkbox.className = 'js-episode-watched';
     checkbox.checked = !!ep.watched;
-    checkbox.title = ep.watched ? 'Mark as not watched' : 'Mark as watched';
+    checkbox.title = ep.watched ? 'Oznacz jako nieobejrzany' : 'Oznacz jako obejrzany';
     checkbox.addEventListener('change', async () => {
         const next = checkbox.checked;
         checkbox.disabled = true;
@@ -201,7 +201,7 @@ function renderWatchedCell(td, seriesId, season, ep, onUpdate) {
         } catch (err) {
             checkbox.checked = !next;
             checkbox.disabled = false;
-            showError(err.message || 'Failed to update watched status.');
+            showError(err.message || 'Nie udało się zaktualizować stanu obejrzenia.');
         }
     });
     td.appendChild(checkbox);
@@ -213,8 +213,8 @@ function renderRatingCell(td, seriesId, season, ep, onUpdate) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'rating-cell-btn' + (rated ? '' : ' rating-cell-empty');
-    btn.textContent = rated ? `★ ${ep.rating}` : 'Rate';
-    btn.title = rated ? 'Change rating' : 'Rate this episode';
+    btn.textContent = rated ? `★ ${ep.rating}` : 'Oceń';
+    btn.title = rated ? 'Zmień ocenę' : 'Oceń ten odcinek';
     btn.addEventListener('click', () => openRatingEditor(td, seriesId, season, ep, onUpdate));
     td.appendChild(btn);
 }
@@ -236,7 +236,7 @@ function openRatingEditor(td, seriesId, season, ep, onUpdate) {
             ep.rating = value;
             onUpdate();
         } catch (err) {
-            showError(err.message || 'Failed to rate episode.');
+            showError(err.message || 'Nie udało się ocenić odcinka.');
             renderRatingCell(td, seriesId, season, ep, onUpdate);
         }
     });
@@ -245,7 +245,7 @@ function openRatingEditor(td, seriesId, season, ep, onUpdate) {
     cancel.type = 'button';
     cancel.className = 'rating-cancel js-cancel-rate';
     cancel.textContent = '✕';
-    cancel.title = 'Cancel';
+    cancel.title = 'Anuluj';
     cancel.addEventListener('click', () => renderRatingCell(td, seriesId, season, ep, onUpdate));
 
     editor.appendChild(selector);

@@ -1,38 +1,38 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Series — AIHomeManager{% endblock %}
+{% block title %}Seriale — AIHomeManager{% endblock %}
 
 {% block body %}
 <div class="app" data-controller="series">
     <header class="app-header">
-        <h1 class="app-title">Series</h1>
+        <h1 class="app-title">Seriale</h1>
         <div class="header-actions">
-            <button class="btn btn-secondary" id="btn-import-trakt">Import from Trakt</button>
-            <button class="btn btn-primary" id="btn-add-series">+ Add Series</button>
+            <button class="btn btn-secondary" id="btn-import-trakt">Importuj z Trakt</button>
+            <button class="btn btn-primary" id="btn-add-series">+ Dodaj serial</button>
         </div>
     </header>
 
     <div id="modal-add-series" class="modal hidden">
         <div class="modal-box">
-            <h2>New Series</h2>
+            <h2>Nowy serial</h2>
             <form id="form-add-series">
-                <label for="input-series-title">Title</label>
-                <input id="input-series-title" type="text" placeholder="e.g. Breaking Bad" required autofocus>
-                <label for="input-series-cover">Poster URL <small>(optional)</small></label>
+                <label for="input-series-title">Tytuł</label>
+                <input id="input-series-title" type="text" placeholder="np. Breaking Bad" required autofocus>
+                <label for="input-series-cover">Adres URL plakatu <small>(opcjonalnie)</small></label>
                 <input id="input-series-cover" class="js-meta-cover" type="url" placeholder="https://…">
-                <label for="input-series-year">Year <small>(optional)</small></label>
-                <input id="input-series-year" class="js-meta-year" type="number" min="1900" placeholder="e.g. 2008">
-                <label for="input-series-status">Status <small>(optional)</small></label>
+                <label for="input-series-year">Rok <small>(opcjonalnie)</small></label>
+                <input id="input-series-year" class="js-meta-year" type="number" min="1900" placeholder="np. 2008">
+                <label for="input-series-status">Status <small>(opcjonalnie)</small></label>
                 <select id="input-series-status" class="js-meta-status">
                     <option value="">—</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="ended">Ended</option>
+                    <option value="ongoing">Emitowany</option>
+                    <option value="ended">Zakończony</option>
                 </select>
-                <label for="input-series-description">Description <small>(optional)</small></label>
-                <textarea id="input-series-description" class="js-meta-description" rows="3" placeholder="Short synopsis…"></textarea>
+                <label for="input-series-description">Opis <small>(opcjonalnie)</small></label>
+                <textarea id="input-series-description" class="js-meta-description" rows="3" placeholder="Krótki opis…"></textarea>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Create</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancel-series">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Utwórz</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-series">Anuluj</button>
                 </div>
             </form>
         </div>
@@ -42,23 +42,23 @@
         <section id="series-list-view">
             <div id="series-toolbar" class="series-toolbar hidden">
                 <input type="search" id="series-search" class="series-search"
-                       placeholder="Search series…" aria-label="Search series by title" autocomplete="off">
-                <label class="series-sort-label">Sort:
-                    <select id="series-sort" class="series-sort" aria-label="Sort series">
-                        <option value="title">Title A–Z</option>
-                        <option value="rating-desc">Average ★ ↓</option>
-                        <option value="own-desc">My rating ★ ↓</option>
-                        <option value="created-desc">Recently added</option>
+                       placeholder="Szukaj seriali…" aria-label="Szukaj seriali po tytule" autocomplete="off">
+                <label class="series-sort-label">Sortuj:
+                    <select id="series-sort" class="series-sort" aria-label="Sortuj seriale">
+                        <option value="title">Tytuł A-Z</option>
+                        <option value="rating-desc">Średnia ★ ↓</option>
+                        <option value="own-desc">Moja ocena ★ ↓</option>
+                        <option value="created-desc">Ostatnio dodane</option>
                     </select>
                 </label>
             </div>
             <div id="series-list" class="series-grid">
-                <div class="loading">Loading…</div>
+                <div class="loading">Ładowanie…</div>
             </div>
         </section>
 
         <section id="series-detail-view" class="hidden">
-            <button class="btn btn-secondary back-btn" id="btn-back">← Back to list</button>
+            <button class="btn btn-secondary back-btn" id="btn-back">← Wróć do listy</button>
             <div id="series-detail-content"></div>
         </section>
     </main>

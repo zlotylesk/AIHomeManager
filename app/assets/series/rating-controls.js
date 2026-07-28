@@ -32,12 +32,12 @@ export function buildOwnRatingControl(current, onSave) {
         const rated = current !== null && current !== undefined;
         const label = document.createElement('span');
         label.className = 'own-rating-label';
-        label.textContent = 'My rating:';
+        label.textContent = 'Moja ocena:';
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'rating-cell-btn' + (rated ? '' : ' rating-cell-empty');
-        btn.textContent = rated ? `★ ${current}` : 'Rate';
-        btn.title = rated ? 'Change your rating' : 'Set your rating';
+        btn.textContent = rated ? `★ ${current}` : 'Oceń';
+        btn.title = rated ? 'Zmień swoją ocenę' : 'Ustaw swoją ocenę';
         btn.addEventListener('click', renderEditor);
         wrap.append(label, ' ', btn);
 
@@ -46,7 +46,7 @@ export function buildOwnRatingControl(current, onSave) {
             clear.type = 'button';
             clear.className = 'rating-clear';
             clear.textContent = '✕';
-            clear.title = 'Remove your rating';
+            clear.title = 'Usuń swoją ocenę';
             clear.addEventListener('click', async () => {
                 clear.disabled = true;
                 hideError();
@@ -55,7 +55,7 @@ export function buildOwnRatingControl(current, onSave) {
                     current = null;
                     renderDisplay();
                 } catch (err) {
-                    showError(err.message || 'Failed to clear rating.');
+                    showError(err.message || 'Nie udało się usunąć oceny.');
                     clear.disabled = false;
                 }
             });
@@ -80,7 +80,7 @@ export function buildOwnRatingControl(current, onSave) {
                 current = value;
                 renderDisplay();
             } catch (err) {
-                showError(err.message || 'Failed to save rating.');
+                showError(err.message || 'Nie udało się zapisać oceny.');
                 renderDisplay();
             }
         });
@@ -89,7 +89,7 @@ export function buildOwnRatingControl(current, onSave) {
         cancel.type = 'button';
         cancel.className = 'rating-cancel';
         cancel.textContent = '✕';
-        cancel.title = 'Cancel';
+        cancel.title = 'Anuluj';
         cancel.addEventListener('click', renderDisplay);
 
         editor.append(selector, cancel);

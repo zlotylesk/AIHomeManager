@@ -27,6 +27,6 @@ export function showInfo(msg) {
 export function showTraktConnectPrompt() {
     const banner = document.getElementById('error-banner');
     if (!banner) return;
-    banner.innerHTML = 'Connect your Trakt account first: <a href="/auth/trakt">Connect Trakt</a>';
+    banner.innerHTML = 'Najpierw połącz konto Trakt: <a href="/auth/trakt">Połącz z Trakt</a>';
     banner.classList.remove('hidden');
 }

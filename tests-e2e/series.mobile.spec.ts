@@ -7,7 +7,7 @@ test('series page renders without horizontal overflow at 393px (Pixel 5)', async
   await request.post('/api/series', { data: { title } });
 
   await page.goto('/series');
-  await expect(page.locator('.app-title')).toHaveText('Series');
+  await expect(page.locator('.app-title')).toHaveText('Seriale');
   await expect(page.locator('.series-card', { hasText: title })).toBeVisible();
 
   const layout = await page.evaluate(() => {
