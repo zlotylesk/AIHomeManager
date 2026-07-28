@@ -48,7 +48,7 @@ fi
 # key. A wrong-length key surfaces as a 500 on first OAuth init request —
 # usually a base64 typo, a manually pasted shorter string, or a hex-encoded
 # key (64 hex chars base64-decode to 48 bytes — the HMAI-219 Trakt regression).
-for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY; do
+for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY SPOTIFY_TOKEN_KEY; do
     val=$(grep -E "^${key_name}=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
     if [ -z "$val" ]; then
         check_warn "$key_name not set"
@@ -61,6 +61,58 @@ for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY; do
         check_fail "$key_name decoded len=$decoded_len (must be 32 — generate via 'php -r \"echo base64_encode(sodium_crypto_secretbox_keygen());\"')"
     fi
 done
+
+# The frontend firewall ships a placeholder account in the committed app/.env
+# (a hash of a trivial word) purely so a fresh clone boots. Left in place, the
+# UI is "protected" by a guessable password while looking secured — and every
+# page carries the production API_KEY in a meta tag.
+if grep -qE "^FRONTEND_PASSWORD_HASH=" app/.env.local 2>/dev/null; then
+    check_ok "FRONTEND_PASSWORD_HASH overridden locally"
+else
+    check_warn "FRONTEND_PASSWORD_HASH not set in .env.local (falling back to the placeholder in app/.env — fine on localhost, never beyond it; generate via 'bin/console security:hash-password')"
+fi
+
+# The scheduled MySQL backup pipes mysqldump into gzip under `bash -o pipefail`,
+# because POSIX sh reports only the last pipeline member's status and would mask
+# a failed dump behind a successful gzip. bash is installed by docker/php/Dockerfile,
+# so a missing one means the running container predates that line: the image needs
+# rebuilding or the nightly backup aborts with "bash: not found". CI cannot catch
+# this — it runs PHPUnit on the runner, not inside this image.
+echo ""
+echo "== Image =="
+if docker exec aihm-php-1 sh -c 'command -v bash' >/dev/null 2>&1; then
+    check_ok "php image has bash (backup pipeline can detect a failed mysqldump)"
+else
+    check_fail "php image lacks bash — stale image, scheduled backup will abort (run 'docker compose build php && docker compose up -d')"
+fi
+
+# Alpine's mysql-client is MariaDB's, which carries no caching_sha2_password
+# module of its own — and that is MySQL 8.4's default plugin. Without the
+# mariadb-connector-c package the dump cannot even log in. That failure used to
+# be invisible, so the check is worth making explicit.
+if docker exec aihm-php-1 sh -c 'ls /usr/lib/mariadb/plugin/caching_sha2_password.so' >/dev/null 2>&1; then
+    check_ok "mysqldump can authenticate to MySQL 8.4 (caching_sha2_password present)"
+else
+    check_fail "mysqldump cannot authenticate to MySQL 8.4 — missing caching_sha2_password.so (rebuild the php image)"
+fi
+
+# Outcome-level check. The two above name causes we already know about; this one
+# catches the whole class regardless of cause, which is the point: every nightly
+# backup between 2026-06-30 and 2026-07-28 was a 20-byte empty gzip and nothing
+# reported it. A real dump of this database is a few hundred KB.
+echo ""
+echo "== Backups =="
+newest=$(ls -1t backups/homemanager-*.sql.gz 2>/dev/null | head -n 1)
+if [ -z "$newest" ]; then
+    check_warn "no backup files yet (run 'make backup-now')"
+else
+    size=$(wc -c < "$newest" | tr -d ' ')
+    if [ "$size" -gt 1024 ]; then
+        check_ok "newest backup $(basename "$newest") is ${size}B"
+    else
+        check_fail "newest backup $(basename "$newest") is only ${size}B — an empty dump (a 20-byte file is gzip's empty stream); restore from it would yield nothing"
+    fi
+fi
 
 echo ""
 echo "== Summary =="

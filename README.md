@@ -215,6 +215,15 @@ The application reads variables from `app/.env` (committed, placeholders) and `a
 # API key protecting /api/* (any strong, random string)
 API_KEY=...
 
+# HTTP Basic credentials protecting the frontend pages and /auth/* (the `main` firewall).
+# REQUIRED: every page renders API_KEY into a <meta name="api-key"> tag, so an anonymous
+# frontend hands out full /api/* access. Generate the hash with:
+#   docker exec aihm-php-1 bin/console security:hash-password
+# app/.env ships a placeholder pair (admin / the literal word "test") so a fresh clone
+# boots — override BOTH here before exposing the app to anything beyond localhost.
+FRONTEND_USER=...
+FRONTEND_PASSWORD_HASH=...
+
 # OAuth token encryption keys at rest (libsodium secretbox) — 32 bytes base64.
 # REQUIRED for the application to start (TokenCipher throws for any other key length).
 # Generate EACH one separately (see below).
@@ -488,6 +497,14 @@ make restore BACKUP=backups/homemanager-2026-06-01.sql.gz
 
 Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confluence → Disaster recovery — MySQL restore.
 
+The dump runs as `bash -o pipefail -c "mysqldump … | gzip …"`. POSIX `sh` reports only the **last** pipeline member's exit code, so a failed `mysqldump` (MySQL down, bad credentials, missing `PROCESS` privilege) would be masked by a successful `gzip` and leave a truncated archive that looks like a healthy backup. `bash` is therefore installed in `docker/php/Dockerfile` — **an image built before that line was added must be rebuilt**:
+
+```bash
+docker compose build php && docker compose up -d php messenger_worker scheduler_worker
+```
+
+Without the rebuild the scheduled backup aborts with `bash: not found`. That failure is loud, not silent (an `error` log entry plus a Messenger retry and DLQ), but no backup is produced until the image is refreshed.
+
 ---
 
 ## Global search (OpenSearch)
@@ -653,9 +670,11 @@ X-API-Key: <value from .env.local>
 
 Missing / invalid key → `401 {"error": "..."}`.
 
-Exceptions: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + a 3-state disk probe) — and the three API-doc routes above.
+Exceptions: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + OpenSearch + a 3-state disk probe) — and the three API-doc routes above.
 
-The `/auth/google*`, `/auth/discogs*`, `/auth/trakt*`, `/auth/spotify*` endpoints and the UI (`/`, `/series`, …) are public.
+The frontend pages (`/`, `/series`, …) and the `/auth/google*`, `/auth/discogs*`, `/auth/trakt*`, `/auth/spotify*` OAuth endpoints are served by the separate `main` firewall and require **HTTP Basic** (`FRONTEND_USER` / `FRONTEND_PASSWORD_HASH`): every page renders `API_KEY` into a `<meta name="api-key">` tag, so leaving them anonymous would hand out full `/api/*` access.
+
+The two firewalls are disjoint — `/api/*` still authenticates with `X-API-Key` alone and never needs the Basic credentials, and `/api/health` stays public. A browser that authenticated once resends the credentials automatically for the rest of the realm, so the OAuth callbacks work unchanged.
 
 ### Example — Series
 
