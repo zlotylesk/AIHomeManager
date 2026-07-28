@@ -103,7 +103,7 @@ export default class extends Controller {
 
 
     async loadSessions() {
-        this.sessionsTarget.innerHTML = '<div class="loading">Loading…</div>';
+        this.sessionsTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
             const { sessions } = await apiCall('/api/youtube-progress/sessions');
             this.sessionsTarget.innerHTML = sessions.length
@@ -116,7 +116,7 @@ export default class extends Controller {
     }
 
     async loadWatchlist() {
-        this.watchlistTarget.innerHTML = '<div class="loading">Loading…</div>';
+        this.watchlistTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
             const { videos } = await apiCall('/api/youtube-progress/watchlist');
             this.watchlistTarget.innerHTML = videos.length

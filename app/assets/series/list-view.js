@@ -14,14 +14,14 @@ export function renderSeriesList(container, seriesArr, onSelect) {
             <div class="series-card-poster">
                 ${poster
                     ? `<img src="${escHtml(poster)}" alt="" loading="lazy">`
-                    : '<span class="series-card-poster-empty">No poster</span>'}
+                    : '<span class="series-card-poster-empty">Brak plakatu</span>'}
             </div>
             <div class="series-card-body">
                 <h3>${escHtml(s.title)}</h3>
                 ${metaBits.length ? `<div class="series-card-meta">${escHtml(metaBits.join(' · '))}</div>` : ''}
                 <div class="series-card-ratings">
-                    ${cardRating('My', s.rating)}
-                    ${cardRating('Avg', s.averageRating)}
+                    ${cardRating('Moja', s.rating)}
+                    ${cardRating('Śr.', s.averageRating)}
                 </div>
             </div>
         </div>

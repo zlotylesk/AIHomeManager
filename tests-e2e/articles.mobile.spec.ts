@@ -11,7 +11,7 @@ test('articles page renders without horizontal overflow at 393px (Pixel 5)', asy
   expect(seed.ok(), `article seed failed: ${seed.status()}`).toBeTruthy();
 
   await page.goto('/articles');
-  await expect(page.locator('.app-title')).toHaveText('Articles');
+  await expect(page.locator('.app-title')).toHaveText('Artykuły');
   await expect(page.locator('#articles-list .loading')).toHaveCount(0, { timeout: 10_000 });
   await expect(page.locator('#articles-list .article-row', { hasText: title })).toBeVisible();
 

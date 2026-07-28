@@ -271,7 +271,7 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
 .article-title { font-weight: 600; color: var(--color-primary); text-decoration: none; font-size: .95rem; }
 .article-title:hover { text-decoration: underline; }
 .article-meta { display: flex; flex-wrap: wrap; gap: .5rem; font-size: .8rem; color: var(--color-text-muted); margin-top: .25rem; align-items: center; }
-.article-actions { display: flex; align-items: center; flex-shrink: 0; }
+.article-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
 .badge-today { background: var(--color-today-border); color: #fff; font-size: .7rem; padding: .1rem .4rem; border-radius: 4px; font-weight: 700; vertical-align: middle; }
 .tag { background: var(--color-border); border-radius: 4px; padding: .1rem .4rem; font-size: .75rem; }
 .read-badge { font-size: .8rem; color: var(--color-success); font-weight: 600; }

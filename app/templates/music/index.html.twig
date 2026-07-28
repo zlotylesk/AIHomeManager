@@ -1,59 +1,59 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Music — AIHomeManager{% endblock %}
+{% block title %}Muzyka — AIHomeManager{% endblock %}
 
 {% block body %}
 <div class="app">
     <header class="app-header">
-        <h1 class="app-title">Music</h1>
+        <h1 class="app-title">Muzyka</h1>
         <div class="header-actions">
             <select id="period-select" class="select-filter">
-                <option value="7day">7 days</option>
-                <option value="1month" selected>1 month</option>
-                <option value="3month">3 months</option>
-                <option value="6month">6 months</option>
-                <option value="12month">12 months</option>
-                <option value="overall">Overall</option>
+                <option value="7day">7 dni</option>
+                <option value="1month" selected>1 miesiąc</option>
+                <option value="3month">3 miesiące</option>
+                <option value="6month">6 miesięcy</option>
+                <option value="12month">12 miesięcy</option>
+                <option value="overall">Cały okres</option>
             </select>
-            <button class="btn btn-primary" id="btn-load-music">Load</button>
+            <button class="btn btn-primary" id="btn-load-music">Wczytaj</button>
         </div>
     </header>
 
     <div id="music-loading" class="loading-overlay hidden">
         <div class="spinner"></div>
-        <p>Fetching data from Last.fm and Discogs…</p>
+        <p>Pobieranie danych z Last.fm i Discogs…</p>
     </div>
 
     <div id="music-content" class="hidden">
         <div class="music-grid">
             <section class="card">
-                <h2 class="section-title">Top Albums <small id="top-albums-period"></small></h2>
+                <h2 class="section-title">Najlepsze albumy <small id="top-albums-period"></small></h2>
                 <div id="top-albums-list"></div>
             </section>
 
             <section class="card">
-                <h2 class="section-title">Vinyl Collection</h2>
+                <h2 class="section-title">Kolekcja winyli</h2>
                 <div id="collection-list"></div>
             </section>
         </div>
 
         <section class="card" style="margin-top:1rem">
             <div class="comparison-header">
-                <h2 class="section-title">Comparison</h2>
+                <h2 class="section-title">Porównanie</h2>
                 <div class="match-score" id="match-score-badge"></div>
             </div>
 
             <div class="comparison-grid">
                 <div>
-                    <h3 class="subsection-title">Owned & Listened</h3>
+                    <h3 class="subsection-title">Posiadane i odsłuchane</h3>
                     <div id="owned-list"></div>
                 </div>
                 <div>
-                    <h3 class="subsection-title">Want List <small>(top listened, not owned)</small></h3>
+                    <h3 class="subsection-title">Lista życzeń <small>(najczęściej słuchane, nieposiadane)</small></h3>
                     <div id="want-list"></div>
                 </div>
                 <div>
-                    <h3 class="subsection-title">Dusty Shelf <small>(owned, rarely listened)</small></h3>
+                    <h3 class="subsection-title">Zakurzona półka <small>(posiadane, rzadko słuchane)</small></h3>
                     <div id="dusty-list"></div>
                 </div>
             </div>
@@ -61,28 +61,28 @@
     </div>
 
     <section class="card" style="margin-top:1rem">
-        <h2 class="section-title">Listening History</h2>
+        <h2 class="section-title">Historia odsłuchu</h2>
         <form id="log-session-form" class="history-log-form">
-            <input type="text" id="log-artist" placeholder="Artist" required>
-            <input type="text" id="log-title" placeholder="Title" required>
+            <input type="text" id="log-artist" placeholder="Wykonawca" required>
+            <input type="text" id="log-title" placeholder="Tytuł" required>
             <input type="datetime-local" id="log-played-at" required>
-            <input type="number" id="log-play-count" min="0" placeholder="Plays (optional)">
-            <button type="submit" class="btn btn-primary">Log play</button>
+            <input type="number" id="log-play-count" min="0" placeholder="Odtworzenia (opcjonalnie)">
+            <button type="submit" class="btn btn-primary">Zapisz odtworzenie</button>
         </form>
         <div class="history-filters">
-            <label>From <input type="date" id="history-from"></label>
-            <label>To <input type="date" id="history-to"></label>
-            <label>Source
+            <label>Od <input type="date" id="history-from"></label>
+            <label>Do <input type="date" id="history-to"></label>
+            <label>Źródło
                 <select id="history-source">
-                    <option value="">All</option>
+                    <option value="">Wszystkie</option>
                     <option value="lastfm_scrobble">Last.fm scrobble</option>
                     <option value="lastfm_top_delta">Last.fm top delta</option>
-                    <option value="manual">Manual</option>
+                    <option value="manual">Ręcznie</option>
                 </select>
             </label>
-            <button class="btn btn-secondary" id="btn-load-history">Filter</button>
+            <button class="btn btn-secondary" id="btn-load-history">Filtruj</button>
         </div>
-        <div id="history-list"><div class="loading">Loading…</div></div>
+        <div id="history-list"><div class="loading">Ładowanie…</div></div>
     </section>
 
     <div id="music-error" class="hidden"></div>

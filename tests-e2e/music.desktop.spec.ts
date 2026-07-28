@@ -10,7 +10,7 @@ test('listening history loads and renders a manually-logged session', async ({ p
   expect(seed.ok(), `session seed failed: ${seed.status()}`).toBeTruthy();
 
   await page.goto('/music');
-  await expect(page.locator('.app-title')).toHaveText('Music');
+  await expect(page.locator('.app-title')).toHaveText('Muzyka');
 
   // history loads independently of the (slow/external) top-albums section
   await expect(page.locator('#history-list .loading')).toHaveCount(0, { timeout: 10_000 });
@@ -18,7 +18,7 @@ test('listening history loads and renders a manually-logged session', async ({ p
   const row = page.locator('.history-row', { hasText: title });
   await expect(row).toBeVisible();
   await expect(row).toContainText(artist);
-  await expect(row).toContainText('Manual');
+  await expect(row).toContainText('Ręcznie');
 });
 
 test('manually logging a play adds it to the listening history', async ({ page }) => {
@@ -36,7 +36,7 @@ test('manually logging a play adds it to the listening history', async ({ page }
 
   const row = page.locator('.history-row', { hasText: title });
   await expect(row).toBeVisible();
-  await expect(row).toContainText('Manual');
+  await expect(row).toContainText('Ręcznie');
 });
 
 test('source filter narrows the listening history to manual entries', async ({ page, request }) => {
@@ -56,6 +56,6 @@ test('source filter narrows the listening history to manual entries', async ({ p
   // every rendered row in manual mode must be a manual entry
   const sources = await page.locator('.history-row .history-source').allTextContents();
   for (const s of sources) {
-    expect(s.trim()).toBe('Manual');
+    expect(s.trim()).toBe('Ręcznie');
   }
 });

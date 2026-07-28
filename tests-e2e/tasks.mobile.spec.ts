@@ -10,7 +10,7 @@ test('tasks page renders without horizontal overflow at 393px (Pixel 5)', async 
   expect(seed.ok(), `task seed failed: ${seed.status()}`).toBeTruthy();
 
   await page.goto('/tasks');
-  await expect(page.locator('.app-title')).toHaveText('Tasks');
+  await expect(page.locator('.app-title')).toHaveText('Zadania');
   await expect(page.locator('#tasks-loading')).toBeHidden({ timeout: 10_000 });
   await expect(page.locator('#tasks-table tbody tr', { hasText: title })).toBeVisible();
 
