@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\YouTubeProgress\Application\Command\MarkVideoStarted;
 use App\Module\YouTubeProgress\Application\Command\MarkVideoWatched;
@@ -21,7 +22,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
@@ -39,7 +39,7 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 final class YouTubeProgressController extends AbstractController
 {
     public function __construct(
-        private readonly MessageBusInterface $commandBus,
+        private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
         #[Autowire('%env(YOUTUBE_WATCHLIST_PLAYLIST_ID)%')]
         private readonly string $watchlistPlaylistId,
