@@ -48,6 +48,21 @@ deptrac:
               - type: directory
                 value: src/Module/Books/Infrastructure/.*
 
+        - name: BudgetDomain
+          collectors:
+              - type: directory
+                value: src/Module/Budget/Domain/.*
+
+        - name: BudgetApplication
+          collectors:
+              - type: directory
+                value: src/Module/Budget/Application/.*
+
+        - name: BudgetInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Budget/Infrastructure/.*
+
         - name: DashboardDomain
           collectors:
               - type: directory
@@ -255,6 +270,8 @@ deptrac:
             - Shared
         BooksDomain:
             - Shared
+        BudgetDomain:
+            - Shared
         DashboardDomain:
             - Shared
         GoalsDomain:
@@ -286,6 +303,10 @@ deptrac:
             - Vendor
         BooksApplication:
             - BooksDomain
+            - Shared
+            - Vendor
+        BudgetApplication:
+            - BudgetDomain
             - Shared
             - Vendor
         DashboardApplication:
@@ -343,6 +364,11 @@ deptrac:
         BooksInfrastructure:
             - BooksDomain
             - BooksApplication
+            - Shared
+            - Vendor
+        BudgetInfrastructure:
+            - BudgetDomain
+            - BudgetApplication
             - Shared
             - Vendor
         DashboardInfrastructure:
@@ -410,6 +436,9 @@ deptrac:
             - BooksDomain
             - BooksApplication
             - BooksInfrastructure
+            - BudgetDomain
+            - BudgetApplication
+            - BudgetInfrastructure
             - DashboardDomain
             - DashboardApplication
             - DashboardInfrastructure
