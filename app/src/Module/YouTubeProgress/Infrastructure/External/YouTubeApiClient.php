@@ -9,9 +9,11 @@ use App\Module\YouTubeProgress\Domain\Port\YouTubePlaylistWriterInterface;
 use App\Module\YouTubeProgress\Domain\ReadModel\VideoMetadata;
 use App\Module\YouTubeProgress\Domain\ValueObject\VideoDuration;
 use App\Module\YouTubeProgress\Domain\ValueObject\YoutubeVideoId;
-use App\Shared\Security\GoogleTokenProviderInterface;
+use App\Shared\Security\GoogleAccessTokenProviderInterface;
 use DateTimeImmutable;
 use RuntimeException;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -20,6 +22,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * via batched videos.list (50 IDs per call). Throttled through the injected
  * app.youtube_http_client (RateLimitedHttpClient). Fail-fast: no retry on quota
  * or transport errors (follow-up ticket).
+ *
+ * The access token is obtained through the shared GoogleAccessTokenProviderInterface
+ * port (HMAI-399), which transparently refreshes an expired token, rather than
+ * reading the raw stored token — without this, sync only worked for ~1h after
+ * Tasks last refreshed the shared Google credential.
  */
 final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface, YouTubePlaylistWriterInterface
 {
@@ -31,7 +38,7 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
 
     public function __construct(
         private HttpClientInterface $httpClient,
-        private GoogleTokenProviderInterface $tokenRepository,
+        private GoogleAccessTokenProviderInterface $tokenProvider,
     ) {
     }
 
@@ -67,14 +74,14 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
 
     public function createPlaylist(string $name, bool $private = true): string
     {
-        $data = $this->httpClient->request('POST', self::PLAYLISTS_URL, [
+        $data = $this->requestJson('POST', self::PLAYLISTS_URL, [
             'headers' => ['Authorization' => 'Bearer '.$this->accessToken()],
             'query' => ['part' => 'snippet,status'],
             'json' => [
                 'snippet' => ['title' => $name],
                 'status' => ['privacyStatus' => $private ? 'private' : 'public'],
             ],
-        ])->toArray();
+        ]);
 
         $id = $data['id'] ?? null;
         if (!is_string($id) || '' === $id) {
@@ -109,13 +116,37 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
 
     private function accessToken(): string
     {
-        $accessToken = $this->tokenRepository->get()['access_token'] ?? null;
+        $accessToken = $this->tokenProvider->getValidAccessToken();
 
         if (!is_string($accessToken) || '' === $accessToken) {
             throw new RuntimeException('No Google OAuth token available for YouTube API.');
         }
 
         return $accessToken;
+    }
+
+    /**
+     * Wraps a JSON GET/POST call, mapping any 4xx/5xx Google response into a
+     * readable RuntimeException (with the original as $previous) instead of
+     * letting Symfony's ClientException/ServerException — whose message is
+     * an opaque "HTTP 401 returned for ..." — reach the controller/worker
+     * unhandled (HMAI-399).
+     *
+     * @param array<string, mixed> $options
+     *
+     * @return array<string, mixed>
+     */
+    private function requestJson(string $method, string $url, array $options): array
+    {
+        try {
+            return $this->httpClient->request($method, $url, $options)->toArray();
+        } catch (ClientExceptionInterface|ServerExceptionInterface $e) {
+            throw new RuntimeException(
+                sprintf('YouTube API error (HTTP %d).', $e->getResponse()->getStatusCode()),
+                0,
+                $e,
+            );
+        }
     }
 
     /**
@@ -136,10 +167,10 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
                 $query['pageToken'] = $pageToken;
             }
 
-            $data = $this->httpClient->request('GET', self::PLAYLIST_ITEMS_URL, [
+            $data = $this->requestJson('GET', self::PLAYLIST_ITEMS_URL, [
                 'headers' => ['Authorization' => 'Bearer '.$token],
                 'query' => $query,
-            ])->toArray();
+            ]);
 
             foreach ($data['items'] ?? [] as $entry) {
                 $snippet = $entry['snippet'] ?? [];
@@ -170,14 +201,14 @@ final readonly class YouTubeApiClient implements YouTubePlaylistReaderInterface,
         $byId = [];
 
         foreach (array_chunk($videoIds, self::VIDEOS_BATCH) as $batch) {
-            $data = $this->httpClient->request('GET', self::VIDEOS_URL, [
+            $data = $this->requestJson('GET', self::VIDEOS_URL, [
                 'headers' => ['Authorization' => 'Bearer '.$token],
                 'query' => [
                     'part' => 'snippet,contentDetails',
                     'id' => implode(',', $batch),
                     'maxResults' => self::VIDEOS_BATCH,
                 ],
-            ])->toArray();
+            ]);
 
             foreach ($data['items'] ?? [] as $entry) {
                 $id = $entry['id'] ?? null;

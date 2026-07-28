@@ -8,7 +8,7 @@ use App\Module\Tasks\Domain\Entity\Task;
 use App\Module\Tasks\Domain\ValueObject\TaskTitle;
 use App\Module\Tasks\Domain\ValueObject\TimeSlot;
 use App\Module\Tasks\Infrastructure\Google\GoogleCalendarService;
-use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
+use App\Shared\Security\GoogleAccessTokenProviderInterface;
 use DateTime;
 use DateTimeImmutable;
 use Google\Client;
@@ -16,32 +16,38 @@ use Google\Service\Exception as GoogleServiceException;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 use TypeError;
 
+/**
+ * Refresh-on-expiry itself is no longer this service's concern (HMAI-399) —
+ * it is delegated to GoogleAccessTokenProviderInterface, whose own behavior
+ * (refresh success/failure, missing refresh token, warnings) is pinned by
+ * GoogleAccessTokenProviderTest. What stays here is: no-token / provider
+ * failure handling around each Calendar operation, and buildEvent() mapping.
+ */
 final class GoogleCalendarServiceTest extends TestCase
 {
     private Client&Stub $client;
-    private GoogleTokenRepositoryInterface&Stub $tokenRepository;
+    private GoogleAccessTokenProviderInterface&Stub $accessTokenProvider;
     private LoggerInterface $logger;
     private GoogleCalendarService $service;
 
     protected function setUp(): void
     {
         $this->client = $this->createStub(Client::class);
-        $this->tokenRepository = $this->createStub(GoogleTokenRepositoryInterface::class);
+        $this->accessTokenProvider = $this->createStub(GoogleAccessTokenProviderInterface::class);
         $this->logger = $this->createStub(LoggerInterface::class);
 
         $this->service = new GoogleCalendarService(
             $this->client,
-            $this->tokenRepository,
+            $this->accessTokenProvider,
             $this->logger,
         );
     }
 
     public function testCreateEventReturnsEmptyStringWhenNoToken(): void
     {
-        $this->tokenRepository->method('get')->willReturn(null);
+        $this->accessTokenProvider->method('getValidAccessToken')->willReturn(null);
 
         $result = $this->service->createEvent($this->makeTask());
 
@@ -50,20 +56,18 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testCreateEventLogsWarningWhenNoToken(): void
     {
-        $this->tokenRepository->method('get')->willReturn(null);
+        $this->accessTokenProvider->method('getValidAccessToken')->willReturn(null);
 
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())->method('warning');
 
-        $service = new GoogleCalendarService($this->client, $this->tokenRepository, $logger);
+        $service = new GoogleCalendarService($this->client, $this->accessTokenProvider, $logger);
         $service->createEvent($this->makeTask());
     }
 
     public function testCreateEventReturnsEmptyStringOnGoogleApiException(): void
     {
-        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok', 'refresh_token' => 'ref']);
-        $this->client->method('setAccessToken')->willReturn(null);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new GoogleServiceException('API error'));
+        $this->accessTokenProvider->method('getValidAccessToken')->willThrowException(new GoogleServiceException('API error'));
 
         $result = $this->service->createEvent($this->makeTask());
 
@@ -72,9 +76,7 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testCreateEventPropagatesProgrammerErrors(): void
     {
-        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('setAccessToken')->willReturn(null);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new TypeError('bug'));
+        $this->accessTokenProvider->method('getValidAccessToken')->willThrowException(new TypeError('bug'));
 
         $this->expectException(TypeError::class);
         $this->service->createEvent($this->makeTask());
@@ -82,7 +84,7 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testUpdateEventDoesNotThrowWhenNoToken(): void
     {
-        $this->tokenRepository->method('get')->willReturn(null);
+        $this->accessTokenProvider->method('getValidAccessToken')->willReturn(null);
         $task = $this->makeTask(googleEventId: 'event-123');
 
         $this->service->updateEvent($task);
@@ -92,8 +94,7 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testUpdateEventDoesNotThrowOnGoogleApiException(): void
     {
-        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new GoogleServiceException('API error'));
+        $this->accessTokenProvider->method('getValidAccessToken')->willThrowException(new GoogleServiceException('API error'));
         $task = $this->makeTask(googleEventId: 'event-123');
 
         $this->service->updateEvent($task);
@@ -103,8 +104,7 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testUpdateEventPropagatesProgrammerErrors(): void
     {
-        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new TypeError('bug'));
+        $this->accessTokenProvider->method('getValidAccessToken')->willThrowException(new TypeError('bug'));
         $task = $this->makeTask(googleEventId: 'event-123');
 
         $this->expectException(TypeError::class);
@@ -113,16 +113,16 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testUpdateEventSkipsWhenNoGoogleEventId(): void
     {
-        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
-        $tokenRepo->expects(self::never())->method('get');
+        $provider = $this->createMock(GoogleAccessTokenProviderInterface::class);
+        $provider->expects(self::never())->method('getValidAccessToken');
 
-        $service = new GoogleCalendarService($this->client, $tokenRepo, $this->logger);
+        $service = new GoogleCalendarService($this->client, $provider, $this->logger);
         $service->updateEvent($this->makeTask());
     }
 
     public function testDeleteEventDoesNotThrowWhenNoToken(): void
     {
-        $this->tokenRepository->method('get')->willReturn(null);
+        $this->accessTokenProvider->method('getValidAccessToken')->willReturn(null);
 
         $this->service->deleteEvent('event-123');
 
@@ -131,8 +131,7 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testDeleteEventDoesNotThrowOnGoogleApiException(): void
     {
-        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new GoogleServiceException('API error'));
+        $this->accessTokenProvider->method('getValidAccessToken')->willThrowException(new GoogleServiceException('API error'));
 
         $this->service->deleteEvent('event-123');
 
@@ -141,107 +140,10 @@ final class GoogleCalendarServiceTest extends TestCase
 
     public function testDeleteEventPropagatesProgrammerErrors(): void
     {
-        $this->tokenRepository->method('get')->willReturn(['access_token' => 'tok']);
-        $this->client->method('isAccessTokenExpired')->willThrowException(new TypeError('bug'));
+        $this->accessTokenProvider->method('getValidAccessToken')->willThrowException(new TypeError('bug'));
 
         $this->expectException(TypeError::class);
         $this->service->deleteEvent('event-123');
-    }
-
-    public function testCreateEventReturnsEmptyStringWhenTokenRefreshFails(): void
-    {
-        $service = new GoogleCalendarService(
-            $this->clientWithFailedRefresh(),
-            $this->tokenRepoWithExpiredToken(),
-            $this->logger,
-        );
-
-        $result = $service->createEvent($this->makeTask());
-
-        self::assertSame('', $result);
-    }
-
-    public function testCreateEventRefreshesExpiredTokenAndPersistsNewToken(): void
-    {
-        $newToken = ['access_token' => 'new-tok', 'expires_in' => 3600];
-
-        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
-        $tokenRepo->method('get')->willReturn(['access_token' => 'expired', 'refresh_token' => 'old-refresh']);
-        $tokenRepo->expects(self::once())->method('save')->with($newToken);
-
-        $client = $this->createMock(Client::class);
-        $client->method('isAccessTokenExpired')->willReturn(true);
-        $client->method('getRefreshToken')->willReturn('old-refresh');
-        $client->expects(self::once())
-            ->method('fetchAccessTokenWithRefreshToken')
-            ->with('old-refresh')
-            ->willReturn($newToken);
-
-        $client->method('getLogger')->willReturn(new NullLogger());
-
-        $client->method('execute')->willThrowException(new GoogleServiceException('no-network'));
-
-        $service = new GoogleCalendarService($client, $tokenRepo, $this->logger);
-        $service->createEvent($this->makeTask());
-    }
-
-    public function testCreateEventReturnsEmptyStringWhenRefreshTokenMissing(): void
-    {
-        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
-        $tokenRepo->method('get')->willReturn(['access_token' => 'expired']);
-        $tokenRepo->expects(self::never())->method('save');
-
-        $client = $this->createStub(Client::class);
-        $client->method('isAccessTokenExpired')->willReturn(true);
-        $client->method('getRefreshToken')->willReturn(null);
-
-        $service = new GoogleCalendarService($client, $tokenRepo, $this->logger);
-
-        self::assertSame('', $service->createEvent($this->makeTask()));
-    }
-
-    public function testCreateEventLogsWarningWhenRefreshTokenMissing(): void
-    {
-        $client = $this->createStub(Client::class);
-        $client->method('isAccessTokenExpired')->willReturn(true);
-        $client->method('getRefreshToken')->willReturn(null);
-
-        $tokenRepo = $this->createStub(GoogleTokenRepositoryInterface::class);
-        $tokenRepo->method('get')->willReturn(['access_token' => 'expired']);
-
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects(self::once())->method('warning')->with(
-            self::stringContains('refresh token missing')
-        );
-
-        $service = new GoogleCalendarService($client, $tokenRepo, $logger);
-        $service->createEvent($this->makeTask());
-    }
-
-    public function testCreateEventDoesNotSaveCorruptedTokenWhenRefreshFails(): void
-    {
-        $tokenRepo = $this->createMock(GoogleTokenRepositoryInterface::class);
-        $tokenRepo->method('get')->willReturn(['access_token' => 'expired', 'refresh_token' => 'revoked-refresh']);
-        $tokenRepo->expects(self::never())->method('save');
-
-        $service = new GoogleCalendarService($this->clientWithFailedRefresh(), $tokenRepo, $this->logger);
-        $service->createEvent($this->makeTask());
-    }
-
-    public function testCreateEventLogsWarningWhenTokenRefreshFails(): void
-    {
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects(self::once())->method('warning')->with(
-            'Google Calendar: token refresh failed, re-authentication required',
-            self::callback(static fn (array $ctx) => 'invalid_grant' === $ctx['error'])
-        );
-
-        $service = new GoogleCalendarService(
-            $this->clientWithFailedRefresh(),
-            $this->tokenRepoWithExpiredToken(),
-            $logger,
-        );
-        $service->createEvent($this->makeTask());
     }
 
     public function testBuildEventMapsTitleAndId(): void
@@ -270,32 +172,6 @@ final class GoogleCalendarServiceTest extends TestCase
             $end->format(DateTime::RFC3339),
             $event->getEnd()->getDateTime()
         );
-    }
-
-    /**
-     * Pre-configured Google Client stub for the "refresh-token-revoked" scenario:
-     * token is reported expired and fetchAccessTokenWithRefreshToken returns
-     * Google's standard error-shaped response instead of a fresh token.
-     */
-    private function clientWithFailedRefresh(): Client
-    {
-        $client = $this->createStub(Client::class);
-        $client->method('isAccessTokenExpired')->willReturn(true);
-        $client->method('getRefreshToken')->willReturn('revoked-refresh');
-        $client->method('fetchAccessTokenWithRefreshToken')->willReturn([
-            'error' => 'invalid_grant',
-            'error_description' => 'Token has been expired or revoked.',
-        ]);
-
-        return $client;
-    }
-
-    private function tokenRepoWithExpiredToken(): GoogleTokenRepositoryInterface
-    {
-        $tokenRepo = $this->createStub(GoogleTokenRepositoryInterface::class);
-        $tokenRepo->method('get')->willReturn(['access_token' => 'expired', 'refresh_token' => 'revoked-refresh']);
-
-        return $tokenRepo;
     }
 
     private function makeTask(
