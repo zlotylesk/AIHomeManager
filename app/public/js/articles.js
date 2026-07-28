@@ -36,27 +36,27 @@ function renderArticle(article, compact = false) {
     const today = isToday(article.addedAt);
     const readBtn = article.isRead
         ? `<span class="read-badge">✓ Read ${formatDate(article.readAt)}</span>`
-        : `<button class="btn btn-secondary btn-sm btn-mark-read" data-id="${article.id}">Mark as Read</button>`;
+        : `<button class="btn btn-secondary btn-sm btn-mark-read" data-id="${escHtml(article.id)}">Mark as Read</button>`;
 
     const safeHref = window.safeUrl(article.url) ?? '#';
 
     return `
-        <div class="article-row${today && !compact ? ' article-today' : ''}" data-id="${article.id}">
+        <div class="article-row${today && !compact ? ' article-today' : ''}" data-id="${escHtml(article.id)}">
             <div class="article-main">
                 <a class="article-title" href="${escHtml(safeHref)}" target="_blank" rel="noopener">
                     ${escHtml(article.title)}${today ? ' <span class="badge-today">Dziś</span>' : ''}
                 </a>
                 <div class="article-meta">
                     ${article.category ? `<span class="tag">${escHtml(article.category)}</span>` : ''}
-                    ${article.estimatedReadTime ? `<span>${article.estimatedReadTime} min read</span>` : ''}
+                    ${article.estimatedReadTime ? `<span>${escHtml(String(article.estimatedReadTime))} min read</span>` : ''}
                     <span>Added ${formatDate(article.addedAt)}</span>
                 </div>
             </div>
             <div class="article-actions">
-                <button class="btn btn-secondary btn-sm btn-view-details" data-id="${article.id}">Details</button>
-                <button class="btn btn-secondary btn-sm btn-edit" data-id="${article.id}">Edit</button>
+                <button class="btn btn-secondary btn-sm btn-view-details" data-id="${escHtml(article.id)}">Details</button>
+                <button class="btn btn-secondary btn-sm btn-edit" data-id="${escHtml(article.id)}">Edit</button>
                 ${readBtn}
-                <button class="btn btn-danger btn-sm btn-delete" data-id="${article.id}">Delete</button>
+                <button class="btn btn-danger btn-sm btn-delete" data-id="${escHtml(article.id)}">Delete</button>
             </div>
         </div>
     `;
