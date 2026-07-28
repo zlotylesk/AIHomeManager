@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Module\YouTubeProgress\Infrastructure\External;
 
 use App\Module\YouTubeProgress\Infrastructure\External\YouTubeApiClient;
-use App\Shared\Security\GoogleTokenProviderInterface;
+use App\Shared\Security\GoogleAccessTokenProviderInterface;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -32,10 +32,10 @@ final class YouTubeApiClientTest extends TestCase
             return $response;
         });
 
-        $tokenRepo = $this->createStub(GoogleTokenProviderInterface::class);
-        $tokenRepo->method('get')->willReturn(null === $accessToken ? null : ['access_token' => $accessToken]);
+        $tokenProvider = $this->createStub(GoogleAccessTokenProviderInterface::class);
+        $tokenProvider->method('getValidAccessToken')->willReturn($accessToken);
 
-        return new YouTubeApiClient($httpClient, $tokenRepo);
+        return new YouTubeApiClient($httpClient, $tokenProvider);
     }
 
     /**
@@ -162,5 +162,27 @@ final class YouTubeApiClientTest extends TestCase
         $this->expectExceptionMessage('No Google OAuth token');
 
         $client->fetchPlaylistVideos('PL_no_token');
+    }
+
+    /**
+     * A 401 (e.g. an access token that expired mid-request, or the provider
+     * handing back a token that was already revoked) must surface as a
+     * readable RuntimeException naming the HTTP status, not Symfony's opaque
+     * ClientException — the controller/worker can then map it consistently
+     * instead of a raw 500 (HMAI-399).
+     */
+    public function testThrowsReadableExceptionOnUnauthorizedResponse(): void
+    {
+        $client = $this->client([
+            new MockResponse(
+                json_encode(['error' => ['code' => 401, 'message' => 'Invalid Credentials']], JSON_THROW_ON_ERROR),
+                ['http_code' => 401, 'response_headers' => ['content-type' => 'application/json']]
+            ),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('HTTP 401');
+
+        $client->fetchPlaylistVideos('PL_unauthorized');
     }
 }

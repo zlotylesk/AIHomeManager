@@ -6,7 +6,7 @@ namespace App\Module\Tasks\Infrastructure\Google;
 
 use App\Module\Tasks\Domain\Entity\Task;
 use App\Module\Tasks\Domain\Port\CalendarServiceInterface;
-use App\Module\Tasks\Infrastructure\Persistence\GoogleTokenRepositoryInterface;
+use App\Shared\Security\GoogleAccessTokenProviderInterface;
 use DateTime;
 use Google\Client;
 use Google\Service\Calendar;
@@ -21,7 +21,7 @@ final readonly class GoogleCalendarService implements CalendarServiceInterface
 {
     public function __construct(
         private Client $client,
-        private GoogleTokenRepositoryInterface $tokenRepository,
+        private GoogleAccessTokenProviderInterface $accessTokenProvider,
         private LoggerInterface $logger,
     ) {
     }
@@ -105,38 +105,22 @@ final readonly class GoogleCalendarService implements CalendarServiceInterface
         return $event;
     }
 
+    /**
+     * Delegates freshness (including refresh-on-expiry) to the shared
+     * GoogleAccessTokenProviderInterface port. Its side effect of calling
+     * $this->client->setAccessToken() on the injected `google.client`
+     * instance is what leaves the client authenticated by the time we build
+     * `new Calendar($this->client)` below — provider and service MUST share
+     * the same Client instance for this to hold.
+     */
     private function prepareAuthenticatedClient(): ?Calendar
     {
-        $tokenData = $this->tokenRepository->get();
+        $token = $this->accessTokenProvider->getValidAccessToken();
 
-        if (null === $tokenData) {
-            $this->logger->warning('Google Calendar: no OAuth token configured, skipping calendar sync');
+        if (null === $token) {
+            $this->logger->warning('Google Calendar: no valid OAuth token available, skipping calendar sync');
 
             return null;
-        }
-
-        $this->client->setAccessToken($tokenData);
-
-        if ($this->client->isAccessTokenExpired()) {
-            $refreshToken = $this->client->getRefreshToken();
-            if (null === $refreshToken) {
-                $this->logger->warning('Google Calendar: refresh token missing, re-authentication required');
-
-                return null;
-            }
-
-            $newToken = $this->client->fetchAccessTokenWithRefreshToken($refreshToken);
-            if (isset($newToken['error'])) {
-                $this->logger->warning('Google Calendar: token refresh failed, re-authentication required', [
-                    'error' => $newToken['error'],
-                    'error_description' => $newToken['error_description'] ?? '',
-                ]);
-
-                return null;
-            }
-
-            $this->tokenRepository->save($newToken);
-            $this->client->setAccessToken($newToken);
         }
 
         return new Calendar($this->client);

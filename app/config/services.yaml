@@ -314,6 +314,18 @@ services:
     App\Shared\Security\GoogleTokenProviderInterface:
         alias: App\Module\Tasks\Infrastructure\Persistence\GoogleOAuthTokenRepository
 
+    # Shared "valid access token" port (HMAI-399): unlike the read-only port
+    # above, this one transparently refreshes an expired Google token. Both
+    # GoogleCalendarService (Tasks) and YouTubeApiClient (YouTubeProgress, via
+    # this Shared abstraction) go through it, so freshness stops depending on
+    # which module happened to touch the shared credential most recently.
+    App\Shared\Security\GoogleAccessTokenProviderInterface:
+        alias: App\Module\Tasks\Infrastructure\Google\GoogleAccessTokenProvider
+
+    App\Module\Tasks\Infrastructure\Google\GoogleAccessTokenProvider:
+        arguments:
+            $client: '@google.client'
+
     App\Module\Tasks\Infrastructure\Google\GoogleCalendarService:
         arguments:
             $client: '@google.client'
