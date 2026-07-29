@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Module\Budget\Domain\Entity\Transaction" table="budget_transactions">
+        <indexes>
+            <index columns="category_id" name="idx_budget_transactions_category_id"/>
+            <index columns="date" name="idx_budget_transactions_date"/>
+        </indexes>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="amount" type="budget_money" column="amount" length="32" nullable="false"/>
+        <field name="date" type="date_immutable" column="date" nullable="false"/>
+        <field name="categoryId" type="string" column="category_id" length="36" nullable="false"/>
+        <field name="type" type="budget_transaction_type" column="type" length="20" nullable="false"/>
+        <field name="description" type="text" column="description" nullable="true"/>
+    </entity>
+
+</doctrine-mapping>
