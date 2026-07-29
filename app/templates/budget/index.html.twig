@@ -18,7 +18,11 @@
                 <option value="PLN" selected>PLN</option>
             </select>
             <input class="budget-input" type="date" data-budget-target="txDate" aria-label="Data" required>
-            <select class="budget-input" data-budget-target="txCategory" aria-label="Kategoria"></select>
+            <select class="budget-input" data-budget-target="txCategory" aria-label="Kategoria"
+                    data-action="change->budget#syncTransactionType"></select>
+            {# The type is derived from the selected category, never picked
+               beside it — a category's type defines which money flow it tracks
+               and the API refuses a transaction that disagrees with it. #}
             <select class="budget-input" data-budget-target="txType" aria-label="Typ"></select>
             <input class="budget-input" type="text" placeholder="Opis (opcjonalnie)"
                    data-budget-target="txDescription" aria-label="Opis">

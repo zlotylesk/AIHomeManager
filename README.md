@@ -1,6 +1,6 @@
 # AIHomeManager
 
-Single-user system for automating everyday activities — television (Series, Movies), calendar (Tasks), reading (Books / Articles), listening (Music, Podcasts), YouTube watching progress (YouTubeProgress), plus the cross-cutting Goals, Search, Dashboard, Notifications and Insights modules. A modular Symfony 8 monolith with hexagonal architecture and CQRS.
+Single-user system for automating everyday activities — television (Series, Movies), calendar (Tasks), reading (Books / Articles), listening (Music, Podcasts), YouTube watching progress (YouTubeProgress), home finances (Budget), plus the cross-cutting Goals, Search, Dashboard, Notifications and Insights modules. A modular Symfony 8 monolith with hexagonal architecture and CQRS.
 
 ---
 
@@ -30,7 +30,7 @@ Single-user system for automating everyday activities — television (Series, Mo
 
 ## About the project
 
-AIHomeManager aggregates one user's everyday activities across thirteen domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: every module built since 1.19.0 uses Webpack Encore + Stimulus (Series, Books, YouTubeProgress, Goals, Search, Dashboard, Movies, Notifications, Podcasts, Insights), while three legacy panels (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
+AIHomeManager aggregates one user's everyday activities across fourteen domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: every module built since 1.19.0 uses Webpack Encore + Stimulus (Series, Books, YouTubeProgress, Goals, Search, Dashboard, Movies, Notifications, Podcasts, Insights, Budget), while three legacy panels (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
 
 **Core principles:**
 
@@ -64,6 +64,7 @@ AIHomeManager aggregates one user's everyday activities across thirteen domain m
 | **Dashboard** | The startup cockpit at `/` — one "today" slice per module (tasks, the daily article, goal snapshots, recommendations, recent tracks), each widget fault-isolated so one failing source degrades to an empty card | — |
 | **Notifications** | Proactive delivery — e-mail + WebPush channels, reactive (domain event) and scheduled triggers, per-type/per-channel opt-in with quiet hours | Symfony Mailer, WebPush + VAPID |
 | **Insights** | The trends dashboard at `/insights` — reading pace, episodes and YouTube minutes watched, tracks played and the task completion rate, charted per week or month. Read-only: no tables of its own, every metric read through a DBAL adapter behind one port and fault-isolated per metric | — |
+| **Budget** | Home finances at `/budget` — a transaction ledger with categories and monthly spending limits, a monthly income/expense/balance report with a spend-vs-limit breakdown per category, and CSV/PDF export. Amounts are stored as whole minor units (grosze), never floats, so a month of summed transactions cannot drift on rounding; a category's type is immutable and a transaction filed under it must match it | — |
 
 ---
 
@@ -190,7 +191,7 @@ Required — without `entrypoints.json` Twig throws 500 on the `encore_entry_*` 
 | Search engine (OpenSearch) | http://localhost:9200 — the app-data instance, separate from Graylog's |
 | Graylog (optional) | http://localhost:9000 (admin/admin) — requires `make monitoring-up` |
 
-UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`, `/insights`. Global search lives in the navbar on every page.
+UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`, `/insights`, `/budget`. Global search lives in the navbar on every page.
 
 ### 5. (Optional) load fixtures + verify tests
 
@@ -615,9 +616,9 @@ The index holds one document per searchable entity, not a history — its size t
 │   │   ├── Http/                   ← RateLimitedHttpClient
 │   │   ├── Logging/                ← Monolog processors, request-id holder
 │   │   ├── Messaging/              ← typed Query/Command bus + Messenger middleware
-│   │   ├── Module/                 ← 13 modules (Series, Tasks, Books, Articles, Music,
+│   │   ├── Module/                 ← 14 modules (Series, Tasks, Books, Articles, Music,
 │   │   │   │                          YouTubeProgress, Goals, Search, Dashboard,
-│   │   │   │                          Movies, Notifications, Podcasts, Insights)
+│   │   │   │                          Movies, Notifications, Podcasts, Insights, Budget)
 │   │   │   └── {Name}/{Domain,Application,Infrastructure}/
 │   │   ├── Schedule.php
 │   │   ├── Security/

@@ -6,9 +6,9 @@ namespace App\Module\Budget\Application\QueryHandler;
 
 use App\Module\Budget\Application\DTO\TransactionDTO;
 use App\Module\Budget\Application\MoneyColumn;
+use App\Module\Budget\Application\MonthRange;
 use App\Module\Budget\Application\Query\GetTransactions;
 use App\Module\Budget\Domain\Enum\TransactionType;
-use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use InvalidArgumentException;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -27,14 +27,11 @@ final readonly class GetTransactionsHandler
         $params = [];
 
         if (null !== $query->month) {
-            $monthStart = DateTimeImmutable::createFromFormat('!Y-m', $query->month);
-            if (false === $monthStart) {
-                throw new InvalidArgumentException(sprintf('Invalid month "%s", expected YYYY-MM.', $query->month));
-            }
+            $range = MonthRange::fromMonth($query->month);
 
             $conditions[] = 'date >= :monthStart AND date < :monthEnd';
-            $params['monthStart'] = $monthStart->format('Y-m-d');
-            $params['monthEnd'] = $monthStart->modify('+1 month')->format('Y-m-d');
+            $params['monthStart'] = $range->startDate();
+            $params['monthEnd'] = $range->endExclusiveDate();
         }
 
         if (null !== $query->categoryId) {

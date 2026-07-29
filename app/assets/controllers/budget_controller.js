@@ -6,6 +6,7 @@ import {
     currentMonth,
     limitLabel,
     moneyLabel,
+    typeForCategory,
     typeLabel,
 } from '../budget/format.js';
 
@@ -13,6 +14,15 @@ function optionsHtml(values, labelFn, selected = null) {
     return values
         .map((v) => `<option value="${escHtml(v)}"${v === selected ? ' selected' : ''}>${escHtml(labelFn(v))}</option>`)
         .join('');
+}
+
+// The edit row's type follows its category the same way the create form's does.
+// It falls back to the stored type when the category is unknown to the loaded
+// list, so an inline edit never blanks out a transaction's own type.
+function editTypeOptionsHtml(categories, categoryId, storedType) {
+    const type = typeForCategory(categories, categoryId) ?? storedType;
+
+    return optionsHtml([type], typeLabel, type);
 }
 
 function categoryOptionsHtml(categories, selected = null) {
@@ -107,7 +117,9 @@ export default class extends Controller {
     categories = [];
 
     connect() {
-        this.txTypeTarget.innerHTML = optionsHtml(TRANSACTION_TYPES, typeLabel);
+        // txType is deliberately NOT populated with both types here — it is
+        // filled from the selected category by syncTransactionType(), because a
+        // transaction's type is decided by the category it is filed under.
         this.categoryTypeTarget.innerHTML = optionsHtml(TRANSACTION_TYPES, typeLabel);
         this.filterTypeTarget.insertAdjacentHTML('beforeend', optionsHtml(TRANSACTION_TYPES, typeLabel));
 
@@ -159,9 +171,23 @@ export default class extends Controller {
             this.filterCategoryTarget.innerHTML = '<option value="">Wszystkie</option>'
                 + categoryOptionsHtml(this.categories, selectedFilter);
             this.txCategoryTarget.innerHTML = categoryOptionsHtml(this.categories);
+            this.syncTransactionType();
         } catch {
             this.showError('Nie udało się wczytać kategorii.');
         }
+    }
+
+    /**
+     * Keeps the transaction form's type in step with the chosen category. The
+     * select is filled with that category's type alone rather than both, so the
+     * combination the API refuses — an income transaction under an expense
+     * category — cannot be assembled in the first place. Letting the user build
+     * it and then explaining the 422 would be the same mistake in a nicer
+     * wrapper.
+     */
+    syncTransactionType() {
+        const type = typeForCategory(this.categories, this.txCategoryTarget.value);
+        this.txTypeTarget.innerHTML = null === type ? '' : optionsHtml([type], typeLabel, type);
     }
 
     async loadTransactions() {
@@ -342,13 +368,24 @@ export default class extends Controller {
 
         row.innerHTML = `
             <input type="date" class="budget-input js-edit-date" value="${escHtml(date)}">
-            <select class="budget-input js-edit-category">${categoryOptionsHtml(this.categories, categoryId)}</select>
-            <select class="budget-input js-edit-type">${optionsHtml(TRANSACTION_TYPES, typeLabel, type)}</select>
+            <select class="budget-input js-edit-category" data-action="change->budget#syncEditType">${categoryOptionsHtml(this.categories, categoryId)}</select>
+            <select class="budget-input js-edit-type">${editTypeOptionsHtml(this.categories, categoryId, type)}</select>
             <input type="number" step="0.01" min="0.01" class="budget-input js-edit-amount" placeholder="Kwota" value="${escHtml(amount)}">
             <input type="text" class="budget-input js-edit-description" placeholder="Opis" value="${escHtml(description)}">
             <button class="btn btn-primary btn-sm" data-id="${escHtml(id)}" data-action="click->budget#saveTransactionEdit">Zapisz</button>
             <button class="btn btn-secondary btn-sm" data-action="click->budget#loadTransactions">Anuluj</button>
         `;
+    }
+
+    syncEditType(event) {
+        const row = event.target.closest('.budget-transaction-row');
+        if (!row) {
+            return;
+        }
+        const select = row.querySelector('.js-edit-type');
+        if (select) {
+            select.innerHTML = editTypeOptionsHtml(this.categories, event.target.value, select.value);
+        }
     }
 
     async saveTransactionEdit(event) {

@@ -39,6 +39,8 @@ nelmio_api_doc:
               description: 'Habit trends over time — one time series per metric (pages read, episodes watched, YouTube minutes, tracks played, task completion rate), bucketed by week or month. Orthogonal to the Dashboard cockpit: this answers "how has this been going", not "what about today".'
             - name: Dashboard
               description: 'Startup cockpit — one landing read-model aggregating each module''s "today" slice: pending tasks, the article of the day, goal snapshots with streaks, continue-watching/reading suggestions and recent listening.'
+            - name: Budget
+              description: 'Home finances — a transaction ledger with categories and monthly spending limits, a monthly income/expense/balance report with a spend-vs-limit breakdown, and CSV/PDF export. Amounts are whole minor units (grosze), never decimals, so a month of summed transactions cannot drift on float rounding.'
         # Every operation requires the API key by default. Public endpoints
         # (the health probe) opt out with an empty `security: []` override —
         # mirroring ApiKeyAuthenticator::supports(). The documentation routes

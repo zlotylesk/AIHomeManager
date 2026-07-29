@@ -117,6 +117,117 @@ final class BudgetApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
+    /**
+     * The epic review's headline defect. A transaction's type and its
+     * category's type were each validated in isolation and never against each
+     * other, and the two halves of the module then read the same row
+     * differently: the list and the CSV export filter on the *transaction's*
+     * type, while the monthly report attributes a category's whole SUM to the
+     * *category's* type (grouping by category is the only way to produce the
+     * spend-vs-limit breakdown in one query). So 100 zł of income booked under
+     * an expense category came back 201 Created, listed as income, counted as
+     * an expense, and left the month's balance wrong by 200 zł — with no
+     * signal anywhere.
+     */
+    public function testTransactionTypeMustMatchItsCategoryType(): void
+    {
+        $expenseCategory = $this->createCategory(['name' => 'Groceries', 'type' => 'expense']);
+
+        $this->client->request('POST', '/api/budget/transactions', content: (string) json_encode([
+            'amountInCents' => 10000, 'date' => '2026-07-10', 'categoryId' => $expenseCategory, 'type' => 'income',
+        ]));
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString('cannot mix income and expense', (string) $this->client->getResponse()->getContent());
+
+        // Nothing was written, so the report cannot have been polluted.
+        $this->client->request('GET', '/api/budget/report?month=2026-07');
+        $report = $this->jsonResponse($this->client);
+        self::assertSame(0, $report['totalIncomeInCents']);
+        self::assertSame(0, $report['totalExpensesInCents']);
+        self::assertSame(0, $report['balanceInCents']);
+
+        // The same guard applies to an edit: an existing, well-formed
+        // transaction must not be able to drift into the wrong category type.
+        $incomeCategory = $this->createCategory(['name' => 'Salary', 'type' => 'income']);
+        $id = $this->createTransaction(['categoryId' => $expenseCategory]);
+
+        $this->client->request('PATCH', '/api/budget/transactions/'.$id, content: (string) json_encode([
+            'amountInCents' => 4999, 'currency' => 'PLN', 'date' => '2026-07-15', 'categoryId' => $incomeCategory, 'type' => 'expense',
+        ]));
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    /**
+     * Moving a transaction to a category of the matching type stays allowed —
+     * the guard must not have closed the legitimate re-filing path with the
+     * illegitimate one.
+     */
+    public function testATransactionCanBeMovedBetweenCategoriesOfTheSameType(): void
+    {
+        $groceries = $this->createCategory(['name' => 'Groceries', 'type' => 'expense']);
+        $bills = $this->createCategory(['name' => 'Bills', 'type' => 'expense']);
+        $id = $this->createTransaction(['categoryId' => $groceries]);
+
+        $this->client->request('PATCH', '/api/budget/transactions/'.$id, content: (string) json_encode([
+            'amountInCents' => 4999, 'currency' => 'PLN', 'date' => '2026-07-15', 'categoryId' => $bills, 'type' => 'expense',
+        ]));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', '/api/budget/transactions');
+        self::assertSame($bills, $this->jsonResponse($this->client)[0]['categoryId']);
+    }
+
+    /**
+     * PHP's createFromFormat rolls an impossible date over instead of
+     * rejecting it, so "2026-02-31" used to be accepted with a 201 and stored
+     * as 2026-03-03 — money silently booked into the following month, leaving
+     * February's report short and March's long with nothing reporting a
+     * problem. The transaction must be refused outright.
+     */
+    public function testAnImpossibleDateIsRejectedRatherThanRolledIntoTheNextMonth(): void
+    {
+        $categoryId = $this->createCategory();
+
+        foreach (['2026-02-31', '2026-13-01', '2026-00-10', '2026-1-5', '15-07-2026'] as $date) {
+            $this->client->request('POST', '/api/budget/transactions', content: (string) json_encode([
+                'amountInCents' => 5000, 'date' => $date, 'categoryId' => $categoryId, 'type' => 'expense',
+            ]));
+            self::assertResponseStatusCodeSame(422, sprintf('The date "%s" must be refused.', $date));
+        }
+
+        $this->client->request('GET', '/api/budget/transactions');
+        self::assertCount(0, $this->jsonResponse($this->client), 'No impossible date may have reached the ledger.');
+    }
+
+    /**
+     * The same leniency reached every month-shaped parameter: `month=2026-13`
+     * used to answer 200 with January 2027's figures labelled "2026-13" — a
+     * wrong answer presented as a correct one. All three readers (list, report,
+     * export) now share one strict parse.
+     */
+    public function testAnImpossibleMonthIsRejectedEverywhereItIsAccepted(): void
+    {
+        $categoryId = $this->createCategory();
+        $this->createTransaction(['categoryId' => $categoryId, 'date' => '2027-01-15']);
+
+        foreach (['2026-13', '2026-00', '2026-7', '2026-07-15'] as $month) {
+            $this->client->request('GET', '/api/budget/report?month='.$month);
+            self::assertResponseStatusCodeSame(422, sprintf('The report must refuse the month "%s".', $month));
+
+            $this->client->request('GET', '/api/budget/transactions?month='.$month);
+            self::assertResponseStatusCodeSame(422, sprintf('The list must refuse the month "%s".', $month));
+
+            $this->client->request('GET', '/api/budget/export?month='.$month);
+            self::assertResponseStatusCodeSame(422, sprintf('The export must refuse the month "%s".', $month));
+        }
+
+        // The January data a rolled-over "2026-13" would have leaked is real
+        // and still reachable under its own correct month.
+        $this->client->request('GET', '/api/budget/transactions?month=2027-01');
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $this->jsonResponse($this->client));
+    }
+
     public function testUpdateTransactionReturns404ForUnknownId(): void
     {
         $this->client->request('PATCH', '/api/budget/transactions/'.self::UNKNOWN_UUID, content: (string) json_encode([

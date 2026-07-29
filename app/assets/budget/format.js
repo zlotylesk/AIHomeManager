@@ -49,6 +49,19 @@ export function clampPercent(percentUsed) {
     return Math.min(100, Math.max(0, Math.round(value)));
 }
 
+// A transaction's income/expense type is decided by the category it is filed
+// under, not chosen alongside it: a category's type is immutable precisely
+// because it defines which money flow the category tracks, and the API rejects
+// a transaction whose type disagrees with it. Offering the two as independent
+// pickers let the user build a combination that could only ever be refused, so
+// the form derives the type from here instead. Returns null when no category is
+// selected yet (the empty form on first paint).
+export function typeForCategory(categories, categoryId) {
+    const category = (categories || []).find((c) => c && c.id === categoryId);
+
+    return category ? category.type : null;
+}
+
 // YYYY-MM for the month filters/report picker default. Accepts a Date for
 // testability rather than always reading the system clock.
 export function currentMonth(date = new Date()) {

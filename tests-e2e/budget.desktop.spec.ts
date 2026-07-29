@@ -190,6 +190,27 @@ test.describe('Budget', () => {
     await expect(noLimitRow.locator('.budget-report-nolimit')).toContainText('Bez limitu');
   });
 
+  // A transaction's type follows its category rather than being picked beside
+  // it: the category's type defines which money flow it tracks, and the API
+  // refuses a transaction that disagrees. Offering both types regardless of the
+  // category let the user assemble a request that could only ever be rejected —
+  // and, before the guard existed, one that silently reversed the month's
+  // balance. The form must therefore never offer the wrong one at all.
+  test('derives the transaction type from the selected category', async ({ page }) => {
+    await installBudgetBackend(page);
+    await gotoBudget(page);
+
+    const type = page.locator('[data-budget-target="txType"]');
+
+    await page.locator('[data-budget-target="txCategory"]').selectOption('cat-1');
+    await expect(type.locator('option')).toHaveCount(1);
+    await expect(type).toHaveValue('expense');
+
+    await page.locator('[data-budget-target="txCategory"]').selectOption('cat-2');
+    await expect(type.locator('option')).toHaveCount(1);
+    await expect(type).toHaveValue('income');
+  });
+
   test('filters the transaction list by category', async ({ page }) => {
     await installBudgetBackend(page);
     await gotoBudget(page);
