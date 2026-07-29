@@ -57,4 +57,47 @@ final class TransactionTest extends TestCase
 
         new Transaction('t-0003', new Money(100), new DateTimeImmutable(), '', TransactionType::INCOME);
     }
+
+    public function testUpdateReplacesAllEditableFields(): void
+    {
+        $transaction = new Transaction('t-0004', new Money(100), new DateTimeImmutable('2026-01-01'), 'c-old', TransactionType::EXPENSE, 'Old');
+
+        $newAmount = new Money(999900, 'EUR');
+        $newDate = new DateTimeImmutable('2026-07-20');
+        $transaction->update($newAmount, $newDate, 'c-new', TransactionType::INCOME, 'New');
+
+        self::assertSame($newAmount, $transaction->amount());
+        self::assertSame($newDate, $transaction->date());
+        self::assertSame('c-new', $transaction->categoryId());
+        self::assertSame(TransactionType::INCOME, $transaction->type());
+        self::assertSame('New', $transaction->description());
+    }
+
+    public function testUpdateLeavesIdUntouched(): void
+    {
+        $transaction = new Transaction('t-0005', new Money(100), new DateTimeImmutable(), 'c-old', TransactionType::EXPENSE);
+
+        $transaction->update(new Money(200), new DateTimeImmutable(), 'c-new', TransactionType::INCOME, null);
+
+        self::assertSame('t-0005', $transaction->id());
+    }
+
+    public function testUpdateRejectsEmptyCategoryId(): void
+    {
+        $transaction = new Transaction('t-0006', new Money(100), new DateTimeImmutable(), 'c-old', TransactionType::EXPENSE);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Transaction category id cannot be empty.');
+
+        $transaction->update(new Money(100), new DateTimeImmutable(), '', TransactionType::EXPENSE, null);
+    }
+
+    public function testUpdateCanClearDescription(): void
+    {
+        $transaction = new Transaction('t-0007', new Money(100), new DateTimeImmutable(), 'c-old', TransactionType::EXPENSE, 'Has a note');
+
+        $transaction->update(new Money(100), new DateTimeImmutable(), 'c-old', TransactionType::EXPENSE, null);
+
+        self::assertNull($transaction->description());
+    }
 }
