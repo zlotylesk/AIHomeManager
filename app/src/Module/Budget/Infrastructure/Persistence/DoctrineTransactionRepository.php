@@ -31,6 +31,15 @@ final readonly class DoctrineTransactionRepository implements TransactionReposit
         return $this->entityManager->createQuery('SELECT t FROM '.Transaction::class.' t')->getResult();
     }
 
+    public function existsForCategory(string $categoryId): bool
+    {
+        $count = $this->entityManager->createQuery(
+            'SELECT COUNT(t.id) FROM '.Transaction::class.' t WHERE t.categoryId = :categoryId'
+        )->setParameter('categoryId', $categoryId)->getSingleScalarResult();
+
+        return $count > 0;
+    }
+
     public function remove(Transaction $transaction): void
     {
         $this->entityManager->remove($transaction);

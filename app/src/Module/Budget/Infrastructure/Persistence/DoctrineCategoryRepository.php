@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Budget\Infrastructure\Persistence;
 
 use App\Module\Budget\Domain\Entity\Category;
+use App\Module\Budget\Domain\Enum\TransactionType;
 use App\Module\Budget\Domain\Repository\CategoryRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -29,6 +30,11 @@ final readonly class DoctrineCategoryRepository implements CategoryRepositoryInt
     public function findAll(): array
     {
         return $this->entityManager->createQuery('SELECT c FROM '.Category::class.' c')->getResult();
+    }
+
+    public function findByNameAndType(string $name, TransactionType $type): ?Category
+    {
+        return $this->entityManager->getRepository(Category::class)->findOneBy(['name' => $name, 'type' => $type]);
     }
 
     public function remove(Category $category): void
