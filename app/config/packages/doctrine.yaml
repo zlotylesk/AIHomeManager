@@ -3,6 +3,8 @@ doctrine:
         url: '%env(resolve:DATABASE_URL)%'
         schema_filter: '~^(?!google_oauth_tokens|discogs_oauth_tokens|trakt_oauth_tokens|spotify_oauth_tokens|watch_session_videos|search_documents)~'
         types:
+            budget_money: App\Module\Budget\Infrastructure\Persistence\Doctrine\Type\MoneyType
+            budget_transaction_type: App\Module\Budget\Infrastructure\Persistence\Doctrine\Type\TransactionTypeType
             task_status: App\Module\Tasks\Infrastructure\Persistence\Doctrine\Type\TaskStatusType
             book_status: App\Module\Books\Infrastructure\Persistence\Doctrine\Type\BookStatusType
             series_status: App\Module\Series\Infrastructure\Persistence\Doctrine\Type\SeriesStatusType
@@ -23,6 +25,11 @@ doctrine:
         naming_strategy: doctrine.orm.naming_strategy.underscore
         auto_mapping: false
         mappings:
+            BudgetDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Budget/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Budget\Domain\Entity'
             SeriesDomainEntities:
                 is_bundle: false
                 type: xml
