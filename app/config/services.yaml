@@ -88,6 +88,12 @@ services:
 
     App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler: ~
 
+    App\Module\Budget\Domain\Repository\TransactionRepositoryInterface:
+        alias: App\Module\Budget\Infrastructure\Persistence\DoctrineTransactionRepository
+
+    App\Module\Budget\Domain\Repository\CategoryRepositoryInterface:
+        alias: App\Module\Budget\Infrastructure\Persistence\DoctrineCategoryRepository
+
     App\Module\Tasks\Domain\Repository\TaskRepositoryInterface:
         alias: App\Module\Tasks\Infrastructure\Persistence\DoctrineTaskRepository
 
