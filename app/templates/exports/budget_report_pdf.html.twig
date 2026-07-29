@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: "DejaVu Sans", sans-serif; font-size: 10pt; }
+        h1 { font-size: 16pt; margin-bottom: 8pt; }
+        h2 { font-size: 12pt; margin: 10pt 0 4pt; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 4pt 6pt; text-align: left; }
+        th { background-color: #e0e0e0; font-weight: bold; }
+        .right { text-align: right; }
+        .totals td { border: 1px solid #333; }
+        .over { background-color: #fdecea; font-weight: bold; }
+        .footer { margin-top: 10pt; font-size: 8pt; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Budget Report &mdash; {{ month }}</h1>
+
+    <h2>Summary</h2>
+    <table class="totals">
+        <tr><td>Income</td><td class="right">{{ totalIncome }}</td></tr>
+        <tr><td>Expenses</td><td class="right">{{ totalExpenses }}</td></tr>
+        <tr><td><strong>Balance</strong></td><td class="right"><strong>{{ balance }}</strong></td></tr>
+    </table>
+
+    <h2>Categories</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Type</th>
+                <th class="right">Spent</th>
+                <th class="right">Monthly Limit</th>
+                <th>Limit Currency</th>
+                <th class="right">% Used</th>
+                <th>Over Limit</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr{% if row.overLimit == '1' %} class="over"{% endif %}>
+                <td>{{ row.category }}</td>
+                <td>{{ row.type }}</td>
+                <td class="right">{{ row.spent }}</td>
+                <td class="right">{{ row.monthlyLimit }}</td>
+                <td>{{ row.limitCurrency }}</td>
+                <td class="right">{{ row.percentUsed }}</td>
+                <td>{{ row.overLimit == '1' ? 'yes' : 'no' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7">No categories found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="footer">Generated {{ 'now'|date('Y-m-d H:i') }} &mdash; AIHomeManager</p>
+</body>
+</html>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\Budget\BudgetRequestParser;
+use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Budget\Application\Command\AddTransaction;
@@ -15,6 +16,7 @@ use App\Module\Budget\Application\Command\RenameCategory;
 use App\Module\Budget\Application\Command\SetMonthlyLimit;
 use App\Module\Budget\Application\Command\UpdateTransaction;
 use App\Module\Budget\Application\DTO\CategoryDTO;
+use App\Module\Budget\Application\DTO\MonthlyBudgetReportDTO;
 use App\Module\Budget\Application\DTO\TransactionDTO;
 use App\Module\Budget\Application\Exception\CategoryHasTransactionsException;
 use App\Module\Budget\Application\Exception\CategoryNameAlreadyTakenException;
@@ -23,6 +25,8 @@ use App\Module\Budget\Application\Exception\TransactionNotFoundException;
 use App\Module\Budget\Application\Query\GetCategories;
 use App\Module\Budget\Application\Query\GetMonthlyBudgetReport;
 use App\Module\Budget\Application\Query\GetTransactions;
+use App\Module\Budget\Application\Service\BudgetCsvExporter;
+use App\Pdf\PdfBuilder;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -204,6 +208,101 @@ final class BudgetController extends AbstractController
         }
 
         return new JsonResponse($this->normalizer->normalize($report));
+    }
+
+    /**
+     * CSV/PDF export of either the ledger or the monthly report (the
+     * Tasks/Articles export pattern). The report half goes through query.bus
+     * rather than being re-queried in the exporter, so the exported figures
+     * cannot drift from the ones `/budget/report` serves; the transaction half
+     * streams from the exporter, since the ledger has no natural size bound.
+     */
+    #[Route('/export', methods: ['GET'])]
+    public function export(Request $request, BudgetCsvExporter $exporter, PdfBuilder $pdfBuilder): Response
+    {
+        $dataset = $this->parser->exportDataset($request);
+        $format = $this->parser->exportFormat($request);
+
+        return 'report' === $dataset
+            ? $this->exportReport($request, $exporter, $pdfBuilder, $format)
+            : $this->exportTransactions($request, $exporter, $pdfBuilder, $format);
+    }
+
+    private function exportTransactions(Request $request, BudgetCsvExporter $exporter, PdfBuilder $pdfBuilder, string $format): Response
+    {
+        $month = $this->parser->optionalMonth($request);
+        $categoryId = $this->parser->optionalCategoryId($request);
+        $type = $this->parser->optionalType($request);
+
+        try {
+            if ('csv' === $format) {
+                return self::attachment(
+                    CsvBuilder::build(BudgetCsvExporter::TRANSACTION_HEADERS, $exporter->transactionRows($month, $categoryId, $type)),
+                    'text/csv; charset=UTF-8',
+                    'budget-transactions.csv',
+                );
+            }
+
+            $rows = [];
+            foreach ($exporter->transactionRows($month, $categoryId, $type) as $row) {
+                $rows[] = array_combine(BudgetCsvExporter::TRANSACTION_HEADERS, $row);
+            }
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return self::attachment(
+            $pdfBuilder->build('exports/budget_transactions_pdf.html.twig', ['rows' => $rows, 'month' => $month]),
+            'application/pdf',
+            'budget-transactions.pdf',
+        );
+    }
+
+    private function exportReport(Request $request, BudgetCsvExporter $exporter, PdfBuilder $pdfBuilder, string $format): Response
+    {
+        $month = $this->parser->requireMonth($request);
+
+        try {
+            /** @var MonthlyBudgetReportDTO $report */
+            $report = $this->queryBus->ask(new GetMonthlyBudgetReport($month));
+        } catch (HandlerFailedException $e) {
+            return $this->mapReadFailure($e);
+        }
+
+        if ('csv' === $format) {
+            return self::attachment(
+                CsvBuilder::build(BudgetCsvExporter::REPORT_HEADERS, $exporter->reportRows($report)),
+                'text/csv; charset=UTF-8',
+                'budget-report.csv',
+            );
+        }
+
+        $rows = [];
+        foreach ($exporter->reportRows($report) as $row) {
+            $rows[] = array_combine(BudgetCsvExporter::REPORT_HEADERS, $row);
+        }
+
+        $totals = $exporter->reportTotals($report);
+
+        return self::attachment(
+            $pdfBuilder->build('exports/budget_report_pdf.html.twig', [
+                'rows' => $rows,
+                'month' => $report->month,
+                'totalIncome' => $totals['income'],
+                'totalExpenses' => $totals['expenses'],
+                'balance' => $totals['balance'],
+            ]),
+            'application/pdf',
+            'budget-report.pdf',
+        );
+    }
+
+    private static function attachment(string $body, string $contentType, string $filename): Response
+    {
+        return new Response($body, Response::HTTP_OK, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'attachment; filename='.$filename,
+        ]);
     }
 
     private function mapWriteFailure(HandlerFailedException $e): JsonResponse

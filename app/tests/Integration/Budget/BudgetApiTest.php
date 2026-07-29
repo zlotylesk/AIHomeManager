@@ -213,6 +213,141 @@ final class BudgetApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testExportsTransactionsAsCsv(): void
+    {
+        $categoryId = $this->createCategory(['name' => 'Groceries', 'type' => 'expense']);
+        $this->createTransaction(['categoryId' => $categoryId, 'amountInCents' => 499900, 'description' => 'Zakupy']);
+
+        $this->client->request('GET', '/api/budget/export');
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('Content-Type', 'text/csv; charset=UTF-8');
+        self::assertStringContainsString('budget-transactions.csv', (string) $this->client->getResponse()->headers->get('Content-Disposition'));
+
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('date,category,type,amount,currency,description', $body);
+        // The category name, not its UUID — a CSV of ids is useless to a human.
+        self::assertStringContainsString('Groceries', $body);
+        // Decimal units, not the stored 499900 grosze.
+        self::assertStringContainsString('4999.00', $body);
+        self::assertStringContainsString('Zakupy', $body);
+    }
+
+    public function testExportsTransactionsAsPdf(): void
+    {
+        $this->createTransaction();
+
+        $this->client->request('GET', '/api/budget/export?format=pdf');
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('Content-Type', 'application/pdf');
+        self::assertStringContainsString('budget-transactions.pdf', (string) $this->client->getResponse()->headers->get('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testTransactionExportHonoursTheMonthFilter(): void
+    {
+        $categoryId = $this->createCategory();
+        $this->createTransaction(['categoryId' => $categoryId, 'date' => '2026-07-15', 'description' => 'W lipcu']);
+        $this->createTransaction(['categoryId' => $categoryId, 'date' => '2026-06-15', 'description' => 'W czerwcu']);
+
+        $this->client->request('GET', '/api/budget/export?month=2026-07');
+        $body = (string) $this->client->getResponse()->getContent();
+
+        self::assertStringContainsString('W lipcu', $body);
+        self::assertStringNotContainsString('W czerwcu', $body);
+    }
+
+    public function testExportsMonthlyReportAsCsv(): void
+    {
+        $categoryId = $this->createCategory(['name' => 'Groceries', 'type' => 'expense']);
+        $this->client->request('PATCH', '/api/budget/categories/'.$categoryId.'/limit', content: (string) json_encode(['amountInCents' => 10000, 'currency' => 'PLN']));
+        $this->createTransaction(['categoryId' => $categoryId, 'amountInCents' => 15000, 'date' => '2026-07-05']);
+
+        $this->client->request('GET', '/api/budget/export?dataset=report&month=2026-07');
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('Content-Type', 'text/csv; charset=UTF-8');
+        self::assertStringContainsString('budget-report.csv', (string) $this->client->getResponse()->headers->get('Content-Disposition'));
+
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('category,type,spent,monthlyLimit,limitCurrency,percentUsed,overLimit', $body);
+        self::assertStringContainsString('Groceries', $body);
+        // 15000 spent against a 10000 limit — decimal units throughout, and the
+        // over-limit flag carries a 1. Asserted from the type column on, so the
+        // name's CSV quoting (see the test below) cannot make this brittle.
+        self::assertStringContainsString(',expense,150.00,100.00,PLN,150.00,1', $body);
+    }
+
+    /**
+     * fputcsv quotes any field containing a space, so a multi-word category
+     * name reaches the file as `"Rachunki domowe"`. That is RFC 4180-valid and
+     * what Excel expects, but it is worth pinning: anything asserting on whole
+     * exported rows (the Newman collection does) breaks the day a fixture name
+     * gains a space unless the quoting is a known, tested property.
+     */
+    public function testExportQuotesFieldsContainingSpaces(): void
+    {
+        $categoryId = $this->createCategory(['name' => 'Rachunki domowe', 'type' => 'expense']);
+        $this->createTransaction(['categoryId' => $categoryId, 'amountInCents' => 5000, 'description' => 'Prad i woda']);
+
+        $this->client->request('GET', '/api/budget/export');
+        $body = (string) $this->client->getResponse()->getContent();
+
+        self::assertStringContainsString('"Rachunki domowe"', $body);
+        self::assertStringContainsString('"Prad i woda"', $body);
+    }
+
+    public function testExportsMonthlyReportAsPdf(): void
+    {
+        $this->createCategory();
+
+        $this->client->request('GET', '/api/budget/export?dataset=report&month=2026-07&format=pdf');
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('Content-Type', 'application/pdf');
+        self::assertStringContainsString('budget-report.pdf', (string) $this->client->getResponse()->headers->get('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testReportExportKeepsACategoryWithNoActivity(): void
+    {
+        $this->createCategory(['name' => 'Nietknieta', 'type' => 'expense']);
+
+        $this->client->request('GET', '/api/budget/export?dataset=report&month=2026-07');
+        $body = (string) $this->client->getResponse()->getContent();
+
+        // A category nobody spent against must still be a row (zeroed), not
+        // silently dropped from the export.
+        self::assertStringContainsString('Nietknieta,expense,0.00', $body);
+    }
+
+    public function testExportRejects422OnUnknownDatasetOrFormat(): void
+    {
+        $this->client->request('GET', '/api/budget/export?dataset=nonsense');
+        self::assertResponseStatusCodeSame(422);
+
+        $this->client->request('GET', '/api/budget/export?format=xlsx');
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testReportExportRequiresAMonth(): void
+    {
+        $this->client->request('GET', '/api/budget/export?dataset=report');
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testTransactionExportRejects422OnAMalformedMonth(): void
+    {
+        $this->client->request('GET', '/api/budget/export?month=lipiec');
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testExportIsEmptyButWellFormedWithNoData(): void
+    {
+        $this->client->request('GET', '/api/budget/export');
+        self::assertResponseIsSuccessful();
+
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('date,category,type,amount,currency,description', $body);
+    }
+
     public function testVersionedAndAliasPathsAgree(): void
     {
         $this->client->request('GET', '/api/v1/budget/categories');
