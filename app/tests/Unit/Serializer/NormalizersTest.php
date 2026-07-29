@@ -8,6 +8,10 @@ use App\Module\Articles\Application\DTO\ArticleDTO;
 use App\Module\Books\Application\DTO\BookDetailDTO;
 use App\Module\Books\Application\DTO\BookDTO;
 use App\Module\Books\Application\DTO\ReadingSessionDTO;
+use App\Module\Budget\Application\DTO\CategoryBudgetDTO;
+use App\Module\Budget\Application\DTO\CategoryDTO;
+use App\Module\Budget\Application\DTO\MonthlyBudgetReportDTO;
+use App\Module\Budget\Application\DTO\TransactionDTO;
 use App\Module\Dashboard\Application\DTO\DashboardDTO;
 use App\Module\Dashboard\Domain\ReadModel\DailyArticle;
 use App\Module\Dashboard\Domain\ReadModel\GoalSnapshot;
@@ -44,9 +48,12 @@ use App\Serializer\AlbumDTONormalizer;
 use App\Serializer\ArticleDTONormalizer;
 use App\Serializer\BookDetailDTONormalizer;
 use App\Serializer\BookDTONormalizer;
+use App\Serializer\CategoryBudgetDTONormalizer;
+use App\Serializer\CategoryDTONormalizer;
 use App\Serializer\DashboardDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
+use App\Serializer\MonthlyBudgetReportDTONormalizer;
 use App\Serializer\MovieDTONormalizer;
 use App\Serializer\NotificationDTONormalizer;
 use App\Serializer\NotificationPreferenceDTONormalizer;
@@ -58,6 +65,7 @@ use App\Serializer\SeriesDetailDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
 use App\Serializer\TaskDTONormalizer;
 use App\Serializer\TimeReportDTONormalizer;
+use App\Serializer\TransactionDTONormalizer;
 use App\Serializer\TrendsDTONormalizer;
 use App\Serializer\VideoDTONormalizer;
 use App\Serializer\VinylRecordDTONormalizer;
@@ -682,5 +690,94 @@ final class NormalizersTest extends TestCase
 
         $normalized = $n->normalize($dto);
         self::assertSame([], $normalized['series'][0]['points']);
+    }
+
+    public function testTransactionNormalizer(): void
+    {
+        $n = new TransactionDTONormalizer();
+        $dto = new TransactionDTO('t1', 4999, 'PLN', '2026-07-15', 'c1', 'expense', 'Weekly shop');
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(TransactionDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'id' => 't1',
+            'amountInCents' => 4999,
+            'currency' => 'PLN',
+            'date' => '2026-07-15',
+            'categoryId' => 'c1',
+            'type' => 'expense',
+            'description' => 'Weekly shop',
+        ], $n->normalize($dto));
+    }
+
+    public function testCategoryNormalizer(): void
+    {
+        $n = new CategoryDTONormalizer();
+        $dto = new CategoryDTO('c1', 'Groceries', 'expense', 50000, 'PLN');
+
+        self::assertTrue($n->supportsNormalization($dto));
+        self::assertFalse($n->supportsNormalization(new stdClass()));
+        self::assertArrayHasKey(CategoryDTO::class, $n->getSupportedTypes(null));
+        self::assertSame([
+            'id' => 'c1',
+            'name' => 'Groceries',
+            'type' => 'expense',
+            'monthlyLimitAmountInCents' => 50000,
+            'monthlyLimitCurrency' => 'PLN',
+        ], $n->normalize($dto));
+    }
+
+    public function testCategoryNormalizerUnlimited(): void
+    {
+        $n = new CategoryDTONormalizer();
+        $dto = new CategoryDTO('c2', 'Salary', 'income', null, null);
+
+        self::assertSame([
+            'id' => 'c2',
+            'name' => 'Salary',
+            'type' => 'income',
+            'monthlyLimitAmountInCents' => null,
+            'monthlyLimitCurrency' => null,
+        ], $n->normalize($dto));
+    }
+
+    public function testMonthlyBudgetReportNormalizerDelegatesCategories(): void
+    {
+        $serializer = new Serializer([new CategoryBudgetDTONormalizer(), new MonthlyBudgetReportDTONormalizer()]);
+        $dto = new MonthlyBudgetReportDTO('2026-07', 500000, 15000, 485000, [
+            new CategoryBudgetDTO('c1', 'Groceries', 'expense', 15000, 10000, 'PLN', 150.0, true),
+            new CategoryBudgetDTO('c2', 'Salary', 'income', 500000, null, null, null, false),
+        ]);
+
+        $result = $serializer->normalize($dto);
+
+        self::assertIsArray($result);
+        self::assertSame('2026-07', $result['month']);
+        self::assertSame(500000, $result['totalIncomeInCents']);
+        self::assertSame(15000, $result['totalExpensesInCents']);
+        self::assertSame(485000, $result['balanceInCents']);
+        self::assertSame([
+            [
+                'categoryId' => 'c1',
+                'categoryName' => 'Groceries',
+                'type' => 'expense',
+                'spentInCents' => 15000,
+                'monthlyLimitInCents' => 10000,
+                'monthlyLimitCurrency' => 'PLN',
+                'percentUsed' => 150.0,
+                'overLimit' => true,
+            ],
+            [
+                'categoryId' => 'c2',
+                'categoryName' => 'Salary',
+                'type' => 'income',
+                'spentInCents' => 500000,
+                'monthlyLimitInCents' => null,
+                'monthlyLimitCurrency' => null,
+                'percentUsed' => null,
+                'overLimit' => false,
+            ],
+        ], $result['categories']);
     }
 }
