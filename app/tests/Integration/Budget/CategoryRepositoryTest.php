@@ -101,4 +101,28 @@ final class CategoryRepositoryTest extends KernelTestCase
         self::assertNotNull($found);
         self::assertSame($longName, $found->name());
     }
+
+    public function testFindByNameAndTypeFindsAnExactMatch(): void
+    {
+        $this->repository->save(new Category('c0000006-0000-0000-0000-000000000001', 'Ubezpieczenie', TransactionType::EXPENSE));
+        $this->em->clear();
+
+        $found = $this->repository->findByNameAndType('Ubezpieczenie', TransactionType::EXPENSE);
+
+        self::assertNotNull($found);
+        self::assertSame('c0000006-0000-0000-0000-000000000001', $found->id());
+    }
+
+    public function testFindByNameAndTypeIsScopedToTheType(): void
+    {
+        $this->repository->save(new Category('c0000007-0000-0000-0000-000000000001', 'Ubezpieczenie', TransactionType::EXPENSE));
+        $this->em->clear();
+
+        self::assertNull($this->repository->findByNameAndType('Ubezpieczenie', TransactionType::INCOME));
+    }
+
+    public function testFindByNameAndTypeReturnsNullForUnknownName(): void
+    {
+        self::assertNull($this->repository->findByNameAndType('Does not exist', TransactionType::EXPENSE));
+    }
 }

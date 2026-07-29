@@ -116,4 +116,23 @@ final class TransactionRepositoryTest extends KernelTestCase
         self::assertNotNull($found);
         self::assertSame('EUR', $found->amount()->currency());
     }
+
+    public function testExistsForCategoryIsTrueWhenATransactionReferencesIt(): void
+    {
+        $this->repository->save(new Transaction(
+            't0000006-0000-0000-0000-000000000001',
+            new Money(100),
+            new DateTimeImmutable(),
+            'c-referenced',
+            TransactionType::EXPENSE,
+        ));
+        $this->em->clear();
+
+        self::assertTrue($this->repository->existsForCategory('c-referenced'));
+    }
+
+    public function testExistsForCategoryIsFalseWhenNoTransactionReferencesIt(): void
+    {
+        self::assertFalse($this->repository->existsForCategory('c-unused'));
+    }
 }

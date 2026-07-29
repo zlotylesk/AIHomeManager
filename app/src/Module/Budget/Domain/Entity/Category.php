@@ -11,28 +11,25 @@ use InvalidArgumentException;
 /**
  * A named bucket transactions are attributed to (e.g. "Zakupy spożywcze",
  * "Wynagrodzenie"), typed the same way as a Transaction (income/expense) so a
- * category cannot mix both, with an optional monthly spending limit.
+ * category cannot mix both, with an optional monthly spending limit. The
+ * type is immutable once created (the Goal precedent) — only the name and
+ * the limit can change.
  */
-final readonly class Category
+final class Category
 {
     private string $name;
 
     public function __construct(
-        private string $id,
+        private readonly string $id,
         string $name,
-        private TransactionType $type,
+        private readonly TransactionType $type,
         private ?Money $monthlyLimit = null,
     ) {
         if ('' === trim($id)) {
             throw new InvalidArgumentException('Category id cannot be empty.');
         }
 
-        $normalizedName = trim($name);
-        if ('' === $normalizedName) {
-            throw new InvalidArgumentException('Category name cannot be empty.');
-        }
-
-        $this->name = $normalizedName;
+        $this->name = self::normalizeName($name);
     }
 
     public function id(): string
@@ -53,5 +50,28 @@ final readonly class Category
     public function monthlyLimit(): ?Money
     {
         return $this->monthlyLimit;
+    }
+
+    public function rename(string $name): void
+    {
+        $this->name = self::normalizeName($name);
+    }
+
+    /**
+     * Set the monthly spending limit, or clear it when given null.
+     */
+    public function setMonthlyLimit(?Money $monthlyLimit): void
+    {
+        $this->monthlyLimit = $monthlyLimit;
+    }
+
+    private static function normalizeName(string $name): string
+    {
+        $normalized = trim($name);
+        if ('' === $normalized) {
+            throw new InvalidArgumentException('Category name cannot be empty.');
+        }
+
+        return $normalized;
     }
 }
