@@ -6,6 +6,7 @@ namespace App\Module\Budget\Application\Handler;
 
 use App\Module\Budget\Application\Command\AddTransaction;
 use App\Module\Budget\Application\Exception\CategoryNotFoundException;
+use App\Module\Budget\Application\TransactionCategoryMatch;
 use App\Module\Budget\Application\TransactionInput;
 use App\Module\Budget\Domain\Entity\Transaction;
 use App\Module\Budget\Domain\Repository\CategoryRepositoryInterface;
@@ -24,11 +25,14 @@ final readonly class AddTransactionHandler
 
     public function __invoke(AddTransaction $command): string
     {
-        if (null === $this->categories->findById($command->categoryId)) {
+        $category = $this->categories->findById($command->categoryId);
+        if (null === $category) {
             throw new CategoryNotFoundException(sprintf('Category "%s" not found.', $command->categoryId));
         }
 
         $input = TransactionInput::fromRaw($command->amountInCents, $command->currency, $command->date, $command->type);
+
+        TransactionCategoryMatch::assertTypesAgree($input->type, $category);
 
         $transaction = new Transaction(
             id: Uuid::v4()->toRfc4122(),

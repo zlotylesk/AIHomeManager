@@ -44,7 +44,7 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences', 'podcast_listening_sessions', 'podcast_episodes', 'podcasts');
+        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences', 'podcast_listening_sessions', 'podcast_episodes', 'podcasts', 'budget_transactions', 'budget_categories');
 
         $content = $this->fetchSpecContent();
 
@@ -233,6 +233,33 @@ final class OpenApiContractTest extends WebTestCase
         // branch of NotificationDTO goes unchecked.
         $this->seedNotificationHistory();
         $this->assertResponseConformsToContract('GET', '/api/v1/notifications/history', '/api/v1/notifications/history');
+    }
+
+    public function testBudgetTransactionsResponseConformsToContract(): void
+    {
+        // A transaction carrying a description, so the nullable branch of
+        // TransactionDTO is exercised as a string rather than only as null.
+        $this->seedBudgetMonth();
+        $this->assertResponseConformsToContract('GET', '/api/v1/budget/transactions', '/api/v1/budget/transactions');
+    }
+
+    public function testBudgetCategoriesResponseConformsToContract(): void
+    {
+        // Both category shapes at once: one with a monthly limit set and one
+        // without, so the nullable limit halves are validated in both states.
+        $this->seedBudgetMonth();
+        $this->assertResponseConformsToContract('GET', '/api/v1/budget/categories', '/api/v1/budget/categories');
+    }
+
+    public function testBudgetReportResponseConformsToContract(): void
+    {
+        // The report is the module's richest shape: totals plus a per-category
+        // breakdown holding a limited category (non-null percentUsed/limit) and
+        // an unlimited one (both null), so neither branch of CategoryBudgetDTO
+        // goes unchecked — the null percentUsed in particular is what a client
+        // typing it as a plain number would break on.
+        $this->seedBudgetMonth();
+        $this->assertResponseConformsToContract('GET', '/api/v1/budget/report?month=2026-07', '/api/v1/budget/report');
     }
 
     public function testContractValidationRejectsDriftingResponse(): void
@@ -590,6 +617,31 @@ final class OpenApiContractTest extends WebTestCase
         ]);
 
         return 'contract-pod-1';
+    }
+
+    /**
+     * One month of budget data through the real write endpoints: a limited
+     * expense category with spending against it, an unlimited income category
+     * with spending, and an untouched category — so the report's every branch
+     * (over/under a limit, no limit at all, no activity) is populated rather
+     * than validated against an empty database.
+     */
+    private function seedBudgetMonth(): void
+    {
+        $groceries = $this->postForId('/api/v1/budget/categories', ['name' => 'Zakupy', 'type' => 'expense']);
+        $salary = $this->postForId('/api/v1/budget/categories', ['name' => 'Wynagrodzenie', 'type' => 'income']);
+        $this->postForId('/api/v1/budget/categories', ['name' => 'Nietknięta', 'type' => 'expense']);
+
+        $this->patch('/api/v1/budget/categories/'.$groceries.'/limit', ['amountInCents' => 50000, 'currency' => 'PLN']);
+
+        $this->postForId('/api/v1/budget/transactions', [
+            'amountInCents' => 12500, 'currency' => 'PLN', 'date' => '2026-07-04',
+            'categoryId' => $groceries, 'type' => 'expense', 'description' => 'Piątkowe zakupy',
+        ]);
+        $this->postForId('/api/v1/budget/transactions', [
+            'amountInCents' => 900000, 'currency' => 'PLN', 'date' => '2026-07-10',
+            'categoryId' => $salary, 'type' => 'income',
+        ]);
     }
 
     private function truncate(string ...$tables): void

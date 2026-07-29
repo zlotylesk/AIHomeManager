@@ -7,11 +7,10 @@ namespace App\Module\Budget\Application\QueryHandler;
 use App\Module\Budget\Application\DTO\CategoryBudgetDTO;
 use App\Module\Budget\Application\DTO\MonthlyBudgetReportDTO;
 use App\Module\Budget\Application\MoneyColumn;
+use App\Module\Budget\Application\MonthRange;
 use App\Module\Budget\Application\Query\GetMonthlyBudgetReport;
 use App\Module\Budget\Domain\Enum\TransactionType;
-use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
-use InvalidArgumentException;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 /**
@@ -49,14 +48,11 @@ final readonly class GetMonthlyBudgetReportHandler
 
     public function __invoke(GetMonthlyBudgetReport $query): MonthlyBudgetReportDTO
     {
-        $monthStart = DateTimeImmutable::createFromFormat('!Y-m', $query->month);
-        if (false === $monthStart) {
-            throw new InvalidArgumentException(sprintf('Invalid month "%s", expected YYYY-MM.', $query->month));
-        }
+        $range = MonthRange::fromMonth($query->month);
 
         $rows = $this->connection->fetchAllAssociative(self::SQL, [
-            'monthStart' => $monthStart->format('Y-m-d'),
-            'monthEnd' => $monthStart->modify('+1 month')->format('Y-m-d'),
+            'monthStart' => $range->startDate(),
+            'monthEnd' => $range->endExclusiveDate(),
         ]);
 
         $categories = array_map($this->toCategoryDTO(...), $rows);
