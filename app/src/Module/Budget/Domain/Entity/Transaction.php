@@ -13,10 +13,10 @@ use InvalidArgumentException;
  * A single ledger entry: an amount of money moved on a given date, attributed
  * to one category, with an optional free-text note.
  */
-final readonly class Transaction
+final class Transaction
 {
     public function __construct(
-        private string $id,
+        private readonly string $id,
         private Money $amount,
         private DateTimeImmutable $date,
         private string $categoryId,
@@ -60,5 +60,23 @@ final readonly class Transaction
     public function description(): ?string
     {
         return $this->description;
+    }
+
+    /**
+     * Replace every editable field at once (full replace, the Movie
+     * `updateMetadata` precedent) — the id is the only thing that never
+     * changes.
+     */
+    public function update(Money $amount, DateTimeImmutable $date, string $categoryId, TransactionType $type, ?string $description): void
+    {
+        if ('' === trim($categoryId)) {
+            throw new InvalidArgumentException('Transaction category id cannot be empty.');
+        }
+
+        $this->amount = $amount;
+        $this->date = $date;
+        $this->categoryId = $categoryId;
+        $this->type = $type;
+        $this->description = $description;
     }
 }
