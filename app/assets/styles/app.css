@@ -571,3 +571,44 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
     .trends-chart-wrap { height: 160px; }
     .trends-card-headline { font-size: 1.35rem; }
 }
+
+/* Budget — panel budżetu (HMAI-383) */
+.budget-section { margin: 1.5rem 0; }
+.budget-section-title { font-size: 1rem; font-weight: 600; margin: 0 0 .5rem; color: var(--color-text-muted); }
+.budget-input { padding: .4rem .5rem; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: .9rem; background: var(--color-surface); color: var(--color-text); }
+.budget-transaction-form, .budget-category-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .75rem; }
+.budget-filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .75rem; font-size: .85rem; color: var(--color-text-muted); }
+.budget-filters label { display: flex; flex-direction: column; gap: .2rem; }
+
+.budget-transactions, .budget-categories { display: flex; flex-direction: column; gap: .4rem; }
+.budget-transaction-row, .budget-category-row {
+    display: grid; grid-template-columns: 1fr 1fr auto auto 1fr auto; gap: .5rem; align-items: center;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius);
+    padding: .5rem .75rem; font-size: .9rem;
+}
+.budget-category-row { grid-template-columns: 1fr auto 1fr auto; }
+.budget-tx-type--income, .budget-category-type--income { color: var(--color-success); font-weight: 600; }
+.budget-tx-type--expense, .budget-category-type--expense { color: #b3261e; font-weight: 600; }
+.budget-tx-actions, .budget-category-actions { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-end; }
+
+.budget-report-summary { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+.budget-report-total { background: var(--color-surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: .6rem 1rem; display: flex; flex-direction: column; gap: .2rem; min-width: 140px; }
+.budget-report-total span { font-size: .8rem; color: var(--color-text-muted); }
+.budget-report-total strong { font-size: 1.2rem; }
+.budget-report-total--balance strong { color: var(--color-primary); }
+
+.budget-report-categories { display: flex; flex-direction: column; gap: .5rem; }
+.budget-report-row { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: .6rem .75rem; }
+.budget-report-row--over { background-color: #fdecea; border-color: #f5c6c2; }
+.budget-report-row-head { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: .35rem; }
+.budget-report-category { font-weight: 600; }
+.budget-report-bar-track { height: 8px; background: var(--color-border); border-radius: 999px; overflow: hidden; }
+.budget-report-bar { height: 100%; background: var(--color-primary); border-radius: 999px; }
+.budget-report-bar--over { background: #b3261e; }
+.budget-report-percent { font-size: .78rem; color: var(--color-text-muted); }
+.budget-report-nolimit { font-size: .78rem; color: var(--color-text-muted); }
+
+@media (max-width: 600px) {
+    .budget-transaction-row, .budget-category-row { grid-template-columns: 1fr; }
+    .budget-tx-actions, .budget-category-actions { justify-content: flex-start; }
+}

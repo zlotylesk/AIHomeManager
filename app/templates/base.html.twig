@@ -34,6 +34,7 @@
                 <li><a href="{{ path('app_frontend_goals') }}" {% if app.request.attributes.get('_route') == 'app_frontend_goals' %}class="active"{% endif %}>Cele</a></li>
                 <li><a href="{{ path('app_frontend_insights') }}" {% if app.request.attributes.get('_route') == 'app_frontend_insights' %}class="active"{% endif %}>Trendy</a></li>
                 <li><a href="{{ path('app_frontend_notifications') }}" {% if app.request.attributes.get('_route') == 'app_frontend_notifications' %}class="active"{% endif %}>Powiadomienia</a></li>
+                <li><a href="{{ path('app_frontend_budget') }}" {% if app.request.attributes.get('_route') == 'app_frontend_budget' %}class="active"{% endif %}>Budżet</a></li>
             </ul>
             {{ include('_search.html.twig') }}
         </nav>
