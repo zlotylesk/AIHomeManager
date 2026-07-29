@@ -1,0 +1,78 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Budżet — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="budget">
+    <header class="app-header">
+        <h1 class="app-title">Budżet</h1>
+    </header>
+
+    <section class="budget-section">
+        <h2 class="budget-section-title">Transakcje</h2>
+
+        <form class="budget-transaction-form" data-action="submit->budget#createTransaction">
+            <input class="budget-input" type="number" step="0.01" min="0.01" placeholder="Kwota"
+                   data-budget-target="txAmount" aria-label="Kwota" required>
+            <select class="budget-input" data-budget-target="txCurrency" aria-label="Waluta">
+                <option value="PLN" selected>PLN</option>
+            </select>
+            <input class="budget-input" type="date" data-budget-target="txDate" aria-label="Data" required>
+            <select class="budget-input" data-budget-target="txCategory" aria-label="Kategoria"></select>
+            <select class="budget-input" data-budget-target="txType" aria-label="Typ"></select>
+            <input class="budget-input" type="text" placeholder="Opis (opcjonalnie)"
+                   data-budget-target="txDescription" aria-label="Opis">
+            <button type="submit" class="btn btn-primary">Dodaj transakcję</button>
+        </form>
+
+        <div class="budget-filters">
+            <label>Miesiąc
+                <input type="month" class="budget-input" data-budget-target="filterMonth"
+                       data-action="change->budget#loadTransactions">
+            </label>
+            <label>Kategoria
+                <select class="budget-input" data-budget-target="filterCategory"
+                        data-action="change->budget#loadTransactions"></select>
+            </label>
+            <label>Typ
+                <select class="budget-input" data-budget-target="filterType"
+                        data-action="change->budget#loadTransactions">
+                    <option value="">Wszystkie</option>
+                </select>
+            </label>
+        </div>
+
+        <div id="budget-transactions" class="budget-transactions" data-budget-target="transactionList">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+
+    <section class="budget-section">
+        <h2 class="budget-section-title">Kategorie i limity</h2>
+
+        <form class="budget-category-form" data-action="submit->budget#createCategory">
+            <input class="budget-input" type="text" placeholder="Nazwa kategorii"
+                   data-budget-target="categoryName" aria-label="Nazwa kategorii" required>
+            <select class="budget-input" data-budget-target="categoryType" aria-label="Typ kategorii"></select>
+            <button type="submit" class="btn btn-primary">Dodaj kategorię</button>
+        </form>
+
+        <div id="budget-categories" class="budget-categories" data-budget-target="categoryList">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+
+    <section class="budget-section">
+        <h2 class="budget-section-title">Raport miesięczny</h2>
+
+        <label class="budget-report-month-label">Miesiąc
+            <input type="month" class="budget-input" data-budget-target="reportMonth"
+                   data-action="change->budget#loadReport">
+        </label>
+
+        <div id="budget-report" class="budget-report" data-budget-target="report">
+            <div class="loading">Loading…</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
