@@ -53,4 +53,61 @@ final class CategoryTest extends TestCase
 
         new Category('c-0004', '   ', TransactionType::EXPENSE);
     }
+
+    public function testRenameReplacesName(): void
+    {
+        $category = new Category('c-0005', 'Old Name', TransactionType::EXPENSE);
+
+        $category->rename('New Name');
+
+        self::assertSame('New Name', $category->name());
+    }
+
+    public function testRenameTrimsTheNewName(): void
+    {
+        $category = new Category('c-0006', 'Old Name', TransactionType::EXPENSE);
+
+        $category->rename('  Trimmed  ');
+
+        self::assertSame('Trimmed', $category->name());
+    }
+
+    public function testRenameRejectsEmptyName(): void
+    {
+        $category = new Category('c-0007', 'Old Name', TransactionType::EXPENSE);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Category name cannot be empty.');
+
+        $category->rename('   ');
+    }
+
+    public function testSetMonthlyLimitStoresTheLimit(): void
+    {
+        $category = new Category('c-0008', 'Groceries', TransactionType::EXPENSE);
+        $limit = new Money(50000, 'PLN');
+
+        $category->setMonthlyLimit($limit);
+
+        self::assertSame($limit, $category->monthlyLimit());
+    }
+
+    public function testSetMonthlyLimitNullClearsIt(): void
+    {
+        $category = new Category('c-0009', 'Groceries', TransactionType::EXPENSE, new Money(50000, 'PLN'));
+
+        $category->setMonthlyLimit(null);
+
+        self::assertNull($category->monthlyLimit());
+    }
+
+    public function testTypeIsImmutable(): void
+    {
+        $category = new Category('c-0010', 'Groceries', TransactionType::EXPENSE);
+
+        $category->rename('Rent');
+        $category->setMonthlyLimit(new Money(100000, 'PLN'));
+
+        self::assertSame(TransactionType::EXPENSE, $category->type());
+    }
 }

@@ -15,5 +15,11 @@ interface TransactionRepositoryInterface
     /** @return Transaction[] */
     public function findAll(): array;
 
+    /**
+     * Whether at least one transaction is attributed to this category — the
+     * guard behind the "cannot delete a category with transactions" rule.
+     */
+    public function existsForCategory(string $categoryId): bool;
+
     public function remove(Transaction $transaction): void;
 }
