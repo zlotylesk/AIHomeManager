@@ -5,6 +5,7 @@ import {
     currentMonth,
     limitLabel,
     moneyLabel,
+    typeForCategory,
     typeLabel,
 } from '../budget/format.js';
 
@@ -82,5 +83,27 @@ describe('currentMonth', () => {
 
     it('pads a single-digit month', () => {
         expect(currentMonth(new Date(2026, 0, 1))).toBe('2026-01');
+    });
+});
+
+describe('typeForCategory', () => {
+    const categories = [
+        { id: 'cat-1', name: 'Jedzenie', type: 'expense' },
+        { id: 'cat-2', name: 'Wynagrodzenie', type: 'income' },
+    ];
+
+    it('resolves the type of the selected category', () => {
+        expect(typeForCategory(categories, 'cat-1')).toBe('expense');
+        expect(typeForCategory(categories, 'cat-2')).toBe('income');
+    });
+
+    // Null, not a guessed default: with no category chosen there is no type to
+    // report, and defaulting to "expense" would file income under the wrong flow.
+    it('returns null when the category is unknown or unset', () => {
+        expect(typeForCategory(categories, 'nope')).toBeNull();
+        expect(typeForCategory(categories, '')).toBeNull();
+        expect(typeForCategory(categories, undefined)).toBeNull();
+        expect(typeForCategory([], 'cat-1')).toBeNull();
+        expect(typeForCategory(undefined, 'cat-1')).toBeNull();
     });
 });

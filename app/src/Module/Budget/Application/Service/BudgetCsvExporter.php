@@ -6,8 +6,8 @@ namespace App\Module\Budget\Application\Service;
 
 use App\Module\Budget\Application\DTO\MonthlyBudgetReportDTO;
 use App\Module\Budget\Application\MoneyColumn;
+use App\Module\Budget\Application\MonthRange;
 use App\Module\Budget\Domain\Enum\TransactionType;
-use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Generator;
 use InvalidArgumentException;
@@ -60,14 +60,11 @@ final readonly class BudgetCsvExporter
         $params = [];
 
         if (null !== $month) {
-            $monthStart = DateTimeImmutable::createFromFormat('!Y-m', $month);
-            if (false === $monthStart) {
-                throw new InvalidArgumentException(sprintf('Invalid month "%s", expected YYYY-MM.', $month));
-            }
+            $range = MonthRange::fromMonth($month);
 
             $conditions[] = 't.date >= :monthStart AND t.date < :monthEnd';
-            $params['monthStart'] = $monthStart->format('Y-m-d');
-            $params['monthEnd'] = $monthStart->modify('+1 month')->format('Y-m-d');
+            $params['monthStart'] = $range->startDate();
+            $params['monthEnd'] = $range->endExclusiveDate();
         }
 
         if (null !== $categoryId) {

@@ -28,6 +28,8 @@ use App\Module\Budget\Application\Query\GetTransactions;
 use App\Module\Budget\Application\Service\BudgetCsvExporter;
 use App\Pdf\PdfBuilder;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -54,6 +56,25 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/transactions', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'List ledger transactions',
+        description: 'Every recorded transaction, newest first. The three filters are independent and combine with AND. Amounts are whole minor units (grosze) — never a decimal — so a month of summed transactions cannot drift on float rounding.',
+        tags: ['Budget'],
+        parameters: [
+            new OA\Parameter(name: 'month', in: 'query', required: false, description: 'Calendar month to narrow to, `YYYY-MM`. A month that does not exist (e.g. `2026-13`) is rejected rather than rolled over.', schema: new OA\Schema(type: 'string', example: '2026-07')),
+            new OA\Parameter(name: 'categoryId', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'type', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['income', 'expense'])),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The matching transactions, newest first.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: TransactionDTO::class))),
+            ),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function listTransactions(Request $request): JsonResponse
     {
         try {
@@ -71,6 +92,35 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/transactions', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Record a transaction',
+        description: "Books an amount against a category. The transaction's `type` must match the category's own type — a category cannot mix income and expense, and a mismatch is a 422 rather than a silently reclassified row.",
+        tags: ['Budget'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['amountInCents', 'date', 'categoryId', 'type'],
+                properties: [
+                    new OA\Property(property: 'amountInCents', type: 'integer', description: 'Whole minor units, strictly greater than zero.', example: 4999),
+                    new OA\Property(property: 'currency', type: 'string', description: 'ISO 4217 code. Defaults to PLN when omitted.', example: 'PLN'),
+                    new OA\Property(property: 'date', type: 'string', format: 'date', description: 'Strict `YYYY-MM-DD`. An impossible day (e.g. `2026-02-31`) is rejected, never rolled forward into the next month.', example: '2026-07-15'),
+                    new OA\Property(property: 'categoryId', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'type', type: 'string', enum: ['income', 'expense']),
+                    new OA\Property(property: 'description', type: ['string', 'null']),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Created.',
+                content: new OA\JsonContent(properties: [new OA\Property(property: 'id', type: 'string', format: 'uuid')]),
+            ),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function addTransaction(Request $request): JsonResponse
     {
         $data = $this->parser->decode($request);
@@ -93,6 +143,32 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/transactions/{id}', methods: ['PATCH'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Patch(
+        summary: 'Replace a transaction',
+        description: 'A full replace, not a partial merge: every field is required and an omitted one is not preserved. The same type-must-match-the-category rule as create applies.',
+        tags: ['Budget'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['amountInCents', 'date', 'categoryId', 'type'],
+                properties: [
+                    new OA\Property(property: 'amountInCents', type: 'integer', example: 6000),
+                    new OA\Property(property: 'currency', type: 'string', example: 'PLN'),
+                    new OA\Property(property: 'date', type: 'string', format: 'date', example: '2026-07-20'),
+                    new OA\Property(property: 'categoryId', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'type', type: 'string', enum: ['income', 'expense']),
+                    new OA\Property(property: 'description', type: ['string', 'null']),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 204, description: 'Updated.'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function updateTransaction(string $id, Request $request): JsonResponse
     {
         $data = $this->parser->decode($request);
@@ -116,6 +192,17 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/transactions/{id}', methods: ['DELETE'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Delete(
+        summary: 'Delete a transaction',
+        description: 'Deleting an already-deleted transaction is a 404, not a silent success — a delete here is an explicit user action on their own ledger, not an operation that can legitimately double-fire.',
+        tags: ['Budget'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 204, description: 'Deleted.'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function deleteTransaction(string $id): JsonResponse
     {
         try {
@@ -128,6 +215,19 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/categories', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'List budget categories',
+        description: 'Every category with its type and optional monthly limit. A category with no limit reports `monthlyLimitInCents: null` — "no limit" is a distinct state from a limit of zero.',
+        tags: ['Budget'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The categories.',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: CategoryDTO::class))),
+            ),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function listCategories(): JsonResponse
     {
         /** @var CategoryDTO[] $categories */
@@ -137,6 +237,31 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/categories', methods: ['POST'])]
+    #[OA\Post(
+        summary: 'Create a budget category',
+        description: 'The name must be unique **within its type**, not globally — an "Ubezpieczenie" expense and an "Ubezpieczenie" income category track different money flows and may coexist. A collision within one type is a 409. The type is immutable once created; no endpoint changes it.',
+        tags: ['Budget'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'type'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', example: 'Zakupy spożywcze'),
+                    new OA\Property(property: 'type', type: 'string', enum: ['income', 'expense']),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Created.',
+                content: new OA\JsonContent(properties: [new OA\Property(property: 'id', type: 'string', format: 'uuid')]),
+            ),
+            new OA\Response(response: 409, ref: '#/components/responses/ConflictError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function createCategory(Request $request): JsonResponse
     {
         $data = $this->parser->decode($request);
@@ -155,6 +280,26 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/categories/{id}', methods: ['PATCH'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Patch(
+        summary: 'Rename a category',
+        description: 'Only the name changes — the type is immutable and the monthly limit has its own endpoint. Renaming a category to the name it already has is a no-op success, not a false conflict.',
+        tags: ['Budget'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name'],
+                properties: [new OA\Property(property: 'name', type: 'string', example: 'Rachunki domowe')],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 204, description: 'Renamed.'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 409, ref: '#/components/responses/ConflictError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function renameCategory(string $id, Request $request): JsonResponse
     {
         $data = $this->parser->decode($request);
@@ -170,6 +315,18 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/categories/{id}', methods: ['DELETE'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Delete(
+        summary: 'Delete a category',
+        description: 'Refused with a 409 while any transaction is still filed under it. The alternative — cascading — would silently destroy ledger history, which is the one thing a personal finance app cannot afford to lose quietly; the category must be emptied first.',
+        tags: ['Budget'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 204, description: 'Deleted.'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 409, ref: '#/components/responses/ConflictError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function deleteCategory(string $id): JsonResponse
     {
         try {
@@ -182,6 +339,27 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/categories/{id}/limit', methods: ['PATCH'], requirements: ['id' => '[0-9a-f\-]{36}'])]
+    #[OA\Patch(
+        summary: "Set or clear a category's monthly limit",
+        description: 'Both halves of the amount must be supplied together, or both omitted/null to clear the limit. A half-stated range is a 422 rather than being silently persisted as "no limit".',
+        tags: ['Budget'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'amountInCents', type: ['integer', 'null'], description: 'Whole minor units. Null (with a null currency) clears the limit.', example: 100000),
+                    new OA\Property(property: 'currency', type: ['string', 'null'], example: 'PLN'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 204, description: 'Limit set or cleared.'),
+            new OA\Response(response: 404, ref: '#/components/responses/NotFoundError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function setMonthlyLimit(string $id, Request $request): JsonResponse
     {
         $data = $this->parser->decode($request);
@@ -197,6 +375,23 @@ final class BudgetController extends AbstractController
     }
 
     #[Route('/report', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Monthly income/expense report',
+        description: "The month's totals and balance, plus a spend-vs-limit row for every category — including ones nothing was spent against, which appear with a zero rather than dropping out of the report. `percentUsed` is null for a category with no limit (nothing to exceed), and `overLimit` is strictly greater-than: a category spent exactly to its limit is at 100% but not over it.",
+        tags: ['Budget'],
+        parameters: [
+            new OA\Parameter(name: 'month', in: 'query', required: true, description: 'The month to report on, `YYYY-MM`. A month that does not exist is rejected rather than rolled over into a neighbouring one.', schema: new OA\Schema(type: 'string', example: '2026-07')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The monthly report.',
+                content: new OA\JsonContent(ref: new Model(type: MonthlyBudgetReportDTO::class)),
+            ),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function report(Request $request): JsonResponse
     {
         $month = $this->parser->requireMonth($request);
@@ -218,6 +413,30 @@ final class BudgetController extends AbstractController
      * streams from the exporter, since the ledger has no natural size bound.
      */
     #[Route('/export', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Export the ledger or the monthly report as CSV/PDF',
+        description: 'Two datasets behind one endpoint. The selector is `dataset`, not `type`, because `type` is already spent on income-vs-expense and one endpoint cannot carry two meanings of the same parameter. `dataset=transactions` honours the same optional filters as the list; `dataset=report` requires `month`. Amounts are rendered in decimal units, not the stored minor units — a `499900` column next to `PLN` reads as half a million złoty. The report CSV deliberately carries only the per-category rows (a totals line inside a tabular export breaks whatever the user pivots on it); the PDF, which is read rather than processed, renders the totals as their own block.',
+        tags: ['Budget'],
+        parameters: [
+            new OA\Parameter(name: 'dataset', in: 'query', required: false, description: 'Defaults to `transactions`.', schema: new OA\Schema(type: 'string', enum: ['transactions', 'report'])),
+            new OA\Parameter(name: 'format', in: 'query', required: false, description: 'Defaults to `csv`.', schema: new OA\Schema(type: 'string', enum: ['csv', 'pdf'])),
+            new OA\Parameter(name: 'month', in: 'query', required: false, description: 'Optional for `transactions`, required for `report`.', schema: new OA\Schema(type: 'string', example: '2026-07')),
+            new OA\Parameter(name: 'categoryId', in: 'query', required: false, description: 'Transactions only.', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'type', in: 'query', required: false, description: 'Transactions only.', schema: new OA\Schema(type: 'string', enum: ['income', 'expense'])),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The export, as a file attachment.',
+                content: [
+                    new OA\MediaType(mediaType: 'text/csv', schema: new OA\Schema(type: 'string')),
+                    new OA\MediaType(mediaType: 'application/pdf', schema: new OA\Schema(type: 'string', format: 'binary')),
+                ],
+            ),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
     public function export(Request $request, BudgetCsvExporter $exporter, PdfBuilder $pdfBuilder): Response
     {
         $dataset = $this->parser->exportDataset($request);

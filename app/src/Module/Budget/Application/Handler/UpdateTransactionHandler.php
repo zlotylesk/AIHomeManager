@@ -7,6 +7,7 @@ namespace App\Module\Budget\Application\Handler;
 use App\Module\Budget\Application\Command\UpdateTransaction;
 use App\Module\Budget\Application\Exception\CategoryNotFoundException;
 use App\Module\Budget\Application\Exception\TransactionNotFoundException;
+use App\Module\Budget\Application\TransactionCategoryMatch;
 use App\Module\Budget\Application\TransactionInput;
 use App\Module\Budget\Domain\Repository\CategoryRepositoryInterface;
 use App\Module\Budget\Domain\Repository\TransactionRepositoryInterface;
@@ -28,11 +29,14 @@ final readonly class UpdateTransactionHandler
             throw new TransactionNotFoundException(sprintf('Transaction "%s" not found.', $command->id));
         }
 
-        if (null === $this->categories->findById($command->categoryId)) {
+        $category = $this->categories->findById($command->categoryId);
+        if (null === $category) {
             throw new CategoryNotFoundException(sprintf('Category "%s" not found.', $command->categoryId));
         }
 
         $input = TransactionInput::fromRaw($command->amountInCents, $command->currency, $command->date, $command->type);
+
+        TransactionCategoryMatch::assertTypesAgree($input->type, $category);
 
         $transaction->update($input->amount, $input->date, $command->categoryId, $input->type, $command->description);
 
