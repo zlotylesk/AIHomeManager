@@ -88,4 +88,10 @@ final class FrontendController extends AbstractController
     {
         return $this->render('notifications/index.html.twig');
     }
+
+    #[Route('/budget', name: 'app_frontend_budget', methods: ['GET'])]
+    public function budget(): Response
+    {
+        return $this->render('budget/index.html.twig');
+    }
 }
