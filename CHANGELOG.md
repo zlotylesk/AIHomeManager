@@ -4,6 +4,37 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.32.0] — 2026-07-29
+
+Czternasty moduł domenowy: **Budżet** (epik **HMAI-373** — 10 podzadań HMAI-375…384). Transakcje, kategorie z miesięcznymi limitami, raport przychody/wydatki/saldo z rozbiciem na kategorie, panel `/budget` i eksport CSV/PDF. W całości lokalny — **żadnej integracji zewnętrznej, żadnego nowego OAuth**, co czyni go pierwszym modułem od 1.21.0 bez zależności od cudzego API.
+
+Motywem przewodnim jest **pieniądz, który się nie gubi**. Kwoty są przechowywane w pełnych groszach, nie w liczbach zmiennoprzecinkowych, więc miesiąc zsumowanych transakcji nie dryfuje na zaokrągleniach; kategoria z transakcjami nie daje się usunąć (409 zamiast kaskady, bo historia księgowa to ostatnie miejsce, gdzie aplikacja może sobie pozwolić na ciche kasowanie danych); a raport pokazuje kategorię, na którą nic nie wydano, jako wiersz z zerem zamiast pomijać ją w milczeniu.
+
+### Added
+
+- **Domena i persystencja (HMAI-375, HMAI-376).** Agregat `Transaction` i encja `Category`, VO `Money` (grosze + kod ISO 4217, domyślnie `PLN`, walidowany dodatnio) oraz enum `TransactionType` (`income`/`expense`) wspólny dla transakcji i kategorii, pod którą jest księgowana. Mapowanie XML (ADR-001) na `budget_transactions`/`budget_categories`, migracja `Version20260729000001`. `Money` idzie przez **własny typ DBAL `budget_money`**, nie przez embeddable: to samo VO występuje jako wymagane (`Transaction::$amount`) i jako nullowalne (`Category::$monthlyLimit`), a nullowalny embeddable hydratuje NULL jako obiekt z niezainicjowanym polem — dokładnie ta pułapka, która wymusiła wcześniej `series_rating`, `movie_rating` i `quiet_hours`.
+- **Zapisy (HMAI-377, HMAI-378).** Komendy transakcji (dodaj/edytuj/usuń) i kategorii (utwórz/zmień nazwę/ustaw limit/usuń) na `command.bus`. Unikalność nazwy kategorii jest **zawężona do typu** — „Ubezpieczenie" jako wydatek i jako przychód to dwa różne przepływy pieniędzy i mogą współistnieć; kolizja daje 409. Sprawdzenie istnienia kategorii przy zapisie transakcji żyje w handlerze, nie w agregacie (encja domenowa nie zna repozytorium).
+- **Odczyty i raport (HMAI-379, HMAI-380, HMAI-381).** `GetTransactions` z trzema niezależnymi filtrami (miesiąc/kategoria/typ) i `GetCategories` po stronie DBAL, oraz `GetMonthlyBudgetReport` liczący sumy i rozbicie **jednym zapytaniem** SUM/GROUP BY z `LEFT JOIN` od kategorii. Kolumna `amount` jest spakowanym łańcuchem `kwota:waluta`, więc **nie da się jej zsumować wprost** — niejawna konwersja MySQL zadziałałaby przez przypadek, nie przez projekt, więc prefiks numeryczny jest wyciągany jawnie przez `SUBSTRING_INDEX` + `CAST`. Przekroczenie limitu to `>`, nie `≥`: kategoria wydana co do grosza jest na 100%, ale jeszcze nie ponad.
+- **REST API (HMAI-382).** `GET/POST/PATCH/DELETE /api/budget/transactions` i `/categories`, `PATCH /categories/{id}/limit` (obie części kwoty albo obie `null`), `GET /budget/report?month=YYYY-MM`. Wersjonowane `/api/v1/budget` plus alias `/api/budget` (ADR-008). Parsowanie payloadu w glue'owym `BudgetRequestParser`, walidacja domenowa zostaje w handlerach.
+- **Panel `/budget` (HMAI-383).** Stimulus + Encore — ten sam tor co każdy moduł od 1.19.0. Lista transakcji z filtrami i edycją w miejscu, zarządzanie kategoriami i limitami, oraz raport miesięczny z paskiem wykorzystania limitu per kategoria, czerwonym po przekroczeniu. Brak limitu jest stanem odrębnym od „0% wykorzystania" i tak też się renderuje.
+- **Eksport CSV/PDF (HMAI-384).** `GET /api/budget/export?dataset=transactions|report&format=csv|pdf`. Selektor nazywa się `dataset`, a nie `type`, bo `type` jest już zajęty przez przychód-kontra-wydatek i jeden endpoint nie może nieść dwóch znaczeń tego samego parametru. Transakcje są strumieniowane kursorem DBAL (księga nie ma naturalnego ograniczenia rozmiaru) i **dołączają nazwę kategorii — CSV pełen UUID-ów jest bezużyteczny dla człowieka, który go otwiera**; raport natomiast **nie jest odpytywany ponownie**, tylko pobierany przez `query.bus` i mapowany na wiersze, żeby wyeksportowane liczby nie mogły rozjechać się z tymi na ekranie. Kwoty wychodzą w jednostkach dziesiętnych, nie w groszach: kolumna `499900` obok `PLN` czyta się jako pół miliona złotych.
+
+### Coverage
+
+- **+131 testów PHP** (2082 vs 1951 w 1.31.0), **+15 Playwright** (136), **+16 Vitest** (172) i **+36 asercji Newman** (79). PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations** — moduł nie potrzebował ani jednego wyjątku od reguł architektury.
+- Testy repozytoriów przepuszczają każde pole przez prawdziwy `save → clear → find`, w tym kategorię bez limitu, która musi zhydratować się jako czysty `null`, a nie jako popsute `Money` — to jedyny powód istnienia typu `budget_money` i jedyny sposób, żeby go potwierdzić.
+- Kolekcja Postman dostała folder Budget (18 żądań / 36 asercji) obejmujący pełen scenariusz sekwencyjny wraz z bramkami 409. `make test-newman` czyści teraz również tabele `budget_*`, inaczej drugie lokalne uruchomienie wpadałoby we własną blokadę unikalności nazwy.
+- Przy okazji przypięta została właściwość, która najpierw wywróciła asercję Newmana: **`fputcsv` cytuje każde pole zawierające spację**, więc wielowyrazowa nazwa kategorii trafia do pliku jako `"Rachunki domowe"`. Jest to zgodne z RFC 4180 i oczekiwane przez Excela, ale asercje na całych wierszach są przez to kruche, dopóki nie jest to fakt udokumentowany testem.
+
+### Migration
+
+1. **Migracja bazy — wymagana.** `make migrate` (dev) / `make migrate-test` (test). Dochodzą dwie tabele: `budget_categories` i `budget_transactions`.
+2. Brak nowych zmiennych środowiskowych, brak nowych sekretów, brak przebudowy obrazu. Moduł nie wychodzi poza własną bazę.
+
+### Closed Jira
+
+HMAI-373 (epik), HMAI-375, HMAI-376, HMAI-377, HMAI-378, HMAI-379, HMAI-380, HMAI-381, HMAI-382, HMAI-383, HMAI-384.
+
 ## [1.31.0] — 2026-07-28
 
 Wydanie jakościowe: usunięcie błędów i niespójności znalezionych podczas pełnego code review projektu (epik **HMAI-395** — 13 podzadań HMAI-396…408, każde z osobnym zielonym CI, plus epic review). Nie przybywa tu żadnej funkcji dla użytkownika — przybywa rzeczy, które **działają naprawdę**, a nie tylko wyglądały na działające: tokeny Trakt i Google odświeżają się zamiast wygasać w połowie importu, cel typu `music_albums` przestaje w nieskończoność pokazywać zero, `to` w raportach obejmuje wreszcie cały ostatni dzień, a klucz API nie jest już wydawany anonimowym gościom razem z każdą stroną frontendu. Motyw przewodni całego epiku to **awarie, które udawały sukces** — i to on doprowadził do najpoważniejszego znaleziska, opisanego niżej.

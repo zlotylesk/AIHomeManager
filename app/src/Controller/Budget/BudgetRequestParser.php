@@ -166,4 +166,32 @@ final class BudgetRequestParser
 
         return \is_string($type) && '' !== trim($type) ? $type : null;
     }
+
+    /**
+     * Which of the two things the export endpoint can produce. Named `dataset`
+     * rather than the `type` the sibling endpoints use, because the ledger
+     * already spends `type` on income-vs-expense and one endpoint cannot carry
+     * two unrelated meanings of the same parameter.
+     */
+    public function exportDataset(Request $request): string
+    {
+        $dataset = $request->query->get('dataset', 'transactions');
+
+        if (!\in_array($dataset, ['transactions', 'report'], true)) {
+            throw new UnprocessableEntityHttpException('Invalid dataset. Allowed: transactions, report.');
+        }
+
+        return $dataset;
+    }
+
+    public function exportFormat(Request $request): string
+    {
+        $format = $request->query->get('format', 'csv');
+
+        if (!\in_array($format, ['csv', 'pdf'], true)) {
+            throw new UnprocessableEntityHttpException('Invalid format. Allowed: csv, pdf.');
+        }
+
+        return $format;
+    }
 }

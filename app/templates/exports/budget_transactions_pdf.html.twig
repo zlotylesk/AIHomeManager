@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: "DejaVu Sans", sans-serif; font-size: 10pt; }
+        h1 { font-size: 16pt; margin-bottom: 8pt; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 4pt 6pt; text-align: left; }
+        th { background-color: #e0e0e0; font-weight: bold; }
+        .right { text-align: right; }
+        .footer { margin-top: 10pt; font-size: 8pt; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Budget Transactions{% if month %} &mdash; {{ month }}{% endif %}</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th class="right">Amount</th>
+                <th>Currency</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.date }}</td>
+                <td>{{ row.category }}</td>
+                <td>{{ row.type }}</td>
+                <td class="right">{{ row.amount }}</td>
+                <td>{{ row.currency }}</td>
+                <td>{{ row.description }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6">No transactions found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="footer">Generated {{ 'now'|date('Y-m-d H:i') }} &mdash; AIHomeManager</p>
+</body>
+</html>
