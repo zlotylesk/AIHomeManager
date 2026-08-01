@@ -7,7 +7,7 @@
         "@symfony/webpack-encore": "^7.1.0",
         "babel-plugin-polyfill-corejs3": "^1.0.0",
         "core-js": "^3.38.0",
-        "jsdom": "^29.1.1",
+        "jsdom": "^30.0.1",
         "regenerator-runtime": "^0.14.1",
         "vitest": "^4.1.10",
         "webpack": "^5.108.3",
