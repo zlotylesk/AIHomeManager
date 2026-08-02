@@ -168,6 +168,21 @@ deptrac:
               - type: directory
                 value: src/Module/Podcasts/Infrastructure/.*
 
+        - name: RecipesDomain
+          collectors:
+              - type: directory
+                value: src/Module/Recipes/Domain/.*
+
+        - name: RecipesApplication
+          collectors:
+              - type: directory
+                value: src/Module/Recipes/Application/.*
+
+        - name: RecipesInfrastructure
+          collectors:
+              - type: directory
+                value: src/Module/Recipes/Infrastructure/.*
+
         - name: SearchDomain
           collectors:
               - type: directory
@@ -286,6 +301,8 @@ deptrac:
             - Shared
         PodcastsDomain:
             - Shared
+        RecipesDomain:
+            - Shared
         SearchDomain:
             - Shared
         SeriesDomain:
@@ -335,6 +352,10 @@ deptrac:
             - Vendor
         PodcastsApplication:
             - PodcastsDomain
+            - Shared
+            - Vendor
+        RecipesApplication:
+            - RecipesDomain
             - Shared
             - Vendor
         SearchApplication:
@@ -406,6 +427,11 @@ deptrac:
             - PodcastsApplication
             - Shared
             - Vendor
+        RecipesInfrastructure:
+            - RecipesDomain
+            - RecipesApplication
+            - Shared
+            - Vendor
         SearchInfrastructure:
             - SearchDomain
             - SearchApplication
@@ -460,6 +486,9 @@ deptrac:
             - PodcastsDomain
             - PodcastsApplication
             - PodcastsInfrastructure
+            - RecipesDomain
+            - RecipesApplication
+            - RecipesInfrastructure
             - SearchDomain
             - SearchApplication
             - SearchInfrastructure
