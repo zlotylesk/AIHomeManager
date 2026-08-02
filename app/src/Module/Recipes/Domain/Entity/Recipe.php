@@ -35,7 +35,7 @@ final class Recipe
 
     private int $servings;
 
-    private readonly ?int $prepTimeMinutes;
+    private ?int $prepTimeMinutes;
 
     /** @var list<string> */
     private array $tags;
@@ -58,26 +58,77 @@ final class Recipe
             throw new InvalidArgumentException('Recipe id cannot be empty.');
         }
 
+        $this->applyState($title, $ingredients, $steps, $servings, $prepTimeMinutes, $tags);
+    }
+
+    /**
+     * Full replace of everything the recipe is, except its id — the shape the
+     * edit form actually submits, so a user who deletes an ingredient and adds
+     * two others describes the result rather than the individual moves.
+     *
+     * Deliberately all-or-nothing: the whole new state is validated into
+     * locals before a single field is assigned, so a rejected update leaves the
+     * aggregate exactly as it was. Mutating as it goes would leave a recipe
+     * half-rewritten in memory after a 422 — with the caller still holding it.
+     *
+     * @param list<Ingredient> $ingredients
+     * @param list<string>     $steps
+     * @param list<string>     $tags
+     */
+    public function update(
+        string $title,
+        array $ingredients,
+        array $steps,
+        int $servings,
+        ?int $prepTimeMinutes,
+        array $tags,
+    ): void {
+        $this->applyState($title, $ingredients, $steps, $servings, $prepTimeMinutes, $tags);
+    }
+
+    /**
+     * @param list<Ingredient> $ingredients
+     * @param list<string>     $steps
+     * @param list<string>     $tags
+     */
+    private function applyState(
+        string $title,
+        array $ingredients,
+        array $steps,
+        int $servings,
+        ?int $prepTimeMinutes,
+        array $tags,
+    ): void {
         if ([] === $ingredients) {
             throw new InvalidArgumentException('A recipe must have at least one ingredient.');
         }
 
-        $this->title = self::guardTitle($title);
-        $this->servings = self::guardServings($servings);
-        $this->prepTimeMinutes = self::guardPrepTime($prepTimeMinutes);
+        $newTitle = self::guardTitle($title);
+        $newServings = self::guardServings($servings);
+        $newPrepTime = self::guardPrepTime($prepTimeMinutes);
 
-        $this->ingredients = [];
+        $newIngredients = [];
         foreach ($ingredients as $ingredient) {
-            $this->addIngredient($ingredient);
+            if (null !== self::indexOfIngredient($newIngredients, $ingredient->name(), $ingredient->unit())) {
+                throw new InvalidArgumentException(sprintf('Ingredient "%s" is already listed in this unit.', $ingredient->name()));
+            }
+
+            $newIngredients[] = $ingredient;
         }
 
-        $this->steps = [];
+        $newSteps = [];
         foreach ($steps as $step) {
-            $this->addStep($step);
+            $newSteps[] = self::guardStep($step);
         }
 
-        $this->tags = [];
-        $this->retag($tags);
+        $newTags = self::normalizeTags($tags);
+
+        $this->title = $newTitle;
+        $this->servings = $newServings;
+        $this->prepTimeMinutes = $newPrepTime;
+        $this->ingredients = $newIngredients;
+        $this->steps = $newSteps;
+        $this->tags = $newTags;
     }
 
     public function id(): string
@@ -169,17 +220,7 @@ final class Recipe
      */
     public function addStep(string $text): void
     {
-        $normalized = trim($text);
-
-        if ('' === $normalized) {
-            throw new InvalidArgumentException('Recipe step cannot be empty.');
-        }
-
-        if (mb_strlen($normalized) > self::MAX_STEP_LENGTH) {
-            throw new InvalidArgumentException(sprintf('Recipe step cannot exceed %d characters.', self::MAX_STEP_LENGTH));
-        }
-
-        $this->steps[] = $normalized;
+        $this->steps[] = self::guardStep($text);
     }
 
     /**
@@ -192,6 +233,48 @@ final class Recipe
      * @param list<string> $tags
      */
     public function retag(array $tags): void
+    {
+        $this->tags = self::normalizeTags($tags);
+    }
+
+    private function findIngredientIndex(string $name, MeasurementUnit $unit): ?int
+    {
+        return self::indexOfIngredient($this->ingredients, $name, $unit);
+    }
+
+    /** @param list<Ingredient> $ingredients */
+    private static function indexOfIngredient(array $ingredients, string $name, MeasurementUnit $unit): ?int
+    {
+        foreach ($ingredients as $index => $ingredient) {
+            if ($ingredient->matches($name, $unit)) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private static function guardStep(string $text): string
+    {
+        $normalized = trim($text);
+
+        if ('' === $normalized) {
+            throw new InvalidArgumentException('Recipe step cannot be empty.');
+        }
+
+        if (mb_strlen($normalized) > self::MAX_STEP_LENGTH) {
+            throw new InvalidArgumentException(sprintf('Recipe step cannot exceed %d characters.', self::MAX_STEP_LENGTH));
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<string> $tags
+     *
+     * @return list<string>
+     */
+    private static function normalizeTags(array $tags): array
     {
         $normalized = [];
 
@@ -215,18 +298,7 @@ final class Recipe
             }
         }
 
-        $this->tags = $normalized;
-    }
-
-    private function findIngredientIndex(string $name, MeasurementUnit $unit): ?int
-    {
-        foreach ($this->ingredients as $index => $ingredient) {
-            if ($ingredient->matches($name, $unit)) {
-                return $index;
-            }
-        }
-
-        return null;
+        return $normalized;
     }
 
     private static function guardTitle(string $title): string

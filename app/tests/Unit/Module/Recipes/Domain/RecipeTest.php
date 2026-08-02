@@ -277,6 +277,117 @@ final class RecipeTest extends TestCase
         $recipe->retag([str_repeat('a', Recipe::MAX_TAG_LENGTH + 1)]);
     }
 
+    public function testUpdateReplacesEveryFieldExceptTheId(): void
+    {
+        $recipe = $this->recipe();
+
+        $recipe->update(
+            'Placki',
+            [new Ingredient('Ziemniak', 5.0, MeasurementUnit::PIECE)],
+            ['Zetrzyj', 'Smaż'],
+            3,
+            25,
+            ['Obiad'],
+        );
+
+        self::assertSame('recipe-1', $recipe->id());
+        self::assertSame('Placki', $recipe->title());
+        self::assertCount(1, $recipe->ingredients());
+        self::assertSame('Ziemniak', $recipe->ingredients()[0]->name());
+        self::assertSame(['Zetrzyj', 'Smaż'], $recipe->steps());
+        self::assertSame(3, $recipe->servings());
+        self::assertSame(25, $recipe->prepTimeMinutes());
+        self::assertSame(['obiad'], $recipe->tags());
+    }
+
+    public function testUpdateClearsOptionalFieldsWhenTheReplacementOmitsThem(): void
+    {
+        $recipe = new Recipe(
+            'recipe-1',
+            'Naleśniki',
+            [new Ingredient('Mąka', 200.0, MeasurementUnit::GRAM)],
+            ['Wymieszaj'],
+            4,
+            30,
+            ['śniadanie'],
+        );
+
+        $recipe->update('Naleśniki', [new Ingredient('Mąka', 200.0, MeasurementUnit::GRAM)], [], 1, null, []);
+
+        self::assertSame([], $recipe->steps());
+        self::assertSame([], $recipe->tags());
+        self::assertNull($recipe->prepTimeMinutes());
+        self::assertSame(1, $recipe->servings());
+    }
+
+    public function testUpdateRejectsAnEmptyIngredientList(): void
+    {
+        $recipe = $this->recipe();
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $recipe->update('Naleśniki', [], [], 1, null, []);
+    }
+
+    public function testUpdateRejectsTheSameIngredientListedTwiceInOneUnit(): void
+    {
+        $recipe = $this->recipe();
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $recipe->update(
+            'Naleśniki',
+            [
+                new Ingredient('Mąka', 200.0, MeasurementUnit::GRAM),
+                new Ingredient('  mąka  ', 50.0, MeasurementUnit::GRAM),
+            ],
+            [],
+            1,
+            null,
+            [],
+        );
+    }
+
+    /**
+     * The whole replacement is validated into locals before a single field is
+     * assigned, so a rejected update leaves the aggregate exactly as it was —
+     * the caller still holds the object after the failure.
+     */
+    public function testRejectedUpdateLeavesTheRecipeUntouched(): void
+    {
+        $recipe = new Recipe(
+            'recipe-1',
+            'Naleśniki',
+            [new Ingredient('Mąka', 200.0, MeasurementUnit::GRAM)],
+            ['Wymieszaj'],
+            4,
+            30,
+            ['śniadanie'],
+        );
+
+        try {
+            $recipe->update(
+                'Placki',
+                [new Ingredient('Ziemniak', 5.0, MeasurementUnit::PIECE)],
+                ['Zetrzyj', str_repeat('a', Recipe::MAX_STEP_LENGTH + 1)],
+                3,
+                25,
+                ['obiad'],
+            );
+            self::fail('Expected the over-long step to be rejected.');
+        } catch (InvalidArgumentException) {
+            // expected
+        }
+
+        self::assertSame('Naleśniki', $recipe->title());
+        self::assertCount(1, $recipe->ingredients());
+        self::assertSame('Mąka', $recipe->ingredients()[0]->name());
+        self::assertSame(['Wymieszaj'], $recipe->steps());
+        self::assertSame(4, $recipe->servings());
+        self::assertSame(30, $recipe->prepTimeMinutes());
+        self::assertSame(['śniadanie'], $recipe->tags());
+    }
+
     private function recipe(): Recipe
     {
         return new Recipe('recipe-1', 'Naleśniki', [new Ingredient('Mąka', 200.0, MeasurementUnit::GRAM)]);
