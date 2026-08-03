@@ -3,10 +3,10 @@ import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
 import {
     MEAL_SLOTS,
     dayHeading,
-    ingredientLine,
     mealTitle,
     servingsLabel,
     shiftWeek,
+    shoppingLine,
     slotLabel,
     weekOf,
     windowLabel,
@@ -132,7 +132,7 @@ export default class extends Controller {
             // Unlike the calendar this read is not gap-filled: an empty list
             // means nothing is planned, not that something failed to load.
             this.shoppingListTarget.innerHTML = list.items.length
-                ? `<ul class="shopping-list">${list.items.map((item) => `<li class="shopping-item">${escHtml(ingredientLine(item))}</li>`).join('')}</ul>`
+                ? `<ul class="shopping-list">${list.items.map((item) => `<li class="shopping-item">${escHtml(shoppingLine(item))}</li>`).join('')}</ul>`
                 : '<div class="empty-state">Nic do kupienia — brak zaplanowanych posiłków w tym tygodniu.</div>';
         } catch {
             this.showError('Nie udało się wczytać listy zakupów.');

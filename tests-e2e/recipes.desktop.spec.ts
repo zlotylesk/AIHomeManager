@@ -24,6 +24,7 @@ const PANCAKES: Recipe = {
     { name: 'Mąka', quantity: 500, unit: 'g' },
     { name: 'Mleko', quantity: 250, unit: 'ml' },
     { name: 'Jajko', quantity: 2, unit: 'piece' },
+    { name: 'Cebula', quantity: 0.5, unit: 'piece' },
   ],
   steps: ['Wymieszaj składniki', 'Usmaż na patelni'],
 };
@@ -128,7 +129,7 @@ test.describe('Recipes — desktop', () => {
     const cards = page.locator('.recipe-card');
     await expect(cards).toHaveCount(2);
     await expect(cards.first()).toContainText('Naleśniki');
-    await expect(cards.first()).toContainText('3 składniki · 30 min · 4 porcje');
+    await expect(cards.first()).toContainText('4 składniki · 30 min · 4 porcje');
   });
 
   test('a recipe without a prep time skips it instead of showing zero', async ({ page }) => {
@@ -150,6 +151,11 @@ test.describe('Recipes — desktop', () => {
     await expect(detail).toContainText('4 porcje · 30 min');
     await expect(detail.locator('.recipe-ingredient').nth(0)).toHaveText('500 g Mąka');
     await expect(detail.locator('.recipe-ingredient').nth(2)).toHaveText('2 szt. Jajko');
+    // A recipe states what it states. Rounding half an onion up to a whole one
+    // is the SHOPPING rule ("you cannot buy half an egg") and must not leak
+    // into the view of the recipe itself — the edit form, which shows the
+    // stored value, would go on saying 0.5 while this said 1.
+    await expect(detail.locator('.recipe-ingredient').nth(3)).toHaveText('0.5 szt. Cebula');
     await expect(detail.locator('.recipe-step')).toHaveCount(2);
   });
 
@@ -208,7 +214,7 @@ test.describe('Recipes — desktop', () => {
 
     await expect(page.locator('[data-recipes-target="title"]')).toHaveValue('Naleśniki');
     await expect(page.locator('[data-recipes-target="servings"]')).toHaveValue('4');
-    await expect(page.locator('.recipe-ingredient-row')).toHaveCount(3);
+    await expect(page.locator('.recipe-ingredient-row')).toHaveCount(4);
 
     await page.locator('[data-recipes-target="title"]').fill('Naleśniki z serem');
     await page.getByRole('button', { name: 'Zapisz przepis' }).click();
@@ -221,7 +227,7 @@ test.describe('Recipes — desktop', () => {
     // form must always send them — a defaulted value would rescale the whole
     // shopping list.
     expect(updated?.servings).toBe(4);
-    expect(updated?.ingredients).toHaveLength(3);
+    expect(updated?.ingredients).toHaveLength(4);
   });
 
   test('filters by tag and by phrase, and tells an empty match from an empty catalog', async ({ page }) => {
