@@ -1,0 +1,65 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Przepisy — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="recipes">
+    <header class="app-header">
+        <h1 class="app-title">Przepisy</h1>
+    </header>
+
+    <section class="recipe-section" data-recipes-target="form">
+        <h2 class="recipe-section-title" data-recipes-target="formTitle">Nowy przepis</h2>
+
+        <form class="recipe-form" data-action="submit->recipes#submit">
+            <div class="recipe-form-row">
+                <input class="recipe-input" type="text" placeholder="Nazwa przepisu"
+                       data-recipes-target="title" aria-label="Nazwa przepisu" required>
+                <input class="recipe-input recipe-input--narrow" type="number" min="1" step="1" value="1"
+                       data-recipes-target="servings" aria-label="Liczba porcji" required>
+                <input class="recipe-input recipe-input--narrow" type="number" min="1" step="1"
+                       placeholder="Czas (min)" data-recipes-target="prepTime" aria-label="Czas przygotowania w minutach">
+                <input class="recipe-input" type="text" placeholder="Tagi, po przecinku"
+                       data-recipes-target="tags" aria-label="Tagi">
+            </div>
+
+            <h3 class="recipe-form-subtitle">Składniki</h3>
+            {# At least one ingredient is required — the aggregate refuses a
+               recipe without any, so the form always keeps one row. #}
+            <div class="recipe-ingredients" data-recipes-target="ingredients"
+                 data-action="click->recipes#removeRow"></div>
+            <button type="button" class="btn btn-sm" data-action="click->recipes#addIngredient">+ Składnik</button>
+
+            <h3 class="recipe-form-subtitle">Kroki</h3>
+            <div class="recipe-steps" data-recipes-target="steps" data-action="click->recipes#removeRow"></div>
+            <button type="button" class="btn btn-sm" data-action="click->recipes#addStep">+ Krok</button>
+
+            <div class="recipe-form-actions">
+                <button type="submit" class="btn btn-primary">Zapisz przepis</button>
+                <button type="button" class="btn btn-sm" data-action="click->recipes#cancelEdit">Wyczyść</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="recipe-section">
+        <h2 class="recipe-section-title">Katalog</h2>
+
+        <div class="recipe-filters">
+            <label>Tag
+                <input class="recipe-input" type="text" placeholder="np. obiad"
+                       data-recipes-target="filterTag" data-action="change->recipes#loadRecipes">
+            </label>
+            <label>Nazwa
+                <input class="recipe-input" type="search" placeholder="fragment nazwy"
+                       data-recipes-target="filterPhrase" data-action="change->recipes#loadRecipes">
+            </label>
+        </div>
+
+        <div id="recipe-list" class="recipe-list" data-recipes-target="list">
+            <div class="loading">Ładowanie…</div>
+        </div>
+
+        <div id="recipe-detail" class="hidden" data-recipes-target="detail"></div>
+    </section>
+</div>
+{% endblock %}

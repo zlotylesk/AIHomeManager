@@ -35,6 +35,8 @@
                 <li><a href="{{ path('app_frontend_insights') }}" {% if app.request.attributes.get('_route') == 'app_frontend_insights' %}class="active"{% endif %}>Trendy</a></li>
                 <li><a href="{{ path('app_frontend_notifications') }}" {% if app.request.attributes.get('_route') == 'app_frontend_notifications' %}class="active"{% endif %}>Powiadomienia</a></li>
                 <li><a href="{{ path('app_frontend_budget') }}" {% if app.request.attributes.get('_route') == 'app_frontend_budget' %}class="active"{% endif %}>Budżet</a></li>
+                <li><a href="{{ path('app_frontend_recipes') }}" {% if app.request.attributes.get('_route') == 'app_frontend_recipes' %}class="active"{% endif %}>Przepisy</a></li>
+                <li><a href="{{ path('app_frontend_meal_plan') }}" {% if app.request.attributes.get('_route') == 'app_frontend_meal_plan' %}class="active"{% endif %}>Plan posiłków</a></li>
             </ul>
             {{ include('_search.html.twig') }}
         </nav>
