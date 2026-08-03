@@ -4,66 +4,65 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Module\Recipes\Application;
 
+use App\Module\Recipes\Application\PlanWindow;
 use App\Module\Recipes\Application\Query\GetMealPlan;
+use App\Module\Recipes\Application\Query\GetShoppingList;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * The window rules themselves are pinned by PlanWindowTest; what matters here
+ * is that both reads over the plan actually go through it, so neither can
+ * drift into accepting a range the other refuses.
+ */
 final class GetMealPlanTest extends TestCase
 {
-    public function testCountsBothEndsOfTheWindow(): void
+    public function testTheCalendarCarriesAPlanWindow(): void
     {
         $query = new GetMealPlan(new DateTimeImmutable('2026-08-03'), new DateTimeImmutable('2026-08-09'));
 
-        self::assertSame(7, $query->dayCount());
+        self::assertSame(7, $query->window->dayCount());
+        self::assertSame('2026-08-03', $query->window->fromDate());
+        self::assertSame('2026-08-09', $query->window->toDate());
     }
 
-    public function testASingleDayIsAValidWindow(): void
+    public function testTheShoppingListCarriesAPlanWindow(): void
     {
-        $query = new GetMealPlan(new DateTimeImmutable('2026-08-03'), new DateTimeImmutable('2026-08-03'));
+        $query = new GetShoppingList(new DateTimeImmutable('2026-08-03'), new DateTimeImmutable('2026-08-09'));
 
-        self::assertSame(1, $query->dayCount());
+        self::assertSame(7, $query->window->dayCount());
     }
 
-    /**
-     * A window built from a clock carries a time of day. Left unnormalised,
-     * `to` would land mid-afternoon and the day count — and the last day of
-     * the plan — would depend on what time the request was made.
-     */
-    public function testTheWindowIgnoresTheTimeOfDayItWasBuiltAt(): void
-    {
-        $query = new GetMealPlan(
-            new DateTimeImmutable('2026-08-03 18:30:00'),
-            new DateTimeImmutable('2026-08-09 02:15:00'),
-        );
-
-        self::assertSame(7, $query->dayCount());
-        self::assertSame('2026-08-03 00:00:00', $query->from->format('Y-m-d H:i:s'));
-        self::assertSame('2026-08-09 00:00:00', $query->to->format('Y-m-d H:i:s'));
-    }
-
-    public function testRejectsAnInvertedWindow(): void
+    public function testTheCalendarRejectsAnInvertedWindow(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
         new GetMealPlan(new DateTimeImmutable('2026-08-09'), new DateTimeImmutable('2026-08-03'));
     }
 
-    public function testAcceptsTheLongestAllowedWindow(): void
+    public function testTheShoppingListRejectsAnInvertedWindow(): void
     {
-        $from = new DateTimeImmutable('2026-08-03');
-        $to = $from->modify(sprintf('+%d days', GetMealPlan::MAX_DAYS - 1));
+        $this->expectException(InvalidArgumentException::class);
 
-        self::assertSame(GetMealPlan::MAX_DAYS, new GetMealPlan($from, $to)->dayCount());
+        new GetShoppingList(new DateTimeImmutable('2026-08-09'), new DateTimeImmutable('2026-08-03'));
     }
 
-    public function testRejectsAWindowOneDayTooLong(): void
+    public function testTheCalendarRejectsAnOverlongWindow(): void
     {
         $from = new DateTimeImmutable('2026-08-03');
-        $to = $from->modify(sprintf('+%d days', GetMealPlan::MAX_DAYS));
 
         $this->expectException(InvalidArgumentException::class);
 
-        new GetMealPlan($from, $to);
+        new GetMealPlan($from, $from->modify(sprintf('+%d days', PlanWindow::MAX_DAYS)));
+    }
+
+    public function testTheShoppingListRejectsAnOverlongWindow(): void
+    {
+        $from = new DateTimeImmutable('2026-08-03');
+
+        $this->expectException(InvalidArgumentException::class);
+
+        new GetShoppingList($from, $from->modify(sprintf('+%d days', PlanWindow::MAX_DAYS)));
     }
 }
