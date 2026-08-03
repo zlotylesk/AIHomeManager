@@ -90,4 +90,39 @@ final class PlannedMealTest extends TestCase
 
         self::assertSame(1, $meal->servings());
     }
+
+    public function testMoveToChangesTheDayAndTheSlot(): void
+    {
+        $meal = new PlannedMeal('m-1', new DateTimeImmutable('2026-08-05'), MealSlot::LUNCH, 'r-1', 2);
+
+        $meal->moveTo(new DateTimeImmutable('2026-08-08'), MealSlot::DINNER);
+
+        self::assertSame('2026-08-08', $meal->date()->format('Y-m-d'));
+        self::assertSame(MealSlot::DINNER, $meal->slot());
+    }
+
+    public function testMoveToLeavesTheIdentityRecipeAndServingsAlone(): void
+    {
+        $meal = new PlannedMeal('m-1', new DateTimeImmutable('2026-08-05'), MealSlot::LUNCH, 'r-1', 2);
+
+        $meal->moveTo(new DateTimeImmutable('2026-08-08'), MealSlot::DINNER);
+
+        self::assertSame('m-1', $meal->id());
+        self::assertSame('r-1', $meal->recipeId());
+        self::assertSame(2, $meal->servings());
+    }
+
+    /**
+     * The move normalises exactly as the constructor does. Without it, a meal
+     * dragged to "next Tuesday" straight from a clock would compare unequal to
+     * one freshly planned for the same day.
+     */
+    public function testMoveToNormalisesTheDestinationDateToMidnight(): void
+    {
+        $meal = new PlannedMeal('m-1', new DateTimeImmutable('2026-08-05'), MealSlot::LUNCH, 'r-1', 2);
+
+        $meal->moveTo(new DateTimeImmutable('2026-08-08 16:42:07'), MealSlot::DINNER);
+
+        self::assertSame('2026-08-08 00:00:00', $meal->date()->format('Y-m-d H:i:s'));
+    }
 }

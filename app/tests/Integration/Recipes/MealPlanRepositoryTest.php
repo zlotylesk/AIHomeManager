@@ -179,6 +179,50 @@ final class MealPlanRepositoryTest extends KernelTestCase
         ));
     }
 
+    public function testExistsForRecipeAnswersAcrossEveryDayAndSlot(): void
+    {
+        $this->repository->save(new PlannedMeal('m-1', new DateTimeImmutable('2020-01-06'), MealSlot::SNACK, 'r-1', 1));
+
+        // Deliberately a date long past and a slot nobody would look at: the
+        // delete guard spans the whole calendar, not the window a user happens
+        // to be viewing.
+        self::assertTrue($this->repository->existsForRecipe('r-1'));
+        self::assertFalse($this->repository->existsForRecipe('r-2'));
+    }
+
+    public function testExistsForRecipeIsFalseOnAnEmptyPlan(): void
+    {
+        self::assertFalse($this->repository->existsForRecipe('r-1'));
+    }
+
+    public function testExistsForRecipeStopsReportingOnceTheMealIsRemoved(): void
+    {
+        $this->repository->save(new PlannedMeal('m-1', new DateTimeImmutable('2026-08-05'), MealSlot::LUNCH, 'r-1', 4));
+
+        $meal = $this->repository->findById('m-1');
+        self::assertNotNull($meal);
+        $this->repository->remove($meal);
+
+        self::assertFalse($this->repository->existsForRecipe('r-1'));
+    }
+
+    public function testMoveToIsPersistedByASave(): void
+    {
+        $this->repository->save(new PlannedMeal('m-1', new DateTimeImmutable('2026-08-05'), MealSlot::LUNCH, 'r-1', 4));
+
+        $meal = $this->repository->findById('m-1');
+        self::assertNotNull($meal);
+
+        $meal->moveTo(new DateTimeImmutable('2026-08-08'), MealSlot::DINNER);
+        $this->repository->save($meal);
+        $this->entityManager->clear();
+
+        $moved = $this->repository->findById('m-1');
+        self::assertNotNull($moved);
+        self::assertSame('2026-08-08', $moved->date()->format('Y-m-d'));
+        self::assertSame(MealSlot::DINNER, $moved->slot());
+    }
+
     public function testRemoveDeletesOnlyThatMeal(): void
     {
         $this->repository->save(new PlannedMeal('m-1', new DateTimeImmutable('2026-08-05'), MealSlot::LUNCH, 'r-1', 4));
