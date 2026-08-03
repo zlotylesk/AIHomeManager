@@ -612,3 +612,89 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
     .budget-transaction-row, .budget-category-row { grid-template-columns: 1fr; }
     .budget-tx-actions, .budget-category-actions { justify-content: flex-start; }
 }
+
+/* --- Recipes (HMAI-393) ------------------------------------------------- */
+
+.recipe-section { margin: 1.5rem 0; }
+.recipe-section-title { font-size: 1rem; font-weight: 600; margin: 0 0 .5rem; color: var(--color-text-muted); }
+.recipe-form-subtitle { font-size: .85rem; font-weight: 600; margin: .75rem 0 .35rem; color: var(--color-text-muted); }
+.recipe-input {
+    padding: .4rem .5rem; border: 1px solid var(--color-border); border-radius: var(--radius);
+    font-size: .9rem; background: var(--color-surface); color: var(--color-text);
+}
+.recipe-input--narrow { max-width: 8rem; }
+.recipe-form-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.recipe-form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+
+.recipe-ingredients, .recipe-steps { display: flex; flex-direction: column; gap: .35rem; }
+.recipe-ingredient-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: .4rem; align-items: center; }
+.recipe-step-row { display: grid; grid-template-columns: 1fr auto; gap: .4rem; align-items: center; }
+
+.recipe-filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .75rem; font-size: .85rem; color: var(--color-text-muted); }
+.recipe-filters label { display: flex; flex-direction: column; gap: .2rem; }
+
+.recipe-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+.recipe-card {
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius);
+    padding: .75rem; cursor: pointer;
+}
+.recipe-card:hover { border-color: var(--color-accent, #4b5563); }
+.recipe-card-title { font-size: .95rem; font-weight: 600; margin: 0 0 .25rem; }
+.recipe-card-meta { font-size: .8rem; color: var(--color-text-muted); margin: 0; }
+.recipe-card-tags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .4rem; }
+.recipe-tag {
+    font-size: .7rem; padding: .1rem .4rem; border-radius: 999px;
+    background: var(--color-border); color: var(--color-text-muted);
+}
+
+.recipe-detail-header { margin: .75rem 0; }
+.recipe-detail-title { font-size: 1.1rem; margin: 0 0 .25rem; }
+.recipe-detail-meta { font-size: .85rem; color: var(--color-text-muted); margin: 0 0 .5rem; }
+.recipe-detail-actions { display: flex; gap: .5rem; }
+.recipe-detail-section { font-size: .9rem; font-weight: 600; margin: 1rem 0 .35rem; color: var(--color-text-muted); }
+.recipe-ingredient-list, .recipe-step-list { margin: 0; padding-left: 1.25rem; font-size: .9rem; }
+.recipe-ingredient, .recipe-step { margin: .15rem 0; }
+
+/* --- Meal plan + shopping list (HMAI-393) ------------------------------- */
+
+.meal-plan-section { margin: 1.5rem 0; }
+.meal-plan-section-title { font-size: 1rem; font-weight: 600; margin: 0 0 .35rem; color: var(--color-text-muted); }
+.meal-plan-hint { font-size: .8rem; color: var(--color-text-muted); margin: 0 0 .75rem; }
+.meal-plan-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .75rem; }
+.meal-plan-window { font-size: .9rem; font-weight: 600; }
+.meal-plan-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+
+.meal-plan-calendar { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .5rem; }
+.meal-day {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius); padding: .5rem;
+}
+.meal-day-title { font-size: .8rem; font-weight: 600; margin: 0 0 .4rem; text-transform: capitalize; }
+.meal-slot { margin-bottom: .4rem; padding: .25rem; border-radius: var(--radius); }
+.meal-slot:hover { background: var(--color-border); }
+.meal-slot-title { font-size: .7rem; font-weight: 600; color: var(--color-text-muted); margin: 0 0 .2rem; text-transform: uppercase; }
+.meal-slot-empty { font-size: .75rem; color: var(--color-text-muted); margin: 0; }
+.meal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
+.meal-card {
+    display: flex; flex-direction: column; gap: .1rem;
+    background: var(--color-bg, #f5f5f5); border: 1px solid var(--color-border);
+    border-radius: var(--radius); padding: .3rem .4rem; font-size: .8rem;
+}
+.meal-card-title { font-weight: 600; }
+.meal-card-servings { font-size: .7rem; color: var(--color-text-muted); }
+.meal-card-actions { display: flex; gap: .25rem; margin-top: .2rem; }
+/* A plan entry whose recipe went missing keeps its slot rather than vanishing
+   from the calendar — it is marked so it can be recognised and removed. */
+.meal-card--missing { border-style: dashed; opacity: .7; }
+.meal-card--moving { outline: 2px solid var(--color-accent, #4b5563); }
+
+.shopping-list-panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: .75rem; }
+.shopping-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+.shopping-item { font-size: .9rem; padding: .15rem 0; border-bottom: 1px solid var(--color-border); }
+.shopping-item:last-child { border-bottom: none; }
+
+@media (max-width: 600px) {
+    .recipe-ingredient-row { grid-template-columns: 1fr 1fr auto; }
+    .meal-plan-calendar { grid-template-columns: 1fr; }
+    .recipe-list { grid-template-columns: 1fr; }
+}

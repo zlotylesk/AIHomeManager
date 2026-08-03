@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Plan posiłków — AIHomeManager{% endblock %}
+
+{% block body %}
+<div class="app" data-controller="meal-plan">
+    <header class="app-header">
+        <h1 class="app-title">Plan posiłków</h1>
+    </header>
+
+    <section class="meal-plan-section">
+        <div class="meal-plan-toolbar">
+            <button type="button" class="btn btn-sm" data-action="click->meal-plan#previousWeek">← Poprzedni tydzień</button>
+            <span class="meal-plan-window" data-meal-plan-target="windowLabel"></span>
+            <button type="button" class="btn btn-sm" data-action="click->meal-plan#nextWeek">Następny tydzień →</button>
+            <button type="button" class="btn btn-sm" data-action="click->meal-plan#thisWeek">Bieżący tydzień</button>
+        </div>
+
+        <form class="meal-plan-form" data-action="submit->meal-plan#planMeal">
+            <select class="recipe-input" data-meal-plan-target="recipeSelect" aria-label="Przepis"></select>
+            <input class="recipe-input" type="date" data-meal-plan-target="planDate" aria-label="Dzień" required>
+            <select class="recipe-input" data-meal-plan-target="planSlot" aria-label="Pora dnia"></select>
+            <input class="recipe-input recipe-input--narrow" type="number" min="1" step="1" value="1"
+                   data-meal-plan-target="planServings" aria-label="Liczba porcji">
+            <button type="submit" class="btn btn-primary">Zaplanuj</button>
+        </form>
+
+        {# Every day of the window carries all four slots, empty ones included —
+           the API gap-fills both dimensions, so the grid is drawn straight from
+           the payload. #}
+        <div id="meal-plan-calendar" class="meal-plan-calendar" data-meal-plan-target="calendar">
+            <div class="loading">Ładowanie…</div>
+        </div>
+    </section>
+
+    <section class="meal-plan-section">
+        <h2 class="meal-plan-section-title">Lista zakupów</h2>
+        <p class="meal-plan-hint">Składniki zsumowane ze wszystkich posiłków w widocznym tygodniu, przeskalowane wg zaplanowanych porcji.</p>
+
+        <div id="shopping-list" class="shopping-list-panel" data-meal-plan-target="shoppingList">
+            <div class="loading">Ładowanie…</div>
+        </div>
+    </section>
+</div>
+{% endblock %}

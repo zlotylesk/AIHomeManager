@@ -129,6 +129,26 @@ class FrontendControllerTest extends WebTestCase
         self::assertSelectorExists('[data-controller="budget"]');
     }
 
+    public function testRecipesPageReturns200WithHtml(): void
+    {
+        $this->client->request('GET', '/recipes');
+
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('content-type', 'text/html; charset=UTF-8');
+        self::assertSelectorExists('nav.navbar');
+        self::assertSelectorExists('[data-controller="recipes"]');
+    }
+
+    public function testMealPlanPageReturns200WithHtml(): void
+    {
+        $this->client->request('GET', '/meal-plan');
+
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('content-type', 'text/html; charset=UTF-8');
+        self::assertSelectorExists('nav.navbar');
+        self::assertSelectorExists('[data-controller="meal-plan"]');
+    }
+
     public function testNavbarContainsAllModuleLinks(): void
     {
         $this->client->request('GET', '/series');
@@ -142,6 +162,8 @@ class FrontendControllerTest extends WebTestCase
         self::assertSelectorExists('a[href="/podcasts"]');
         self::assertSelectorExists('a[href="/insights"]');
         self::assertSelectorExists('a[href="/budget"]');
+        self::assertSelectorExists('a[href="/recipes"]');
+        self::assertSelectorExists('a[href="/meal-plan"]');
     }
 
     public function testActiveNavLinkMarkedOnSeriesPage(): void
