@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\Recipes\RecipesRequestParser;
+use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Recipes\Application\Command\MoveMeal;
@@ -17,6 +18,8 @@ use App\Module\Recipes\Application\Exception\PlannedMealNotFoundException;
 use App\Module\Recipes\Application\Exception\RecipeNotFoundException;
 use App\Module\Recipes\Application\Query\GetMealPlan;
 use App\Module\Recipes\Application\Query\GetShoppingList;
+use App\Module\Recipes\Application\Service\ShoppingListExporter;
+use App\Pdf\PdfBuilder;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
@@ -104,6 +107,70 @@ final class MealPlanController extends AbstractController
         }
 
         return new JsonResponse($this->normalizer->normalize($list));
+    }
+
+    /**
+     * CSV/PDF export of the shopping list (the Tasks/Articles export pattern).
+     *
+     * The list is dispatched on query.bus rather than re-queried in the
+     * exporter, so what is taken to the shop cannot drift from what
+     * `/meal-plan/shopping-list` serves and the page shows — for a shopping
+     * list that agreement is the entire point.
+     */
+    #[Route('/shopping-list/export', methods: ['GET'])]
+    #[OA\Get(
+        summary: 'Export the shopping list as CSV/PDF',
+        description: 'The same list `GET /meal-plan/shopping-list` returns, rendered as a file. Quantities are rounded here — the JSON ships raw sums because precision is per unit, but a document read by a person cannot print `0.30000000000000004`; grams and millilitres come out whole, kilograms and litres to three decimals, and units you cannot buy a fraction of (`piece`, `pinch`) round **up**, because a shopping list that leaves the cook an egg short is the one direction of error worth avoiding. The CSV carries the canonical unit identifier (it is sorted and grouped in a spreadsheet, where a stable key beats a caption); the PDF, which is read rather than processed, spells the unit out. The filename carries the window, so exporting three weeks gives three distinguishable files.',
+        tags: ['Recipes'],
+        parameters: [
+            new OA\Parameter(name: 'from', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date', example: '2026-08-03')),
+            new OA\Parameter(name: 'to', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date', example: '2026-08-09')),
+            new OA\Parameter(name: 'format', in: 'query', required: false, description: 'Defaults to `csv`. An unknown value is a 422 rather than a silent fallback.', schema: new OA\Schema(type: 'string', enum: ['csv', 'pdf'])),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'The shopping list, as a file attachment.',
+                content: [
+                    new OA\MediaType(mediaType: 'text/csv', schema: new OA\Schema(type: 'string')),
+                    new OA\MediaType(mediaType: 'application/pdf', schema: new OA\Schema(type: 'string', format: 'binary')),
+                ],
+            ),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
+            new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+        ],
+    )]
+    public function exportShoppingList(Request $request, ShoppingListExporter $exporter, PdfBuilder $pdfBuilder): Response
+    {
+        [$from, $to] = $this->parser->requireWindow($request);
+        $format = $this->parser->exportFormat($request);
+
+        try {
+            /** @var ShoppingListDTO $list */
+            $list = $this->queryBus->ask(new GetShoppingList($from, $to));
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $suffix = sprintf('%s_%s', $list->from, $list->to);
+
+        if ('csv' === $format) {
+            return self::attachment(
+                CsvBuilder::build(ShoppingListExporter::HEADERS, $exporter->rows($list)),
+                'text/csv; charset=UTF-8',
+                sprintf('shopping-list-%s.csv', $suffix),
+            );
+        }
+
+        return self::attachment(
+            $pdfBuilder->build('exports/shopping_list_pdf.html.twig', [
+                'rows' => $exporter->printableRows($list),
+                'from' => $list->from,
+                'to' => $list->to,
+            ]),
+            'application/pdf',
+            sprintf('shopping-list-%s.pdf', $suffix),
+        );
     }
 
     #[Route('', methods: ['POST'])]
@@ -223,6 +290,14 @@ final class MealPlanController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    private static function attachment(string $body, string $contentType, string $filename): Response
+    {
+        return new Response($body, Response::HTTP_OK, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'attachment; filename='.$filename,
+        ]);
     }
 
     private function mapFailure(HandlerFailedException $e): JsonResponse

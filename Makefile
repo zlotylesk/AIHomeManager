@@ -85,7 +85,7 @@ test-newman-install:
 	npm install
 
 test-newman:
-	docker compose exec -T mysql mysql -uhomemanager -phomemanager homemanager -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE TABLE series_episodes; TRUNCATE TABLE series_seasons; TRUNCATE TABLE series; TRUNCATE TABLE books; TRUNCATE TABLE articles; TRUNCATE TABLE article_daily_picks; TRUNCATE TABLE budget_transactions; TRUNCATE TABLE budget_categories; SET FOREIGN_KEY_CHECKS=1;"
+	docker compose exec -T mysql mysql -uhomemanager -phomemanager homemanager -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE TABLE series_episodes; TRUNCATE TABLE series_seasons; TRUNCATE TABLE series; TRUNCATE TABLE books; TRUNCATE TABLE articles; TRUNCATE TABLE article_daily_picks; TRUNCATE TABLE budget_transactions; TRUNCATE TABLE budget_categories; TRUNCATE TABLE meal_plan; TRUNCATE TABLE recipe_ingredients; TRUNCATE TABLE recipe_steps; TRUNCATE TABLE recipes; SET FOREIGN_KEY_CHECKS=1;"
 	npx newman run tests-e2e/postman/AIHomeManager.postman_collection.json --ignore-redirects --reporters cli
 
 fixtures:

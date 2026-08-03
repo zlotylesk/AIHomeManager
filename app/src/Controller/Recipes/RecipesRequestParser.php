@@ -208,6 +208,24 @@ final class RecipesRequestParser
         return [$this->requireDateQuery($request, 'from'), $this->requireDateQuery($request, 'to')];
     }
 
+    /**
+     * The export format, defaulting to CSV.
+     *
+     * An unknown value is refused rather than falling back to the default: the
+     * caller asked for a specific file and would otherwise download a CSV while
+     * believing it had a PDF.
+     */
+    public function exportFormat(Request $request): string
+    {
+        $value = $request->query->get('format', 'csv');
+
+        if (!\in_array($value, ['csv', 'pdf'], true)) {
+            throw new UnprocessableEntityHttpException('Query parameter "format" must be "csv" or "pdf".');
+        }
+
+        return $value;
+    }
+
     private function requireDateQuery(Request $request, string $name): DateTimeImmutable
     {
         $value = $request->query->get($name);
