@@ -97,6 +97,9 @@ services:
     App\Module\Recipes\Domain\Repository\RecipeRepositoryInterface:
         alias: App\Module\Recipes\Infrastructure\Persistence\DoctrineRecipeRepository
 
+    App\Module\Recipes\Domain\Repository\MealPlanRepositoryInterface:
+        alias: App\Module\Recipes\Infrastructure\Persistence\DoctrineMealPlanRepository
+
     App\Module\Tasks\Domain\Repository\TaskRepositoryInterface:
         alias: App\Module\Tasks\Infrastructure\Persistence\DoctrineTaskRepository
 

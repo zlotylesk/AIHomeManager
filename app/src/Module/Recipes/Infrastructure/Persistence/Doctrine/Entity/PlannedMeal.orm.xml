@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <!--
+        Unlike its sibling Recipe, PlannedMeal IS ORM-mapped. HMAI-386 went to
+        plain DBAL for two specific reasons — Doctrine cannot map a collection
+        of identity-less embeddables, and constructor-bypassing hydration would
+        have skipped the very invariants that aggregate is built around. Neither
+        applies to a flat row of scalars, and going DBAL here anyway "for module
+        consistency" would give up `doctrine:schema:validate` coverage for
+        nothing.
+
+        No index on `date` alone: it is the leftmost column of the unique
+        constraint, so the calendar's date-range read already uses that index.
+    -->
+    <entity name="App\Module\Recipes\Domain\Entity\PlannedMeal" table="meal_plan">
+        <unique-constraints>
+            <unique-constraint columns="date,slot,recipe_id" name="uniq_meal_plan_date_slot_recipe"/>
+        </unique-constraints>
+        <id name="id" type="string" column="id" length="36"/>
+        <field name="date" type="date_immutable" column="date" nullable="false"/>
+        <field name="slot" type="meal_slot" column="slot" length="20" nullable="false"/>
+        <field name="recipeId" type="string" column="recipe_id" length="36" nullable="false"/>
+        <field name="servings" type="integer" column="servings" nullable="false"/>
+    </entity>
+
+</doctrine-mapping>
