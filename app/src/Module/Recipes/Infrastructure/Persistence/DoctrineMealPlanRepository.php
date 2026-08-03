@@ -61,6 +61,16 @@ final readonly class DoctrineMealPlanRepository implements MealPlanRepositoryInt
         return (int) $query->getSingleScalarResult() > 0;
     }
 
+    public function existsForRecipe(string $recipeId): bool
+    {
+        $count = $this->entityManager
+            ->createQuery('SELECT COUNT(m.id) FROM '.PlannedMeal::class.' m WHERE m.recipeId = :recipeId')
+            ->setParameter('recipeId', $recipeId)
+            ->getSingleScalarResult();
+
+        return (int) $count > 0;
+    }
+
     public function remove(PlannedMeal $meal): void
     {
         $this->entityManager->remove($meal);

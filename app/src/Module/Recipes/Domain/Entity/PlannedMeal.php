@@ -34,20 +34,23 @@ use InvalidArgumentException;
  * by plannedServings / recipe.servings, which is the whole reason this field
  * exists on the plan rather than being read off the recipe.
  *
- * The aggregate carries no mutator yet, so Rector collapses it to a readonly
- * class; HMAI-390's `MoveMeal` reopens it, the same way HMAI-387's `update()`
- * reopened `Recipe`.
+ * `moveTo()` is the aggregate's only mutator, so `date` and `slot` are the only
+ * fields that stopped being readonly — which is exactly the shape of a move.
+ * The recipe and the servings are deliberately not editable here: changing
+ * either would make the entry a different plan rather than the same plan on a
+ * different day, and there is no history to preserve, so re-planning says that
+ * more clearly than a general-purpose update would.
  */
-final readonly class PlannedMeal
+final class PlannedMeal
 {
     private DateTimeImmutable $date;
 
     public function __construct(
-        private string $id,
+        private readonly string $id,
         DateTimeImmutable $date,
         private MealSlot $slot,
-        private string $recipeId,
-        private int $servings,
+        private readonly string $recipeId,
+        private readonly int $servings,
     ) {
         if ('' === trim($id)) {
             throw new InvalidArgumentException('Planned meal id cannot be empty.');
@@ -92,5 +95,26 @@ final readonly class PlannedMeal
     public function servings(): int
     {
         return $this->servings;
+    }
+
+    /**
+     * Relocate this meal to another day and/or slot.
+     *
+     * The date is normalised here exactly as the constructor normalises it —
+     * not by delegating, because a caller handing over "next Tuesday" straight
+     * from a clock carries a time of day, and a moved meal that compared
+     * unequal to a freshly planned one on the same day would be the same bug
+     * the constructor already guards against, reintroduced through the back
+     * door.
+     *
+     * Whether the destination is already taken is not checked here: the answer
+     * lives in other rows, which an aggregate cannot see. The write handler
+     * asks the repository first (HMAI-390) and the unique index is the
+     * backstop.
+     */
+    public function moveTo(DateTimeImmutable $date, MealSlot $slot): void
+    {
+        $this->date = $date->setTime(0, 0);
+        $this->slot = $slot;
     }
 }
