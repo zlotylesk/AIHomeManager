@@ -11,6 +11,8 @@ import {
     quantityLabel,
     servingsLabel,
     shiftWeek,
+    shoppingLine,
+    shoppingQuantityLabel,
     slotLabel,
     unitLabel,
     weekOf,
@@ -71,19 +73,14 @@ describe('quantityLabel', () => {
         expect(quantityLabel(1.25, 'cup')).toBe('1.25');
     });
 
-    it('rounds indivisible units UP, never down', () => {
-        // Scaling 2 eggs by two thirds gives 1.33; rounding down leaves the
-        // cook an egg short halfway through the recipe.
-        expect(quantityLabel(1.3333, 'piece')).toBe('2');
-        expect(quantityLabel(0.1, 'piece')).toBe('1');
-        expect(quantityLabel(2.0001, 'pinch')).toBe('3');
-    });
-
-    it('does not inflate an exact whole of an indivisible unit', () => {
-        // A float that is 2 for every practical purpose must stay 2 — rounding
-        // 1.9999999999 up to 2 is right, but so is leaving a clean 2 alone.
+    it('states an indivisible unit as the recipe wrote it', () => {
+        // Rounding up belongs to the shopping list, not here. Half an onion is
+        // an ordinary recipe line, and displaying it as a whole one would
+        // restate what the user typed — while the edit form, which shows the
+        // stored value, would go on saying 0.5.
+        expect(quantityLabel(0.5, 'piece')).toBe('0.5');
+        expect(quantityLabel(1.3333, 'piece')).toBe('1.33');
         expect(quantityLabel(2, 'piece')).toBe('2');
-        expect(quantityLabel(6 * (1 / 3) * 1, 'piece')).toBe('2');
     });
 
     it('reports a missing quantity rather than showing it as zero', () => {
@@ -98,16 +95,76 @@ describe('quantityLabel', () => {
     it('still shows a genuine zero as zero', () => {
         expect(quantityLabel(0, 'g')).toBe('0');
     });
+
+    // These are the exact numbers ShoppingListExporterTest names on the PHP
+    // side. The rounding contract is implemented twice — here for the screen,
+    // there for the CSV/PDF export — and a decimal half is the one input where
+    // the two languages disagree by default: toFixed() rounds the binary double
+    // (1.005 is really 1.00499999999999989, so it would give "1.00") while PHP's
+    // number_format() rounds the decimal the value prints as. A shopping list
+    // whose printout differed from the screen at the last digit would undermine
+    // the one thing the export is for, so the pair is pinned on both sides.
+    it('rounds a decimal half the way the export does', () => {
+        expect(quantityLabel(1.005, 'cup')).toBe('1.01');
+        expect(quantityLabel(2.675, 'tablespoon')).toBe('2.68');
+        expect(quantityLabel(1.115, 'teaspoon')).toBe('1.12');
+        expect(quantityLabel(1.0005, 'kg')).toBe('1.001');
+        expect(quantityLabel(0.0005, 'l')).toBe('0.001');
+        expect(quantityLabel(0.5, 'g')).toBe('1');
+    });
+});
+
+describe('shoppingQuantityLabel', () => {
+    it('rounds indivisible units UP, never down', () => {
+        // Scaling 2 eggs by two thirds gives 1.33; rounding down leaves the
+        // cook an egg short halfway through the recipe.
+        expect(shoppingQuantityLabel(1.3333, 'piece')).toBe('2');
+        expect(shoppingQuantityLabel(0.1, 'piece')).toBe('1');
+        expect(shoppingQuantityLabel(2.0001, 'pinch')).toBe('3');
+    });
+
+    it('does not inflate an exact whole of an indivisible unit', () => {
+        // A float that is 2 for every practical purpose must stay 2 — rounding
+        // 1.9999999999 up to 2 is right, but so is leaving a clean 2 alone.
+        expect(shoppingQuantityLabel(2, 'piece')).toBe('2');
+        expect(shoppingQuantityLabel(6 * (1 / 3) * 1, 'piece')).toBe('2');
+    });
+
+    it('formats every other unit exactly like the recipe view', () => {
+        // The buying rule is the ONLY difference between the two; a divisible
+        // unit must not read one way on the list and another in the recipe.
+        for (const [quantity, unit] of [[333.3333, 'g'], [0.6666666, 'l'], [1.005, 'cup'], [1.5, 'kg']]) {
+            expect(shoppingQuantityLabel(quantity, unit)).toBe(quantityLabel(quantity, unit));
+        }
+    });
+
+    it('reports a missing quantity rather than showing it as zero', () => {
+        expect(shoppingQuantityLabel(null, 'piece')).toBe('—');
+        expect(shoppingQuantityLabel('', 'g')).toBe('—');
+    });
 });
 
 describe('ingredientLine', () => {
     it('renders quantity, unit and name', () => {
         expect(ingredientLine({ name: 'Mąka', quantity: 500, unit: 'g' })).toBe('500 g Mąka');
-        expect(ingredientLine({ name: 'Jajko', quantity: 1.33, unit: 'piece' })).toBe('2 szt. Jajko');
+        expect(ingredientLine({ name: 'Cebula', quantity: 0.5, unit: 'piece' })).toBe('0.5 szt. Cebula');
     });
 
     it('degrades to an empty string on no item', () => {
         expect(ingredientLine(null)).toBe('');
+    });
+});
+
+describe('shoppingLine', () => {
+    it('renders the buying quantity, not the recipe one', () => {
+        expect(shoppingLine({ name: 'Mąka', quantity: 500, unit: 'g' })).toBe('500 g Mąka');
+        // Two recipes each wanting half an onion is one onion to buy.
+        expect(shoppingLine({ name: 'Cebula', quantity: 1.0, unit: 'piece' })).toBe('1 szt. Cebula');
+        expect(shoppingLine({ name: 'Jajko', quantity: 1.33, unit: 'piece' })).toBe('2 szt. Jajko');
+    });
+
+    it('degrades to an empty string on no item', () => {
+        expect(shoppingLine(null)).toBe('');
     });
 });
 
