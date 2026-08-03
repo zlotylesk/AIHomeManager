@@ -232,12 +232,146 @@ final class MealPlanApiTest extends WebTestCase
     }
 
     /**
+     * The CSV is what a spreadsheet gets, so it carries the canonical unit
+     * identifier rather than the Polish caption the UI shows.
+     */
+    public function testExportsTheShoppingListAsCsv(): void
+    {
+        $recipeId = $this->createRecipe();
+        $this->planMeal($recipeId, '2026-08-05', 'lunch', 6);
+
+        $csv = $this->export();
+
+        self::assertResponseIsSuccessful();
+        self::assertStringStartsWith('text/csv', (string) $this->client->getResponse()->headers->get('Content-Type'));
+        // The UTF-8 BOM Excel needs (CsvBuilder), before the header row.
+        self::assertStringStartsWith("\xEF\xBB\xBF", $csv);
+        self::assertStringContainsString('name,unit,quantity', $csv);
+        self::assertStringContainsString('Mąka,g,750', $csv);
+        self::assertStringContainsString('Mleko,ml,375', $csv);
+    }
+
+    /** CSV is the default, so a client that only wants a file needs no format. */
+    public function testCsvIsTheDefaultFormat(): void
+    {
+        $this->client->request('GET', '/api/meal-plan/shopping-list/export'.self::WEEK);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringStartsWith('text/csv', (string) $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
+    /**
+     * The filename carries the window, so exporting three weeks in a row gives
+     * three distinguishable files rather than "shopping-list (2).csv".
+     */
+    public function testTheFilenameCarriesTheWindow(): void
+    {
+        $this->export();
+
+        self::assertSame(
+            'attachment; filename=shopping-list-2026-08-03_2026-08-09.csv',
+            $this->client->getResponse()->headers->get('Content-Disposition'),
+        );
+    }
+
+    public function testExportsTheShoppingListAsPdf(): void
+    {
+        $recipeId = $this->createRecipe();
+        $this->planMeal($recipeId, '2026-08-05', 'lunch', 4);
+
+        $pdf = $this->export('pdf');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('application/pdf', $this->client->getResponse()->headers->get('Content-Type'));
+        self::assertSame(
+            'attachment; filename=shopping-list-2026-08-03_2026-08-09.pdf',
+            $this->client->getResponse()->headers->get('Content-Disposition'),
+        );
+        self::assertStringStartsWith('%PDF-', $pdf);
+    }
+
+    /**
+     * The rule the whole export exists to get right: two eggs cooked for two
+     * thirds of the recipe is 1.33 eggs, and rounding that DOWN would send the
+     * cook home one short. Anything divisible still rounds to nearest.
+     */
+    public function testAnIndivisibleUnitRoundsUp(): void
+    {
+        $recipeId = $this->createRecipe([
+            'title' => 'Omlet',
+            'servings' => 3,
+            'ingredients' => [
+                ['name' => 'Jajko', 'quantity' => 2.0, 'unit' => 'piece'],
+                ['name' => 'Mleko', 'quantity' => 100.0, 'unit' => 'ml'],
+            ],
+        ]);
+        $this->planMeal($recipeId, '2026-08-05', 'breakfast', 2);
+
+        $csv = $this->export();
+
+        // 2 × 2/3 = 1.333 → 2, not 1.
+        self::assertStringContainsString('Jajko,piece,2', $csv);
+        // 100 × 2/3 = 66.67 → whole millilitres.
+        self::assertStringContainsString('Mleko,ml,67', $csv);
+    }
+
+    /**
+     * Precision is per unit — a kilogram keeps three decimals, and a float sum
+     * never reaches the file as 0.30000000000000004 (the artifact
+     * ShoppingListItemDTO documents and deliberately leaves to presentation).
+     */
+    public function testAFloatSumIsFormattedRatherThanPrinted(): void
+    {
+        $first = $this->createRecipe([
+            'title' => 'Ciasto',
+            'servings' => 1,
+            'ingredients' => [['name' => 'Cukier', 'quantity' => 0.1, 'unit' => 'kg']],
+        ]);
+        $second = $this->createRecipe([
+            'title' => 'Krem',
+            'servings' => 1,
+            'ingredients' => [['name' => 'Cukier', 'quantity' => 0.2, 'unit' => 'kg']],
+        ]);
+        $this->planMeal($first, '2026-08-05', 'dinner', 1);
+        $this->planMeal($second, '2026-08-06', 'dinner', 1);
+
+        // The raw JSON still carries the unrounded sum — that is the contract.
+        $this->client->request('GET', '/api/meal-plan/shopping-list'.self::WEEK);
+        self::assertNotSame(0.3, $this->jsonResponse($this->client)['items'][0]['quantity']);
+
+        self::assertStringContainsString('Cukier,kg,0.3', $this->export());
+    }
+
+    /** An empty window is still a well-formed file, not an empty download. */
+    public function testAnEmptyWindowStillExportsAHeaderRow(): void
+    {
+        $csv = $this->export();
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('name,unit,quantity', $csv);
+        self::assertSame(1, substr_count(trim($csv), "\n") + 1);
+    }
+
+    /**
+     * An unknown format is refused rather than falling back to CSV: the caller
+     * asked for a specific file and would otherwise open a CSV believing it had
+     * a PDF.
+     */
+    public function testRejectsAnUnknownExportFormat(): void
+    {
+        $this->client->request('GET', '/api/meal-plan/shopping-list/export'.self::WEEK.'&format=xlsx');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertArrayHasKey('error', $this->jsonResponse($this->client));
+    }
+
+    /**
      * @param array<string, string> $query
      */
     #[\PHPUnit\Framework\Attributes\DataProvider('invalidWindows')]
     public function testRejectsAMalformedWindow(array $query): void
     {
-        foreach (['/api/meal-plan', '/api/meal-plan/shopping-list'] as $path) {
+        foreach (['/api/meal-plan', '/api/meal-plan/shopping-list', '/api/meal-plan/shopping-list/export'] as $path) {
             $this->client->request('GET', $path.'?'.http_build_query($query));
             self::assertResponseStatusCodeSame(422);
             self::assertArrayHasKey('error', $this->jsonResponse($this->client));
@@ -313,6 +447,16 @@ final class MealPlanApiTest extends WebTestCase
         self::assertCount(1, $meals);
 
         return $meals[0];
+    }
+
+    private function export(?string $format = null): string
+    {
+        $this->client->request(
+            'GET',
+            '/api/meal-plan/shopping-list/export'.self::WEEK.(null === $format ? '' : '&format='.$format),
+        );
+
+        return (string) $this->client->getResponse()->getContent();
     }
 
     private function planMeal(string $recipeId, string $date, string $slot, int $servings = 4): string

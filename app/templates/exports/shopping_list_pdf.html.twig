@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: "DejaVu Sans", sans-serif; font-size: 11pt; }
+        h1 { font-size: 16pt; margin-bottom: 2pt; }
+        .window { font-size: 10pt; color: #555; margin-bottom: 10pt; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 5pt 6pt; text-align: left; }
+        th { background-color: #e0e0e0; font-weight: bold; }
+        .right { text-align: right; }
+        .qty { width: 18%; }
+        .footer { margin-top: 10pt; font-size: 8pt; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Lista zakupów</h1>
+    <p class="window">{{ from }} &ndash; {{ to }}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Składnik</th>
+                <th class="right qty">Ilość</th>
+                <th>Jednostka</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.name }}</td>
+                <td class="right">{{ row.quantity }}</td>
+                <td>{{ row.unit }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3">Brak zaplanowanych posiłków w tym zakresie.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="footer">Wygenerowano {{ 'now'|date('Y-m-d H:i') }} &mdash; AIHomeManager</p>
+</body>
+</html>

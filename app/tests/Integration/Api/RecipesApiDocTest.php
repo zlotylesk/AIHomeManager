@@ -37,6 +37,7 @@ final class RecipesApiDocTest extends WebTestCase
             'move a meal' => ['/api/v1/meal-plan/{id}', 'patch'],
             'unplan a meal' => ['/api/v1/meal-plan/{id}', 'delete'],
             'shopping list' => ['/api/v1/meal-plan/shopping-list', 'get'],
+            'export shopping list' => ['/api/v1/meal-plan/shopping-list/export', 'get'],
         ];
     }
 
@@ -203,6 +204,40 @@ final class RecipesApiDocTest extends WebTestCase
         self::assertSame('#/components/schemas/ShoppingListItemDTO', $schemas['ShoppingListDTO']['properties']['items']['items']['$ref']);
         self::assertSame(['name', 'unit', 'quantity'], array_keys($schemas['ShoppingListItemDTO']['properties']));
         self::assertSame('number', $schemas['ShoppingListItemDTO']['properties']['quantity']['type']);
+    }
+
+    /**
+     * The export offers both file types and still takes the same required
+     * window as the read it renders — a client cannot ask for "the shopping
+     * list" without saying which days it means, in either shape.
+     */
+    public function testTheExportOffersBothFileTypesAndKeepsTheRequiredWindow(): void
+    {
+        $spec = $this->fetchSpec(static::createClient());
+        $operation = $this->nestedArray($spec, 'paths', '/api/v1/meal-plan/shopping-list/export', 'get');
+
+        $required = [];
+        $optional = [];
+        foreach ($operation['parameters'] as $parameter) {
+            self::assertIsArray($parameter);
+            if ($parameter['required'] ?? false) {
+                $required[] = $parameter['name'];
+            } else {
+                $optional[] = $parameter['name'];
+            }
+        }
+
+        self::assertSame(['from', 'to'], $required);
+        self::assertSame(['format'], $optional);
+
+        $content = $this->nestedArray($spec, 'paths', '/api/v1/meal-plan/shopping-list/export', 'get', 'responses', '200', 'content');
+        self::assertSame(['text/csv', 'application/pdf'], array_keys($content));
+        self::assertSame('binary', $content['application/pdf']['schema']['format']);
+
+        self::assertSame(
+            '#/components/responses/UnprocessableEntityError',
+            $operation['responses']['422']['$ref'],
+        );
     }
 
     /**
