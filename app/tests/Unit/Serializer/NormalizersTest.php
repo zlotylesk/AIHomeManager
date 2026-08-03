@@ -33,6 +33,15 @@ use App\Module\Podcasts\Application\DTO\PodcastDetailDTO;
 use App\Module\Podcasts\Application\DTO\PodcastDTO;
 use App\Module\Podcasts\Application\DTO\PodcastEpisodeDTO;
 use App\Module\Podcasts\Application\DTO\PodcastListeningSessionDTO;
+use App\Module\Recipes\Application\DTO\MealPlanDayDTO;
+use App\Module\Recipes\Application\DTO\MealPlanDTO;
+use App\Module\Recipes\Application\DTO\MealPlanSlotDTO;
+use App\Module\Recipes\Application\DTO\PlannedMealDTO;
+use App\Module\Recipes\Application\DTO\RecipeDetailDTO;
+use App\Module\Recipes\Application\DTO\RecipeDTO;
+use App\Module\Recipes\Application\DTO\RecipeIngredientDTO;
+use App\Module\Recipes\Application\DTO\ShoppingListDTO;
+use App\Module\Recipes\Application\DTO\ShoppingListItemDTO;
 use App\Module\Search\Domain\Enum\SearchResultType;
 use App\Module\Search\Domain\ReadModel\SearchFacet;
 use App\Module\Search\Domain\ValueObject\SearchResult;
@@ -53,15 +62,24 @@ use App\Serializer\CategoryDTONormalizer;
 use App\Serializer\DashboardDTONormalizer;
 use App\Serializer\GoalProgressDTONormalizer;
 use App\Serializer\ListeningSessionDTONormalizer;
+use App\Serializer\MealPlanDayDTONormalizer;
+use App\Serializer\MealPlanDTONormalizer;
+use App\Serializer\MealPlanSlotDTONormalizer;
 use App\Serializer\MonthlyBudgetReportDTONormalizer;
 use App\Serializer\MovieDTONormalizer;
 use App\Serializer\NotificationDTONormalizer;
 use App\Serializer\NotificationPreferenceDTONormalizer;
+use App\Serializer\PlannedMealDTONormalizer;
 use App\Serializer\PodcastDetailDTONormalizer;
 use App\Serializer\PodcastDTONormalizer;
+use App\Serializer\RecipeDetailDTONormalizer;
+use App\Serializer\RecipeDTONormalizer;
+use App\Serializer\RecipeIngredientDTONormalizer;
 use App\Serializer\SearchFacetNormalizer;
 use App\Serializer\SearchResultDTONormalizer;
 use App\Serializer\SeriesDetailDTONormalizer;
+use App\Serializer\ShoppingListDTONormalizer;
+use App\Serializer\ShoppingListItemDTONormalizer;
 use App\Serializer\StreakDTONormalizer;
 use App\Serializer\TaskDTONormalizer;
 use App\Serializer\TimeReportDTONormalizer;
@@ -779,5 +797,108 @@ final class NormalizersTest extends TestCase
                 'overLimit' => false,
             ],
         ], $result['categories']);
+    }
+
+    public function testRecipeNormalizerMapsEveryField(): void
+    {
+        $n = new RecipeDTONormalizer();
+        $dto = new RecipeDTO('r-1', 'Naleśniki', 4, 30, ['obiad', 'szybkie'], 3);
+
+        self::assertSame([
+            'id' => 'r-1',
+            'title' => 'Naleśniki',
+            'servings' => 4,
+            'prepTimeMinutes' => 30,
+            'tags' => ['obiad', 'szybkie'],
+            'ingredientCount' => 3,
+        ], $n->normalize($dto));
+    }
+
+    /**
+     * The recipe half is flattened to the top level, so the DTO's own `recipe`
+     * key never reaches the wire — which is why the OpenAPI schema documents
+     * this response as allOf[RecipeDTO, …] rather than a $ref to the detail DTO.
+     */
+    public function testRecipeDetailNormalizerFlattensTheRecipeAndDelegatesIngredients(): void
+    {
+        $serializer = new Serializer([new RecipeDTONormalizer(), new RecipeIngredientDTONormalizer(), new RecipeDetailDTONormalizer()]);
+        $dto = new RecipeDetailDTO(
+            new RecipeDTO('r-1', 'Naleśniki', 4, 30, ['obiad'], 2),
+            [new RecipeIngredientDTO('Mąka', 500.0, 'g'), new RecipeIngredientDTO('Mleko', 250.0, 'ml')],
+            ['Wymieszaj', 'Usmaż'],
+        );
+
+        $result = $serializer->normalize($dto);
+
+        self::assertIsArray($result);
+        self::assertArrayNotHasKey('recipe', $result);
+        self::assertSame('r-1', $result['id']);
+        self::assertSame('Naleśniki', $result['title']);
+        self::assertSame([
+            ['name' => 'Mąka', 'quantity' => 500.0, 'unit' => 'g'],
+            ['name' => 'Mleko', 'quantity' => 250.0, 'unit' => 'ml'],
+        ], $result['ingredients']);
+        self::assertSame(['Wymieszaj', 'Usmaż'], $result['steps']);
+    }
+
+    public function testMealPlanNormalizerDelegatesThroughEveryLevel(): void
+    {
+        $serializer = new Serializer([
+            new PlannedMealDTONormalizer(),
+            new MealPlanSlotDTONormalizer(),
+            new MealPlanDayDTONormalizer(),
+            new MealPlanDTONormalizer(),
+        ]);
+        $dto = new MealPlanDTO('2026-08-03', '2026-08-03', [
+            new MealPlanDayDTO('2026-08-03', [
+                new MealPlanSlotDTO('breakfast', [new PlannedMealDTO('m-1', 'r-1', 'Naleśniki', 4)]),
+                new MealPlanSlotDTO('lunch', []),
+            ]),
+        ]);
+
+        self::assertSame([
+            'from' => '2026-08-03',
+            'to' => '2026-08-03',
+            'days' => [
+                [
+                    'date' => '2026-08-03',
+                    'slots' => [
+                        ['slot' => 'breakfast', 'meals' => [['id' => 'm-1', 'recipeId' => 'r-1', 'recipeTitle' => 'Naleśniki', 'servings' => 4]]],
+                        ['slot' => 'lunch', 'meals' => []],
+                    ],
+                ],
+            ],
+        ], $serializer->normalize($dto));
+    }
+
+    /** A plan entry whose recipe went missing keeps its place, with a null title. */
+    public function testPlannedMealNormalizerCarriesANullRecipeTitle(): void
+    {
+        $n = new PlannedMealDTONormalizer();
+
+        self::assertSame([
+            'id' => 'm-1',
+            'recipeId' => 'r-gone',
+            'recipeTitle' => null,
+            'servings' => 2,
+        ], $n->normalize(new PlannedMealDTO('m-1', 'r-gone', null, 2)));
+    }
+
+    public function testShoppingListNormalizerDelegatesItemsAndKeepsRawQuantities(): void
+    {
+        $serializer = new Serializer([new ShoppingListItemDTONormalizer(), new ShoppingListDTONormalizer()]);
+        $dto = new ShoppingListDTO('2026-08-03', '2026-08-09', [
+            new ShoppingListItemDTO('Mąka', 'g', 333.3333333333333),
+            new ShoppingListItemDTO('Mleko', 'ml', 250.0),
+        ]);
+
+        self::assertSame([
+            'from' => '2026-08-03',
+            'to' => '2026-08-09',
+            'items' => [
+                ['name' => 'Mąka', 'unit' => 'g', 'quantity' => 333.3333333333333],
+                ['name' => 'Mleko', 'unit' => 'ml', 'quantity' => 250.0],
+            ],
+        ], $serializer->normalize($dto));
     }
 }

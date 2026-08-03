@@ -44,7 +44,7 @@ final class OpenApiContractTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->authenticate($this->client);
-        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences', 'podcast_listening_sessions', 'podcast_episodes', 'podcasts', 'budget_transactions', 'budget_categories');
+        $this->truncate('series_episodes', 'series_seasons', 'series', 'tasks', 'articles', 'goals', 'book_reading_sessions', 'movies', 'notifications', 'notification_preferences', 'podcast_listening_sessions', 'podcast_episodes', 'podcasts', 'budget_transactions', 'budget_categories', 'meal_plan', 'recipe_ingredients', 'recipe_steps', 'recipes');
 
         $content = $this->fetchSpecContent();
 
@@ -260,6 +260,37 @@ final class OpenApiContractTest extends WebTestCase
         // typing it as a plain number would break on.
         $this->seedBudgetMonth();
         $this->assertResponseConformsToContract('GET', '/api/v1/budget/report?month=2026-07', '/api/v1/budget/report');
+    }
+
+    public function testRecipesListResponseConformsToContract(): void
+    {
+        // Two recipes: one with every optional field populated and one with
+        // none, so the nullable prepTimeMinutes is checked in both states.
+        $this->seedRecipeWeek();
+        $this->assertResponseConformsToContract('GET', '/api/v1/recipes', '/api/v1/recipes');
+    }
+
+    public function testRecipeDetailResponseConformsToContract(): void
+    {
+        // The detail is flattened by its normalizer, so it is documented as
+        // allOf[RecipeDTO, {ingredients, steps}] rather than as the DTO — the
+        // exact drift this gate caught for the Podcasts detail.
+        $recipeId = $this->seedRecipeWeek();
+        $this->assertResponseConformsToContract('GET', '/api/v1/recipes/'.$recipeId, '/api/v1/recipes/{id}');
+    }
+
+    public function testMealPlanResponseConformsToContract(): void
+    {
+        // Gap-filled in both dimensions, so one request validates the occupied
+        // slot, the empty ones and every day of the window at once.
+        $this->seedRecipeWeek();
+        $this->assertResponseConformsToContract('GET', '/api/v1/meal-plan?from=2026-08-03&to=2026-08-09', '/api/v1/meal-plan');
+    }
+
+    public function testShoppingListResponseConformsToContract(): void
+    {
+        $this->seedRecipeWeek();
+        $this->assertResponseConformsToContract('GET', '/api/v1/meal-plan/shopping-list?from=2026-08-03&to=2026-08-09', '/api/v1/meal-plan/shopping-list');
     }
 
     public function testContractValidationRejectsDriftingResponse(): void
@@ -626,6 +657,39 @@ final class OpenApiContractTest extends WebTestCase
      * (over/under a limit, no limit at all, no activity) is populated rather
      * than validated against an empty database.
      */
+    /**
+     * A recipe rich enough to exercise every optional field, planned twice so
+     * the calendar has an occupied and an empty slot and the shopping list has
+     * something to scale.
+     */
+    private function seedRecipeWeek(): string
+    {
+        $recipeId = $this->postForId('/api/v1/recipes', [
+            'title' => 'Naleśniki',
+            'ingredients' => [
+                ['name' => 'Mąka', 'quantity' => 500.0, 'unit' => 'g'],
+                ['name' => 'Mleko', 'quantity' => 250.0, 'unit' => 'ml'],
+            ],
+            'steps' => ['Wymieszaj składniki', 'Usmaż'],
+            'servings' => 4,
+            'prepTimeMinutes' => 30,
+            'tags' => ['obiad'],
+        ]);
+
+        // A second recipe with every optional field absent, so the nullable
+        // prepTimeMinutes and the empty tags/steps branches are validated too.
+        $this->postForId('/api/v1/recipes', [
+            'title' => 'Kanapka',
+            'ingredients' => [['name' => 'Chleb', 'quantity' => 2.0, 'unit' => 'piece']],
+        ]);
+
+        $this->postForId('/api/v1/meal-plan', [
+            'date' => '2026-08-05', 'slot' => 'lunch', 'recipeId' => $recipeId, 'servings' => 6,
+        ]);
+
+        return $recipeId;
+    }
+
     private function seedBudgetMonth(): void
     {
         $groceries = $this->postForId('/api/v1/budget/categories', ['name' => 'Zakupy', 'type' => 'expense']);
