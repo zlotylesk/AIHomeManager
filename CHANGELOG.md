@@ -23,9 +23,16 @@ Motywem przewodnim jest **lista zakupów, która się zgadza**. Wszystko w modul
 
 ### Coverage
 
-- **+279 testów PHP** (2400 vs 2121 w 1.32.0), **+24 Playwright** (161), **+38 Vitest** (212) i **+42 asercje Newman** (121). PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations** — moduł nie potrzebował ani jednego wyjątku od reguł architektury.
+- **+289 testów PHP** (2410 vs 2121 w 1.32.0), **+24 Playwright** (161), **+44 Vitest** (218) i **+42 asercje Newman** (121). PHPStan level 8 clean, deptrac **0 violations / 0 skip_violations** — moduł nie potrzebował ani jednego wyjątku od reguł architektury.
 - Dwa testy odczytu są zbudowane tak, żeby **upaść, a nie przejść**: filtr frazy sieje wabik, który złapałby każdy nieescapowany wildcard (`Sok 100 procent` obok `Sok 100%`), a szczegóły przepisu sieją składniki i kroki w kolejności innej niż docelowa, więc handler opierający się na kolejności wstawiania oddaje przepis przetasowany.
 - Kolekcja Postman dostała folder Recipes (22 żądania / 42 asercje) obejmujący pełną sekwencję modułu wraz z obiema bramkami 409 i czterema wariantami eksportu. `make test-newman` czyści teraz również tabele `recipes*` i `meal_plan`.
+
+### Fixed
+
+Przegląd epiku znalazł **dwa prawdziwe defekty** — obydwa w tej samej regule zaokrąglania i obydwa tej samej klasy co w 1.32.0: każda strona z osobna była poprawna, ich styk już nie.
+
+- **Ta sama reguła zaokrąglania istnieje w dwóch językach i dawała dwa różne wyniki.** Eksport zaokrągla w PHP (`number_format`), ekran w przeglądarce (`toFixed`) — a `toFixed` zaokrągla dokładną wartość binarną, podczas gdy `number_format` czyta liczbę dziesiętną, którą wartość wypisuje. Dla połówki dziesiętnej rozjeżdżały się na ostatniej cyfrze: `1.005` to na ekranie było `1`, a w pliku `1.01`; `2.675` odpowiednio `2.67` i `2.68`. Docblock eksportera twierdził przy tym, że „obie strony są przypięte testami nazywającymi te same liczby" — nie były: żaden test nie nazywał wartości granicznej, a po stronie PHP nie istniał **ani jeden** test jednostkowy eksportera. Kartka zabrana do sklepu miała być dokładnie tym, co pokazał ekran, i to jest jedyny powód, dla którego ten eksport w ogóle istnieje. Strona JS zaokrągla teraz to, co widzi człowiek, a obie połowy są przypięte testami wymieniającymi te same sześć liczb (nowy `ShoppingListExporterTest` i jego odpowiednik w `recipes_format.test.js`), więc zmiana jednej strony bez drugiej zapala jeden z dwóch suite'ów.
+- **Reguła „zaokrąglaj w górę" wyciekła z listy zakupów do widoku samego przepisu.** Zaokrąglanie w górę jest regułą **kupowania** („nie kupisz pół jajka"), ale jeden wspólny helper renderował zarówno pozycje listy, jak i składniki przepisu — więc przepis na `0.5 szt. cebuli` wyświetlał się jako **`1 szt.`**, podczas gdy formularz edycji, pokazujący wartość zapisaną, dalej mówił `0.5`. Przepis kłamał o tym, co w nim zapisano, i to w kierunku podwojenia składnika. Helpery są teraz rozdzielone zgodnie z tym, czym są: `quantityLabel` renderuje przepis wiernie, `shoppingQuantityLabel` stosuje regułę zakupową. Defekt był w **użyciu**, nie w samym helperze, więc pinem jest E2E — to jedyna warstwa, która by go złapała.
 
 ### Migration
 

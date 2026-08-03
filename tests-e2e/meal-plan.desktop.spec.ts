@@ -54,16 +54,23 @@ function buildPlan(state: PlanState, from: string, to: string) {
 
 function buildShoppingList(state: PlanState, from: string, to: string) {
   const inWindow = state.entries.filter((entry) => entry.date >= from && entry.date <= to);
-  // One ingredient per recipe is enough to prove the scaling reaches the view:
-  // 500 g of flour for a 4-portion recipe, scaled by the planned servings.
-  const flour = inWindow
+  // Two ingredients of the 4-portion recipe, both scaled by the planned
+  // servings: flour proves the scaling reaches the view at all, and the eggs
+  // are there because an indivisible unit is the one place the shopping list
+  // formats differently from the recipe it came from.
+  const scale = inWindow
     .filter((entry) => 'rec-1' === entry.recipeId)
-    .reduce((sum, entry) => sum + (500 * entry.servings) / 4, 0);
+    .reduce((sum, entry) => sum + entry.servings / 4, 0);
 
   return {
     from,
     to,
-    items: flour > 0 ? [{ name: 'Mąka', unit: 'g', quantity: flour }] : [],
+    items: scale > 0
+      ? [
+          { name: 'Mąka', unit: 'g', quantity: 500 * scale },
+          { name: 'Jajko', unit: 'piece', quantity: 3 * scale },
+        ]
+      : [],
   };
 }
 
@@ -214,7 +221,12 @@ test.describe('Meal plan — desktop', () => {
 
     // 500 g for 4 portions, cooked for 6 → 750 g, rendered whole because grams
     // are counted whole.
-    await expect(page.locator('.shopping-item')).toHaveText('750 g Mąka');
+    await expect(page.locator('.shopping-item').nth(0)).toHaveText('750 g Mąka');
+    // 3 eggs for 4 portions, cooked for 6 → 4.5, and the list says 5. Rounding
+    // to nearest would say 4 and leave the cook half an egg short; this is the
+    // one direction of error a shopping list must not make. The recipe itself
+    // still states 3 — the round-up belongs to buying, not to cooking.
+    await expect(page.locator('.shopping-item').nth(1)).toHaveText('5 szt. Jajko');
   });
 
   test('two different recipes share one slot, the same one twice is refused', async ({ page }) => {

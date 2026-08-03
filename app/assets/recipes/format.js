@@ -57,46 +57,116 @@ const UNIT_DECIMALS = {
     pinch: 0,
 };
 
-// Units you cannot buy a fraction of. Their quantities round UP rather than to
-// nearest: scaling 2 eggs by two thirds gives 1.33, and rounding that down
-// leaves the cook an egg short halfway through the recipe — the one direction
-// of error a shopping list must not make.
+// Units you cannot buy a fraction of. On the SHOPPING LIST their quantities
+// round UP rather than to nearest: scaling 2 eggs by two thirds gives 1.33, and
+// rounding that down leaves the cook an egg short halfway through the recipe —
+// the one direction of error a shopping list must not make.
+//
+// This is a rule about buying, not about cooking, which is why it belongs to
+// shoppingQuantityLabel alone. A recipe may legitimately call for half an
+// onion, and rounding that up where the recipe is displayed would restate what
+// the user wrote as twice the onion.
 const INDIVISIBLE_UNITS = ['piece', 'pinch'];
 
-// Format a quantity for display. Never prints a raw float: a sum of scaled
-// floats surfaces as 0.30000000000000004, which is what the DTO warns about.
-export function quantityLabel(quantity, unit) {
-    // null and '' both coerce to a finite 0, so they have to be rejected before
-    // Number() ever sees them: a missing quantity rendered as "0 g mąka" reads
-    // as a real amount, which on a shopping list is worse than an obvious dash.
+// Round to a number of decimals the way the export does.
+//
+// toFixed() rounds the exact binary double, and a decimal half is almost never
+// exactly representable: 1.005 is stored as 1.00499999999999989, so
+// (1.005).toFixed(2) is "1.00" — while the CSV/PDF export rounds through PHP's
+// number_format(), which reads the decimal the value prints as and answers
+// "1.01". Left alone the two disagree on the last digit of the same shopping
+// list, and the printout taken to the shop is trusted precisely because it is
+// supposed to be what the screen said.
+//
+// Shifting the decimal point through the string representation makes this side
+// round what a person sees, which is both what the export does and what a cook
+// expects.
+function roundToDecimals(value, decimals) {
+    const shifted = Number(`${value}e${decimals}`);
+    if (!Number.isFinite(shifted)) {
+        // A magnitude extreme enough that toString() switched to exponential
+        // notation (below 1e-6, above 1e21). No kitchen quantity reaches it,
+        // but a NaN on a shopping list would be worse than a last digit.
+        return value.toFixed(decimals);
+    }
+
+    return Number(`${Math.round(shifted)}e-${decimals}`).toFixed(decimals);
+}
+
+// A quantity that is not a quantity. null and '' both coerce to a finite 0, so
+// they have to be rejected before Number() ever sees them: a missing quantity
+// rendered as "0 g mąka" reads as a real amount, which on a shopping list is
+// worse than an obvious dash.
+const NO_QUANTITY = '—';
+
+function toQuantity(quantity) {
     if (null === quantity || undefined === quantity || '' === quantity) {
-        return '—';
+        return null;
     }
 
     const value = Number(quantity);
-    if (!Number.isFinite(value)) {
-        return '—';
-    }
 
-    if (INDIVISIBLE_UNITS.includes(unit)) {
-        return String(Math.ceil(value - 1e-9));
-    }
+    return Number.isFinite(value) ? value : null;
+}
 
+function withUnitPrecision(value, unit) {
     const decimals = Object.prototype.hasOwnProperty.call(UNIT_DECIMALS, unit) ? UNIT_DECIMALS[unit] : 2;
-    // toFixed then strip trailing zeros, so 1.500 kg reads "1.5 kg" but 1.234
+    // Round, then strip trailing zeros, so 1.500 kg reads "1.5 kg" but 1.234
     // keeps its precision.
-    const fixed = value.toFixed(decimals);
+    const fixed = roundToDecimals(value, decimals);
 
     return decimals > 0 ? fixed.replace(/\.?0+$/, '') : fixed;
 }
 
-// One line of an ingredient or shopping-list item: "500 g mąka".
+// Format a quantity as the recipe states it. Never prints a raw float: a float
+// stored by the aggregate can surface as 0.30000000000000004.
+//
+// Deliberately does NOT apply the shopping list's round-up rule. A recipe is a
+// set of instructions, not a purchase order: half an onion is an ordinary
+// ingredient line, and rounding it up here would display something the user
+// never wrote — while the edit form, which shows the stored value, would keep
+// saying 0.5. An indivisible unit has no entry in UNIT_DECIMALS, so it falls
+// through to the two-decimal default, which is faithful for anything a person
+// would type.
+export function quantityLabel(quantity, unit) {
+    const value = toQuantity(quantity);
+
+    return null === value ? NO_QUANTITY : withUnitPrecision(value, unit);
+}
+
+// Format a quantity as the shopping list needs it: what you have to come home
+// with. This is where the round-up rule for indivisible units belongs.
+export function shoppingQuantityLabel(quantity, unit) {
+    const value = toQuantity(quantity);
+    if (null === value) {
+        return NO_QUANTITY;
+    }
+
+    if (INDIVISIBLE_UNITS.includes(unit)) {
+        // The epsilon keeps a quantity that is a whole number in intent but
+        // 2.0000000000000004 in floating point from being rounded up to 3.
+        return String(Math.ceil(value - 1e-9));
+    }
+
+    return withUnitPrecision(value, unit);
+}
+
+// One line of a recipe's ingredients: "500 g mąka".
 export function ingredientLine(item) {
     if (!item) {
         return '';
     }
 
     return `${quantityLabel(item.quantity, item.unit)} ${unitLabel(item.unit)} ${item.name}`;
+}
+
+// One line of the shopping list — the same shape, the buying rule.
+export function shoppingLine(item) {
+    if (!item) {
+        return '';
+    }
+
+    return `${shoppingQuantityLabel(item.quantity, item.unit)} ${unitLabel(item.unit)} ${item.name}`;
 }
 
 // Polish plural for "porcja" — 1 porcja / 2-4 porcje / 5+ porcji, with the

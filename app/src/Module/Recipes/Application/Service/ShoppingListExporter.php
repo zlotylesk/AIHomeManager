@@ -34,11 +34,25 @@ use App\Module\Recipes\Application\DTO\ShoppingListDTO;
  * artifact the DTO warns about.
  *
  * That means the contract now exists twice: here and in
- * `assets/recipes/format.js`. Stated rather than hidden, because there is no
+ * `assets/recipes/format.js` (`shoppingQuantityLabel`, which is the shopping
+ * list's formatter — `quantityLabel` beside it renders a recipe's own
+ * ingredients and deliberately does NOT round up, since half an onion is an
+ * ordinary recipe line while half an egg is not something you can buy).
+ * Stated rather than hidden, because there is no
  * honest way to share nine constants between PHP and a browser bundle without
  * a build step nobody wants for this. What keeps the two from drifting quietly
- * is that both sides are pinned by tests naming the same numbers — a change to
- * one that is not made in the other fails a suite either way.
+ * is that both sides are pinned by tests naming the same numbers —
+ * `ShoppingListExporterTest::testADecimalHalfRoundsTheWayTheScreenDoes` and the
+ * `rounds a decimal half the way the export does` case in
+ * `assets/tests/recipes_format.test.js` — so a change made on one side and not
+ * the other turns one of the two suites red.
+ *
+ * The decimal half is where the two languages disagree by default, and it is
+ * why the JS side does not simply call `toFixed()`: that rounds the exact
+ * binary double (1.005 is stored as 1.00499999999999989, so it answers "1.00")
+ * while `number_format()` below rounds the decimal the value prints as. A
+ * printout that differed from the screen at the last digit would undermine the
+ * one thing an exported shopping list is for.
  *
  * Two of the rules carry meaning rather than formatting:
  *  - precision is per unit (grams and millilitres whole — nobody weighs
