@@ -18,6 +18,7 @@ doctrine:
             quiet_hours: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\QuietHoursType
             notification_channel: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\ChannelType
             notification_status: App\Module\Notifications\Infrastructure\Persistence\Doctrine\Type\NotificationStatusType
+            meal_slot: App\Module\Recipes\Infrastructure\Persistence\Doctrine\Type\MealSlotType
 
 
         profiling_collect_backtrace: '%kernel.debug%'
@@ -115,6 +116,14 @@ doctrine:
                 type: xml
                 dir: '%kernel.project_dir%/src/Module/Podcasts/Infrastructure/Persistence/Doctrine/ValueObject'
                 prefix: 'App\Module\Podcasts\Domain\ValueObject'
+            # Only PlannedMeal is mapped here — the Recipe aggregate next to it
+            # in the same namespace is persisted with plain DBAL (HMAI-386) and
+            # deliberately has no XML file, so Doctrine never manages it.
+            RecipesDomainEntities:
+                is_bundle: false
+                type: xml
+                dir: '%kernel.project_dir%/src/Module/Recipes/Infrastructure/Persistence/Doctrine/Entity'
+                prefix: 'App\Module\Recipes\Domain\Entity'
 
 when@test:
     doctrine:
