@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Recipes\Infrastructure\Persistence;
 
+use App\Module\Recipes\Application\TagsColumn;
 use App\Module\Recipes\Domain\Entity\Recipe;
 use App\Module\Recipes\Domain\Enum\MeasurementUnit;
 use App\Module\Recipes\Domain\Repository\RecipeRepositoryInterface;
@@ -55,7 +56,7 @@ final readonly class DoctrineRecipeRepository implements RecipeRepositoryInterfa
                     'title' => $recipe->title(),
                     'servings' => $recipe->servings(),
                     'prepTime' => $recipe->prepTimeMinutes(),
-                    'tags' => json_encode($recipe->tags(), JSON_THROW_ON_ERROR),
+                    'tags' => TagsColumn::encode($recipe->tags()),
                 ],
                 [
                     'servings' => ParameterType::INTEGER,
@@ -237,30 +238,7 @@ final readonly class DoctrineRecipeRepository implements RecipeRepositoryInterfa
             $steps,
             (int) $row['servings'],
             null === $row['prep_time_minutes'] ? null : (int) $row['prep_time_minutes'],
-            self::decodeTags($row['tags']),
+            TagsColumn::parse($row['tags']),
         );
-    }
-
-    /** @return list<string> */
-    private static function decodeTags(mixed $raw): array
-    {
-        if (!is_string($raw)) {
-            return [];
-        }
-
-        $decoded = json_decode($raw, true);
-
-        if (!is_array($decoded)) {
-            return [];
-        }
-
-        $tags = [];
-        foreach ($decoded as $tag) {
-            if (is_string($tag)) {
-                $tags[] = $tag;
-            }
-        }
-
-        return $tags;
     }
 }
