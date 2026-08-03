@@ -8,14 +8,14 @@ use App\Module\Recipes\Application\PlanWindow;
 use DateTimeImmutable;
 
 /**
- * The meal plan for an inclusive `[from, to]` window — a week, a month, or
- * whatever range the calendar is showing.
+ * Everything that has to be bought to cook the meals planned for an inclusive
+ * `[from, to]` window.
  *
- * The window's rules (normalisation, ordering, size cap) live in `PlanWindow`,
- * shared with `GetShoppingList`, so the two reads over the plan cannot
- * disagree about what a range means.
+ * The window shares its rules with `GetMealPlan` through `PlanWindow`, which
+ * is what keeps "the week I am looking at" and "the shopping for that week"
+ * from ever meaning two different ranges.
  */
-final readonly class GetMealPlan
+final readonly class GetShoppingList
 {
     public PlanWindow $window;
 

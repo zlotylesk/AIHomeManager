@@ -23,8 +23,8 @@ final readonly class GetMealPlanHandler
     public function __invoke(GetMealPlan $query): MealPlanDTO
     {
         return new MealPlanDTO(
-            from: $query->from->format('Y-m-d'),
-            to: $query->to->format('Y-m-d'),
+            from: $query->window->fromDate(),
+            to: $query->window->toDate(),
             days: $this->buildDays($query, $this->fetchPlanned($query)),
         );
     }
@@ -60,8 +60,8 @@ final readonly class GetMealPlanHandler
             SQL;
 
         $rows = $this->connection->fetchAllAssociative($sql, [
-            'from' => $query->from->format('Y-m-d'),
-            'to' => $query->to->format('Y-m-d'),
+            'from' => $query->window->fromDate(),
+            'to' => $query->window->toDate(),
         ]);
 
         $planned = [];
@@ -102,8 +102,8 @@ final readonly class GetMealPlanHandler
         // `to` still sitting at 00:00 — quietly dropping the last day of the
         // plan. Deriving from a fixed base makes the day count exact by
         // construction, and it is already bounded by the query's own guard.
-        for ($offset = 0; $offset < $query->dayCount(); ++$offset) {
-            $date = $query->from->modify(sprintf('+%d days', $offset))->format('Y-m-d');
+        for ($offset = 0; $offset < $query->window->dayCount(); ++$offset) {
+            $date = $query->window->from->modify(sprintf('+%d days', $offset))->format('Y-m-d');
             $slots = [];
 
             foreach (MealSlot::cases() as $slot) {
