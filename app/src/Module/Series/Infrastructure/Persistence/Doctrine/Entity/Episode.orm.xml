@@ -7,6 +7,7 @@
     <entity name="App\Module\Series\Domain\Entity\Episode" table="series_episodes">
         <indexes>
             <index name="idx_episode_season_id" columns="season_id"/>
+            <index name="idx_episode_watched_watched_at" columns="watched,watched_at"/>
         </indexes>
         <id name="id" type="string" column="id" length="36"/>
         <field name="seasonId" type="string" column="season_id" length="36" nullable="false"/>
