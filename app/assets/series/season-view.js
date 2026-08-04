@@ -1,6 +1,6 @@
 import { escHtml } from '../util.js';
 import { API } from './api.js';
-import { hideError, showError } from './banners.js';
+import { hideError, showError } from '../banners.js';
 import { avg, ratingFlag } from './ratings.js';
 import { buildInlineEditable } from './inline-edit.js';
 import { buildOwnRatingControl, renderRatingSelector } from './rating-controls.js';

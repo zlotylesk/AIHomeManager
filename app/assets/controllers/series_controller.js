@@ -1,6 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 import { API } from '../series/api.js';
-import { hideError, showError, showInfo, showTraktConnectPrompt } from '../series/banners.js';
+import { hideError, showError, showInfo } from '../banners.js';
+import { showTraktConnectPrompt } from '../series/banners.js';
 import { filterSeries, sortSeries } from '../series/list.js';
 import { renderSeriesList } from '../series/list-view.js';
 import { readMetadataInputs, renderDetail } from '../series/detail-view.js';

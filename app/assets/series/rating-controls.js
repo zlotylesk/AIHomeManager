@@ -1,4 +1,4 @@
-import { hideError, showError } from './banners.js';
+import { hideError, showError } from '../banners.js';
 
 // 1–10 button selector (the project deliberately uses buttons, not a number
 // input). `onChange` is invoked with the picked value.

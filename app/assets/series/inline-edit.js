@@ -1,4 +1,4 @@
-import { hideError, showError } from './banners.js';
+import { hideError, showError } from '../banners.js';
 
 // Click-to-edit text/number cell: click the value → input, Enter/blur saves,
 // Escape cancels. `onSave(next)` persists; a rejected save surfaces an error

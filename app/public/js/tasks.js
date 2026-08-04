@@ -2,26 +2,6 @@
 
 const $ = id => document.getElementById(id);
 
-function showError(msg) {
-    const b = $('error-banner');
-    b.textContent = msg;
-    b.classList.remove('hidden');
-    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
-}
-
-function showInfo(msg) {
-    const b = $('info-banner');
-    b.textContent = msg;
-    b.classList.remove('hidden');
-    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
-}
-
-function escHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function formatMinutes(m) {
     const h = Math.floor(m / 60);
     const min = m % 60;
@@ -70,7 +50,7 @@ async function loadTasks(page = 1) {
         pagination = unwrapped.pagination;
     } catch (err) {
         loading.classList.add('hidden');
-        showError(err.message || 'Nie udało się wczytać zadań.');
+        window.showError(err.message || 'Nie udało się wczytać zadań.');
         return;
     }
 
@@ -86,19 +66,19 @@ async function loadTasks(page = 1) {
     tbody.innerHTML = tasks.map(t => {
         const status = String(t.status);
         const label = STATUS_LABELS[status] ?? status;
-        const viewBtn = `<button class="btn btn-secondary btn-sm js-task-view" data-id="${escHtml(t.id)}">Podgląd</button>`;
+        const viewBtn = `<button class="btn btn-secondary btn-sm js-task-view" data-id="${window.escHtml(t.id)}">Podgląd</button>`;
         const stateActions = status === 'pending'
-            ? ` <button class="btn btn-secondary btn-sm js-task-edit" data-id="${escHtml(t.id)}">Edytuj</button> <button class="btn btn-secondary btn-sm js-task-complete" data-id="${escHtml(t.id)}">Zakończ</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${escHtml(t.id)}">Anuluj</button>`
+            ? ` <button class="btn btn-secondary btn-sm js-task-edit" data-id="${window.escHtml(t.id)}">Edytuj</button> <button class="btn btn-secondary btn-sm js-task-complete" data-id="${window.escHtml(t.id)}">Zakończ</button> <button class="btn btn-danger btn-sm js-task-cancel" data-id="${window.escHtml(t.id)}">Anuluj</button>`
             : '';
-        const deleteBtn = ` <button class="btn btn-danger btn-sm js-task-delete" data-id="${escHtml(t.id)}">Usuń</button>`;
+        const deleteBtn = ` <button class="btn btn-danger btn-sm js-task-delete" data-id="${window.escHtml(t.id)}">Usuń</button>`;
         const actions = viewBtn + stateActions + deleteBtn;
         return `
         <tr>
-            <td data-label="Tytuł">${escHtml(t.title)}</td>
-            <td data-label="Początek">${escHtml(formatDateTime(t.start))}</td>
-            <td data-label="Koniec">${escHtml(formatDateTime(t.end))}</td>
+            <td data-label="Tytuł">${window.escHtml(t.title)}</td>
+            <td data-label="Początek">${window.escHtml(formatDateTime(t.start))}</td>
+            <td data-label="Koniec">${window.escHtml(formatDateTime(t.end))}</td>
             <td data-label="Czas trwania">${formatMinutes(t.durationMinutes)}</td>
-            <td data-label="Status"><span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span></td>
+            <td data-label="Status"><span class="status-badge status-badge--${window.escHtml(status)}">${window.escHtml(label)}</span></td>
             <td data-label="Akcje">${actions}</td>
         </tr>`;
     }).join('');
@@ -111,10 +91,10 @@ async function completeTask(id, btn) {
     btn.textContent = 'Kończenie…';
     try {
         await window.apiCall(`/api/tasks/${id}/complete`, {method: 'POST'});
-        showInfo('Zadanie zakończone.');
+        window.showInfo('Zadanie zakończone.');
         await loadTasks();
     } catch (err) {
-        showError(err.message || 'Nie udało się zakończyć zadania.');
+        window.showError(err.message || 'Nie udało się zakończyć zadania.');
         btn.disabled = false;
         btn.textContent = 'Zakończ';
     }
@@ -128,10 +108,10 @@ async function cancelTask(id, btn) {
     btn.textContent = 'Anulowanie…';
     try {
         await window.apiCall(`/api/tasks/${id}/cancel`, {method: 'POST'});
-        showInfo('Zadanie anulowane.');
+        window.showInfo('Zadanie anulowane.');
         await loadTasks();
     } catch (err) {
-        showError(err.message || 'Nie udało się anulować zadania.');
+        window.showError(err.message || 'Nie udało się anulować zadania.');
         btn.disabled = false;
         btn.textContent = 'Anuluj';
     }
@@ -145,10 +125,10 @@ async function deleteTask(id, btn) {
     btn.textContent = 'Usuwanie…';
     try {
         await window.apiCall(`/api/tasks/${id}`, {method: 'DELETE'});
-        showInfo('Zadanie usunięte.');
+        window.showInfo('Zadanie usunięte.');
         await loadTasks();
     } catch (err) {
-        showError(err.message || 'Nie udało się usunąć zadania.');
+        window.showError(err.message || 'Nie udało się usunąć zadania.');
         btn.disabled = false;
         btn.textContent = 'Usuń';
     }
@@ -158,7 +138,7 @@ function renderTaskDetail(t) {
     const status = String(t.status);
     const label = STATUS_LABELS[status] ?? status;
     $('detail-title').textContent = t.title;
-    $('detail-status').innerHTML = `<span class="status-badge status-badge--${escHtml(status)}">${escHtml(label)}</span>`;
+    $('detail-status').innerHTML = `<span class="status-badge status-badge--${window.escHtml(status)}">${window.escHtml(label)}</span>`;
     $('detail-start').textContent = formatDateTime(t.start);
     $('detail-end').textContent = formatDateTime(t.end);
     $('detail-duration').textContent = formatMinutes(t.durationMinutes);
@@ -180,7 +160,7 @@ async function viewTask(id, btn) {
         renderTaskDetail(task);
         openDetailModal();
     } catch (err) {
-        showError(err.message || 'Nie udało się wczytać szczegółów zadania.');
+        window.showError(err.message || 'Nie udało się wczytać szczegółów zadania.');
     } finally {
         btn.disabled = false;
     }
@@ -204,7 +184,7 @@ async function editTask(id, btn) {
         $('edit-task-end').value = toLocalInputValue(task.end);
         openEditModal();
     } catch (err) {
-        showError(err.message || 'Nie udało się wczytać zadania do edycji.');
+        window.showError(err.message || 'Nie udało się wczytać zadania do edycji.');
     } finally {
         btn.disabled = false;
     }
@@ -242,9 +222,9 @@ async function downloadExport(format, btn) {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        showInfo(`Zadania wyeksportowane jako ${format.toUpperCase()}.`);
+        window.showInfo(`Zadania wyeksportowane jako ${format.toUpperCase()}.`);
     } catch (err) {
-        showError(err.message || 'Nie udało się wyeksportować zadań.');
+        window.showError(err.message || 'Nie udało się wyeksportować zadań.');
     } finally {
         btn.disabled = false;
         btn.textContent = original;
@@ -262,7 +242,7 @@ async function loadReport(from, to) {
     try {
         data = await window.apiCall(`/api/tasks/time-report?${params}`);
     } catch (err) {
-        showError(err.message || 'Nie udało się wczytać raportu.');
+        window.showError(err.message || 'Nie udało się wczytać raportu.');
         return;
     }
 
@@ -277,7 +257,7 @@ async function loadReport(from, to) {
     const tbody = $('breakdown-table').querySelector('tbody');
     tbody.innerHTML = data.breakdown.map(t => `
         <tr>
-            <td>${escHtml(t.title)}</td>
+            <td>${window.escHtml(t.title)}</td>
             <td>${t.minutes}</td>
             <td>${formatMinutes(t.minutes)}</td>
         </tr>
@@ -342,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const end = $('task-end').value;
         if (!title || !start || !end) return;
         if (end <= start) {
-            showError('Czas zakończenia musi być późniejszy niż czas rozpoczęcia.');
+            window.showError('Czas zakończenia musi być późniejszy niż czas rozpoczęcia.');
             return;
         }
         const btn = e.target.querySelector('[type=submit]');
@@ -355,10 +335,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({title, start, end}),
             });
             e.target.reset();
-            showInfo('Zadanie utworzone.');
+            window.showInfo('Zadanie utworzone.');
             await loadTasks();
         } catch (err) {
-            showError(err.message || 'Nie udało się utworzyć zadania.');
+            window.showError(err.message || 'Nie udało się utworzyć zadania.');
         }
         btn.disabled = false;
         btn.textContent = 'Utwórz zadanie';
@@ -372,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const end = $('edit-task-end').value;
         if (!id || !title || !start || !end) return;
         if (end <= start) {
-            showError('Czas zakończenia musi być późniejszy niż czas rozpoczęcia.');
+            window.showError('Czas zakończenia musi być późniejszy niż czas rozpoczęcia.');
             return;
         }
         const btn = e.target.querySelector('[type=submit]');
@@ -385,10 +365,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({title, start, end}),
             });
             closeEditModal();
-            showInfo('Zadanie zaktualizowane.');
+            window.showInfo('Zadanie zaktualizowane.');
             await loadTasks();
         } catch (err) {
-            showError(err.message || 'Nie udało się zaktualizować zadania.');
+            window.showError(err.message || 'Nie udało się zaktualizować zadania.');
         }
         btn.disabled = false;
         btn.textContent = 'Zapisz';
@@ -410,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await loadReport(from, to);
         } catch {
-            showError('Błąd sieci. Spróbuj ponownie.');
+            window.showError('Błąd sieci. Spróbuj ponownie.');
         }
         btn.disabled = false;
         btn.textContent = 'Wygeneruj raport';
