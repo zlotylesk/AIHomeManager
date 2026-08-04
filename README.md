@@ -401,6 +401,21 @@ docker exec aihm-rabbitmq-1 rabbitmqctl list_queues name messages
 
 **`messenger:failed:show` does not work here.** It needs a receiver that can list and address messages by id, which the Doctrine transport offers and AMQP does not — it answers `The "failed" receiver does not support listing or showing specific messages`. Use `messenger:stats` for the depth and `messenger:failed:retry` to work through them.
 
+#### Is anything consuming?
+
+`GET /api/health` carries a `worker` component that answers this, because nothing else does: the `rabbitmq` probe opens a socket to the broker, and the broker is perfectly happy with nobody consuming. An instance with both workers dead used to report five green components while every import, notification, search-index update and the nightly backup silently stopped.
+
+Each worker writes a heartbeat to Redis from its own run loop, one key per transport. `worker` is `up` only when **every** expected transport has beaten within 5 minutes — all of them, not any, because the failure that prompted this had the async worker alive and the scheduler dead. It reports `degraded` (HTTP 200), never `down`: the instance still serves every request it is asked to, and the fix is restarting a worker rather than shifting traffic away.
+
+Asking RabbitMQ for consumer counts would not work: `scheduler_default` is a Symfony Scheduler transport and never touches the broker, so the worker whose silence actually costs something is invisible from there.
+
+```bash
+curl -s localhost:8080/api/health | jq '.components.worker'
+docker compose restart messenger_worker scheduler_worker
+```
+
+Two things to know. **The heartbeat only starts once the workers run this code**, so after pulling this change they must be restarted or `worker` stays `degraded`. And a single message taking longer than 5 minutes reads as `degraded` while the worker is in fact busy — a deliberate trade, since the reading is informational and the failure worth catching lasts days rather than minutes.
+
 The broker keeps a named volume and a **fixed hostname**, and both are required (see the comment in `docker-compose.yml`). The queues, exchanges and messages have always been durable — Symfony's AMQP transport declares `AMQP_DURABLE` and sets `delivery_mode: 2` — but durability is written to `/var/lib/rabbitmq`, and without a volume that lived in the container's writable layer: a plain `restart` kept everything, while recreating the container (`docker compose down`, an image bump, any edit to the compose file) took the DLQ with it. The hostname matters for the same outcome by a different route: RabbitMQ derives its node name from it and stores each node's database under `mnesia/rabbit@<hostname>`, so with Docker's default (the container id) every recreation would start an empty new node while the old one's data sat untouched beside it in the volume — the mount would look like it was working and the messages would still be gone.
 
 Introducing the volume starts from an **empty broker once**: anything parked in the DLQ at the moment of the upgrade is lost. Check the depth before pulling this change if that matters.
@@ -727,7 +742,7 @@ X-API-Key: <value from .env.local>
 
 Missing / invalid key → `401 {"error": "..."}`.
 
-Exceptions: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + OpenSearch + a 3-state disk probe) — and the three API-doc routes above.
+Exceptions: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + OpenSearch + async worker + a 3-state disk probe) — and the three API-doc routes above.
 
 The frontend pages (`/`, `/series`, …) and the `/auth/google*`, `/auth/discogs*`, `/auth/trakt*`, `/auth/spotify*` OAuth endpoints are served by the separate `main` firewall and require **HTTP Basic** (`FRONTEND_USER` / `FRONTEND_PASSWORD_HASH`): every page renders `API_KEY` into a `<meta name="api-key">` tag, so leaving them anonymous would hand out full `/api/*` access.
 
