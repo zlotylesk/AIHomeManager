@@ -2,27 +2,14 @@
 
 const $ = id => document.getElementById(id);
 
-function showError(msg) {
-    const b = $('error-banner');
-    b.textContent = msg;
-    b.classList.remove('hidden');
-    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
-}
-
-function escHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function albumRow(a) {
-    const img = a.imageUrl ? `<img class="album-thumb" src="${escHtml(a.imageUrl)}" alt="" loading="lazy">` : '<div class="album-thumb album-thumb--placeholder">🎵</div>';
+    const img = a.imageUrl ? `<img class="album-thumb" src="${window.escHtml(a.imageUrl)}" alt="" loading="lazy">` : '<div class="album-thumb album-thumb--placeholder">🎵</div>';
     const plays = a.playCount != null ? `<span class="plays">${a.playCount} odtworzeń</span>` : '';
-    return `<div class="album-row">${img}<div class="album-info"><strong>${escHtml(a.title ?? '—')}</strong><span>${escHtml(a.artist ?? '—')}</span></div>${plays}</div>`;
+    return `<div class="album-row">${img}<div class="album-info"><strong>${window.escHtml(a.title ?? '—')}</strong><span>${window.escHtml(a.artist ?? '—')}</span></div>${plays}</div>`;
 }
 
 function vinylRow(r) {
-    return `<div class="vinyl-row"><div class="vinyl-info"><strong>${escHtml(r.title ?? '—')}</strong><span>${escHtml(r.artist ?? '—')} ${r.year ? `· ${r.year}` : ''}</span></div><span class="vinyl-format">${escHtml(r.format ?? '')}</span></div>`;
+    return `<div class="vinyl-row"><div class="vinyl-info"><strong>${window.escHtml(r.title ?? '—')}</strong><span>${window.escHtml(r.artist ?? '—')} ${r.year ? `· ${r.year}` : ''}</span></div><span class="vinyl-format">${window.escHtml(r.format ?? '')}</span></div>`;
 }
 
 const SOURCE_LABELS = {
@@ -38,9 +25,9 @@ function formatPlayedAt(iso) {
 function sessionRow(s) {
     const plays = s.playCount != null ? `<span class="plays">${s.playCount} odtworzeń</span>` : '';
     return `<div class="history-row">
-        <div class="album-info"><strong>${escHtml(s.title ?? '—')}</strong><span>${escHtml(s.artist ?? '—')}</span></div>
-        <span class="history-source">${escHtml(SOURCE_LABELS[s.source] ?? s.source ?? '')}</span>
-        <span class="history-when">${escHtml(formatPlayedAt(s.playedAt))}</span>
+        <div class="album-info"><strong>${window.escHtml(s.title ?? '—')}</strong><span>${window.escHtml(s.artist ?? '—')}</span></div>
+        <span class="history-source">${window.escHtml(SOURCE_LABELS[s.source] ?? s.source ?? '')}</span>
+        <span class="history-when">${window.escHtml(formatPlayedAt(s.playedAt))}</span>
         ${plays}
     </div>`;
 }
@@ -74,7 +61,7 @@ async function submitLogSession(e) {
         $('log-played-at').value = localDateTimeNow();
         await loadHistory();
     } catch (err) {
-        showError(err.message || 'Nie udało się zapisać odtworzenia.');
+        window.showError(err.message || 'Nie udało się zapisać odtworzenia.');
     }
     btn.disabled = false;
     btn.textContent = 'Zapisz odtworzenie';
@@ -101,7 +88,7 @@ async function loadHistory(page = 1) {
         window.mountPagerAfter(list, pagination, (next) => loadHistory(next));
     } catch (err) {
         list.innerHTML = '';
-        showError(err.message || 'Nie udało się wczytać historii odsłuchu.');
+        window.showError(err.message || 'Nie udało się wczytać historii odsłuchu.');
     }
 }
 
@@ -121,7 +108,7 @@ function renderCollection({ items, pagination }) {
             const query = params.toString();
             renderCollection(window.unwrapPage(await window.apiCall(`/api/music/collection${query ? `?${query}` : ''}`)));
         } catch (err) {
-            showError(err.message || 'Nie udało się wczytać kolekcji.');
+            window.showError(err.message || 'Nie udało się wczytać kolekcji.');
         }
     });
 }
@@ -161,7 +148,7 @@ async function loadMusic(period) {
         const comparison = readSection(cmpResult, 'Porównanie');
 
         if (errors.length) {
-            errDiv.innerHTML = errors.map(e => `<div class="error-banner" style="margin-bottom:.5rem">${escHtml(e)}</div>`).join('');
+            errDiv.innerHTML = errors.map(e => `<div class="error-banner" style="margin-bottom:.5rem">${window.escHtml(e)}</div>`).join('');
             errDiv.classList.remove('hidden');
         }
 
@@ -194,7 +181,7 @@ async function loadMusic(period) {
         content.classList.remove('hidden');
     } catch {
         loading.classList.add('hidden');
-        showError('Błąd sieci podczas wczytywania danych muzycznych.');
+        window.showError('Błąd sieci podczas wczytywania danych muzycznych.');
     }
 }
 

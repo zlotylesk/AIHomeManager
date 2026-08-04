@@ -121,6 +121,7 @@
     </div>
 </div>
 
-<script src="{{ asset('js/util.js') }}"></script>
+{# The shared helpers (apiCall/escHtml/safeUrl/pagination) arrive on `window`
+   from the Encore `app` entry, which base.html.twig loads above this block. #}
 <script src="{{ asset('js/articles.js') }}"></script>
 {% endblock %}

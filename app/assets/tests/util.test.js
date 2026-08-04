@@ -37,6 +37,15 @@ describe('escHtml', () => {
             .toBe('&lt;script&gt;&quot;&amp;&quot;&lt;/script&gt;');
     });
 
+    // The test above has always been named "five" while covering four. The
+    // apostrophe is the fifth, and it is the one that decides whether a
+    // single-quoted attribute is safe — with escHtml now the project's only
+    // escaper, guarding both frontend tracks, it has to hold for the attribute
+    // somebody writes next, not just the ones written so far.
+    it("escapes the apostrophe, so a single-quoted attribute cannot be broken out of", () => {
+        expect(escHtml("' onerror='alert(1)")).toBe('&#39; onerror=&#39;alert(1)');
+    });
+
     it('leaves a plain string untouched', () => {
         expect(escHtml('Breaking Bad')).toBe('Breaking Bad');
     });
