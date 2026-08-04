@@ -140,6 +140,13 @@ Architecture decisions (ADR): see Confluence space `H` → ADRs.
 
 You do **not** need PHP, Composer, MySQL, or Redis directly on the host — everything runs in containers.
 
+**On Windows, clone with the repo's `.gitattributes` in effect** (any normal `git clone` does this — it only matters if you carry an older working tree across). The containers bind-mount the working tree, and a shebang is not a comment: with `core.autocrlf=true` a checkout would write `#!/usr/bin/env php\r`, and Linux `env` then looks for a program literally named `php\r`. Every Makefile target that runs `bin/console` through its shebang — `make migrate`, `make cc`, `make setup`, `make openapi-dump`, `make backup-now` and nine others — fails with the thoroughly misleading `env: can't execute 'php': No such file or directory`, while the same commands work in CI and on Linux. `.gitattributes` pins `*.sh` and `app/bin/console` to LF so this cannot happen. If you are on a working tree that predates it:
+
+```bash
+git rm --cached -r . >/dev/null && git reset --hard   # re-checkout with the attributes applied
+git ls-files --eol app/bin/console                    # expect: i/lf  w/lf
+```
+
 ---
 
 ## Quick start
@@ -506,6 +513,37 @@ docker compose build php && docker compose up -d php messenger_worker scheduler_
 ```
 
 Without the rebuild the scheduled backup aborts with `bash: not found`. That failure is loud, not silent (an `error` log entry plus a Messenger retry and DLQ), but no backup is produced until the image is refreshed.
+
+#### Freshness check
+
+The two guards above name causes. `make doctor` additionally checks the **outcome**, because the causes worth guarding against are only the ones already known — and the failure that actually happened twice was one nobody had named:
+
+| Check | Threshold | Verdict |
+|---|---|---|
+| Newest backup's size | > 1024 B | `fail` — an empty dump (20 B is gzip's empty stream); restoring from it yields nothing |
+| Newest backup's **age** | < 48 h (`BACKUP_MAX_AGE_HOURS`) | `fail` — the schedule has stopped producing backups |
+| Retained backups that are empty | any | `warn` — those days have no restore point, but today's is intact |
+
+The age check exists because a schedule that simply **stops firing** leaves a perfectly valid dump in place, and a size-only check passes it indefinitely. That is not hypothetical: nothing ran between 29.07 and 03.08.2026 and `make doctor` reported `OK` throughout.
+
+**48 hours, not 24**, because the 03:00 cron is not when the backup actually runs on a workstation that is powered off overnight — the Scheduler fires the missed window whenever the host next comes up, so real dumps land anywhere between 07:00 and 22:00. A 24-hour threshold would cry wolf on an ordinary day, and a check that is routinely wrong is one people stop reading.
+
+When it fails:
+
+```bash
+make backup-now                    # take one immediately — this is the restore point you are missing
+docker compose ps scheduler_worker # then find out why the schedule stopped
+docker compose logs scheduler_worker | grep -i backup
+```
+
+To reproduce either verdict without waiting two days or touching the real archive, point the check at a throwaway directory — `BACKUP_DIR` and `BACKUP_MAX_AGE_HOURS` exist for exactly that:
+
+```bash
+mkdir -p /tmp/bk && head -c 20000 /dev/urandom > /tmp/bk/homemanager-2026-01-01.sql.gz
+BACKUP_DIR=/tmp/bk bash scripts/doctor.sh   # exits 1
+```
+
+Age is read from the **date in the filename**, not from mtime. The two normally agree, but copying, restoring or syncing the backup directory stamps every file with "now" — so an mtime check would call a months-old archive perfectly fresh, which is the exact class of wrong-but-reassuring answer the check exists to remove. The filename is also what `make restore BACKUP=…` takes.
 
 ---
 
