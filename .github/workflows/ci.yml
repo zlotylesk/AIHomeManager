@@ -380,6 +380,32 @@ jobs:
       - name: Build Webpack Encore assets
         run: npm run build
 
+      # HMAI-410: the backup-freshness verdicts, asserted on doctor's output
+      # rather than its exit code — the rest of the script probes Docker, which
+      # is not what this is about, so the exit code here says nothing useful.
+      #
+      # This guards the guard. The epic exists because a backup check quietly
+      # stopped covering the failure that actually happened; a stale-detection
+      # rule that regresses unnoticed would repeat exactly that, and unlike the
+      # image-level dependencies (which CI structurally cannot see, since it
+      # never runs inside the app image) this logic is plain shell CI can run.
+      - name: Backup freshness check (scripts/doctor.sh)
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bk-fresh /tmp/bk-stale
+          head -c 20000 /dev/urandom > "/tmp/bk-fresh/homemanager-$(date +%F).sql.gz"
+          head -c 20000 /dev/urandom > "/tmp/bk-stale/homemanager-$(date -d '5 days ago' +%F).sql.gz"
+
+          BACKUP_DIR=/tmp/bk-fresh bash scripts/doctor.sh > /tmp/fresh.log 2>&1 || true
+          BACKUP_DIR=/tmp/bk-stale bash scripts/doctor.sh > /tmp/stale.log 2>&1 || true
+
+          grep -q 'threshold 48h' /tmp/fresh.log \
+            || { echo "::error::a backup taken today was not reported as fresh"; cat /tmp/fresh.log; exit 1; }
+          grep -q 'over the 48h threshold' /tmp/stale.log \
+            || { echo "::error::a 5-day-old backup was not reported as stale"; cat /tmp/stale.log; exit 1; }
+          echo "fresh and stale backup directories both produce the expected verdict"
+
       # HMAI-362: the engine was started right after checkout; block here only
       # for whatever boot time the installs above did not already absorb. A dead
       # engine must fail here, loudly, rather than as a wall of red integration
