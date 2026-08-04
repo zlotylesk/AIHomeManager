@@ -10,6 +10,7 @@ use App\Module\Goals\Application\QueryHandler\GetGoalsProgressHandler;
 use App\Module\Goals\Application\QueryHandler\GetStreaksHandler;
 use App\Module\Goals\Domain\Port\ActivityProviderInterface;
 use App\Module\Goals\Domain\Service\GoalProgressCalculator;
+use App\Shared\Activity\StreakReaderInterface;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -19,6 +20,7 @@ final class GoalsProgressQueryTest extends KernelTestCase
 {
     private Connection $connection;
     private ActivityProviderInterface $activityProvider;
+    private StreakReaderInterface $streakReader;
 
     protected function setUp(): void
     {
@@ -26,9 +28,15 @@ final class GoalsProgressQueryTest extends KernelTestCase
         $container = static::getContainer();
         $this->connection = $container->get(EntityManagerInterface::class)->getConnection();
         $this->activityProvider = $container->get(ActivityProviderInterface::class);
+        // Pulled from the container rather than hand-built, so this exercises the
+        // wiring the cockpit reads through as well.
+        $this->streakReader = $container->get(StreakReaderInterface::class);
 
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        foreach (['goals', 'book_reading_sessions', 'series_episodes', 'articles', 'videos'] as $table) {
+        // `streaks` is truncated too since HMAI-412: the streak read now merges the
+        // persisted all-time longest into its answer, so a row left by another test
+        // would silently raise longestLength here.
+        foreach (['goals', 'streaks', 'book_reading_sessions', 'series_episodes', 'articles', 'videos'] as $table) {
             $this->connection->executeStatement('TRUNCATE TABLE '.$table);
         }
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
@@ -69,7 +77,7 @@ final class GoalsProgressQueryTest extends KernelTestCase
             ]);
         }
 
-        $handler = new GetStreaksHandler($this->connection, $this->activityProvider, new GoalProgressCalculator());
+        $handler = new GetStreaksHandler($this->streakReader);
         $result = $handler(new GetStreaks());
 
         self::assertCount(1, $result);
@@ -82,7 +90,7 @@ final class GoalsProgressQueryTest extends KernelTestCase
     public function testNoGoalsYieldsEmptyResult(): void
     {
         $progress = new GetGoalsProgressHandler($this->connection, $this->activityProvider, new GoalProgressCalculator());
-        $streaks = new GetStreaksHandler($this->connection, $this->activityProvider, new GoalProgressCalculator());
+        $streaks = new GetStreaksHandler($this->streakReader);
 
         self::assertSame([], $progress(new GetGoalsProgress())->items);
         self::assertSame([], $streaks(new GetStreaks()));
