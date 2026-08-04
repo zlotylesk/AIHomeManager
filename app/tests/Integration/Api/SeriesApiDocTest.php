@@ -46,8 +46,9 @@ final class SeriesApiDocTest extends WebTestCase
         $doc = $this->fetchSpec(static::createClient());
 
         $list = $this->nestedArray($doc, 'paths', '/api/v1/series', 'get', 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $list['type'] ?? null);
-        self::assertSame('#/components/schemas/SeriesDetailDTO', $list['items']['$ref'] ?? null);
+        self::assertSame('object', $list['type'] ?? null);
+        self::assertSame('#/components/schemas/SeriesDetailDTO', $list['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $list['properties']['pagination']['$ref'] ?? null);
 
         $detail = $this->nestedArray($doc, 'paths', '/api/v1/series/{id}', 'get', 'responses', '200', 'content', 'application/json', 'schema');
         self::assertSame('#/components/schemas/SeriesDetailDTO', $detail['$ref'] ?? null);

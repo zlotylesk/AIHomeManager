@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, unwrapPage, withPage } from '../pagination.js';
 import {
     MEASUREMENT_UNITS,
     ingredientLine,
@@ -109,7 +110,7 @@ export default class extends Controller {
         this.flash('info-banner', msg);
     }
 
-    async loadRecipes() {
+    async loadRecipes(page = FIRST_PAGE) {
         this.listTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
 
         const params = new URLSearchParams();
@@ -121,12 +122,13 @@ export default class extends Controller {
         if (phrase) {
             params.set('phrase', phrase);
         }
-        const query = params.toString();
+        const query = withPage(params, page).toString();
 
         try {
-            const recipes = await apiCall(`/api/recipes${query ? `?${query}` : ''}`);
+            const { items: recipes, pagination } = unwrapPage(await apiCall(`/api/recipes${query ? `?${query}` : ''}`));
             if (recipes.length) {
                 this.listTarget.innerHTML = recipes.map(cardHtml).join('');
+                mountPagerAfter(this.listTarget, pagination, (next) => this.loadRecipes(next));
 
                 return;
             }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Recipes\Application\Query;
 
+use App\Shared\Pagination\PageRequest;
+
 /**
  * List the recipe catalog, optionally narrowed by tag and/or a phrase in the
  * title. The two filters are independent and combine with AND; a null field
@@ -19,6 +21,7 @@ final readonly class GetRecipes
     public function __construct(
         public ?string $tag = null,
         public ?string $phrase = null,
+        public PageRequest $page = new PageRequest(),
     ) {
     }
 }

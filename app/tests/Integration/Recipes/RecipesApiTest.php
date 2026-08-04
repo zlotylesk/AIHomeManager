@@ -37,7 +37,7 @@ final class RecipesApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/recipes');
         self::assertResponseIsSuccessful();
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame($id, $list[0]['id']);
         self::assertSame('Naleśniki', $list[0]['title']);
@@ -86,7 +86,7 @@ final class RecipesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/recipes');
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testFiltersByTagAndPhrase(): void
@@ -95,16 +95,16 @@ final class RecipesApiTest extends WebTestCase
         $this->createRecipe(['title' => 'Naleśniki', 'tags' => ['śniadanie']]);
 
         $this->client->request('GET', '/api/recipes?tag=obiad');
-        self::assertCount(1, $this->jsonResponse($this->client));
+        self::assertCount(1, $this->jsonList($this->client));
 
         $this->client->request('GET', '/api/recipes?phrase=nale');
-        $byPhrase = $this->jsonResponse($this->client);
+        $byPhrase = $this->jsonList($this->client);
         self::assertCount(1, $byPhrase);
         self::assertSame('Naleśniki', $byPhrase[0]['title']);
 
         // Both filters at once, contradicting each other.
         $this->client->request('GET', '/api/recipes?tag=obiad&phrase=nale');
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     /**
@@ -116,7 +116,7 @@ final class RecipesApiTest extends WebTestCase
         $this->createRecipe();
 
         $this->client->request('GET', '/api/recipes?tag=&phrase=');
-        self::assertCount(1, $this->jsonResponse($this->client));
+        self::assertCount(1, $this->jsonList($this->client));
     }
 
     public function testUnknownRecipeIsNotFound(): void

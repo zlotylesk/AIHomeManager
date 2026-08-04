@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -22,6 +23,7 @@ use App\Module\Books\Application\Query\GetBookDetail;
 use App\Module\Books\Application\Service\BookCsvExporter;
 use App\Pdf\PdfBuilder;
 use App\Shared\Domain\ValueObject\CoverUrl;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
@@ -42,13 +44,14 @@ final class BooksController extends AbstractController
         private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
     #[OA\Get(
         summary: 'List books',
-        description: 'Returns all books, optionally filtered by reading status, each with page progress.',
+        description: 'Returns one page of books, optionally filtered by reading status, each with page progress.',
         tags: ['Books'],
         parameters: [
             new OA\QueryParameter(
@@ -57,12 +60,21 @@ final class BooksController extends AbstractController
                 required: false,
                 schema: new OA\Schema(type: 'string', enum: ['to_read', 'reading', 'completed']),
             ),
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
         ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The list of books.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: BookDTO::class))),
+                description: 'One page of books.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: BookDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
             new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
@@ -79,8 +91,8 @@ final class BooksController extends AbstractController
             );
         }
 
-        /** @var BookDTO[] $books */
-        $books = $this->queryBus->ask(new GetAllBooks($statusParam));
+        /** @var Page<BookDTO> $books */
+        $books = $this->queryBus->ask(new GetAllBooks($statusParam, $this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($books));
     }

@@ -7,7 +7,9 @@ namespace App\Module\Recipes\Application\QueryHandler;
 use App\Module\Recipes\Application\DTO\RecipeDTO;
 use App\Module\Recipes\Application\Query\GetRecipes;
 use App\Module\Recipes\Application\TagsColumn;
+use App\Shared\Pagination\Page;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
@@ -17,8 +19,8 @@ final readonly class GetRecipesHandler
     {
     }
 
-    /** @return RecipeDTO[] */
-    public function __invoke(GetRecipes $query): array
+    /** @return Page<RecipeDTO> */
+    public function __invoke(GetRecipes $query): Page
     {
         $conditions = [];
         $params = [];
@@ -57,13 +59,18 @@ final readonly class GetRecipesHandler
             FROM recipes r
             SQL;
 
-        if ([] !== $conditions) {
-            $sql .= ' WHERE '.implode(' AND ', $conditions);
-        }
+        $where = [] === $conditions ? '' : ' WHERE '.implode(' AND ', $conditions);
+        $sql .= $where.' ORDER BY r.title ASC, r.id ASC LIMIT :limit OFFSET :offset';
 
-        $sql .= ' ORDER BY r.title ASC';
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM recipes r'.$where, $params);
 
-        return array_map(self::toDTO(...), $this->connection->fetchAllAssociative($sql, $params));
+        $rows = $this->connection->fetchAllAssociative(
+            $sql,
+            $params + ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
+        );
+
+        return Page::of(array_map(self::toDTO(...), $rows), $total, $query->page);
     }
 
     /**

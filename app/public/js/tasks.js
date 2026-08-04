@@ -43,7 +43,7 @@ function toLocalInputValue(iso) {
 
 const STATUS_LABELS = {pending: 'Oczekujące', completed: 'Zakończone', cancelled: 'Anulowane'};
 
-async function loadTasks() {
+async function loadTasks(page = 1) {
     const loading = $('tasks-loading');
     const table = $('tasks-table');
     const empty = $('tasks-empty');
@@ -52,11 +52,22 @@ async function loadTasks() {
     empty.classList.add('hidden');
 
     const statusFilter = $('task-filter-status').value;
-    const url = statusFilter ? `/api/tasks?status=${encodeURIComponent(statusFilter)}` : '/api/tasks';
+    const params = new URLSearchParams();
+    if (statusFilter) {
+        params.set('status', statusFilter);
+    }
+    if (page > 1) {
+        params.set('page', String(page));
+    }
+    const query = params.toString();
+    const url = query ? `/api/tasks?${query}` : '/api/tasks';
 
     let tasks;
+    let pagination;
     try {
-        tasks = await window.apiCall(url);
+        const unwrapped = window.unwrapPage(await window.apiCall(url));
+        tasks = unwrapped.items;
+        pagination = unwrapped.pagination;
     } catch (err) {
         loading.classList.add('hidden');
         showError(err.message || 'Nie udało się wczytać zadań.');
@@ -64,6 +75,7 @@ async function loadTasks() {
     }
 
     loading.classList.add('hidden');
+    window.mountPagerAfter(table, pagination, (next) => loadTasks(next));
 
     if (!Array.isArray(tasks) || tasks.length === 0) {
         empty.classList.remove('hidden');

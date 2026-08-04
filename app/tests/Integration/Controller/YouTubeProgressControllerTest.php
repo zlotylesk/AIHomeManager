@@ -102,7 +102,7 @@ class YouTubeProgressControllerTest extends WebTestCase
     {
         $this->client->request('GET', '/api/youtube-progress/watchlist');
         $byId = [];
-        foreach ($this->decode()['videos'] as $video) {
+        foreach ($this->decode()['data'] as $video) {
             $byId[$video['youtubeId']] = $video;
         }
 
@@ -136,9 +136,9 @@ class YouTubeProgressControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         $data = $this->decode();
-        self::assertCount(1, $data['sessions']);
+        self::assertCount(1, $data['data']);
 
-        $session = $data['sessions'][0];
+        $session = $data['data'][0];
         self::assertSame(900, $session['totalDurationSeconds']);
         self::assertNull($session['youtubePlaylistId']);
         self::assertCount(2, $session['videos']);
@@ -213,7 +213,7 @@ class YouTubeProgressControllerTest extends WebTestCase
 
         $this->client->request('GET', '/api/youtube-progress/sessions');
         $data = $this->decode();
-        self::assertSame('PL_created_123', $data['sessions'][0]['youtubePlaylistId']);
+        self::assertSame('PL_created_123', $data['data'][0]['youtubePlaylistId']);
     }
 
     public function testMarkStartedReturns404ForUnknownVideo(): void

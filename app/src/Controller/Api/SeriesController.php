@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Controller\Series\SeriesRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -27,6 +28,7 @@ use App\Module\Series\Application\Query\GetAllSeries;
 use App\Module\Series\Application\Query\GetSeriesDetail;
 use App\Module\Series\Domain\Exception\SeasonNumberAlreadyTaken;
 use App\Module\Series\Infrastructure\Persistence\TraktTokenRepositoryInterface;
+use App\Shared\Pagination\Page;
 use DomainException;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
@@ -51,35 +53,45 @@ final class SeriesController extends AbstractController
         private readonly LoggerInterface $logger,
         private readonly TraktTokenRepositoryInterface $traktTokens,
         private readonly SeriesRequestParser $parser,
+        private readonly PaginationRequestParser $pagination,
         private readonly NormalizerInterface $normalizer,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
     #[OA\Get(
-        summary: 'List all series',
-        description: 'Returns every series with its seasons and episodes, own and computed average ratings, and watched counters.',
+        summary: 'List series',
+        description: 'Returns one page of series with their seasons and episodes, own and computed average ratings, and watched counters. The page window counts shows, so a series is never returned with only part of its episodes.',
         tags: ['Series'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The list of series.',
+                description: 'One page of series.',
                 content: new OA\JsonContent(
-                    type: 'array',
-                    items: new OA\Items(ref: new Model(type: SeriesDetailDTO::class)),
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: SeriesDetailDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
                 ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function list(): JsonResponse
+    public function list(Request $request): JsonResponse
     {
         $this->logger->debug('GET /api/series requested');
 
-        /** @var SeriesDetailDTO[] $series */
-        $series = $this->queryBus->ask(new GetAllSeries());
+        /** @var Page<SeriesDetailDTO> $series */
+        $series = $this->queryBus->ask(new GetAllSeries($this->pagination->parse($request)));
 
-        $this->logger->debug('GET /api/series returned {count} series', ['count' => count($series)]);
+        $this->logger->debug('GET /api/series returned {count} series', ['count' => count($series->items)]);
 
         return new JsonResponse($this->normalizer->normalize($series));
     }

@@ -79,25 +79,4 @@ final class NotificationsRequestParser
 
         return $value;
     }
-
-    public function parseLimit(Request $request, int $default, int $max): int
-    {
-        $raw = $request->query->get('limit');
-
-        if (null === $raw) {
-            return $default;
-        }
-
-        if (!is_numeric($raw) || (int) $raw != $raw) {
-            throw new UnprocessableEntityHttpException('Query parameter "limit" must be an integer.');
-        }
-
-        $limit = (int) $raw;
-
-        if ($limit < 1 || $limit > $max) {
-            throw new UnprocessableEntityHttpException(sprintf('Query parameter "limit" must be between 1 and %d.', $max));
-        }
-
-        return $limit;
-    }
 }

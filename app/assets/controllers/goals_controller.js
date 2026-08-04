@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, pageQuery, unwrapPage } from '../pagination.js';
 import {
     GOAL_PERIODS,
     GOAL_TYPES,
@@ -94,13 +95,14 @@ export default class extends Controller {
         await Promise.all([this.loadGoals(), this.loadStreaks()]);
     }
 
-    async loadGoals() {
+    async loadGoals(page = FIRST_PAGE) {
         this.listTarget.innerHTML = '<div class="loading">Loading…</div>';
         try {
-            const goals = await apiCall('/api/goals');
+            const { items: goals, pagination } = unwrapPage(await apiCall(`/api/goals${pageQuery(new URLSearchParams(), page)}`));
             this.listTarget.innerHTML = goals.length
                 ? goals.map(renderGoalCard).join('')
                 : '<div class="empty-state">Brak celów. Dodaj pierwszy cel powyżej.</div>';
+            mountPagerAfter(this.listTarget, pagination, (next) => this.loadGoals(next));
         } catch {
             this.showError('Nie udało się wczytać celów.');
             this.listTarget.innerHTML = '';

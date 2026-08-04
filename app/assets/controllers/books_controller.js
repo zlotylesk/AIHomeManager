@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, safeUrl, escHtml } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, pageQuery, unwrapPage } from '../pagination.js';
 
 const STATUS_LABELS = {to_read: 'Do przeczytania', reading: 'Czytam', completed: 'Przeczytana'};
 const STATUS_COLORS = {to_read: '#6b7280', reading: '#2563eb', completed: '#16a34a'};
@@ -154,19 +155,20 @@ export default class extends Controller {
     }
 
 
-    async loadList(status) {
+    async loadList(status, page = FIRST_PAGE) {
         this.listTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
 
-        const url = status
-            ? `/api/books?${new URLSearchParams({status})}`
-            : '/api/books';
+        const params = new URLSearchParams(status ? {status} : {});
+        const url = `/api/books${pageQuery(params, page)}`;
         try {
-            const books = await apiCall(url);
+            const { items: books, pagination } = unwrapPage(await apiCall(url));
             if (!books.length) {
                 this.listTarget.innerHTML = '<div class="empty-state">Nie znaleziono książek.</div>';
+                mountPagerAfter(this.listTarget, pagination, (next) => this.loadList(status, next));
                 return;
             }
             this.listTarget.innerHTML = books.map(renderBook).join('');
+            mountPagerAfter(this.listTarget, pagination, (next) => this.loadList(status, next));
         } catch {
             this.showError('Nie udało się wczytać książek.');
             this.listTarget.innerHTML = '';

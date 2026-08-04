@@ -11,8 +11,10 @@ use App\Module\Goals\Domain\Enum\Period;
 use App\Module\Goals\Domain\Port\ActivityProviderInterface;
 use App\Module\Goals\Domain\Service\GoalProgressCalculator;
 use App\Module\Goals\Domain\ValueObject\GoalTarget;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
@@ -26,16 +28,20 @@ final readonly class GetGoalsProgressHandler
     }
 
     /**
-     * @return GoalProgressDTO[]
+     * @return Page<GoalProgressDTO>
      */
-    public function __invoke(GetGoalsProgress $query): array
+    public function __invoke(GetGoalsProgress $query): Page
     {
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM goals');
+
         $goals = $this->connection->fetchAllAssociative(
-            'SELECT id, type, target_value, period FROM goals ORDER BY id'
+            'SELECT id, type, target_value, period FROM goals ORDER BY id LIMIT :limit OFFSET :offset',
+            ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
         if ([] === $goals) {
-            return [];
+            return Page::of([], $total, $query->page);
         }
 
         $now = new DateTimeImmutable();
@@ -73,6 +79,6 @@ final readonly class GetGoalsProgressHandler
             );
         }
 
-        return $result;
+        return Page::of($result, $total, $query->page);
     }
 }

@@ -80,27 +80,50 @@ async function submitLogSession(e) {
     btn.textContent = 'Zapisz odtworzenie';
 }
 
-async function loadHistory() {
+async function loadHistory(page = 1) {
     const list = $('history-list');
     list.innerHTML = '<div class="loading">Ładowanie…</div>';
 
-    const params = new URLSearchParams({limit: '100'});
+    const params = new URLSearchParams();
     const from = $('history-from').value;
     const to = $('history-to').value;
     const source = $('history-source').value;
     if (from) params.set('from', from);
     if (to) params.set('to', to);
     if (source) params.set('source', source);
+    if (page > 1) params.set('page', String(page));
 
     try {
-        const sessions = await window.apiCall(`/api/music/history?${params}`);
+        const { items: sessions, pagination } = window.unwrapPage(await window.apiCall(`/api/music/history?${params}`));
         list.innerHTML = sessions.length
             ? sessions.map(sessionRow).join('')
             : '<div class="empty-state">Brak sesji odsłuchu.</div>';
+        window.mountPagerAfter(list, pagination, (next) => loadHistory(next));
     } catch (err) {
         list.innerHTML = '';
         showError(err.message || 'Nie udało się wczytać historii odsłuchu.');
     }
+}
+
+// The collection is paged on its own rather than through loadMusic(): moving
+// between pages of the vinyl shelf has nothing to do with the Last.fm period,
+// and re-running all three reads would refetch two sections that did not change.
+function renderCollection({ items, pagination }) {
+    const list = $('collection-list');
+    list.innerHTML = items.length
+        ? items.map(vinylRow).join('')
+        : '<div class="empty-state">Brak płyt winylowych.</div>';
+
+    window.mountPagerAfter(list, pagination, async (next) => {
+        try {
+            const params = new URLSearchParams();
+            if (next > 1) params.set('page', String(next));
+            const query = params.toString();
+            renderCollection(window.unwrapPage(await window.apiCall(`/api/music/collection${query ? `?${query}` : ''}`)));
+        } catch (err) {
+            showError(err.message || 'Nie udało się wczytać kolekcji.');
+        }
+    });
 }
 
 async function loadMusic(period) {
@@ -134,7 +157,7 @@ async function loadMusic(period) {
         }
 
         const topAlbums = readSection(topResult, 'Najlepsze albumy') ?? [];
-        const collection = readSection(collResult, 'Kolekcja') ?? [];
+        const collectionPage = window.unwrapPage(readSection(collResult, 'Kolekcja') ?? []);
         const comparison = readSection(cmpResult, 'Porównanie');
 
         if (errors.length) {
@@ -147,9 +170,7 @@ async function loadMusic(period) {
             ? topAlbums.map(albumRow).join('')
             : '<div class="empty-state">Brak danych.</div>';
 
-        $('collection-list').innerHTML = collection.length
-            ? collection.map(vinylRow).join('')
-            : '<div class="empty-state">Brak płyt winylowych.</div>';
+        renderCollection(collectionPage);
 
         if (comparison) {
             const score = comparison.matchScore ?? 0;
@@ -183,7 +204,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     loadMusic('1month');
 
-    $('btn-load-history').addEventListener('click', loadHistory);
+    // Wrapped rather than passed by reference: loadHistory now takes a page
+    // number, and a click handler would hand it the Event object instead.
+    $('btn-load-history').addEventListener('click', () => loadHistory());
     $('log-played-at').value = localDateTimeNow();
     $('log-session-form').addEventListener('submit', submitLogSession);
     loadHistory();

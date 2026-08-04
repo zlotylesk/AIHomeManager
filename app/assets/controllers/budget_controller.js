@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, pageQuery, unwrapPage } from '../pagination.js';
 import {
     TRANSACTION_TYPES,
     clampPercent,
@@ -160,9 +161,11 @@ export default class extends Controller {
         return category ? category.name : id;
     }
 
-    async loadCategories() {
+    async loadCategories(page = FIRST_PAGE) {
         try {
-            this.categories = await apiCall('/api/budget/categories');
+            const { items, pagination } = unwrapPage(await apiCall(`/api/budget/categories${pageQuery(new URLSearchParams(), page)}`));
+            this.categories = items;
+            mountPagerAfter(this.categoryListTarget, pagination, (next) => this.loadCategories(next));
             this.categoryListTarget.innerHTML = this.categories.length
                 ? this.categories.map(categoryRowHtml).join('')
                 : '<div class="empty-state">Brak kategorii. Dodaj pierwszą powyżej.</div>';
@@ -190,7 +193,7 @@ export default class extends Controller {
         this.txTypeTarget.innerHTML = null === type ? '' : optionsHtml([type], typeLabel, type);
     }
 
-    async loadTransactions() {
+    async loadTransactions(page = FIRST_PAGE) {
         this.transactionListTarget.innerHTML = '<div class="loading">Loading…</div>';
 
         const params = new URLSearchParams();
@@ -205,10 +208,11 @@ export default class extends Controller {
         }
 
         try {
-            const transactions = await apiCall(`/api/budget/transactions?${params.toString()}`);
+            const { items: transactions, pagination } = unwrapPage(await apiCall(`/api/budget/transactions${pageQuery(params, page)}`));
             this.transactionListTarget.innerHTML = transactions.length
                 ? transactions.map((tx) => transactionRowHtml(tx, this.categoryName(tx.categoryId))).join('')
                 : '<div class="empty-state">Brak transakcji.</div>';
+            mountPagerAfter(this.transactionListTarget, pagination, (next) => this.loadTransactions(next));
         } catch {
             this.showError('Nie udało się wczytać transakcji.');
             this.transactionListTarget.innerHTML = '';

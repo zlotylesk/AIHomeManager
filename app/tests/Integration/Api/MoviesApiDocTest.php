@@ -47,17 +47,24 @@ final class MoviesApiDocTest extends WebTestCase
         }
     }
 
-    public function testListReturnsAnArrayOfMovieModels(): void
+    public function testListReturnsAPageOfMovieModels(): void
     {
         $get = $this->nestedArray($this->fetchSpec(static::createClient()), 'paths', '/api/v1/movies', 'get');
 
         $schema = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $schema['type'] ?? null);
-        self::assertSame('#/components/schemas/MovieDTO', $schema['items']['$ref'] ?? null);
+        self::assertSame('object', $schema['type'] ?? null);
+        self::assertSame('array', $schema['properties']['data']['type'] ?? null);
+        self::assertSame('#/components/schemas/MovieDTO', $schema['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $schema['properties']['pagination']['$ref'] ?? null);
 
-        // The optional watched filter is a documented query parameter.
+        // The optional watched filter is a documented query parameter, and the
+        // shared page window is documented alongside it by $ref rather than
+        // being restated per endpoint.
         $names = array_column($get['parameters'] ?? [], 'name');
         self::assertContains('watched', $names, 'GET /movies must document the "watched" query filter.');
+        $refs = array_column($get['parameters'] ?? [], '$ref');
+        self::assertContains('#/components/parameters/PageParam', $refs);
+        self::assertContains('#/components/parameters/PerPageParam', $refs);
     }
 
     public function testDetailReferencesMovieModelWithNotFound(): void

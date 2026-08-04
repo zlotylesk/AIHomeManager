@@ -163,7 +163,7 @@ final class NotificationsApiTest extends WebTestCase
         $this->request('GET', '/api/v1/notifications/history');
 
         self::assertResponseIsSuccessful();
-        $payload = $this->jsonResponse($this->client);
+        $payload = $this->jsonList($this->client);
 
         self::assertCount(2, $payload);
         self::assertSame('n-2', $payload[0]['id']);
@@ -172,12 +172,17 @@ final class NotificationsApiTest extends WebTestCase
         self::assertNotNull($payload[1]['sentAt']);
     }
 
-    public function testHistoryRejectsAnOutOfRangeLimit(): void
+    /**
+     * The module's own `limit` was folded into the shared page window, so the
+     * ceiling is now enforced by PageRequest under the `perPage` name — with the
+     * same refusal rather than a silent clamp.
+     */
+    public function testHistoryRejectsAnOutOfRangePageWindow(): void
     {
-        $this->request('GET', '/api/v1/notifications/history?limit=0');
+        $this->request('GET', '/api/v1/notifications/history?perPage=0');
         self::assertResponseStatusCodeSame(422);
 
-        $this->request('GET', '/api/v1/notifications/history?limit=101');
+        $this->request('GET', '/api/v1/notifications/history?perPage=101');
         self::assertResponseStatusCodeSame(422);
     }
 

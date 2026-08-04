@@ -6,7 +6,9 @@ namespace App\Module\Books\Application\QueryHandler;
 
 use App\Module\Books\Application\DTO\BookDTO;
 use App\Module\Books\Application\Query\GetAllBooks;
+use App\Shared\Pagination\Page;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
@@ -16,24 +18,27 @@ final readonly class GetAllBooksHandler
     {
     }
 
-    /** @return BookDTO[] */
-    public function __invoke(GetAllBooks $query): array
+    /** @return Page<BookDTO> */
+    public function __invoke(GetAllBooks $query): Page
     {
-        $sql = 'SELECT id, isbn, title, author, publisher, year, cover_url, total_pages, current_page, status
-                FROM books';
-
+        $where = '';
         $params = [];
 
         if (null !== $query->status) {
-            $sql .= ' WHERE status = :status';
+            $where = ' WHERE status = :status';
             $params['status'] = $query->status;
         }
 
-        $sql .= ' ORDER BY title ASC';
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM books'.$where, $params);
 
-        $rows = $this->connection->fetchAllAssociative($sql, $params);
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, isbn, title, author, publisher, year, cover_url, total_pages, current_page, status
+                FROM books'.$where.' ORDER BY title ASC, id ASC LIMIT :limit OFFSET :offset',
+            $params + ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
+        );
 
-        return array_map($this->toDTO(...), $rows);
+        return Page::of(array_map($this->toDTO(...), $rows), $total, $query->page);
     }
 
     /**

@@ -77,7 +77,7 @@ final class GoalsApiTest extends WebTestCase
         $this->client->request('GET', '/api/goals');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testCreatedGoalAppearsInListWithZeroProgress(): void
@@ -87,7 +87,7 @@ final class GoalsApiTest extends WebTestCase
         $this->client->request('GET', '/api/goals');
         self::assertResponseIsSuccessful();
 
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame($id, $list[0]['goalId']);
         self::assertSame('book_pages', $list[0]['type']);
@@ -121,7 +121,7 @@ final class GoalsApiTest extends WebTestCase
         $this->client->request('GET', '/api/goals');
         self::assertResponseIsSuccessful();
 
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame($id, $list[0]['goalId']);
         self::assertSame(30, $list[0]['achieved']);
@@ -137,7 +137,7 @@ final class GoalsApiTest extends WebTestCase
         $this->client->request('GET', '/api/goals');
         self::assertResponseIsSuccessful();
 
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertSame(60, $list[0]['achieved']);
         self::assertSame(100, $list[0]['percent']);
         self::assertTrue($list[0]['met']);
@@ -174,7 +174,7 @@ final class GoalsApiTest extends WebTestCase
         $this->client->request('GET', '/api/goals');
         self::assertResponseIsSuccessful();
 
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame($id, $list[0]['goalId']);
         self::assertSame('music_albums', $list[0]['type']);
@@ -200,7 +200,7 @@ final class GoalsApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/goals');
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertSame(100, $list[0]['target']);
         self::assertSame('weekly', $list[0]['period']);
     }
@@ -220,7 +220,7 @@ final class GoalsApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/goals');
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testDeleteUnknownGoalReturns404(): void

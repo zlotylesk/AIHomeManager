@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Music\Application\Command\LogListeningSession;
@@ -18,6 +19,7 @@ use App\Module\Music\Domain\Port\MusicListeningHistoryInterface;
 use App\Module\Music\Domain\Port\VinylCollectionInterface;
 use App\Module\Music\Domain\ReadModel\Album;
 use App\Module\Music\Domain\ReadModel\VinylRecord;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use Exception;
 use InvalidArgumentException;
@@ -38,7 +40,6 @@ final class MusicController extends AbstractController
     private const array VALID_PERIODS = ['7day', '1month', '3month', '6month', '12month', 'overall'];
     private const int MAX_TOP_ALBUMS_LIMIT = 1000;
     private const int MAX_COMPARISON_LIMIT = 200;
-    private const int MAX_HISTORY_LIMIT = 500;
     private const int DEFAULT_LIMIT = 50;
 
     public function __construct(
@@ -49,6 +50,7 @@ final class MusicController extends AbstractController
         private readonly string $lastfmUsername,
         private readonly string $discogsUsername,
         private readonly NormalizerInterface $normalizer,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
@@ -201,21 +203,35 @@ final class MusicController extends AbstractController
     #[Route('/collection', methods: ['GET'])]
     #[OA\Get(
         summary: 'Vinyl collection (Discogs)',
-        description: 'Returns the owned vinyl collection from Discogs. Served from cache with an async refresh dispatched on a miss.',
+        description: 'Returns one page of the owned vinyl collection from Discogs. Served from cache with an async refresh dispatched on a miss; the cache holds the whole collection, so the window bounds the response rather than the upstream read.',
         tags: ['Music'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The vinyl collection.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: VinylRecord::class))),
+                description: 'One page of the vinyl collection.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: VinylRecord::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
             new OA\Response(response: 429, ref: '#/components/responses/TooManyRequestsError'),
             new OA\Response(response: 503, description: 'Discogs is unavailable.', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
-    public function collection(): JsonResponse
+    public function collection(Request $request): JsonResponse
     {
+        $window = $this->pagination->parse($request);
+
         try {
             $records = $this->vinylCollection->getUserCollection($this->discogsUsername);
         } catch (DiscogsAuthException $e) {
@@ -226,7 +242,11 @@ final class MusicController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
-        return new JsonResponse($this->normalizer->normalize($records));
+        // The port can only hand back the whole collection (it is one cached
+        // Discogs payload, not a query), so the window is applied here. That
+        // still bounds the response — the thing the mobile client and the PWA
+        // cache budget are constrained by — which is what the endpoint owed.
+        return new JsonResponse($this->normalizer->normalize(Page::slice($records, $window)));
     }
 
     /**
@@ -236,15 +256,11 @@ final class MusicController extends AbstractController
     #[Route('/history', methods: ['GET'])]
     #[OA\Get(
         summary: 'Local listening history',
-        description: 'Returns the authoritative local play history (from our own DB, never Last.fm), optionally filtered by source and date range.',
+        description: 'Returns one page of the authoritative local play history (from our own DB, never Last.fm), optionally filtered by source and date range.',
         tags: ['Music'],
         parameters: [
-            new OA\QueryParameter(
-                name: 'limit',
-                description: 'Maximum number of sessions (1–500).',
-                required: false,
-                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 500, default: 50),
-            ),
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
             new OA\QueryParameter(
                 name: 'source',
                 description: 'Filter by listening source.',
@@ -267,8 +283,15 @@ final class MusicController extends AbstractController
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The listening history.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: ListeningSessionDTO::class))),
+                description: 'One page of the listening history.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: ListeningSessionDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
             new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
@@ -276,15 +299,6 @@ final class MusicController extends AbstractController
     )]
     public function history(Request $request): JsonResponse
     {
-        $limit = $this->parseLimit($request->query->get('limit'), self::MAX_HISTORY_LIMIT);
-
-        if (null === $limit) {
-            return new JsonResponse(
-                ['error' => sprintf('Field "limit" must be a positive integer between 1 and %d.', self::MAX_HISTORY_LIMIT)],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
-        }
-
         $source = null;
         $rawSource = $request->query->get('source');
         if (null !== $rawSource && '' !== $rawSource) {
@@ -304,8 +318,8 @@ final class MusicController extends AbstractController
             );
         }
 
-        /** @var ListeningSessionDTO[] $sessions */
-        $sessions = $this->queryBus->ask(new GetListeningHistory($from, $to, $source, $limit));
+        /** @var Page<ListeningSessionDTO> $sessions */
+        $sessions = $this->queryBus->ask(new GetListeningHistory($from, $to, $source, $this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($sessions));
     }

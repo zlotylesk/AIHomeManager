@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Podcasts\Application\Command\PollPodcastListens;
@@ -14,10 +15,12 @@ use App\Module\Podcasts\Application\DTO\PodcastListeningSessionDTO;
 use App\Module\Podcasts\Application\Query\GetAllPodcasts;
 use App\Module\Podcasts\Application\Query\GetPodcastDetail;
 use App\Module\Podcasts\Infrastructure\Persistence\SpotifyTokenRepositoryInterface;
+use App\Shared\Pagination\Page;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
@@ -35,27 +38,40 @@ final class PodcastsController extends AbstractController
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
         private readonly SpotifyTokenRepositoryInterface $spotifyTokens,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
     #[OA\Get(
         summary: 'List followed podcasts',
-        description: 'Every show in the local catalog, with its episode and listening counters. Ordered by the most recent listening first, shows never listened to last.',
+        description: 'One page of shows from the local catalog, with their episode and listening counters. Ordered by the most recent listening first, shows never listened to last.',
         tags: ['Podcasts'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The followed shows.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: PodcastDTO::class))),
+                description: 'One page of followed shows.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: PodcastDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function list(): JsonResponse
+    public function list(Request $request): JsonResponse
     {
-        /** @var list<PodcastDTO> $dtos */
-        $dtos = $this->queryBus->ask(new GetAllPodcasts());
+        /** @var Page<PodcastDTO> $dtos */
+        $dtos = $this->queryBus->ask(new GetAllPodcasts($this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($dtos));
     }

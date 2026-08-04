@@ -46,7 +46,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
         $this->insertTransaction('t-2', '2000:PLN', '2026-07-15', 'c-1', 'expense');
         $this->insertTransaction('t-3', '3000:PLN', '2026-07-10', 'c-1', 'expense');
 
-        $result = $this->queryBus->ask(new GetTransactions());
+        $result = $this->queryBus->ask(new GetTransactions())->items;
 
         self::assertCount(3, $result);
         self::assertSame(['t-2', 't-3', 't-1'], array_map(static fn (TransactionDTO $t): string => $t->id, $result));
@@ -56,7 +56,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
     {
         $this->insertTransaction('t-1', '4999:PLN', '2026-07-15', 'c-groceries', 'expense', 'Weekly shop');
 
-        $result = $this->queryBus->ask(new GetTransactions());
+        $result = $this->queryBus->ask(new GetTransactions())->items;
 
         self::assertCount(1, $result);
         $dto = $result[0];
@@ -72,7 +72,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
     {
         $this->insertTransaction('t-1', '1000:PLN', '2026-07-15', 'c-1', 'expense');
 
-        $result = $this->queryBus->ask(new GetTransactions());
+        $result = $this->queryBus->ask(new GetTransactions())->items;
 
         self::assertNull($result[0]->description);
     }
@@ -84,7 +84,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
         $this->insertTransaction('t-3', '3000:PLN', '2026-07-31', 'c-1', 'expense');
         $this->insertTransaction('t-4', '4000:PLN', '2026-08-01', 'c-1', 'expense');
 
-        $result = $this->queryBus->ask(new GetTransactions(month: '2026-07'));
+        $result = $this->queryBus->ask(new GetTransactions(month: '2026-07'))->items;
 
         self::assertCount(2, $result);
         self::assertSame(['t-3', 't-2'], array_map(static fn (TransactionDTO $t): string => $t->id, $result));
@@ -95,7 +95,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
         $this->insertTransaction('t-1', '1000:PLN', '2026-07-01', 'c-groceries', 'expense');
         $this->insertTransaction('t-2', '2000:PLN', '2026-07-02', 'c-salary', 'income');
 
-        $result = $this->queryBus->ask(new GetTransactions(categoryId: 'c-salary'));
+        $result = $this->queryBus->ask(new GetTransactions(categoryId: 'c-salary'))->items;
 
         self::assertCount(1, $result);
         self::assertSame('t-2', $result[0]->id);
@@ -106,7 +106,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
         $this->insertTransaction('t-1', '1000:PLN', '2026-07-01', 'c-groceries', 'expense');
         $this->insertTransaction('t-2', '2000:PLN', '2026-07-02', 'c-salary', 'income');
 
-        $result = $this->queryBus->ask(new GetTransactions(type: 'income'));
+        $result = $this->queryBus->ask(new GetTransactions(type: 'income'))->items;
 
         self::assertCount(1, $result);
         self::assertSame('t-2', $result[0]->id);
@@ -118,7 +118,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
         $this->insertTransaction('t-2', '2000:PLN', '2026-07-02', 'c-groceries', 'income');
         $this->insertTransaction('t-3', '3000:PLN', '2026-08-01', 'c-groceries', 'expense');
 
-        $result = $this->queryBus->ask(new GetTransactions(month: '2026-07', categoryId: 'c-groceries', type: 'expense'));
+        $result = $this->queryBus->ask(new GetTransactions(month: '2026-07', categoryId: 'c-groceries', type: 'expense'))->items;
 
         self::assertCount(1, $result);
         self::assertSame('t-1', $result[0]->id);
@@ -126,7 +126,7 @@ final class GetTransactionsQueryTest extends KernelTestCase
 
     public function testReturnsEmptyArrayWhenNoMatches(): void
     {
-        self::assertSame([], $this->queryBus->ask(new GetTransactions(categoryId: 'does-not-exist')));
+        self::assertSame([], $this->queryBus->ask(new GetTransactions(categoryId: 'does-not-exist'))->items);
     }
 
     public function testThrowsOnInvalidMonthFormat(): void

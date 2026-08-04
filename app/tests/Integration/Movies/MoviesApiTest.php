@@ -49,12 +49,84 @@ final class MoviesApiTest extends WebTestCase
         return $body['id'];
     }
 
-    public function testListReturnsEmptyArrayWhenNoMovies(): void
+    public function testListReturnsAnEmptyPageWhenNoMovies(): void
     {
         $this->client->request('GET', '/api/movies');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
+        // An empty result is one empty page, never "page 1 of 0".
+        self::assertSame(
+            ['page' => 1, 'perPage' => 50, 'total' => 0, 'totalPages' => 1],
+            $this->jsonPagination($this->client),
+        );
+    }
+
+    public function testListPagesThroughMoviesAndReportsTheWholeMatchSet(): void
+    {
+        foreach (['Alien', 'Blade Runner', 'Contact', 'Dune'] as $title) {
+            $this->createMovie(['title' => $title]);
+        }
+
+        $this->client->request('GET', '/api/movies?perPage=3');
+        self::assertResponseIsSuccessful();
+        $first = $this->jsonList($this->client);
+        self::assertCount(3, $first);
+        // The total spans every match, not the page — that is what tells a
+        // client another page exists.
+        self::assertSame(
+            ['page' => 1, 'perPage' => 3, 'total' => 4, 'totalPages' => 2],
+            $this->jsonPagination($this->client),
+        );
+
+        $this->client->request('GET', '/api/movies?perPage=3&page=2');
+        $second = $this->jsonList($this->client);
+        self::assertCount(1, $second);
+        self::assertSame('Dune', $second[0]['title']);
+
+        // The two pages must not overlap, or paging would repeat a row.
+        self::assertSame(
+            [],
+            array_intersect(array_column($first, 'id'), array_column($second, 'id')),
+        );
+    }
+
+    public function testRowsSharingASortKeyAreEachReturnedExactlyOnce(): void
+    {
+        // Every movie carries the same title, so the ORDER BY is entirely ties —
+        // the case where LIMIT/OFFSET can repeat one row across pages and drop
+        // another. Honest scope: this pins the *invariant*, not the fix. It was
+        // checked against a handler with the `id` tie-break removed and still
+        // passed, because MySQL happens to return a stable order for a set this
+        // small; the ordering is unspecified, not guaranteed, so the tie-break
+        // stays and this test is a floor rather than a proof of it.
+        $expected = [];
+        for ($i = 0; $i < 5; ++$i) {
+            $expected[] = $this->createMovie(['title' => 'Same Title']);
+        }
+
+        $collected = [];
+        foreach ([1, 2, 3] as $page) {
+            $this->client->request('GET', '/api/movies?perPage=2&page='.$page);
+            self::assertResponseIsSuccessful();
+            $collected = array_merge($collected, array_column($this->jsonList($this->client), 'id'));
+        }
+
+        sort($expected);
+        sort($collected);
+        self::assertSame($expected, $collected, 'Paging a tied sort must yield every row exactly once.');
+    }
+
+    public function testAnOutOfRangePerPageIsRejectedRatherThanClamped(): void
+    {
+        $this->client->request('GET', '/api/movies?perPage=101');
+        self::assertResponseStatusCodeSame(422);
+
+        $this->client->request('GET', '/api/movies?perPage=0');
+        self::assertResponseStatusCodeSame(422);
+
+        $this->client->request('GET', '/api/movies?page=abc');
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testCreatedMovieAppearsInListAndDetail(): void
@@ -68,7 +140,7 @@ final class MoviesApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/movies');
         self::assertResponseIsSuccessful();
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame($id, $list[0]['id']);
         self::assertSame('Blade Runner 2049', $list[0]['title']);
@@ -115,17 +187,17 @@ final class MoviesApiTest extends WebTestCase
         $unwatchedId = $this->createMovie(['title' => 'Unseen']);
 
         $this->client->request('GET', '/api/movies?watched=true');
-        $watchedList = $this->jsonResponse($this->client);
+        $watchedList = $this->jsonList($this->client);
         self::assertCount(1, $watchedList);
         self::assertSame($watchedId, $watchedList[0]['id']);
 
         $this->client->request('GET', '/api/movies?watched=false');
-        $unwatchedList = $this->jsonResponse($this->client);
+        $unwatchedList = $this->jsonList($this->client);
         self::assertCount(1, $unwatchedList);
         self::assertSame($unwatchedId, $unwatchedList[0]['id']);
 
         $this->client->request('GET', '/api/movies');
-        self::assertCount(2, $this->jsonResponse($this->client));
+        self::assertCount(2, $this->jsonList($this->client));
     }
 
     public function testListRejectsInvalidWatchedFilter(): void
@@ -299,7 +371,7 @@ final class MoviesApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(201);
 
         $this->client->request('GET', '/api/movies');
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame('Dune', $list[0]['title']);
     }

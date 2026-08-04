@@ -51,10 +51,12 @@ final class TasksApiDocTest extends WebTestCase
         self::assertSame('query', $status['in']);
         self::assertSame(['pending', 'completed', 'cancelled'], $status['schema']['enum'] ?? null);
 
-        // The 200 body is an array of the TaskDTO schema.
+        // The 200 body is the shared list envelope: a page of TaskDTO plus the
+        // Pagination metadata.
         $items = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $items['type'] ?? null);
-        self::assertSame('#/components/schemas/TaskDTO', $items['items']['$ref'] ?? null);
+        self::assertSame('object', $items['type'] ?? null);
+        self::assertSame('#/components/schemas/TaskDTO', $items['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $items['properties']['pagination']['$ref'] ?? null);
     }
 
     public function testCreateDocumentsRequiredRequestBodyAndCreatedResponse(): void

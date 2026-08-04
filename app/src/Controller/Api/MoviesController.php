@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\Movies\MoviesRequestParser;
+use App\Controller\PaginationRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Movies\Application\Command\AddMovie;
@@ -19,6 +20,7 @@ use App\Module\Movies\Application\DTO\MovieDTO;
 use App\Module\Movies\Application\Exception\MovieNotFoundException;
 use App\Module\Movies\Application\Query\GetMovieDetails;
 use App\Module\Movies\Application\Query\GetMovies;
+use App\Shared\Pagination\Page;
 use App\Shared\Security\TraktTokenProviderInterface;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
@@ -46,6 +48,7 @@ final class MoviesController extends AbstractController
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
         private readonly MoviesRequestParser $parser,
+        private readonly PaginationRequestParser $pagination,
         private readonly TraktTokenProviderInterface $traktTokens,
     ) {
     }
@@ -53,7 +56,7 @@ final class MoviesController extends AbstractController
     #[Route('', methods: ['GET'])]
     #[OA\Get(
         summary: 'List movies',
-        description: 'Returns all films, optionally filtered by whether they have been watched.',
+        description: 'Returns a page of films, optionally filtered by whether they have been watched.',
         tags: ['Movies'],
         parameters: [
             new OA\QueryParameter(
@@ -62,12 +65,21 @@ final class MoviesController extends AbstractController
                 required: false,
                 schema: new OA\Schema(type: 'boolean'),
             ),
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
         ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The list of movies.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: MovieDTO::class))),
+                description: 'One page of movies.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: MovieDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
             new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
@@ -75,8 +87,11 @@ final class MoviesController extends AbstractController
     )]
     public function list(Request $request): JsonResponse
     {
-        /** @var MovieDTO[] $movies */
-        $movies = $this->queryBus->ask(new GetMovies($this->parseWatchedFilter($request)));
+        /** @var Page<MovieDTO> $movies */
+        $movies = $this->queryBus->ask(new GetMovies(
+            $this->parseWatchedFilter($request),
+            $this->pagination->parse($request),
+        ));
 
         return new JsonResponse($this->normalizer->normalize($movies));
     }

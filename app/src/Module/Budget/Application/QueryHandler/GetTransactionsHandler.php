@@ -9,7 +9,9 @@ use App\Module\Budget\Application\MoneyColumn;
 use App\Module\Budget\Application\MonthRange;
 use App\Module\Budget\Application\Query\GetTransactions;
 use App\Module\Budget\Domain\Enum\TransactionType;
+use App\Shared\Pagination\Page;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use InvalidArgumentException;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -20,8 +22,8 @@ final readonly class GetTransactionsHandler
     {
     }
 
-    /** @return TransactionDTO[] */
-    public function __invoke(GetTransactions $query): array
+    /** @return Page<TransactionDTO> */
+    public function __invoke(GetTransactions $query): Page
     {
         $conditions = [];
         $params = [];
@@ -48,16 +50,18 @@ final readonly class GetTransactionsHandler
             $params['type'] = $query->type;
         }
 
-        $sql = 'SELECT id, amount, date, category_id, type, description FROM budget_transactions';
-        if ([] !== $conditions) {
-            $sql .= ' WHERE '.implode(' AND ', $conditions);
-        }
+        $where = [] === $conditions ? '' : ' WHERE '.implode(' AND ', $conditions);
 
-        $sql .= ' ORDER BY date DESC';
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM budget_transactions'.$where, $params);
 
-        $rows = $this->connection->fetchAllAssociative($sql, $params);
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, amount, date, category_id, type, description FROM budget_transactions'
+                .$where.' ORDER BY date DESC, id ASC LIMIT :limit OFFSET :offset',
+            $params + ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
+        );
 
-        return array_map($this->toDTO(...), $rows);
+        return Page::of(array_map($this->toDTO(...), $rows), $total, $query->page);
     }
 
     /**

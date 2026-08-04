@@ -62,7 +62,7 @@ final class BudgetApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/budget/transactions');
         self::assertResponseIsSuccessful();
-        $list = $this->jsonResponse($this->client);
+        $list = $this->jsonList($this->client);
         self::assertCount(1, $list);
         self::assertSame($id, $list[0]['id']);
         self::assertSame(4999, $list[0]['amountInCents']);
@@ -73,14 +73,14 @@ final class BudgetApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/budget/transactions');
-        $updated = $this->jsonResponse($this->client)[0];
+        $updated = $this->jsonList($this->client)[0];
         self::assertSame(6000, $updated['amountInCents']);
         self::assertSame('Updated', $updated['description']);
 
         $this->client->request('DELETE', '/api/budget/transactions/'.$id);
         self::assertResponseStatusCodeSame(204);
         $this->client->request('GET', '/api/budget/transactions');
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testFiltersTransactionsByMonthCategoryAndType(): void
@@ -90,7 +90,7 @@ final class BudgetApiTest extends WebTestCase
         $this->createTransaction(['categoryId' => $categoryId, 'date' => '2026-07-01']);
 
         $this->client->request('GET', '/api/budget/transactions?month=2026-07');
-        self::assertCount(1, $this->jsonResponse($this->client));
+        self::assertCount(1, $this->jsonList($this->client));
     }
 
     public function testAddTransactionRejects422OnMissingAmount(): void
@@ -174,7 +174,7 @@ final class BudgetApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/budget/transactions');
-        self::assertSame($bills, $this->jsonResponse($this->client)[0]['categoryId']);
+        self::assertSame($bills, $this->jsonList($this->client)[0]['categoryId']);
     }
 
     /**
@@ -196,7 +196,7 @@ final class BudgetApiTest extends WebTestCase
         }
 
         $this->client->request('GET', '/api/budget/transactions');
-        self::assertCount(0, $this->jsonResponse($this->client), 'No impossible date may have reached the ledger.');
+        self::assertCount(0, $this->jsonList($this->client), 'No impossible date may have reached the ledger.');
     }
 
     /**
@@ -225,7 +225,7 @@ final class BudgetApiTest extends WebTestCase
         // and still reachable under its own correct month.
         $this->client->request('GET', '/api/budget/transactions?month=2027-01');
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $this->jsonResponse($this->client));
+        self::assertCount(1, $this->jsonList($this->client));
     }
 
     public function testUpdateTransactionReturns404ForUnknownId(): void
@@ -248,17 +248,17 @@ final class BudgetApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/budget/categories');
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $this->jsonResponse($this->client));
+        self::assertCount(1, $this->jsonList($this->client));
 
         $this->client->request('PATCH', '/api/budget/categories/'.$id, content: (string) json_encode(['name' => 'Renamed']));
         self::assertResponseStatusCodeSame(204);
         $this->client->request('GET', '/api/budget/categories');
-        self::assertSame('Renamed', $this->jsonResponse($this->client)[0]['name']);
+        self::assertSame('Renamed', $this->jsonList($this->client)[0]['name']);
 
         $this->client->request('DELETE', '/api/budget/categories/'.$id);
         self::assertResponseStatusCodeSame(204);
         $this->client->request('GET', '/api/budget/categories');
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testCreateCategoryReturns409OnDuplicateNameWithinType(): void
@@ -284,12 +284,12 @@ final class BudgetApiTest extends WebTestCase
         $this->client->request('PATCH', '/api/budget/categories/'.$id.'/limit', content: (string) json_encode(['amountInCents' => 50000, 'currency' => 'PLN']));
         self::assertResponseStatusCodeSame(204);
         $this->client->request('GET', '/api/budget/categories');
-        self::assertSame(50000, $this->jsonResponse($this->client)[0]['monthlyLimitAmountInCents']);
+        self::assertSame(50000, $this->jsonList($this->client)[0]['monthlyLimitAmountInCents']);
 
         $this->client->request('PATCH', '/api/budget/categories/'.$id.'/limit', content: (string) json_encode(['amountInCents' => null, 'currency' => null]));
         self::assertResponseStatusCodeSame(204);
         $this->client->request('GET', '/api/budget/categories');
-        self::assertNull($this->jsonResponse($this->client)[0]['monthlyLimitAmountInCents']);
+        self::assertNull($this->jsonList($this->client)[0]['monthlyLimitAmountInCents']);
     }
 
     public function testSetMonthlyLimitRejects422OnHalfStatedRange(): void
