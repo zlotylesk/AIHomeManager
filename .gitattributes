@@ -1,0 +1,22 @@
+# Files that are executed as programs inside the Linux containers must keep LF
+# in the working tree, not just in the index.
+#
+# The repo is developed on Windows with core.autocrlf=true, so a checkout
+# rewrites text files to CRLF. That is harmless for sources — PHP, JS and Twig
+# do not care — but the containers bind-mount this working tree, and a shebang
+# is not a comment: `#!/usr/bin/env php\r\n` makes env look for a program
+# literally named "php\r" and fail with the thoroughly misleading
+# "env: can't execute 'php': No such file or directory".
+#
+# That is not hypothetical. It silently broke every Makefile target that calls
+# `bin/console` through its shebang — migrate, cc, fixtures, search-index,
+# openapi-dump, setup and backup-now among them — on any Windows host, while
+# the identical commands worked in CI and on Linux, where no CRLF is written.
+# It surfaced here (HMAI-410) because `make backup-now` is the remediation the
+# backup-freshness check points at, and a check pointing at a dead command
+# would be the same class of quiet failure the check exists to remove.
+#
+# The index already stores these files with LF, so this rule changes no content
+# — only what git writes to disk on the next checkout of them.
+*.sh            eol=lf
+app/bin/console eol=lf

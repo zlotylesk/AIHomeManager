@@ -96,13 +96,30 @@ else
     check_fail "mysqldump cannot authenticate to MySQL 8.4 — missing caching_sha2_password.so (rebuild the php image)"
 fi
 
-# Outcome-level check. The two above name causes we already know about; this one
-# catches the whole class regardless of cause, which is the point: every nightly
+# Outcome-level checks. The two above name causes we already know about; these
+# catch the whole class regardless of cause, which is the point: every nightly
 # backup between 2026-06-30 and 2026-07-28 was a 20-byte empty gzip and nothing
 # reported it. A real dump of this database is a few hundred KB.
+#
+# Both the directory and the age threshold are overridable so the failure can be
+# reproduced without waiting two days or touching the real backups:
+#   BACKUP_DIR=/tmp/fake bash scripts/doctor.sh
 echo ""
 echo "== Backups =="
-newest=$(ls -1t backups/homemanager-*.sql.gz 2>/dev/null | head -n 1)
+backup_dir="${BACKUP_DIR:-backups}"
+max_age_hours="${BACKUP_MAX_AGE_HOURS:-48}"
+
+# Newest by the date in the FILENAME, not by mtime.
+#
+# The two normally agree — the job names each dump for the day it ran — but only
+# the filename survives the ways mtime lies. Copying, restoring or syncing the
+# backup directory stamps every file with "now", so an mtime check would call a
+# months-old set perfectly fresh: a wrong answer that looks like a right one,
+# which is the failure this whole check exists to remove. The filename is also
+# what `make restore BACKUP=...` takes, so it is the date a human acts on.
+#
+# YYYY-MM-DD sorts lexicographically in date order, so plain `sort` is enough.
+newest=$(ls -1 "$backup_dir"/homemanager-*.sql.gz 2>/dev/null | sort | tail -n 1)
 if [ -z "$newest" ]; then
     check_warn "no backup files yet (run 'make backup-now')"
 else
@@ -111,6 +128,71 @@ else
         check_ok "newest backup $(basename "$newest") is ${size}B"
     else
         check_fail "newest backup $(basename "$newest") is only ${size}B — an empty dump (a 20-byte file is gzip's empty stream); restore from it would yield nothing"
+    fi
+
+    # Age. The size check above only knows whether the newest file is usable; a
+    # schedule that simply stopped firing leaves a perfectly valid dump sitting
+    # there and passes it. That is how 29.07-03.08 went unnoticed while doctor
+    # reported OK.
+    #
+    # 48h rather than 24h because the backup does not actually run at its 03:00
+    # cron on a workstation that is off overnight: the scheduler fires the missed
+    # window whenever the host next comes up, so observed dumps land anywhere
+    # from 07:00 to 22:00. A 24h threshold would cry wolf on an ordinary day, and
+    # a check that is routinely wrong is one people learn to ignore.
+    stamp=$(basename "$newest" .sql.gz)
+    stamp=${stamp#homemanager-}
+    backup_epoch=$(date -d "$stamp" +%s 2>/dev/null)
+    if [ -z "$backup_epoch" ]; then
+        # Never turn a date-parsing quirk into a false alarm about the backups.
+        check_warn "cannot read a date from $(basename "$newest") — age not checked"
+    else
+        age_hours=$(( ( $(date +%s) - backup_epoch ) / 3600 ))
+        if [ "$age_hours" -lt 0 ]; then
+            # A dump dated in the future is either a skewed clock or a hand-named
+            # file, and it would otherwise sail through the comparison below and
+            # report "OK (-20h old)" — hiding a schedule that has in fact stopped,
+            # which is the one thing this check exists to catch.
+            check_warn "newest backup is dated ${stamp}, in the future — check the host clock; age not trusted"
+        elif [ "$age_hours" -lt "$max_age_hours" ]; then
+            check_ok "newest backup is from ${stamp} (${age_hours}h old, threshold ${max_age_hours}h)"
+        else
+            check_fail "newest backup is from ${stamp} — ${age_hours}h old, over the ${max_age_hours}h threshold; the schedule has stopped producing backups (run 'make backup-now', then check the scheduler worker)"
+        fi
+    fi
+
+    # The size check deliberately looks only at the newest file, because that is
+    # the one a restore reaches for first. But retention keeps 30 daily + 12
+    # monthly, and an empty file among them is a day you cannot restore to — so
+    # it is worth naming, as a warning rather than a failure: today's restore
+    # point is intact, an older one is not.
+    #
+    # Sized with the same `wc -c` comparison as the check above rather than with
+    # `find -size`, which rounds up to whole blocks: `-size -1k` reports nothing
+    # for a 20-byte file, so the scan would have quietly found no empty backups
+    # while one sat right there. Reusing the one expression is also what keeps
+    # the two from drifting to different ideas of "empty".
+    total_count=0
+    empty_count=0
+    newest_usable=""
+    for f in "$backup_dir"/homemanager-*.sql.gz; do
+        [ -f "$f" ] || continue
+        total_count=$((total_count + 1))
+        if [ "$(wc -c < "$f" | tr -d ' ')" -le 1024 ]; then
+            empty_count=$((empty_count + 1))
+        else
+            newest_usable=$(basename "$f" .sql.gz)
+            newest_usable=${newest_usable#homemanager-}
+        fi
+    done
+    usable_count=$((total_count - empty_count))
+    if [ "$empty_count" != "0" ]; then
+        # The count is the point, not the file list: what an operator needs to
+        # know is how many days they could actually restore to, and 26 filenames
+        # bury that. When this first ran it read 26 of 27 empty, one usable point
+        # left — the residue of the pre-1.31.0 dumps that authenticated to
+        # nothing.
+        check_warn "only ${usable_count} of ${total_count} retained backups are usable (${empty_count} are empty dumps); newest usable is from ${newest_usable:-none}"
     fi
 fi
 
