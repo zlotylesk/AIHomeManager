@@ -389,6 +389,22 @@ bin/console messenger:consume scheduler_default --time-limit=3600 -vv
 
 Routing is defined in `app/config/packages/messenger.yaml`. In the test env the transports are switched to `in-memory://`.
 
+#### Dead-letter queue
+
+A message that exhausts its retries lands in the `failed` transport (queue `series_events_failed`) and stays there. **Nothing consumes it by design** — it is waiting for a person — so nothing surfaces it either, however deep it gets. `make doctor` now reports the depth, and these are the commands behind it:
+
+```bash
+docker compose exec php bin/console messenger:stats          # depth per transport (async, failed)
+docker compose exec php bin/console messenger:failed:retry   # replay them, one prompt each
+docker exec aihm-rabbitmq-1 rabbitmqctl list_queues name messages
+```
+
+**`messenger:failed:show` does not work here.** It needs a receiver that can list and address messages by id, which the Doctrine transport offers and AMQP does not — it answers `The "failed" receiver does not support listing or showing specific messages`. Use `messenger:stats` for the depth and `messenger:failed:retry` to work through them.
+
+The broker keeps a named volume and a **fixed hostname**, and both are required (see the comment in `docker-compose.yml`). The queues, exchanges and messages have always been durable — Symfony's AMQP transport declares `AMQP_DURABLE` and sets `delivery_mode: 2` — but durability is written to `/var/lib/rabbitmq`, and without a volume that lived in the container's writable layer: a plain `restart` kept everything, while recreating the container (`docker compose down`, an image bump, any edit to the compose file) took the DLQ with it. The hostname matters for the same outcome by a different route: RabbitMQ derives its node name from it and stores each node's database under `mnesia/rabbit@<hostname>`, so with Docker's default (the container id) every recreation would start an empty new node while the old one's data sat untouched beside it in the volume — the mount would look like it was working and the messages would still be gone.
+
+Introducing the volume starts from an **empty broker once**: anything parked in the DLQ at the moment of the upgrade is lost. Check the depth before pulling this change if that matters.
+
 ### Naming conventions
 
 | Element | Pattern | Location |
