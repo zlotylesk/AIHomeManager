@@ -28,6 +28,28 @@ readonly class HealthChecker
     private const float DISK_DEGRADED_RATIO = 0.80;
     private const float DISK_DOWN_RATIO = 0.95;
 
+    /**
+     * How stale a worker's last heartbeat may be before it counts as gone.
+     *
+     * Five minutes rather than one: an idle worker beats every few seconds, so
+     * anything under a minute would be ample — but a worker handling a single
+     * slow message (a full Trakt import) stops beating for the duration, and a
+     * probe that reports a busy worker as dead is worse than one that takes a
+     * few minutes to notice a real death. The failure this exists to catch was
+     * measured in days.
+     */
+    private const int WORKER_HEARTBEAT_MAX_AGE_SECONDS = 300;
+
+    /**
+     * The workers that are expected to be running — the two `docker compose`
+     * services, named by the transport each consumes.
+     *
+     * `scheduler_default` is the important one and the reason this probe is not
+     * a broker question: it is a Symfony Scheduler transport, invisible to
+     * RabbitMQ, and it is the worker whose silence stopped the nightly backup.
+     */
+    private const array WORKER_TRANSPORTS = ['async', 'scheduler_default'];
+
     public function __construct(
         private Connection $connection,
         #[Autowire(service: 'app.redis')]
@@ -36,6 +58,7 @@ readonly class HealthChecker
         private string $messengerDsn,
         #[Autowire(service: 'app.search_client')]
         private Client $searchClient,
+        private WorkerHeartbeat $workerHeartbeat,
         #[Autowire(service: 'monolog.logger')]
         private LoggerInterface $logger = new NullLogger(),
         private float $rabbitMqTimeoutSeconds = 1.0,
@@ -52,8 +75,46 @@ readonly class HealthChecker
             'redis' => $this->probe(fn () => $this->pingRedis(), 'redis'),
             'rabbitmq' => $this->probe(fn () => $this->openRabbitMqSocket(), 'rabbitmq'),
             'search' => $this->checkSearch(),
+            'worker' => $this->checkWorker(),
             'disk' => $this->checkDisk(),
         ];
+    }
+
+    /**
+     * Asynchronous processing (HMAI-418).
+     *
+     * The `rabbitmq` probe above opens a socket to the broker, which answers
+     * exactly the same whether or not anything is consuming — so an instance
+     * with both workers dead reported five green components while every import,
+     * notification, search index update and the nightly backup silently stopped.
+     * This reads the heartbeat the workers write for themselves.
+     *
+     * `degraded`, never `down`, matching the rule the `search` component
+     * established: the instance still serves every request it is asked to, and
+     * taking it out of rotation would remove the half that still works without
+     * bringing back the half that does not. What is broken here is fixed by
+     * restarting a worker, not by shifting traffic.
+     */
+    public function checkWorker(): string
+    {
+        $now = time();
+
+        foreach (self::WORKER_TRANSPORTS as $transport) {
+            $lastSeen = $this->workerHeartbeat->lastSeen($transport);
+
+            if (null === $lastSeen || ($now - $lastSeen) > self::WORKER_HEARTBEAT_MAX_AGE_SECONDS) {
+                $this->logger->warning('Health check degraded', [
+                    'component' => 'worker',
+                    'transport' => $transport,
+                    'last_seen' => $lastSeen,
+                    'max_age_seconds' => self::WORKER_HEARTBEAT_MAX_AGE_SECONDS,
+                ]);
+
+                return 'degraded';
+            }
+        }
+
+        return 'up';
     }
 
     /**
