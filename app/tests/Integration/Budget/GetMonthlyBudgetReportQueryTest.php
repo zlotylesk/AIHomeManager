@@ -6,8 +6,10 @@ namespace App\Tests\Integration\Budget;
 
 use App\Messaging\QueryBus;
 use App\Module\Budget\Application\DTO\CategoryBudgetDTO;
+use App\Module\Budget\Application\Exception\MixedCurrencyException;
 use App\Module\Budget\Application\Query\GetMonthlyBudgetReport;
 use App\Module\Budget\Application\QueryHandler\GetMonthlyBudgetReportHandler;
+use App\Module\Budget\Application\SystemCurrency;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -166,13 +168,76 @@ final class GetMonthlyBudgetReportQueryTest extends KernelTestCase
         self::assertCount(2, $report->categories);
     }
 
+    public function testEveryFigureIsLabelledWithTheBudgetsCurrency(): void
+    {
+        $this->insertCategory('c-cur', 'Zakupy', 'expense', '50000:PLN');
+        $this->insertTransaction('t-cur', '12000:PLN', '2026-07-04', 'c-cur', 'expense');
+
+        $report = $this->queryBus->ask(new GetMonthlyBudgetReport('2026-07'));
+
+        // A financial report is the last place that may state an amount without
+        // its unit — before this the response was a bare 12000.
+        self::assertSame('PLN', $report->currency);
+    }
+
+    public function testAMonthMixingCurrenciesIsRefusedRatherThanSummedIntoOneFigure(): void
+    {
+        // Seeded straight into the table, because this is exactly the state the
+        // write side now refuses: 100 EUR and 100 PLN used to be reported as an
+        // unlabelled 20000, which is a wrong answer wearing the shape of a
+        // correct one. The API can no longer produce this, but data that
+        // predates the rule — or arrives past it — must not be quietly totalled.
+        $this->insertCategory('c-mixed', 'Podróże', 'expense');
+        $this->insertTransaction('t-pln', '10000:PLN', '2026-07-04', 'c-mixed', 'expense');
+        $this->insertTransaction('t-eur', '10000:EUR', '2026-07-05', 'c-mixed', 'expense');
+
+        $this->expectException(MixedCurrencyException::class);
+        $this->expectExceptionMessage('EUR');
+
+        // Invoked directly — see testThrowsOnInvalidMonthFormat's note on why
+        // the failure paths bypass queryBus->ask().
+        $this->reportHandler()(new GetMonthlyBudgetReport('2026-07'));
+    }
+
+    public function testALimitInAnotherCurrencyIsRefusedEvenWhenEverySpendAgrees(): void
+    {
+        // The limit is compared against the sum, so a 500 EUR limit next to
+        // 400 PLN of spending produced a percentage that meant nothing — the
+        // exact symptom the ticket describes, from the other side.
+        $this->insertCategory('c-limit', 'Rachunki', 'expense', '50000:EUR');
+        $this->insertTransaction('t-ok', '40000:PLN', '2026-07-04', 'c-limit', 'expense');
+
+        $this->expectException(MixedCurrencyException::class);
+
+        $this->reportHandler()(new GetMonthlyBudgetReport('2026-07'));
+    }
+
+    public function testAMonthEntirelyInTheBudgetsCurrencyIsReportedNormally(): void
+    {
+        // The guard must not fire on ordinary data — a check that rejects
+        // everything is indistinguishable from a broken report.
+        $this->insertCategory('c-a', 'Zakupy', 'expense', '50000:PLN');
+        $this->insertCategory('c-b', 'Wypłata', 'income');
+        $this->insertTransaction('t-a', '12000:PLN', '2026-07-04', 'c-a', 'expense');
+        $this->insertTransaction('t-b', '500000:PLN', '2026-07-01', 'c-b', 'income');
+
+        $report = $this->queryBus->ask(new GetMonthlyBudgetReport('2026-07'));
+
+        self::assertSame(500000, $report->totalIncomeInCents);
+        self::assertSame(12000, $report->totalExpensesInCents);
+        self::assertSame(488000, $report->balanceInCents);
+    }
+
     public function testThrowsOnInvalidMonthFormat(): void
     {
         // Invoked directly — see GetTransactionsHandlerTest's identical note
         // on why this bypasses queryBus->ask().
-        $handler = new GetMonthlyBudgetReportHandler($this->connection);
-
         $this->expectException(InvalidArgumentException::class);
-        $handler(new GetMonthlyBudgetReport('not-a-month'));
+        $this->reportHandler()(new GetMonthlyBudgetReport('not-a-month'));
+    }
+
+    private function reportHandler(): GetMonthlyBudgetReportHandler
+    {
+        return new GetMonthlyBudgetReportHandler($this->connection, new SystemCurrency());
     }
 }

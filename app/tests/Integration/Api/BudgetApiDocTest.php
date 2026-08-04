@@ -191,7 +191,7 @@ final class BudgetApiDocTest extends WebTestCase
         $expected = [
             'TransactionDTO' => ['id', 'amountInCents', 'currency', 'date', 'categoryId', 'type', 'description'],
             'CategoryDTO' => ['id', 'name', 'type', 'monthlyLimitAmountInCents', 'monthlyLimitCurrency'],
-            'MonthlyBudgetReportDTO' => ['month', 'totalIncomeInCents', 'totalExpensesInCents', 'balanceInCents', 'categories'],
+            'MonthlyBudgetReportDTO' => ['month', 'currency', 'totalIncomeInCents', 'totalExpensesInCents', 'balanceInCents', 'categories'],
             'CategoryBudgetDTO' => ['categoryId', 'categoryName', 'type', 'spentInCents', 'monthlyLimitInCents', 'monthlyLimitCurrency', 'percentUsed', 'overLimit'],
         ];
 
@@ -212,6 +212,48 @@ final class BudgetApiDocTest extends WebTestCase
         // 0%, and a client that types it as a plain number would break on it.
         $percent = $this->nestedArray($spec, 'components', 'schemas', 'CategoryBudgetDTO', 'properties', 'percentUsed');
         self::assertSame(['number', 'null'], $percent['type'] ?? null);
+
+        // The report's own currency is never null: every figure in it is stated
+        // in the one currency the budget is kept in, so a client can label them
+        // without guessing.
+        $reportCurrency = $this->nestedArray($spec, 'components', 'schemas', 'MonthlyBudgetReportDTO', 'properties', 'currency');
+        self::assertSame('string', $reportCurrency['type'] ?? null);
+    }
+
+    public function testTheSingleCurrencyRuleIsDocumentedWhereverAnAmountIsAccepted(): void
+    {
+        // A client reading the contract must learn that a foreign currency is a
+        // 422 before it sends one — the rule is invisible in the schema types,
+        // which allow any string.
+        $spec = $this->fetchSpec(static::createClient());
+
+        $operations = [
+            ['/api/v1/budget/transactions', 'post'],
+            ['/api/v1/budget/transactions/{id}', 'patch'],
+            ['/api/v1/budget/categories/{id}/limit', 'patch'],
+        ];
+
+        foreach ($operations as [$path, $method]) {
+            $properties = $this->nestedArray(
+                $spec,
+                'paths',
+                $path,
+                $method,
+                'requestBody',
+                'content',
+                'application/json',
+                'schema',
+                'properties',
+            );
+
+            self::assertArrayHasKey('currency', $properties, sprintf('%s %s must document a currency field.', strtoupper($method), $path));
+            self::assertIsArray($properties['currency']);
+            self::assertStringContainsString(
+                '422',
+                (string) ($properties['currency']['description'] ?? ''),
+                sprintf('%s %s must state that another currency is rejected.', strtoupper($method), $path),
+            );
+        }
     }
 
     public function testTheSpecDeclaresTheBudgetTag(): void

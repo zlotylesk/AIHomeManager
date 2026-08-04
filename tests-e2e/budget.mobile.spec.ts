@@ -20,6 +20,7 @@ type Transaction = {
 
 type Report = {
   month: string;
+  currency: string;
   totalIncomeInCents: number;
   totalExpensesInCents: number;
   balanceInCents: number;
@@ -47,6 +48,7 @@ function defaultState(): BudgetState {
     ],
     report: {
       month: '2026-07',
+      currency: 'PLN',
       totalIncomeInCents: 0,
       totalExpensesInCents: 60000,
       balanceInCents: -60000,

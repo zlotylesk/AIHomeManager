@@ -18,11 +18,14 @@
 <body>
     <h1>Budget Report &mdash; {{ month }}</h1>
 
-    <h2>Summary</h2>
+    {# A printed financial summary must not state an amount without its unit;
+       the budget is kept in one currency, so naming it once covers every
+       figure below. #}
+    <h2>Summary ({{ currency }})</h2>
     <table class="totals">
-        <tr><td>Income</td><td class="right">{{ totalIncome }}</td></tr>
-        <tr><td>Expenses</td><td class="right">{{ totalExpenses }}</td></tr>
-        <tr><td><strong>Balance</strong></td><td class="right"><strong>{{ balance }}</strong></td></tr>
+        <tr><td>Income</td><td class="right">{{ totalIncome }} {{ currency }}</td></tr>
+        <tr><td>Expenses</td><td class="right">{{ totalExpenses }} {{ currency }}</td></tr>
+        <tr><td><strong>Balance</strong></td><td class="right"><strong>{{ balance }} {{ currency }}</strong></td></tr>
     </table>
 
     <h2>Categories</h2>

@@ -115,7 +115,7 @@ final class BudgetController extends AbstractController
                 required: ['amountInCents', 'date', 'categoryId', 'type'],
                 properties: [
                     new OA\Property(property: 'amountInCents', type: 'integer', description: 'Whole minor units, strictly greater than zero.', example: 4999),
-                    new OA\Property(property: 'currency', type: 'string', description: 'ISO 4217 code. Defaults to PLN when omitted.', example: 'PLN'),
+                    new OA\Property(property: 'currency', type: 'string', description: 'ISO 4217 code. Must equal the single currency this budget is kept in (BUDGET_CURRENCY, PLN by default); any other code is rejected with 422, never converted or relabelled. Multi-currency budgeting is deliberately unsupported. Defaults to the configured currency when omitted.', example: 'PLN'),
                     new OA\Property(property: 'date', type: 'string', format: 'date', description: 'Strict `YYYY-MM-DD`. An impossible day (e.g. `2026-02-31`) is rejected, never rolled forward into the next month.', example: '2026-07-15'),
                     new OA\Property(property: 'categoryId', type: 'string', format: 'uuid'),
                     new OA\Property(property: 'type', type: 'string', enum: ['income', 'expense']),
@@ -167,7 +167,7 @@ final class BudgetController extends AbstractController
                 required: ['amountInCents', 'date', 'categoryId', 'type'],
                 properties: [
                     new OA\Property(property: 'amountInCents', type: 'integer', example: 6000),
-                    new OA\Property(property: 'currency', type: 'string', example: 'PLN'),
+                    new OA\Property(property: 'currency', type: 'string', description: 'Must equal the budget\'s configured currency; any other code is rejected with 422.', example: 'PLN'),
                     new OA\Property(property: 'date', type: 'string', format: 'date', example: '2026-07-20'),
                     new OA\Property(property: 'categoryId', type: 'string', format: 'uuid'),
                     new OA\Property(property: 'type', type: 'string', enum: ['income', 'expense']),
@@ -374,7 +374,7 @@ final class BudgetController extends AbstractController
             content: new OA\JsonContent(
                 properties: [
                     new OA\Property(property: 'amountInCents', type: ['integer', 'null'], description: 'Whole minor units. Null (with a null currency) clears the limit.', example: 100000),
-                    new OA\Property(property: 'currency', type: ['string', 'null'], example: 'PLN'),
+                    new OA\Property(property: 'currency', type: ['string', 'null'], description: 'Must equal the budget\'s configured currency; a limit in another currency is rejected with 422, because the report compares it against the month\'s spending.', example: 'PLN'),
                 ],
             ),
         ),
@@ -532,6 +532,7 @@ final class BudgetController extends AbstractController
             $pdfBuilder->build('exports/budget_report_pdf.html.twig', [
                 'rows' => $rows,
                 'month' => $report->month,
+                'currency' => $report->currency,
                 'totalIncome' => $totals['income'],
                 'totalExpenses' => $totals['expenses'],
                 'balance' => $totals['balance'],

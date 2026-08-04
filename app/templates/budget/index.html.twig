@@ -14,9 +14,11 @@
         <form class="budget-transaction-form" data-action="submit->budget#createTransaction">
             <input class="budget-input" type="number" step="0.01" min="0.01" placeholder="Kwota"
                    data-budget-target="txAmount" aria-label="Kwota" required>
-            <select class="budget-input" data-budget-target="txCurrency" aria-label="Waluta">
-                <option value="PLN" selected>PLN</option>
-            </select>
+            {# Not a field: the budget is kept in exactly one currency, so this
+               only states which one. Offering a picker here would let the user
+               assemble a transaction the API can only refuse — the same mistake
+               as choosing a type beside its category. #}
+            <span class="budget-currency" data-budget-target="txCurrency" aria-label="Waluta">PLN</span>
             <input class="budget-input" type="date" data-budget-target="txDate" aria-label="Data" required>
             <select class="budget-input" data-budget-target="txCategory" aria-label="Kategoria"
                     data-action="change->budget#syncTransactionType"></select>
