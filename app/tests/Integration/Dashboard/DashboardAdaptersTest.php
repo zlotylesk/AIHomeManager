@@ -10,6 +10,7 @@ use App\Module\Dashboard\Infrastructure\Provider\GoalsSnapshotAdapter;
 use App\Module\Dashboard\Infrastructure\Provider\RecentMusicAdapter;
 use App\Module\Dashboard\Infrastructure\Provider\RecommendationsAdapter;
 use App\Module\Dashboard\Infrastructure\Provider\TasksTodayAdapter;
+use App\Shared\Activity\StreakReaderInterface;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -37,6 +38,15 @@ final class DashboardAdaptersTest extends KernelTestCase
     private function day(): DateTimeImmutable
     {
         return new DateTimeImmutable('2026-07-13 12:00:00');
+    }
+
+    /**
+     * The real reader from the container (HMAI-412) — the cockpit no longer joins
+     * the `streaks` table itself, it asks the same source `/api/goals/streaks` uses.
+     */
+    private function streakReader(): StreakReaderInterface
+    {
+        return static::getContainer()->get(StreakReaderInterface::class);
     }
 
     public function testTasksAdapterReadsPendingTasksWithinDayOrderedByStart(): void
@@ -93,8 +103,14 @@ final class DashboardAdaptersTest extends KernelTestCase
         self::assertNull(new DailyArticleAdapter($this->connection)->dailyArticle($this->day()));
     }
 
-    public function testGoalsSnapshotAdapterJoinsPersistedStreaks(): void
+    public function testGoalsSnapshotAdapterReportsTheLiveStreakAndKeepsTheStoredRecord(): void
     {
+        // Rewritten for HMAI-412. This used to assert `currentStreak === 5`,
+        // straight off the persisted row — which is exactly the defect: that row
+        // is only written by the nightly recompute, so the cockpit reported a
+        // number that could be a day stale while /goals showed the real one.
+        // The current run is now computed live (no activity seeded here, so 0),
+        // while the stored longest survives because it can predate the window.
         $this->connection->insert('goals', [
             'id' => 'g-1', 'type' => 'book_pages', 'target_value' => 50, 'period' => 'daily',
         ]);
@@ -105,7 +121,7 @@ final class DashboardAdaptersTest extends KernelTestCase
             'id' => 's-1', 'type' => 'book_pages', 'current_length' => 5, 'longest_length' => 9, 'last_activity_date' => '2026-07-12 00:00:00',
         ]);
 
-        $snapshots = new GoalsSnapshotAdapter($this->connection)->goalSnapshots();
+        $snapshots = new GoalsSnapshotAdapter($this->connection, $this->streakReader())->goalSnapshots();
 
         self::assertCount(2, $snapshots);
         // Ordered by type ASC: articles_read (no streak) then book_pages.
@@ -117,8 +133,8 @@ final class DashboardAdaptersTest extends KernelTestCase
         self::assertNull($snapshots[0]->lastActivityDate);
 
         self::assertSame('book_pages', $snapshots[1]->type);
-        self::assertSame(5, $snapshots[1]->currentStreak);
-        self::assertSame(9, $snapshots[1]->longestStreak);
+        self::assertSame(0, $snapshots[1]->currentStreak, 'No activity in the window, so the live run is 0 — not the stale stored 5.');
+        self::assertSame(9, $snapshots[1]->longestStreak, 'The all-time record survives: only the stored row still carries it.');
         self::assertNotNull($snapshots[1]->lastActivityDate);
         self::assertSame('2026-07-12', $snapshots[1]->lastActivityDate->format('Y-m-d'));
     }
@@ -195,7 +211,7 @@ final class DashboardAdaptersTest extends KernelTestCase
         $provider = new CompositeDashboardDataProvider(
             new TasksTodayAdapter($this->connection),
             new DailyArticleAdapter($this->connection),
-            new GoalsSnapshotAdapter($this->connection),
+            new GoalsSnapshotAdapter($this->connection, $this->streakReader()),
             new RecommendationsAdapter($this->connection),
             new RecentMusicAdapter($this->connection),
         );

@@ -27,7 +27,10 @@ final class GoalsApiTest extends WebTestCase
         $this->connection = static::getContainer()->get(EntityManagerInterface::class)->getConnection();
 
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        foreach (['goals', 'book_reading_sessions', 'series_episodes', 'articles', 'videos', 'music_listening_sessions'] as $table) {
+        // `streaks` belongs here since HMAI-412: /api/goals/streaks now merges the
+        // persisted all-time longest into its answer, so a row left behind by
+        // another test class raises longestLength here out of nowhere. It did.
+        foreach (['goals', 'streaks', 'book_reading_sessions', 'series_episodes', 'articles', 'videos', 'music_listening_sessions'] as $table) {
             $this->connection->executeStatement('TRUNCATE TABLE '.$table);
         }
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
