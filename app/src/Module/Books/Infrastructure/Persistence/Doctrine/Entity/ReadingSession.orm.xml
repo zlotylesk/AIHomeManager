@@ -7,6 +7,7 @@
     <entity name="App\Module\Books\Domain\Entity\ReadingSession" table="book_reading_sessions">
         <indexes>
             <index name="idx_reading_sessions_book_id" columns="book_id"/>
+            <index name="idx_reading_sessions_date_pages_read" columns="date,pages_read"/>
         </indexes>
         <id name="id" type="string" column="id" length="36"/>
         <field name="bookId" type="string" column="book_id" length="36" nullable="false"/>

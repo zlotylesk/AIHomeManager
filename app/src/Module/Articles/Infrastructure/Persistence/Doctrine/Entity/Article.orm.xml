@@ -7,6 +7,7 @@
     <entity name="App\Module\Articles\Domain\Entity\Article" table="articles">
         <indexes>
             <index name="idx_article_added_at" columns="added_at"/>
+            <index name="idx_article_is_read_read_at" columns="is_read,read_at"/>
         </indexes>
         <unique-constraints>
             <unique-constraint columns="url" name="uniq_articles_url"/>
