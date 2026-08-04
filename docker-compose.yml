@@ -61,14 +61,43 @@ services:
     # Bumped 3.12 (EOL) → 4.x: current major (Khepri metadata backend, quorum
     # queues default). Major-pinned `:4` tracks the supported 4.x line. We use a
     # plain topic exchange + classic queues (no mirrored queues, removed in 4.0)
-    # so the upgrade is low-risk; metadata is ephemeral (no data volume).
+    # so the upgrade is low-risk.
+    #
+    # The broker keeps a named volume (HMAI-411). It used to have none, on the
+    # grounds that its metadata is ephemeral — but the same directory holds the
+    # QUEUE CONTENTS, so that decision also threw away every message in flight.
+    # The exchanges, queues and messages are all durable already (Symfony's AMQP
+    # transport declares AMQP_DURABLE and sets delivery_mode 2), which is why a
+    # plain `docker compose restart` never lost anything and the gap stayed
+    # invisible: durability is written to /var/lib/rabbitmq, and without a volume
+    # that lives in the container's writable layer. Recreating the container —
+    # `docker compose down`, an image bump, any edit to this file — took the DLQ
+    # with it. Measured before the fix: a message parked in `failed` survived a
+    # restart, and after `--force-recreate` the queue itself no longer existed.
+    #
+    # What that costs is the whole point of having a DLQ: a failed Trakt import,
+    # a notification that never sent, an unindexed document. The queue exists so
+    # a failure waits for a human, and a failure that silently disappears leaves
+    # the system looking healthy — the 1.31.0 pattern.
     image: rabbitmq:4-management-alpine
+    # A FIXED hostname, and it is load-bearing rather than cosmetic: RabbitMQ
+    # derives its node name from it (`rabbit@<hostname>`) and stores that node's
+    # database under /var/lib/rabbitmq/mnesia/<node>. Docker otherwise hands the
+    # container its ID as the hostname, so every recreation starts a brand-new
+    # node that comes up EMPTY while the previous node's data sits untouched
+    # beside it in the same volume — the mount looks like it is working, and the
+    # DLQ still evaporates. Measured while writing this: two node directories,
+    # rabbit@bc2b4397acdb and rabbit@e47e36d8e8d0, one message stranded in the
+    # older one. The volume without this line would have been a fix in name only.
+    hostname: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -192,3 +221,4 @@ volumes:
   mongodb_data:
   opensearch_data:
   search_data:
+  rabbitmq_data:

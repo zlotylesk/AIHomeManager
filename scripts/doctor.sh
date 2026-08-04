@@ -196,6 +196,35 @@ else
     fi
 fi
 
+# A message in the dead-letter queue is a failure that has already happened and
+# is waiting for a human — a Trakt import, a notification, an unindexed
+# document. Nothing else surfaces it: the DLQ has no consumer by design, so it
+# stays silent however deep it gets.
+#
+# This is a warning rather than a failure. The environment is healthy; it is the
+# work that is not. Failing here would make `make doctor` red for a reason that
+# has nothing to do with the setup it exists to check, and a check that is red
+# for unrelated reasons stops being read.
+echo ""
+echo "== Queues =="
+if ! docker inspect -f '{{.State.Status}}' aihm-rabbitmq-1 2>/dev/null | grep -q running; then
+    check_warn "rabbitmq not running — DLQ depth not checked"
+else
+    dlq=$(docker exec aihm-rabbitmq-1 rabbitmqctl list_queues -q --no-table-headers name messages 2>/dev/null \
+        | awk '$1 == "series_events_failed" { print $2 }')
+    if [ -z "$dlq" ]; then
+        # Absent, not empty. The transport declares it lazily, so before anything
+        # has ever failed there is genuinely no queue — which is fine, and worth
+        # distinguishing from "zero messages" so it does not read as a probe that
+        # silently found nothing.
+        check_ok "no dead-letter queue yet (nothing has failed)"
+    elif [ "$dlq" = "0" ]; then
+        check_ok "dead-letter queue is empty"
+    else
+        check_warn "${dlq} message(s) parked in the dead-letter queue — a failed job is waiting for you (inspect: 'docker compose exec php bin/console messenger:stats'; retry: '… messenger:failed:retry')"
+    fi
+fi
+
 echo ""
 echo "== Summary =="
 if [ "$fail" = "0" ] && [ "$warn" = "0" ]; then
