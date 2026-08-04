@@ -475,4 +475,92 @@ final class BudgetApiTest extends WebTestCase
         $this->client->request('GET', '/api/budget/categories');
         self::assertResponseStatusCodeSame(401);
     }
+
+    public function testATransactionInAnotherCurrencyIs422AndIsNotRecorded(): void
+    {
+        $categoryId = $this->createCategory();
+
+        $this->client->request('POST', '/api/budget/transactions', content: (string) json_encode([
+            'amountInCents' => 10000, 'currency' => 'EUR', 'date' => '2026-07-15',
+            'categoryId' => $categoryId, 'type' => 'expense',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        // Refused, not converted and not relabelled — accepting it would change
+        // what the caller said and leave the month's total quietly wrong.
+        $this->client->request('GET', '/api/budget/transactions');
+        self::assertSame([], $this->jsonList($this->client));
+    }
+
+    public function testUpdatingATransactionIntoAnotherCurrencyIs422AndLeavesItUnchanged(): void
+    {
+        $categoryId = $this->createCategory();
+        $id = $this->createTransaction(['categoryId' => $categoryId]);
+
+        $this->client->request('PATCH', '/api/budget/transactions/'.$id, content: (string) json_encode([
+            'amountInCents' => 10000, 'currency' => 'EUR', 'date' => '2026-07-20',
+            'categoryId' => $categoryId, 'type' => 'expense',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+        $this->client->request('GET', '/api/budget/transactions');
+        $list = $this->jsonList($this->client);
+        self::assertCount(1, $list);
+        self::assertSame(4999, $list[0]['amountInCents']);
+        self::assertSame('PLN', $list[0]['currency']);
+    }
+
+    public function testAMonthlyLimitInAnotherCurrencyIs422(): void
+    {
+        // The limit is compared against the month's spending, so a foreign one
+        // makes percentUsed and overLimit meaningless.
+        $categoryId = $this->createCategory();
+
+        $this->client->request('PATCH', '/api/budget/categories/'.$categoryId.'/limit', content: (string) json_encode([
+            'amountInCents' => 50000, 'currency' => 'EUR',
+        ]));
+
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testTheConfiguredCurrencyIsAcceptedInAnyCasing(): void
+    {
+        // Money normalises, so the guard must too — otherwise "pln" is refused
+        // where "PLN" is accepted, for no reason the caller can see.
+        $categoryId = $this->createCategory();
+
+        $this->client->request('POST', '/api/budget/transactions', content: (string) json_encode([
+            'amountInCents' => 4999, 'currency' => 'pln', 'date' => '2026-07-15',
+            'categoryId' => $categoryId, 'type' => 'expense',
+        ]));
+
+        self::assertResponseStatusCodeSame(201);
+    }
+
+    public function testAnOmittedCurrencyFallsBackToTheBudgetsOwn(): void
+    {
+        $categoryId = $this->createCategory();
+
+        $this->client->request('POST', '/api/budget/transactions', content: (string) json_encode([
+            'amountInCents' => 4999, 'date' => '2026-07-15',
+            'categoryId' => $categoryId, 'type' => 'expense',
+        ]));
+
+        self::assertResponseStatusCodeSame(201);
+        $this->client->request('GET', '/api/budget/transactions');
+        self::assertSame('PLN', $this->jsonList($this->client)[0]['currency']);
+    }
+
+    public function testTheReportNamesTheCurrencyItsFiguresAreIn(): void
+    {
+        $categoryId = $this->createCategory();
+        $this->createTransaction(['categoryId' => $categoryId]);
+
+        $this->client->request('GET', '/api/budget/report?month=2026-07');
+
+        self::assertResponseIsSuccessful();
+        $report = $this->jsonResponse($this->client);
+        self::assertSame('PLN', $report['currency']);
+        self::assertSame(4999, $report['totalExpensesInCents']);
+    }
 }

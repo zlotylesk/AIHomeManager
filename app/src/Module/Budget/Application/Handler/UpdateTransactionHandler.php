@@ -7,6 +7,7 @@ namespace App\Module\Budget\Application\Handler;
 use App\Module\Budget\Application\Command\UpdateTransaction;
 use App\Module\Budget\Application\Exception\CategoryNotFoundException;
 use App\Module\Budget\Application\Exception\TransactionNotFoundException;
+use App\Module\Budget\Application\SystemCurrency;
 use App\Module\Budget\Application\TransactionCategoryMatch;
 use App\Module\Budget\Application\TransactionInput;
 use App\Module\Budget\Domain\Repository\CategoryRepositoryInterface;
@@ -19,6 +20,7 @@ final readonly class UpdateTransactionHandler
     public function __construct(
         private TransactionRepositoryInterface $transactions,
         private CategoryRepositoryInterface $categories,
+        private SystemCurrency $currency,
     ) {
     }
 
@@ -35,6 +37,8 @@ final readonly class UpdateTransactionHandler
         }
 
         $input = TransactionInput::fromRaw($command->amountInCents, $command->currency, $command->date, $command->type);
+
+        $this->currency->assertSupported($input->amount);
 
         TransactionCategoryMatch::assertTypesAgree($input->type, $category);
 

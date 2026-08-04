@@ -31,10 +31,14 @@ export function moneyLabel(amountInCents, currency) {
 
 // A category with no monthly limit reports null percentUsed/monthlyLimitInCents
 // (HMAI-380) — "no limit" is a distinct state from "0% used", never invented.
+// A missing currency renders the bare number rather than assuming one: the API
+// always sends the two together, so this branch means we genuinely do not know
+// the unit — and guessing it is how an amount ends up labelled with a currency
+// it is not in.
 export function limitLabel(monthlyLimitInCents, currency) {
     return null === monthlyLimitInCents || undefined === monthlyLimitInCents
         ? 'Bez limitu'
-        : `Limit: ${moneyLabel(monthlyLimitInCents, currency || 'PLN')}`;
+        : `Limit: ${moneyLabel(monthlyLimitInCents, currency)}`;
 }
 
 // percentUsed is null for an unlimited category; clamped at 100 so a category

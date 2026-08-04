@@ -6,6 +6,7 @@ namespace App\Module\Budget\Application\Handler;
 
 use App\Module\Budget\Application\Command\AddTransaction;
 use App\Module\Budget\Application\Exception\CategoryNotFoundException;
+use App\Module\Budget\Application\SystemCurrency;
 use App\Module\Budget\Application\TransactionCategoryMatch;
 use App\Module\Budget\Application\TransactionInput;
 use App\Module\Budget\Domain\Entity\Transaction;
@@ -20,6 +21,7 @@ final readonly class AddTransactionHandler
     public function __construct(
         private TransactionRepositoryInterface $transactions,
         private CategoryRepositoryInterface $categories,
+        private SystemCurrency $currency,
     ) {
     }
 
@@ -31,6 +33,11 @@ final readonly class AddTransactionHandler
         }
 
         $input = TransactionInput::fromRaw($command->amountInCents, $command->currency, $command->date, $command->type);
+
+        // Checked on the built VO rather than on the raw string, so the caller's
+        // casing and padding are normalised the same way the stored amount is —
+        // "pln" must not be refused where "PLN" is accepted.
+        $this->currency->assertSupported($input->amount);
 
         TransactionCategoryMatch::assertTypesAgree($input->type, $category);
 

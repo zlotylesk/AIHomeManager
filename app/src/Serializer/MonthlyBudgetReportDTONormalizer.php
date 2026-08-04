@@ -29,6 +29,7 @@ final class MonthlyBudgetReportDTONormalizer implements NormalizerInterface, Nor
 
         return [
             'month' => $data->month,
+            'currency' => $data->currency,
             'totalIncomeInCents' => $data->totalIncomeInCents,
             'totalExpensesInCents' => $data->totalExpensesInCents,
             'balanceInCents' => $data->balanceInCents,
