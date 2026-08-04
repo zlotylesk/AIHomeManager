@@ -498,6 +498,14 @@ services:
     App\Module\Goals\Domain\Port\ActivityProviderInterface:
         alias: App\Module\Goals\Infrastructure\Activity\CompositeActivityProvider
 
+    # The single source of truth for a streak (HMAI-412). Goals owns the concept
+    # and implements the shared port; the Dashboard cockpit reads through the
+    # abstraction rather than deriving its own answer from the `streaks` table,
+    # which is only written nightly. Shared kernel, so deptrac stays 0/0 in both
+    # directions — the Google/Trakt token-port precedent.
+    App\Shared\Activity\StreakReaderInterface:
+        alias: App\Module\Goals\Infrastructure\Activity\StreakReader
+
     # Insights read cache (HMAI-334): the composed trends read model is cached in a
     # dedicated Redis pool keyed by granularity + window. Cache-on-read rather than
     # scheduler prewarming — the window is a caller-chosen range, so there is no one
