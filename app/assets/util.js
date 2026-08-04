@@ -73,10 +73,25 @@ export async function apiCall(url, options = {}) {
     return res.json();
 }
 
+/**
+ * The project's only HTML escaper — used by the Encore panels directly and by
+ * the legacy ones through `window.escHtml` (see legacy-globals.js).
+ *
+ * The apostrophe is escaped even though every attribute interpolation in the
+ * codebase today is double-quoted, so it cannot currently be exploited. The
+ * point is that this is now the single implementation guarding roughly thirty
+ * `innerHTML` writes, some over text imported from Pocket: it has to stay safe
+ * for the next single-quoted attribute somebody writes, not only for the ones
+ * that exist. `&#39;` renders as an apostrophe, so nothing visible changes.
+ *
+ * Ampersand first, or the entities produced by the later replacements would
+ * themselves be escaped.
+ */
 export function escHtml(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function signalQueuedWrite(eventName, message, flags) {

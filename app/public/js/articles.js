@@ -2,26 +2,6 @@
 
 const $ = id => document.getElementById(id);
 
-function showError(msg) {
-    const b = $('error-banner');
-    b.textContent = msg;
-    b.classList.remove('hidden');
-    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
-}
-
-function showInfo(msg) {
-    const b = $('info-banner');
-    b.textContent = msg;
-    b.classList.remove('hidden');
-    setTimeout(() => b.classList.add('hidden'), window.TOAST_TIMEOUT_MS);
-}
-
-function escHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function isToday(dateStr) {
     if (!dateStr) return false;
     return dateStr.slice(0, 10) === new Date().toISOString().slice(0, 10);
@@ -43,11 +23,11 @@ function renderArticle(article, compact = false) {
     return `
         <div class="article-row${today && !compact ? ' article-today' : ''}" data-id="${article.id}">
             <div class="article-main">
-                <a class="article-title" href="${escHtml(safeHref)}" target="_blank" rel="noopener">
-                    ${escHtml(article.title)}${today ? ' <span class="badge-today">Dziś</span>' : ''}
+                <a class="article-title" href="${window.escHtml(safeHref)}" target="_blank" rel="noopener">
+                    ${window.escHtml(article.title)}${today ? ' <span class="badge-today">Dziś</span>' : ''}
                 </a>
                 <div class="article-meta">
-                    ${article.category ? `<span class="tag">${escHtml(article.category)}</span>` : ''}
+                    ${article.category ? `<span class="tag">${window.escHtml(article.category)}</span>` : ''}
                     ${article.estimatedReadTime ? `<span>${article.estimatedReadTime} min czytania</span>` : ''}
                     <span>Dodano ${formatDate(article.addedAt)}</span>
                 </div>
@@ -101,15 +81,15 @@ function renderDetail(a) {
     return `
         <dl class="detail-list">
             <dt>URL</dt>
-            <dd><a href="${escHtml(safeHref)}" target="_blank" rel="noopener">${escHtml(a.url)}</a></dd>
+            <dd><a href="${window.escHtml(safeHref)}" target="_blank" rel="noopener">${window.escHtml(a.url)}</a></dd>
             <dt>Kategoria</dt>
-            <dd>${a.category ? escHtml(a.category) : '—'}</dd>
+            <dd>${a.category ? window.escHtml(a.category) : '—'}</dd>
             <dt>Czas czytania</dt>
-            <dd>${a.estimatedReadTime ? escHtml(String(a.estimatedReadTime)) + ' min' : '—'}</dd>
+            <dd>${a.estimatedReadTime ? window.escHtml(String(a.estimatedReadTime)) + ' min' : '—'}</dd>
             <dt>Dodano</dt>
-            <dd>${escHtml(formatDate(a.addedAt))}</dd>
+            <dd>${window.escHtml(formatDate(a.addedAt))}</dd>
             <dt>Status</dt>
-            <dd>${escHtml(status)}</dd>
+            <dd>${window.escHtml(status)}</dd>
         </dl>
     `;
 }
@@ -125,7 +105,7 @@ async function openDetail(id) {
         $('detail-body').innerHTML = renderDetail(article);
     } catch (err) {
         closeDetail();
-        showError(err.message || 'Nie udało się wczytać artykułu.');
+        window.showError(err.message || 'Nie udało się wczytać artykułu.');
     }
 }
 
@@ -168,10 +148,10 @@ async function saveEdit(form) {
             body: JSON.stringify(body),
         });
         closeEdit();
-        showInfo('Artykuł zaktualizowany.');
+        window.showInfo('Artykuł zaktualizowany.');
         await loadArticles();
     } catch (err) {
-        showError(err.message || 'Nie udało się zaktualizować artykułu.');
+        window.showError(err.message || 'Nie udało się zaktualizować artykułu.');
     }
     btn.disabled = false;
     btn.textContent = 'Zapisz';
@@ -185,10 +165,10 @@ async function deleteArticle(id, btn) {
     btn.textContent = 'Usuwanie…';
     try {
         await window.apiCall(`/api/articles/${id}`, {method: 'DELETE'});
-        showInfo('Artykuł usunięty.');
+        window.showInfo('Artykuł usunięty.');
         await loadArticles();
     } catch (err) {
-        showError(err.message || 'Nie udało się usunąć artykułu.');
+        window.showError(err.message || 'Nie udało się usunąć artykułu.');
         btn.disabled = false;
         btn.textContent = 'Usuń';
     }
@@ -206,7 +186,7 @@ async function markAsRead(id, btn) {
         }
         renderList();
     } catch (err) {
-        showError(err.message || 'Nie udało się oznaczyć jako przeczytany.');
+        window.showError(err.message || 'Nie udało się oznaczyć jako przeczytany.');
         btn.disabled = false;
         btn.textContent = 'Oznacz jako przeczytany';
     }
@@ -233,10 +213,10 @@ async function createArticle(form) {
             body: JSON.stringify(body),
         });
         form.reset();
-        showInfo('Artykuł dodany.');
+        window.showInfo('Artykuł dodany.');
         await loadArticles();
     } catch (err) {
-        showError(err.message || 'Nie udało się dodać artykułu.');
+        window.showError(err.message || 'Nie udało się dodać artykułu.');
     }
     btn.disabled = false;
     btn.textContent = 'Dodaj artykuł';
@@ -266,7 +246,7 @@ async function importArticles(form) {
             await loadArticles();
         }
     } catch (err) {
-        showError(err.message || 'Import nie powiódł się.');
+        window.showError(err.message || 'Import nie powiódł się.');
     }
     btn.disabled = false;
     btn.textContent = 'Importuj';
@@ -304,9 +284,9 @@ async function downloadExport(format, btn) {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        showInfo(`Artykuły wyeksportowane jako ${format.toUpperCase()}.`);
+        window.showInfo(`Artykuły wyeksportowane jako ${format.toUpperCase()}.`);
     } catch (err) {
-        showError(err.message || 'Nie udało się wyeksportować artykułów.');
+        window.showError(err.message || 'Nie udało się wyeksportować artykułów.');
     } finally {
         btn.disabled = false;
         btn.textContent = original;
@@ -324,7 +304,7 @@ async function loadArticles() {
     ]);
 
     if (listResult.status !== 'fulfilled') {
-        showError('Nie udało się wczytać artykułów.');
+        window.showError('Nie udało się wczytać artykułów.');
         $('articles-list').innerHTML = '';
         return;
     }
