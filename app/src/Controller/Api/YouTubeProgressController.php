@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\YouTubeProgress\Application\Command\MarkVideoStarted;
@@ -15,12 +16,14 @@ use App\Module\YouTubeProgress\Application\DTO\VideoDTO;
 use App\Module\YouTubeProgress\Application\DTO\WatchSessionDTO;
 use App\Module\YouTubeProgress\Application\Query\GetSessions;
 use App\Module\YouTubeProgress\Application\Query\GetWatchlist;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
@@ -44,59 +47,76 @@ final class YouTubeProgressController extends AbstractController
         #[Autowire('%env(YOUTUBE_WATCHLIST_PLAYLIST_ID)%')]
         private readonly string $watchlistPlaylistId,
         private readonly NormalizerInterface $normalizer,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
     #[Route('/watchlist', methods: ['GET'])]
     #[OA\Get(
         summary: 'Get the watchlist',
-        description: 'Returns the watch-later videos with their per-video progress status.',
+        description: 'Returns one page of watch-later videos with their per-video progress status. The former `videos` key is now the shared `data` key, so every list endpoint answers with the same envelope.',
         tags: ['YouTubeProgress'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The watchlist.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'videos', type: 'array', items: new OA\Items(ref: new Model(type: VideoDTO::class))),
-                ]),
+                description: 'One page of the watchlist.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: VideoDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function watchlist(): JsonResponse
+    public function watchlist(Request $request): JsonResponse
     {
-        /** @var list<VideoDTO> $videos */
-        $videos = $this->queryBus->ask(new GetWatchlist());
+        /** @var Page<VideoDTO> $videos */
+        $videos = $this->queryBus->ask(new GetWatchlist($this->pagination->parse($request)));
 
-        return new JsonResponse([
-            'videos' => $this->normalizer->normalize($videos),
-        ]);
+        return new JsonResponse($this->normalizer->normalize($videos));
     }
 
     #[Route('/sessions', methods: ['GET'])]
     #[OA\Get(
         summary: 'Get the watch sessions',
-        description: 'Returns the generated watch sessions, each with its ordered videos and total duration.',
+        description: 'Returns one page of generated watch sessions, each with its ordered videos and total duration. The former `sessions` key is now the shared `data` key, so every list endpoint answers with the same envelope.',
         tags: ['YouTubeProgress'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The watch sessions.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'sessions', type: 'array', items: new OA\Items(ref: new Model(type: WatchSessionDTO::class))),
-                ]),
+                description: 'One page of watch sessions.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: WatchSessionDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function sessions(): JsonResponse
+    public function sessions(Request $request): JsonResponse
     {
-        /** @var list<WatchSessionDTO> $sessions */
-        $sessions = $this->queryBus->ask(new GetSessions());
+        /** @var Page<WatchSessionDTO> $sessions */
+        $sessions = $this->queryBus->ask(new GetSessions($this->pagination->parse($request)));
 
-        return new JsonResponse([
-            'sessions' => $this->normalizer->normalize($sessions),
-        ]);
+        return new JsonResponse($this->normalizer->normalize($sessions));
     }
 
     #[Route('/sync', methods: ['POST'])]
@@ -129,14 +149,17 @@ final class YouTubeProgressController extends AbstractController
         $this->commandBus->dispatch(new SyncWatchlist($this->watchlistPlaylistId));
         $this->commandBus->dispatch(new RegenerateSessions());
 
-        /** @var list<VideoDTO> $videos */
+        // The counters report the whole set, not the page that came back — a
+        // "synced 50 videos" that really meant "the first page holds 50" would
+        // understate the import as soon as the watchlist outgrew one page.
+        /** @var Page<VideoDTO> $videos */
         $videos = $this->queryBus->ask(new GetWatchlist());
-        /** @var list<WatchSessionDTO> $sessions */
+        /** @var Page<WatchSessionDTO> $sessions */
         $sessions = $this->queryBus->ask(new GetSessions());
 
         return new JsonResponse([
-            'sessions_count' => count($sessions),
-            'videos_count' => count($videos),
+            'sessions_count' => $sessions->total,
+            'videos_count' => $videos->total,
         ]);
     }
 

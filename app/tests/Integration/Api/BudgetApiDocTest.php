@@ -69,8 +69,9 @@ final class BudgetApiDocTest extends WebTestCase
         self::assertSame(['income', 'expense'], $type['schema']['enum'] ?? null);
 
         $schema = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $schema['type'] ?? null);
-        self::assertStringContainsString('TransactionDTO', $schema['items']['$ref'] ?? '');
+        self::assertSame('object', $schema['type'] ?? null);
+        self::assertStringContainsString('TransactionDTO', $schema['properties']['data']['items']['$ref'] ?? '');
+        self::assertSame('#/components/schemas/Pagination', $schema['properties']['pagination']['$ref'] ?? null);
     }
 
     public function testTransactionWriteBodiesRequireTheLedgerFields(): void

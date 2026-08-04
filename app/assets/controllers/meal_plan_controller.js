@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
+import { fetchAllPages } from '../pagination.js';
 import {
     MEAL_SLOTS,
     dayHeading,
@@ -142,7 +143,9 @@ export default class extends Controller {
 
     async loadRecipes() {
         try {
-            const recipes = await apiCall('/api/recipes');
+            // A <select> has to offer every recipe, not just the first page —
+            // a dropdown silently missing options is worse than a slow one.
+            const recipes = await fetchAllPages((page) => apiCall(`/api/recipes?page=${page}`));
             this.recipeSelectTarget.innerHTML = recipes.length
                 ? recipes.map((recipe) => `<option value="${escHtml(recipe.id)}">${escHtml(recipe.title)}</option>`).join('')
                 : '<option value="">Brak przepisów</option>';

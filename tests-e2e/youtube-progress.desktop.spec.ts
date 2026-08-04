@@ -22,15 +22,24 @@ const video = (overrides: Partial<VideoFixture> = {}): VideoFixture => ({
   ...overrides,
 });
 
+function pageOf(items: unknown[]): Record<string, unknown> {
+  return {
+    data: items,
+    pagination: { page: 1, perPage: 50, total: items.length, totalPages: 1 },
+  };
+}
+
 async function mockReads(
   page: Page,
   data: { videos?: VideoFixture[]; sessions?: Array<Record<string, unknown>> },
 ): Promise<void> {
-  await page.route('**/api/youtube-progress/watchlist', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: data.videos ?? [] }) }),
+  // Both reads answer with the shared list envelope {data, pagination} — the
+  // stub mirrors it so the spec exercises the payload the server really sends.
+  await page.route('**/api/youtube-progress/watchlist*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pageOf(data.videos ?? [])) }),
   );
-  await page.route('**/api/youtube-progress/sessions', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessions: data.sessions ?? [] }) }),
+  await page.route('**/api/youtube-progress/sessions*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pageOf(data.sessions ?? [])) }),
   );
 }
 

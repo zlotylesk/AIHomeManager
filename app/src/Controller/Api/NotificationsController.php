@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\Notifications\NotificationsRequestParser;
+use App\Controller\PaginationRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Notifications\Application\Command\RegisterPushSubscription;
@@ -16,6 +17,7 @@ use App\Module\Notifications\Application\DTO\NotificationDTO;
 use App\Module\Notifications\Application\DTO\NotificationPreferenceDTO;
 use App\Module\Notifications\Application\Query\GetNotificationHistory;
 use App\Module\Notifications\Application\Query\GetNotificationPreferences;
+use App\Shared\Pagination\Page;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
@@ -36,6 +38,7 @@ final class NotificationsController extends AbstractController
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
         private readonly NotificationsRequestParser $parser,
+        private readonly PaginationRequestParser $pagination,
         #[Autowire('%env(VAPID_PUBLIC_KEY)%')]
         private readonly string $vapidPublicKey,
     ) {
@@ -220,17 +223,22 @@ final class NotificationsController extends AbstractController
     #[OA\Get(
         summary: 'List recent notifications',
         tags: ['Notifications'],
-        parameters: [new OA\Parameter(
-            name: 'limit',
-            in: 'query',
-            required: false,
-            schema: new OA\Schema(type: 'integer', default: 20, maximum: 100, minimum: 1),
-        )],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The most recent notifications, newest first.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: NotificationDTO::class))),
+                description: 'One page of notifications, newest first.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: NotificationDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
             new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
@@ -238,10 +246,8 @@ final class NotificationsController extends AbstractController
     )]
     public function history(Request $request): JsonResponse
     {
-        $limit = $this->parser->parseLimit($request, 20, GetNotificationHistory::MAX_LIMIT);
-
-        /** @var NotificationDTO[] $notifications */
-        $notifications = $this->queryBus->ask(new GetNotificationHistory($limit));
+        /** @var Page<NotificationDTO> $notifications */
+        $notifications = $this->queryBus->ask(new GetNotificationHistory($this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($notifications));
     }

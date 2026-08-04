@@ -6,9 +6,11 @@ namespace App\Module\Movies\Application\QueryHandler;
 
 use App\Module\Movies\Application\DTO\MovieDTO;
 use App\Module\Movies\Application\Query\GetMovies;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
@@ -18,24 +20,30 @@ final readonly class GetMoviesHandler
     {
     }
 
-    /** @return MovieDTO[] */
-    public function __invoke(GetMovies $query): array
+    /** @return Page<MovieDTO> */
+    public function __invoke(GetMovies $query): Page
     {
-        $sql = 'SELECT id, title, watched, watched_at, user_rating, cover_url, year, status, description, created_at
-                FROM movies';
-
+        $where = '';
         $params = [];
 
         if (null !== $query->watched) {
-            $sql .= ' WHERE watched = :watched';
+            $where = ' WHERE watched = :watched';
             $params['watched'] = $query->watched ? 1 : 0;
         }
 
-        $sql .= ' ORDER BY title ASC';
+        // Counted over the whole filtered set rather than the page, so a client
+        // can tell there is more without asking for every row.
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM movies'.$where, $params);
 
-        $rows = $this->connection->fetchAllAssociative($sql, $params);
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, title, watched, watched_at, user_rating, cover_url, year, status, description, created_at
+                FROM movies'.$where.' ORDER BY title ASC, id ASC LIMIT :limit OFFSET :offset',
+            $params + ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            // MySQL rejects a LIMIT bound as a string, so both bounds are typed.
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
+        );
 
-        return array_map($this->toDTO(...), $rows);
+        return Page::of(array_map($this->toDTO(...), $rows), $total, $query->page);
     }
 
     /**

@@ -13,24 +13,28 @@ test('youtube-progress page renders without horizontal overflow at 393px (Pixel 
     watchedAt: null,
   };
 
-  await page.route('**/api/youtube-progress/watchlist', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: [splitVideo] }) }),
+  // Both reads answer with the shared list envelope {data, pagination}.
+  const pageOf = (items: unknown[]) => ({
+    data: items,
+    pagination: { page: 1, perPage: 50, total: items.length, totalPages: 1 },
+  });
+
+  await page.route('**/api/youtube-progress/watchlist*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pageOf([splitVideo])) }),
   );
-  await page.route('**/api/youtube-progress/sessions', (route) =>
+  await page.route('**/api/youtube-progress/sessions*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        sessions: [
-          {
-            id: '22222222-2222-4222-8222-222222222222',
-            createdAt: '2026-06-09T12:00:00+00:00',
-            totalDurationSeconds: 900,
-            youtubePlaylistId: null,
-            videos: [splitVideo],
-          },
-        ],
-      }),
+      body: JSON.stringify(pageOf([
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          createdAt: '2026-06-09T12:00:00+00:00',
+          totalDurationSeconds: 900,
+          youtubePlaylistId: null,
+          videos: [splitVideo],
+        },
+      ])),
     }),
   );
 

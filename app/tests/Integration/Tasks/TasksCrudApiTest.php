@@ -124,7 +124,7 @@ class TasksCrudApiTest extends WebTestCase
         $this->createTask('Pending task');
 
         $this->client->request('GET', '/api/tasks?status=completed');
-        $data = json_decode((string) $this->client->getResponse()->getContent(), true);
+        $data = $this->jsonList($this->client);
         self::assertCount(1, $data);
         self::assertSame('completed', $data[0]['status']);
     }

@@ -41,13 +41,14 @@ final class PodcastsApiDocTest extends WebTestCase
         }
     }
 
-    public function testListReturnsAnArrayOfPodcastModels(): void
+    public function testListReturnsAPageOfPodcastModels(): void
     {
         $get = $this->nestedArray($this->fetchSpec(static::createClient()), 'paths', '/api/v1/podcasts', 'get');
 
         $schema = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $schema['type'] ?? null);
-        self::assertStringContainsString('PodcastDTO', $schema['items']['$ref'] ?? '');
+        self::assertSame('object', $schema['type'] ?? null);
+        self::assertStringContainsString('PodcastDTO', $schema['properties']['data']['items']['$ref'] ?? '');
+        self::assertSame('#/components/schemas/Pagination', $schema['properties']['pagination']['$ref'] ?? null);
     }
 
     /**

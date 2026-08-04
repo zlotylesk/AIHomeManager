@@ -69,6 +69,7 @@ use App\Serializer\MonthlyBudgetReportDTONormalizer;
 use App\Serializer\MovieDTONormalizer;
 use App\Serializer\NotificationDTONormalizer;
 use App\Serializer\NotificationPreferenceDTONormalizer;
+use App\Serializer\PageNormalizer;
 use App\Serializer\PlannedMealDTONormalizer;
 use App\Serializer\PodcastDetailDTONormalizer;
 use App\Serializer\PodcastDTONormalizer;
@@ -88,6 +89,7 @@ use App\Serializer\TrendsDTONormalizer;
 use App\Serializer\VideoDTONormalizer;
 use App\Serializer\VinylRecordDTONormalizer;
 use App\Serializer\WatchSessionDTONormalizer;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DateTimeZone;
 use PHPUnit\Framework\TestCase;
@@ -900,5 +902,42 @@ final class NormalizersTest extends TestCase
                 ['name' => 'Mleko', 'unit' => 'ml', 'quantity' => 250.0],
             ],
         ], $serializer->normalize($dto));
+    }
+
+    public function testPageNormalizerWrapsTheItemsAndDelegatesEachToItsOwnNormalizer(): void
+    {
+        $serializer = new Serializer([new MovieDTONormalizer(), new PageNormalizer()]);
+        $page = new Page(
+            [new MovieDTO('m-1', 'Dune', false, null, null, null, 2021, null, null, '2026-08-01T10:00:00+00:00')],
+            137,
+            2,
+            50,
+        );
+
+        $normalized = $serializer->normalize($page);
+        self::assertIsArray($normalized);
+
+        self::assertSame(['data', 'pagination'], array_keys($normalized));
+        // The item keeps the shape its own normalizer gives it — the envelope
+        // never re-maps a DTO, so a module's contract cannot drift here.
+        self::assertSame('Dune', $normalized['data'][0]['title']);
+        self::assertSame(
+            ['page' => 2, 'perPage' => 50, 'total' => 137, 'totalPages' => 3],
+            $normalized['pagination'],
+        );
+    }
+
+    public function testPageNormalizerReportsOnePageForAnEmptyResult(): void
+    {
+        $serializer = new Serializer([new PageNormalizer()]);
+
+        $normalized = $serializer->normalize(new Page([], 0, 1, 50));
+        self::assertIsArray($normalized);
+
+        // "Page 1 of 0" reads as broken, so an empty match set is one empty page.
+        self::assertSame(
+            ['page' => 1, 'perPage' => 50, 'total' => 0, 'totalPages' => 1],
+            $normalized['pagination'],
+        );
     }
 }

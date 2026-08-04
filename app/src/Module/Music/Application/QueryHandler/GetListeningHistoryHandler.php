@@ -6,6 +6,7 @@ namespace App\Module\Music\Application\QueryHandler;
 
 use App\Module\Music\Application\DTO\ListeningSessionDTO;
 use App\Module\Music\Application\Query\GetListeningHistory;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
@@ -21,9 +22,9 @@ final readonly class GetListeningHistoryHandler
     }
 
     /**
-     * @return ListeningSessionDTO[]
+     * @return Page<ListeningSessionDTO>
      */
-    public function __invoke(GetListeningHistory $query): array
+    public function __invoke(GetListeningHistory $query): Page
     {
         $sql = 'SELECT id, artist, title, played_at, source, play_count FROM music_listening_sessions';
 
@@ -46,17 +47,24 @@ final readonly class GetListeningHistoryHandler
             $params['source'] = $query->source->value;
         }
 
-        if ([] !== $conditions) {
-            $sql .= ' WHERE '.implode(' AND ', $conditions);
-        }
+        $where = [] === $conditions ? '' : ' WHERE '.implode(' AND ', $conditions);
+        $sql .= $where;
 
-        $sql .= ' ORDER BY played_at DESC LIMIT :limit';
-        $params['limit'] = $query->limit;
+        $total = (int) $this->connection->executeQuery(
+            'SELECT COUNT(*) FROM music_listening_sessions'.$where,
+            $params,
+            $types,
+        )->fetchOne();
+
+        $sql .= ' ORDER BY played_at DESC, id ASC LIMIT :limit OFFSET :offset';
+        $params['limit'] = $query->page->perPage;
+        $params['offset'] = $query->page->offset();
         $types['limit'] = ParameterType::INTEGER;
+        $types['offset'] = ParameterType::INTEGER;
 
         $rows = $this->connection->executeQuery($sql, $params, $types)->fetchAllAssociative();
 
-        return array_map(
+        return Page::of(array_map(
             static fn (array $row): ListeningSessionDTO => new ListeningSessionDTO(
                 id: (string) $row['id'],
                 artist: (string) $row['artist'],
@@ -66,6 +74,6 @@ final readonly class GetListeningHistoryHandler
                 playCount: null !== $row['play_count'] ? (int) $row['play_count'] : null,
             ),
             $rows,
-        );
+        ), $total, $query->page);
     }
 }

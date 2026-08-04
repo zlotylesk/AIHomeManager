@@ -55,7 +55,7 @@ class BooksApiTest extends WebTestCase
         $this->client->request('GET', '/api/books');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testCreateBookReturns201WithId(): void
@@ -267,7 +267,7 @@ class BooksApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/books?status=reading');
         self::assertResponseIsSuccessful();
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
         self::assertCount(1, $data);
         self::assertSame('Book B', $data[0]['title']);
     }

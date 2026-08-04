@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Notifications\Application\Query;
 
-use InvalidArgumentException;
+use App\Shared\Pagination\PageRequest;
 
 /**
- * Read the most recent notifications, newest first.
+ * Read the notifications, newest first, one page at a time.
+ *
+ * The bespoke `limit` this query used to carry was folded into the shared
+ * {@see PageRequest}: it already meant the same thing and enforced the same
+ * ceiling, and one pagination vocabulary across the API is the point.
  */
 final readonly class GetNotificationHistory
 {
-    public const int MAX_LIMIT = 100;
-
-    public function __construct(public int $limit = 20)
+    public function __construct(public PageRequest $page = new PageRequest())
     {
-        if ($limit < 1 || $limit > self::MAX_LIMIT) {
-            throw new InvalidArgumentException(sprintf('History limit must be between 1 and %d.', self::MAX_LIMIT));
-        }
     }
 }

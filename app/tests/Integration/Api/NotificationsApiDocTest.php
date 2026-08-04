@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Api;
 
+use App\Shared\Pagination\PageRequest;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -68,26 +69,28 @@ final class NotificationsApiDocTest extends WebTestCase
         self::assertSame('#/components/schemas/NotificationPreferenceDTO', $schema['items']['$ref'] ?? null);
     }
 
-    public function testHistoryReturnsAnArrayOfNotificationModelsAndDocumentsItsLimit(): void
+    public function testHistoryReturnsAPageOfNotificationModelsAndDocumentsThePageWindow(): void
     {
-        $get = $this->nestedArray($this->fetchSpec(static::createClient()), 'paths', '/api/v1/notifications/history', 'get');
+        $spec = $this->fetchSpec(static::createClient());
+        $get = $this->nestedArray($spec, 'paths', '/api/v1/notifications/history', 'get');
 
         $schema = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $schema['type'] ?? null);
-        self::assertSame('#/components/schemas/NotificationDTO', $schema['items']['$ref'] ?? null);
+        self::assertSame('object', $schema['type'] ?? null);
+        self::assertSame('#/components/schemas/NotificationDTO', $schema['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $schema['properties']['pagination']['$ref'] ?? null);
 
-        $limit = null;
-        foreach ($get['parameters'] ?? [] as $parameter) {
-            if ('limit' === ($parameter['name'] ?? null)) {
-                $limit = $parameter;
-            }
-        }
+        // The module's bespoke `limit` was folded into the shared page window,
+        // so the history documents the same page parameters as every other list.
+        $refs = array_column($get['parameters'] ?? [], '$ref');
+        self::assertContains('#/components/parameters/PageParam', $refs);
+        self::assertContains('#/components/parameters/PerPageParam', $refs);
 
-        self::assertNotNull($limit, 'GET /notifications/history must document the "limit" query parameter.');
-        // The documented bounds must match GetNotificationHistory's own guard,
-        // otherwise a client trusting the contract gets a surprise 422.
-        self::assertSame(1, $limit['schema']['minimum'] ?? null);
-        self::assertSame(100, $limit['schema']['maximum'] ?? null);
+        // The documented bounds must match PageRequest's own guard, otherwise a
+        // client trusting the contract gets a surprise 422.
+        $perPage = $this->nestedArray($spec, 'components', 'parameters', 'PerPageParam', 'schema');
+        self::assertSame(PageRequest::MAX_PER_PAGE, $perPage['maximum'] ?? null);
+        self::assertSame(1, $perPage['minimum'] ?? null);
+        self::assertSame(PageRequest::DEFAULT_PER_PAGE, $perPage['default'] ?? null);
     }
 
     public function testTheToggleBodiesRequireABooleanFlag(): void

@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml, safeUrl } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, pageQuery, unwrapPage } from '../pagination.js';
 import {
     LISTENED_CAVEAT,
     counterLabel,
@@ -129,13 +130,14 @@ export default class extends Controller {
         this.flash('info-banner', msg);
     }
 
-    async loadPodcasts() {
+    async loadPodcasts(page = FIRST_PAGE) {
         this.listTarget.innerHTML = '<div class="loading">Loading…</div>';
         try {
-            const podcasts = await apiCall('/api/podcasts');
+            const { items: podcasts, pagination } = unwrapPage(await apiCall(`/api/podcasts${pageQuery(new URLSearchParams(), page)}`));
             this.listTarget.innerHTML = podcasts.length
                 ? podcasts.map(cardHtml).join('')
                 : '<div class="empty-state">Brak podcastów. Uruchom synchronizację, aby pobrać historię odsłuchów.</div>';
+            mountPagerAfter(this.listTarget, pagination, (next) => this.loadPodcasts(next));
         } catch {
             this.showError('Nie udało się wczytać podcastów.');
             this.listTarget.innerHTML = '';

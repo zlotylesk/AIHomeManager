@@ -4,6 +4,7 @@ import { hideError, showError, showInfo, showTraktConnectPrompt } from '../serie
 import { filterSeries, sortSeries } from '../series/list.js';
 import { renderSeriesList } from '../series/list-view.js';
 import { readMetadataInputs, renderDetail } from '../series/detail-view.js';
+import { fetchAllPages } from '../pagination.js';
 
 // Thin Stimulus controller for the Series page: lifecycle wiring, list/detail
 // orchestration and the add-series modal. The heavy DOM building lives in the
@@ -100,7 +101,9 @@ export default class extends Controller {
         const container = this.$('series-list');
         container.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
-            this.allSeries = await API.series();
+            // The toolbar filters and sorts over the whole library in the
+            // browser, so this panel needs every page rather than a pager.
+            this.allSeries = await fetchAllPages((page) => API.series(page));
             this.applyListView();
         } catch {
             showError('Nie udało się wczytać seriali. Czy backend działa?');

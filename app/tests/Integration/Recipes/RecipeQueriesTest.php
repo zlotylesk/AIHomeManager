@@ -43,7 +43,7 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertRecipe('r-1', 'Naleśniki');
         $this->insertRecipe('r-3', 'Placki ziemniaczane');
 
-        $result = $this->queryBus->ask(new GetRecipes());
+        $result = $this->queryBus->ask(new GetRecipes())->items;
 
         self::assertSame(
             ['Naleśniki', 'Placki ziemniaczane', 'Zupa pomidorowa'],
@@ -57,7 +57,7 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertIngredient('r-1', 0, 'Mąka', 200.0, 'g');
         $this->insertIngredient('r-1', 1, 'Mleko', 0.5, 'l');
 
-        $result = $this->queryBus->ask(new GetRecipes());
+        $result = $this->queryBus->ask(new GetRecipes())->items;
 
         self::assertCount(1, $result);
         $recipe = $result[0];
@@ -73,7 +73,7 @@ final class RecipeQueriesTest extends KernelTestCase
     {
         $this->insertRecipe('r-1', 'Herbata');
 
-        $result = $this->queryBus->ask(new GetRecipes());
+        $result = $this->queryBus->ask(new GetRecipes())->items;
 
         self::assertNull($result[0]->prepTimeMinutes);
         self::assertSame([], $result[0]->tags);
@@ -94,7 +94,7 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertStep('r-1', 1, 'Odstaw');
         $this->insertStep('r-1', 2, 'Smaż');
 
-        $result = $this->queryBus->ask(new GetRecipes());
+        $result = $this->queryBus->ask(new GetRecipes())->items;
 
         self::assertSame(2, $result[0]->ingredientCount);
     }
@@ -105,7 +105,7 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertRecipe('r-2', 'Zupa', tags: ['obiad']);
         $this->insertRecipe('r-3', 'Kanapka', tags: ['śniadanie']);
 
-        $result = $this->queryBus->ask(new GetRecipes(tag: 'śniadanie'));
+        $result = $this->queryBus->ask(new GetRecipes(tag: 'śniadanie'))->items;
 
         self::assertSame(['r-3', 'r-1'], array_map(static fn (RecipeDTO $r): string => $r->id, $result));
     }
@@ -119,7 +119,7 @@ final class RecipeQueriesTest extends KernelTestCase
     {
         $this->insertRecipe('r-1', 'Zupa', tags: ['obiad']);
 
-        $result = $this->queryBus->ask(new GetRecipes(tag: 'Obiad'));
+        $result = $this->queryBus->ask(new GetRecipes(tag: 'Obiad'))->items;
 
         self::assertCount(1, $result);
         self::assertSame('r-1', $result[0]->id);
@@ -129,7 +129,7 @@ final class RecipeQueriesTest extends KernelTestCase
     {
         $this->insertRecipe('r-1', 'Zupa', tags: ['obiadowy']);
 
-        self::assertSame([], $this->queryBus->ask(new GetRecipes(tag: 'obiad')));
+        self::assertSame([], $this->queryBus->ask(new GetRecipes(tag: 'obiad'))->items);
     }
 
     public function testFiltersByPhraseInTitleCaseInsensitively(): void
@@ -138,7 +138,7 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertRecipe('r-2', 'Naleśniki');
         $this->insertRecipe('r-3', 'Zupa ogórkowa');
 
-        $result = $this->queryBus->ask(new GetRecipes(phrase: 'ZUPA'));
+        $result = $this->queryBus->ask(new GetRecipes(phrase: 'ZUPA'))->items;
 
         self::assertSame(['r-3', 'r-1'], array_map(static fn (RecipeDTO $r): string => $r->id, $result));
     }
@@ -158,10 +158,10 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertRecipe('r-3', 'Zupa_krem');
         $this->insertRecipe('r-4', 'Zupa krem');
 
-        $percent = $this->queryBus->ask(new GetRecipes(phrase: '100%'));
+        $percent = $this->queryBus->ask(new GetRecipes(phrase: '100%'))->items;
         self::assertSame(['r-1'], array_map(static fn (RecipeDTO $r): string => $r->id, $percent));
 
-        $underscore = $this->queryBus->ask(new GetRecipes(phrase: 'Zupa_'));
+        $underscore = $this->queryBus->ask(new GetRecipes(phrase: 'Zupa_'))->items;
         self::assertSame(['r-3'], array_map(static fn (RecipeDTO $r): string => $r->id, $underscore));
     }
 
@@ -171,7 +171,7 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertRecipe('r-2', 'Zupa mleczna', tags: ['śniadanie']);
         $this->insertRecipe('r-3', 'Kotlet', tags: ['obiad']);
 
-        $result = $this->queryBus->ask(new GetRecipes(tag: 'obiad', phrase: 'zupa'));
+        $result = $this->queryBus->ask(new GetRecipes(tag: 'obiad', phrase: 'zupa'))->items;
 
         self::assertSame(['r-1'], array_map(static fn (RecipeDTO $r): string => $r->id, $result));
     }
@@ -185,12 +185,12 @@ final class RecipeQueriesTest extends KernelTestCase
         $this->insertRecipe('r-1', 'Zupa', tags: ['obiad']);
         $this->insertRecipe('r-2', 'Naleśniki');
 
-        self::assertCount(2, $this->queryBus->ask(new GetRecipes(tag: '', phrase: '   ')));
+        self::assertCount(2, $this->queryBus->ask(new GetRecipes(tag: '', phrase: '   '))->items);
     }
 
     public function testEmptyCatalogReturnsAnEmptyList(): void
     {
-        self::assertSame([], $this->queryBus->ask(new GetRecipes()));
+        self::assertSame([], $this->queryBus->ask(new GetRecipes())->items);
     }
 
     public function testDetailReturnsIngredientsAndStepsInStoredOrder(): void

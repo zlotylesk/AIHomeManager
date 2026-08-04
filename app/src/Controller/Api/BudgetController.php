@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\Budget\BudgetRequestParser;
+use App\Controller\PaginationRequestParser;
 use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -27,6 +28,7 @@ use App\Module\Budget\Application\Query\GetMonthlyBudgetReport;
 use App\Module\Budget\Application\Query\GetTransactions;
 use App\Module\Budget\Application\Service\BudgetCsvExporter;
 use App\Pdf\PdfBuilder;
+use App\Shared\Pagination\Page;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
@@ -52,6 +54,7 @@ final class BudgetController extends AbstractController
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
         private readonly BudgetRequestParser $parser,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
@@ -64,12 +67,21 @@ final class BudgetController extends AbstractController
             new OA\Parameter(name: 'month', in: 'query', required: false, description: 'Calendar month to narrow to, `YYYY-MM`. A month that does not exist (e.g. `2026-13`) is rejected rather than rolled over.', schema: new OA\Schema(type: 'string', example: '2026-07')),
             new OA\Parameter(name: 'categoryId', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'type', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['income', 'expense'])),
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
         ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The matching transactions, newest first.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: TransactionDTO::class))),
+                description: 'One page of matching transactions, newest first.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: TransactionDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
@@ -78,11 +90,12 @@ final class BudgetController extends AbstractController
     public function listTransactions(Request $request): JsonResponse
     {
         try {
-            /** @var TransactionDTO[] $transactions */
+            /** @var Page<TransactionDTO> $transactions */
             $transactions = $this->queryBus->ask(new GetTransactions(
                 month: $this->parser->optionalMonth($request),
                 categoryId: $this->parser->optionalCategoryId($request),
                 type: $this->parser->optionalType($request),
+                page: $this->pagination->parse($request),
             ));
         } catch (HandlerFailedException $e) {
             return $this->mapReadFailure($e);
@@ -217,21 +230,33 @@ final class BudgetController extends AbstractController
     #[Route('/categories', methods: ['GET'])]
     #[OA\Get(
         summary: 'List budget categories',
-        description: 'Every category with its type and optional monthly limit. A category with no limit reports `monthlyLimitInCents: null` — "no limit" is a distinct state from a limit of zero.',
+        description: 'One page of categories with their type and optional monthly limit. A category with no limit reports `monthlyLimitInCents: null` — "no limit" is a distinct state from a limit of zero.',
         tags: ['Budget'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The categories.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: CategoryDTO::class))),
+                description: 'One page of categories.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: CategoryDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function listCategories(): JsonResponse
+    public function listCategories(Request $request): JsonResponse
     {
-        /** @var CategoryDTO[] $categories */
-        $categories = $this->queryBus->ask(new GetCategories());
+        /** @var Page<CategoryDTO> $categories */
+        $categories = $this->queryBus->ask(new GetCategories($this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($categories));
     }

@@ -698,3 +698,30 @@ label { display: block; font-size: .85rem; color: var(--color-text-muted); margi
     .meal-plan-calendar { grid-template-columns: 1fr; }
     .recipe-list { grid-template-columns: 1fr; }
 }
+
+/* Pagination — shared by every list panel on both frontend tracks (HMAI-415).
+   Rendered only when there is more than one page, so a small library never
+   sees controls it does not need. */
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 16px 0 4px;
+    flex-wrap: wrap;
+}
+.pager button {
+    padding: 6px 14px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+.pager button:hover:not(:disabled) { background: #f0f0f0; }
+.pager button:disabled { opacity: .45; cursor: default; }
+.pager-label { color: #666; font-size: .9rem; }
+
+@media (max-width: 600px) {
+    .pager { gap: 8px; }
+    .pager-label { width: 100%; text-align: center; order: -1; }
+}

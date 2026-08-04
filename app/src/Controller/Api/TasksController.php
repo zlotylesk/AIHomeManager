@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -20,6 +21,7 @@ use App\Module\Tasks\Application\Query\GetTaskById;
 use App\Module\Tasks\Application\Query\GetTimeReport;
 use App\Module\Tasks\Application\Service\TaskCsvExporter;
 use App\Pdf\PdfBuilder;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DomainException;
 use Exception;
@@ -41,13 +43,14 @@ final class TasksController extends AbstractController
         private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
     #[OA\Get(
         summary: 'List tasks',
-        description: 'Returns all tasks, optionally filtered by status.',
+        description: 'Returns one page of tasks, optionally filtered by status.',
         tags: ['Tasks'],
         parameters: [
             new OA\QueryParameter(
@@ -56,14 +59,20 @@ final class TasksController extends AbstractController
                 required: false,
                 schema: new OA\Schema(type: 'string', enum: ['pending', 'completed', 'cancelled']),
             ),
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
         ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The list of tasks.',
+                description: 'One page of tasks.',
                 content: new OA\JsonContent(
-                    type: 'array',
-                    items: new OA\Items(ref: new Model(type: TaskDTO::class)),
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: TaskDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
                 ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
@@ -81,8 +90,8 @@ final class TasksController extends AbstractController
             );
         }
 
-        /** @var TaskDTO[] $tasks */
-        $tasks = $this->queryBus->ask(new GetAllTasks($statusParam));
+        /** @var Page<TaskDTO> $tasks */
+        $tasks = $this->queryBus->ask(new GetAllTasks($statusParam, $this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($tasks));
     }

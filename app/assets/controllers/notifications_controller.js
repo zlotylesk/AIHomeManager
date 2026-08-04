@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { apiCall, escHtml } from '../util.js';
+import { unwrapPage } from '../pagination.js';
 import {
     typeLabel,
     channelLabel,
@@ -22,11 +23,11 @@ export default class extends Controller {
         try {
             const [preferences, history] = await Promise.all([
                 apiCall('/api/notifications/preferences'),
-                apiCall('/api/notifications/history?limit=20'),
+                apiCall('/api/notifications/history?perPage=20'),
             ]);
 
             this.renderPreferences(preferences || []);
-            this.renderHistory(history || []);
+            this.renderHistory(unwrapPage(history).items);
             await this.renderPushToggle();
         } catch (error) {
             this.showError(error.message);

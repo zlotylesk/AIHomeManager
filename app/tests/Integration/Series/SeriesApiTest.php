@@ -33,7 +33,7 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('GET', '/api/series');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testCreateSeriesReturns201WithId(): void
@@ -110,8 +110,9 @@ class SeriesApiTest extends WebTestCase
         $this->client->request('GET', '/api/series');
 
         self::assertResponseIsSuccessful();
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
         self::assertCount(2, $data);
+        self::assertSame(2, $this->jsonPagination($this->client)['total']);
     }
 
     public function testAddSeasonReturns201WithId(): void
@@ -991,7 +992,7 @@ class SeriesApiTest extends WebTestCase
         ]));
 
         $this->client->request('GET', '/api/series');
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
 
         self::assertCount(1, $data);
         self::assertSame('https://example.com/cover.jpg', $data[0]['coverUrl']);
