@@ -8,6 +8,7 @@ use App\Module\Budget\Application\Command\UpdateTransaction;
 use App\Module\Budget\Application\Exception\CategoryNotFoundException;
 use App\Module\Budget\Application\Exception\TransactionNotFoundException;
 use App\Module\Budget\Application\Handler\UpdateTransactionHandler;
+use App\Module\Budget\Application\SystemCurrency;
 use App\Module\Budget\Domain\Entity\Category;
 use App\Module\Budget\Domain\Entity\Transaction;
 use App\Module\Budget\Domain\Enum\TransactionType;
@@ -36,7 +37,7 @@ final class UpdateTransactionHandlerTest extends TestCase
                 && 'Bonus' === $t->description()
         ));
 
-        $handler = new UpdateTransactionHandler($transactions, $categories);
+        $handler = new UpdateTransactionHandler($transactions, $categories, new SystemCurrency());
         $handler(new UpdateTransaction('t-1', 500000, 'PLN', '2026-07-20', 'c-new', 'income', 'Bonus'));
     }
 
@@ -47,7 +48,7 @@ final class UpdateTransactionHandlerTest extends TestCase
         $transactions->method('findById')->willReturn(null);
         $transactions->expects(self::never())->method('save');
 
-        $handler = new UpdateTransactionHandler($transactions, $categories);
+        $handler = new UpdateTransactionHandler($transactions, $categories, new SystemCurrency());
 
         $this->expectException(TransactionNotFoundException::class);
         $handler(new UpdateTransaction('missing', 1000, 'PLN', '2026-07-20', 'c-1', 'expense'));
@@ -64,7 +65,7 @@ final class UpdateTransactionHandlerTest extends TestCase
         $transactions->method('findById')->willReturn($transaction);
         $transactions->expects(self::never())->method('save');
 
-        $handler = new UpdateTransactionHandler($transactions, $categories);
+        $handler = new UpdateTransactionHandler($transactions, $categories, new SystemCurrency());
 
         $this->expectException(CategoryNotFoundException::class);
         $handler(new UpdateTransaction('t-1', 1000, 'PLN', '2026-07-20', 'missing', 'expense'));
@@ -81,7 +82,7 @@ final class UpdateTransactionHandlerTest extends TestCase
         $transactions->method('findById')->willReturn($transaction);
         $transactions->expects(self::never())->method('save');
 
-        $handler = new UpdateTransactionHandler($transactions, $categories);
+        $handler = new UpdateTransactionHandler($transactions, $categories, new SystemCurrency());
 
         $this->expectException(InvalidArgumentException::class);
         $handler(new UpdateTransaction('t-1', 1000, 'PLN', '2026-07-20', 'c-1', 'not-a-type'));

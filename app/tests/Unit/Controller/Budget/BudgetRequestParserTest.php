@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Controller\Budget;
 
 use App\Controller\Budget\BudgetRequestParser;
+use App\Module\Budget\Application\SystemCurrency;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
@@ -21,7 +22,7 @@ final class BudgetRequestParserTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->parser = new BudgetRequestParser();
+        $this->parser = new BudgetRequestParser(new SystemCurrency());
     }
 
     public function testDecodeReturnsAnArrayAndDegradesToEmptyOnGarbage(): void
@@ -53,13 +54,26 @@ final class BudgetRequestParserTest extends TestCase
         }
     }
 
-    public function testCurrencyDefaultsToPlnAndRejectsBlanks(): void
+    public function testCurrencyDefaultsToTheConfiguredOneAndRejectsBlanks(): void
     {
         self::assertSame('PLN', $this->parser->currency([]));
+        // Still passed through unchanged — the parser only reads the shape; it is
+        // the handler that refuses a currency the budget is not kept in, so the
+        // 422 names the real rule instead of a missing field.
         self::assertSame('EUR', $this->parser->currency(['currency' => 'EUR']));
 
         $this->expectException(UnprocessableEntityHttpException::class);
         $this->parser->currency(['currency' => '   ']);
+    }
+
+    public function testAnOmittedCurrencyFollowsTheConfigurationRatherThanAHardcodedPln(): void
+    {
+        // With a literal default here, a budget configured for another currency
+        // would have every request that omits the field rejected by the very
+        // rule meant to protect it — correct in isolation, unusable together.
+        $parser = new BudgetRequestParser(new SystemCurrency('EUR'));
+
+        self::assertSame('EUR', $parser->currency([]));
     }
 
     public function testRequiredStringFieldsRejectBlanksAndNonStrings(): void

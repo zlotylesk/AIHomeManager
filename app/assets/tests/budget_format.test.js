@@ -53,8 +53,11 @@ describe('limitLabel', () => {
         expect(limitLabel(10000, 'PLN')).toBe('Limit: 100.00 PLN');
     });
 
-    it('defaults to PLN when the limit currency is missing', () => {
-        expect(limitLabel(10000, null)).toBe('Limit: 100.00 PLN');
+    it('states no unit at all rather than guessing one when the currency is missing', () => {
+        // Assuming PLN here would label an amount with a currency it may not be
+        // in — the budget's currency is configurable, and a wrong unit on money
+        // is the failure this module exists to avoid.
+        expect(limitLabel(10000, null)).toBe('Limit: 100.00');
     });
 });
 

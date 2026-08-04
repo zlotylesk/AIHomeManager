@@ -65,12 +65,12 @@ function categoryRowHtml(category) {
         </div>`;
 }
 
-function categoryBudgetRowHtml(row) {
+function categoryBudgetRowHtml(row, currency) {
     const percent = clampPercent(row.percentUsed);
     const hasLimit = null !== row.percentUsed;
     const overClass = row.overLimit ? ' budget-report-bar--over' : '';
     const rowClass = row.overLimit ? ' budget-report-row--over' : '';
-    const spent = moneyLabel(row.spentInCents, 'PLN');
+    const spent = moneyLabel(row.spentInCents, currency);
     const limitPart = row.monthlyLimitInCents
         ? ` / ${escHtml(moneyLabel(row.monthlyLimitInCents, row.monthlyLimitCurrency))}`
         : '';
@@ -93,15 +93,19 @@ function categoryBudgetRowHtml(row) {
 }
 
 function reportHtml(report) {
+    // Every figure is denominated in the currency the report reports, not in a
+    // literal the frontend assumes — a budget configured for another currency
+    // would otherwise be labelled wrongly on screen while adding up correctly.
+    const currency = report.currency;
     const rows = report.categories.length
-        ? report.categories.map(categoryBudgetRowHtml).join('')
+        ? report.categories.map((row) => categoryBudgetRowHtml(row, currency)).join('')
         : '<div class="empty-state">Brak kategorii.</div>';
 
     return `
         <div class="budget-report-summary">
-            <div class="budget-report-total"><span>Przychody</span><strong>${escHtml(moneyLabel(report.totalIncomeInCents, 'PLN'))}</strong></div>
-            <div class="budget-report-total"><span>Wydatki</span><strong>${escHtml(moneyLabel(report.totalExpensesInCents, 'PLN'))}</strong></div>
-            <div class="budget-report-total budget-report-total--balance"><span>Saldo</span><strong>${escHtml(moneyLabel(report.balanceInCents, 'PLN'))}</strong></div>
+            <div class="budget-report-total"><span>Przychody</span><strong>${escHtml(moneyLabel(report.totalIncomeInCents, currency))}</strong></div>
+            <div class="budget-report-total"><span>Wydatki</span><strong>${escHtml(moneyLabel(report.totalExpensesInCents, currency))}</strong></div>
+            <div class="budget-report-total budget-report-total--balance"><span>Saldo</span><strong>${escHtml(moneyLabel(report.balanceInCents, currency))}</strong></div>
         </div>
         <div class="budget-report-categories">${rows}</div>`;
 }
@@ -116,6 +120,11 @@ export default class extends Controller {
     ];
 
     categories = [];
+
+    // The currency the budget is kept in, as reported by the API. Seeded with a
+    // placeholder only until the first report arrives; every write that must
+    // name a currency uses this rather than a literal.
+    currencyCode = 'PLN';
 
     connect() {
         // txType is deliberately NOT populated with both types here — it is
@@ -223,6 +232,8 @@ export default class extends Controller {
         this.reportTarget.innerHTML = '<div class="loading">Loading…</div>';
         try {
             const report = await apiCall(`/api/budget/report?month=${encodeURIComponent(this.reportMonthTarget.value)}`);
+            this.currencyCode = report.currency;
+            this.txCurrencyTarget.textContent = report.currency;
             this.reportTarget.innerHTML = reportHtml(report);
         } catch (err) {
             this.showError(err.message || 'Nie udało się wczytać raportu.');
@@ -311,7 +322,7 @@ export default class extends Controller {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(hasLimit
-                    ? { amountInCents: Math.round(limitValue * 100), currency: 'PLN' }
+                    ? { amountInCents: Math.round(limitValue * 100), currency: this.currencyCode }
                     : { amountInCents: null, currency: null }),
             });
 
@@ -344,8 +355,10 @@ export default class extends Controller {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    // `currency` is deliberately omitted: the API fills in the
+                    // budget's own currency, so the client cannot disagree with
+                    // the server about which one that is.
                     amountInCents: Math.round(amount * 100),
-                    currency: this.txCurrencyTarget.value,
                     date: this.txDateTarget.value,
                     categoryId: this.txCategoryTarget.value,
                     type: this.txTypeTarget.value,
@@ -412,7 +425,6 @@ export default class extends Controller {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     amountInCents: Math.round(amount * 100),
-                    currency: 'PLN',
                     date,
                     categoryId,
                     type,

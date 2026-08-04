@@ -12,6 +12,11 @@ parameters:
     # separate aliases, since they share one engine (unlike MySQL/Redis, which
     # are isolated per worker).
     app.search_index.default_alias: 'search_documents'
+    # The single currency the budget is kept in, used when BUDGET_CURRENCY is
+    # unset or empty. Multi-currency budgeting is deliberately unsupported — an
+    # amount in any other currency is rejected rather than converted or silently
+    # relabelled (see App\Module\Budget\Application\SystemCurrency).
+    app.budget.default_currency: 'PLN'
 
 services:
     _defaults:
@@ -87,6 +92,10 @@ services:
             - '@gelf.transport'
 
     App\Module\Series\Infrastructure\Logging\NewRelicMonologHandler: ~
+
+    App\Module\Budget\Application\SystemCurrency:
+        arguments:
+            $code: '%env(default:app.budget.default_currency:BUDGET_CURRENCY)%'
 
     App\Module\Budget\Domain\Repository\TransactionRepositoryInterface:
         alias: App\Module\Budget\Infrastructure\Persistence\DoctrineTransactionRepository

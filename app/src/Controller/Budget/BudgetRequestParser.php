@@ -4,20 +4,27 @@ declare(strict_types=1);
 
 namespace App\Controller\Budget;
 
+use App\Module\Budget\Application\SystemCurrency;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 /**
- * Stateless payload parsing + shape validation for the Budget REST surface,
- * kept out of the thin BudgetController (the SeriesRequestParser precedent,
- * HMAI-239). On invalid input it throws UnprocessableEntityHttpException,
+ * Payload parsing + shape validation for the Budget REST surface, kept out of
+ * the thin BudgetController (the SeriesRequestParser precedent, HMAI-239).
+ * Unlike its siblings it is not stateless: it holds the budget's configured
+ * currency, because that is what an omitted `currency` field means.
+ * On invalid input it throws UnprocessableEntityHttpException,
  * which ApiExceptionListener turns into the {"error": …} 422 the API
  * contract expects. Domain-level validation (amount > 0, valid type/date
  * shape, category existence) stays in the Application handlers — this parser
  * only extracts raw values and enforces request-shape rules.
  */
-final class BudgetRequestParser
+final readonly class BudgetRequestParser
 {
+    public function __construct(private SystemCurrency $currency)
+    {
+    }
+
     /** @return array<string, mixed> */
     public function decode(Request $request): array
     {
@@ -41,7 +48,12 @@ final class BudgetRequestParser
     /** @param array<string, mixed> $data */
     public function currency(array $data): string
     {
-        $value = $data['currency'] ?? 'PLN';
+        // The omitted-currency default has to be the *configured* currency, not
+        // a literal: with a hardcoded 'PLN' here, an operator who set
+        // BUDGET_CURRENCY to anything else would have every request that leaves
+        // `currency` out rejected by the very rule that is supposed to protect
+        // them, and the module would be unusable in its own configuration.
+        $value = $data['currency'] ?? $this->currency->code();
 
         if (!\is_string($value) || '' === trim($value)) {
             throw new UnprocessableEntityHttpException('Field "currency" must be a non-empty string.');

@@ -765,7 +765,7 @@ final class NormalizersTest extends TestCase
     public function testMonthlyBudgetReportNormalizerDelegatesCategories(): void
     {
         $serializer = new Serializer([new CategoryBudgetDTONormalizer(), new MonthlyBudgetReportDTONormalizer()]);
-        $dto = new MonthlyBudgetReportDTO('2026-07', 500000, 15000, 485000, [
+        $dto = new MonthlyBudgetReportDTO('2026-07', 'PLN', 500000, 15000, 485000, [
             new CategoryBudgetDTO('c1', 'Groceries', 'expense', 15000, 10000, 'PLN', 150.0, true),
             new CategoryBudgetDTO('c2', 'Salary', 'income', 500000, null, null, null, false),
         ]);
@@ -774,6 +774,8 @@ final class NormalizersTest extends TestCase
 
         self::assertIsArray($result);
         self::assertSame('2026-07', $result['month']);
+        // The report names the currency every figure below it is stated in.
+        self::assertSame('PLN', $result['currency']);
         self::assertSame(500000, $result['totalIncomeInCents']);
         self::assertSame(15000, $result['totalExpensesInCents']);
         self::assertSame(485000, $result['balanceInCents']);

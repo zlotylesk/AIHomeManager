@@ -31,6 +31,7 @@ type ReportCategory = {
 
 type Report = {
   month: string;
+  currency: string;
   totalIncomeInCents: number;
   totalExpensesInCents: number;
   balanceInCents: number;
@@ -48,6 +49,7 @@ const TX_SALARY: Transaction = { id: 'tx-2', amountInCents: 500000, currency: 'P
 function defaultReport(): Report {
   return {
     month: '2026-07',
+    currency: 'PLN',
     totalIncomeInCents: 500000,
     totalExpensesInCents: 60000,
     balanceInCents: 440000,
@@ -118,7 +120,7 @@ async function installBudgetBackend(page: Page, state: BudgetState = defaultStat
       if ('POST' === method) {
         const body = request.postDataJSON() as Omit<Transaction, 'id'>;
         const id = `tx-new-${state.transactions.length + 1}`;
-        state.transactions.push({ id, ...body });
+        state.transactions.push({ id, currency: 'PLN', ...body });
         return respond(201, { id });
       }
 
@@ -143,7 +145,7 @@ async function installBudgetBackend(page: Page, state: BudgetState = defaultStat
       }
       if ('PATCH' === method) {
         const body = request.postDataJSON() as Omit<Transaction, 'id'>;
-        state.transactions = state.transactions.map((t) => (t.id === id ? { ...t, ...body } : t));
+        state.transactions = state.transactions.map((t) => (t.id === id ? { ...t, currency: 'PLN', ...body } : t));
         return respond(204);
       }
     }
@@ -188,6 +190,32 @@ test.describe('Budget', () => {
 
     const noLimitRow = page.locator('.budget-report-row', { hasText: 'Wynagrodzenie' });
     await expect(noLimitRow.locator('.budget-report-nolimit')).toContainText('Bez limitu');
+  });
+
+  // The budget is kept in one currency and the API reports which. The page must
+  // take it from there rather than printing a literal, or a budget configured
+  // for another currency would show correct figures under the wrong unit — and
+  // there is no picker to correct it, because there is nothing to pick.
+  test('labels every figure with the currency the API reports, not a hardcoded one', async ({ page }) => {
+    const state = defaultState();
+    state.report.currency = 'EUR';
+    await installBudgetBackend(page, state);
+    await gotoBudget(page);
+
+    await expect(page.locator('.budget-report-total--balance')).toContainText('4400.00 EUR');
+    await expect(page.locator('.budget-report-row', { hasText: 'Jedzenie' })).toContainText('600.00 EUR');
+    // The form states the unit beside the amount field instead of offering it.
+    await expect(page.locator('[data-budget-target="txCurrency"]')).toHaveText('EUR');
+  });
+
+  test('states the currency beside the amount field rather than offering a choice', async ({ page }) => {
+    await installBudgetBackend(page);
+    await gotoBudget(page);
+
+    // A one-option picker is not a choice; leaving it there would let a user
+    // assemble a request the API could only refuse.
+    await expect(page.locator('select[data-budget-target="txCurrency"]')).toHaveCount(0);
+    await expect(page.locator('[data-budget-target="txCurrency"]')).toHaveText('PLN');
   });
 
   // A transaction's type follows its category rather than being picked beside
