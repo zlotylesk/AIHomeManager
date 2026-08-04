@@ -223,7 +223,7 @@ nelmio_api_doc:
                     tags:
                         - Health
                     summary: 'Readiness probe (public).'
-                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / search engine / disk status for orchestrators and uptime monitors. The search engine is optional infrastructure: an unreachable engine reports `degraded` (HTTP 200) rather than `down`, because global search falls back to MySQL FULLTEXT and must not take the instance out of rotation.'
+                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / search engine / async worker / disk status for orchestrators and uptime monitors. Two components report `degraded` (HTTP 200) rather than `down`, because neither stops the instance from serving requests and taking it out of rotation would help nothing: the search engine is optional infrastructure (global search falls back to MySQL FULLTEXT), and `worker` describes background processing — a stale worker heartbeat means imports, notifications, search indexing and the nightly backup have stopped, which is fixed by restarting a worker rather than by shifting traffic. Note that `rabbitmq` answers whether the broker is reachable, which it is even with nothing consuming; `worker` is the component that says anything is.'
                     security: []
                     responses:
                         '200':
@@ -259,6 +259,7 @@ nelmio_api_doc:
                                                     redis: up
                                                     rabbitmq: up
                                                     search: up
+                                                    worker: up
                                                     disk: up
                                             timestamp:
                                                 type: string
