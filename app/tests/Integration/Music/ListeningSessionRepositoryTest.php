@@ -11,6 +11,7 @@ use App\Module\Music\Domain\Enum\ListeningSource;
 use App\Module\Music\Domain\ValueObject\AlbumArtist;
 use App\Module\Music\Domain\ValueObject\AlbumTitle;
 use App\Module\Music\Infrastructure\Persistence\DoctrineListeningSessionRepository;
+use App\Shared\Pagination\PageRequest;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\ORM\EntityManagerInterface;
@@ -53,10 +54,11 @@ class ListeningSessionRepositoryTest extends KernelTestCase
 
         $result = ($this->historyHandler)(new GetListeningHistory());
 
-        self::assertCount(2, $result);
-        self::assertSame('Newer', $result[0]->title);
-        self::assertSame('Older', $result[1]->title);
-        self::assertSame('2026-05-20T09:00:00+00:00', $result[0]->playedAt);
+        self::assertCount(2, $result->items);
+        self::assertSame(2, $result->total);
+        self::assertSame('Newer', $result->items[0]->title);
+        self::assertSame('Older', $result->items[1]->title);
+        self::assertSame('2026-05-20T09:00:00+00:00', $result->items[0]->playedAt);
     }
 
     public function testHistoryFiltersBySource(): void
@@ -66,9 +68,9 @@ class ListeningSessionRepositoryTest extends KernelTestCase
 
         $result = ($this->historyHandler)(new GetListeningHistory(source: ListeningSource::MANUAL));
 
-        self::assertCount(1, $result);
-        self::assertSame('Manual', $result[0]->title);
-        self::assertSame('manual', $result[0]->source);
+        self::assertCount(1, $result->items);
+        self::assertSame('Manual', $result->items[0]->title);
+        self::assertSame('manual', $result->items[0]->source);
     }
 
     public function testHistoryFiltersByDateRange(): void
@@ -82,19 +84,23 @@ class ListeningSessionRepositoryTest extends KernelTestCase
             to: new DateTimeImmutable('2026-05-25 00:00:00', new DateTimeZone('UTC')),
         ));
 
-        self::assertCount(1, $result);
-        self::assertSame('Inside', $result[0]->title);
+        self::assertCount(1, $result->items);
+        self::assertSame('Inside', $result->items[0]->title);
     }
 
-    public function testHistoryRespectsLimit(): void
+    public function testHistoryRespectsThePageWindow(): void
     {
         for ($i = 1; $i <= 5; ++$i) {
             $this->repository->save($this->makeSession('Artist', 'Album '.$i, sprintf('2026-05-2%d 09:00:00', $i), ListeningSource::MANUAL));
         }
 
-        $result = ($this->historyHandler)(new GetListeningHistory(limit: 3));
+        $result = ($this->historyHandler)(new GetListeningHistory(page: new PageRequest(perPage: 3)));
 
-        self::assertCount(3, $result);
+        // The page is capped at three, but the total still reports the whole
+        // match set — that is what tells a client another page exists.
+        self::assertCount(3, $result->items);
+        self::assertSame(5, $result->total);
+        self::assertSame(2, $result->totalPages());
     }
 
     private function makeSession(string $artist, string $title, string $playedAt, ListeningSource $source): ListeningSession

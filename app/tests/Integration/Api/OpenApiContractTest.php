@@ -293,6 +293,28 @@ final class OpenApiContractTest extends WebTestCase
         $this->assertResponseConformsToContract('GET', '/api/v1/meal-plan/shopping-list?from=2026-08-03&to=2026-08-09', '/api/v1/meal-plan/shopping-list');
     }
 
+    public function testAPartialLastPageConformsToTheDocumentedEnvelope(): void
+    {
+        // The other list cases all read page 1 of a set that fits in one page, so
+        // they never exercise a *partial* page — the shape a client actually meets
+        // once a library outgrows perPage. Three movies at perPage=2 puts one row
+        // on page 2, with pagination.total still reporting the whole match set.
+        $this->seedMovie();
+        $this->seedMovie();
+        $this->seedMovie();
+
+        $this->assertResponseConformsToContract('GET', '/api/v1/movies?page=2&perPage=2', '/api/v1/movies');
+
+        $body = $this->jsonResponse($this->client);
+        self::assertIsArray($body['data'] ?? null);
+        self::assertCount(1, $body['data'], 'Page 2 of 3 rows at perPage=2 holds the single remaining row.');
+        self::assertSame(
+            ['page' => 2, 'perPage' => 2, 'total' => 3, 'totalPages' => 2],
+            $body['pagination'] ?? null,
+            'The envelope must report the whole match set, not the size of this page.',
+        );
+    }
+
     public function testContractValidationRejectsDriftingResponse(): void
     {
         // Negative control: a payload that breaks EpisodeDTO.number (integer) must be

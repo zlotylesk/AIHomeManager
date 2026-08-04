@@ -47,13 +47,14 @@ final class GoalsProgressQueryTest extends KernelTestCase
         $handler = new GetGoalsProgressHandler($this->connection, $this->activityProvider, new GoalProgressCalculator());
         $result = $handler(new GetGoalsProgress());
 
-        self::assertCount(1, $result);
-        self::assertSame('goal-progress-1', $result[0]->goalId);
-        self::assertSame('book_pages', $result[0]->type);
-        self::assertSame('daily', $result[0]->period);
-        self::assertSame(30, $result[0]->achieved);
-        self::assertSame(60, $result[0]->percent);
-        self::assertFalse($result[0]->met);
+        self::assertCount(1, $result->items);
+        self::assertSame(1, $result->total);
+        self::assertSame('goal-progress-1', $result->items[0]->goalId);
+        self::assertSame('book_pages', $result->items[0]->type);
+        self::assertSame('daily', $result->items[0]->period);
+        self::assertSame(30, $result->items[0]->achieved);
+        self::assertSame(60, $result->items[0]->percent);
+        self::assertFalse($result->items[0]->met);
     }
 
     public function testStreakReflectsConsecutiveActivityDaysThroughTheProvider(): void
@@ -83,7 +84,7 @@ final class GoalsProgressQueryTest extends KernelTestCase
         $progress = new GetGoalsProgressHandler($this->connection, $this->activityProvider, new GoalProgressCalculator());
         $streaks = new GetStreaksHandler($this->connection, $this->activityProvider, new GoalProgressCalculator());
 
-        self::assertSame([], $progress(new GetGoalsProgress()));
+        self::assertSame([], $progress(new GetGoalsProgress())->items);
         self::assertSame([], $streaks(new GetStreaks()));
     }
 }

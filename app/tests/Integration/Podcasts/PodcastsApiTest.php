@@ -44,7 +44,7 @@ final class PodcastsApiTest extends WebTestCase
         $this->client->request('GET', '/api/podcasts');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testListCarriesCountersAndTheLatestListen(): void
@@ -54,7 +54,7 @@ final class PodcastsApiTest extends WebTestCase
         $this->client->request('GET', '/api/podcasts');
 
         self::assertResponseIsSuccessful();
-        $body = $this->jsonResponse($this->client);
+        $body = $this->jsonList($this->client);
         self::assertCount(1, $body);
 
         self::assertSame([
@@ -80,7 +80,7 @@ final class PodcastsApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/podcasts');
 
-        $body = $this->jsonResponse($this->client);
+        $body = $this->jsonList($this->client);
         self::assertCount(1, $body);
         self::assertSame(0, $body[0]['episodeCount']);
         self::assertSame(0, $body[0]['listenedEpisodeCount']);
@@ -98,7 +98,7 @@ final class PodcastsApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/podcasts');
 
-        $ids = array_column($this->jsonResponse($this->client), 'id');
+        $ids = array_column($this->jsonList($this->client), 'id');
         self::assertSame(['pod-1', 'pod-quiet'], $ids);
     }
 

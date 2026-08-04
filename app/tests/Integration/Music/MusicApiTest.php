@@ -251,7 +251,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/collection');
 
         self::assertResponseIsSuccessful();
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
         self::assertCount(2, $data);
         self::assertSame(
             ['artist', 'title', 'year', 'format', 'discogsId'],
@@ -402,7 +402,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/history');
 
         self::assertResponseIsSuccessful();
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
         self::assertCount(2, $data);
         self::assertSame(['id', 'artist', 'title', 'playedAt', 'source', 'playCount'], array_keys($data[0]));
         self::assertSame('Newer', $data[0]['title']);
@@ -417,7 +417,7 @@ class MusicApiTest extends WebTestCase
 
         $this->client->request('GET', '/api/music/history');
 
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
         self::assertCount(1, $data);
     }
 
@@ -429,7 +429,7 @@ class MusicApiTest extends WebTestCase
         $this->client->request('GET', '/api/music/history?source=manual');
 
         self::assertResponseIsSuccessful();
-        $data = $this->jsonResponse($this->client);
+        $data = $this->jsonList($this->client);
         self::assertCount(1, $data);
         self::assertSame('Manual', $data[0]['title']);
     }

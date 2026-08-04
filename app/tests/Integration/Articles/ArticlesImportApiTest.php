@@ -107,8 +107,7 @@ class ArticlesImportApiTest extends WebTestCase
         self::assertTrue($data['dryRun']);
 
         $this->client->request('GET', '/api/articles');
-        $articles = json_decode((string) $this->client->getResponse()->getContent(), true);
-        self::assertCount(0, $articles);
+        self::assertCount(0, $this->jsonList($this->client));
     }
 
     public function testImportUnsupportedEncodingReturns422(): void

@@ -317,7 +317,9 @@ async function loadArticles() {
     $('articles-list').innerHTML = '<div class="loading">Ładowanie…</div>';
 
     const [listResult, todayResult] = await Promise.allSettled([
-        window.apiCall('/api/articles'),
+        // The panel filters by category in the browser and builds the category
+        // list from every article, so it needs the whole set rather than a page.
+        window.fetchAllPages((page) => window.apiCall(`/api/articles?page=${page}`)),
         window.apiCall('/api/articles/today'),
     ]);
 

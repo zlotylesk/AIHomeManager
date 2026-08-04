@@ -41,7 +41,7 @@ final class GetCategoriesQueryTest extends KernelTestCase
         $this->insertCategory('c-1', 'Transport', 'expense');
         $this->insertCategory('c-2', 'Groceries', 'expense');
 
-        $result = $this->queryBus->ask(new GetCategories());
+        $result = $this->queryBus->ask(new GetCategories())->items;
 
         self::assertCount(2, $result);
         self::assertSame(['Groceries', 'Transport'], array_map(static fn (CategoryDTO $c): string => $c->name, $result));
@@ -51,7 +51,7 @@ final class GetCategoriesQueryTest extends KernelTestCase
     {
         $this->insertCategory('c-1', 'Groceries', 'expense', '50000:PLN');
 
-        $result = $this->queryBus->ask(new GetCategories());
+        $result = $this->queryBus->ask(new GetCategories())->items;
 
         self::assertSame(50000, $result[0]->monthlyLimitAmountInCents);
         self::assertSame('PLN', $result[0]->monthlyLimitCurrency);
@@ -61,7 +61,7 @@ final class GetCategoriesQueryTest extends KernelTestCase
     {
         $this->insertCategory('c-1', 'Salary', 'income');
 
-        $result = $this->queryBus->ask(new GetCategories());
+        $result = $this->queryBus->ask(new GetCategories())->items;
 
         self::assertNull($result[0]->monthlyLimitAmountInCents);
         self::assertNull($result[0]->monthlyLimitCurrency);
@@ -69,6 +69,6 @@ final class GetCategoriesQueryTest extends KernelTestCase
 
     public function testReturnsEmptyArrayWhenNoCategories(): void
     {
-        self::assertSame([], $this->queryBus->ask(new GetCategories()));
+        self::assertSame([], $this->queryBus->ask(new GetCategories())->items);
     }
 }

@@ -86,9 +86,9 @@ final class MusicYouTubeApiDocTest extends WebTestCase
         self::assertSame('#/components/responses/TooManyRequestsError', $tooMany['$ref'] ?? null);
     }
 
-    public function testCollectionReturnsVinylRecordArray(): void
+    public function testCollectionReturnsPagedVinylRecords(): void
     {
-        $items = $this->nestedArray(
+        $schema = $this->nestedArray(
             $this->fetchSpec(static::createClient()),
             'paths',
             '/api/v1/music/collection',
@@ -99,7 +99,16 @@ final class MusicYouTubeApiDocTest extends WebTestCase
             'application/json',
             'schema',
         );
-        self::assertSame('#/components/schemas/VinylRecord', $items['items']['$ref'] ?? null);
+
+        self::assertIsArray($schema['properties'] ?? null);
+        self::assertSame(
+            '#/components/schemas/VinylRecord',
+            $schema['properties']['data']['items']['$ref'] ?? null,
+        );
+        self::assertSame(
+            '#/components/schemas/Pagination',
+            $schema['properties']['pagination']['$ref'] ?? null,
+        );
     }
 
     public function testHistoryDocumentsSourceEnumAndDateRange(): void
@@ -114,13 +123,20 @@ final class MusicYouTubeApiDocTest extends WebTestCase
                 $source = $param;
             }
         }
-        foreach (['limit', 'source', 'from', 'to'] as $expected) {
+        foreach (['source', 'from', 'to'] as $expected) {
             self::assertContains($expected, $names, sprintf('history must document the "%s" query parameter.', $expected));
         }
         self::assertSame(['lastfm_scrobble', 'lastfm_top_delta', 'manual'], $source['schema']['enum'] ?? null);
 
+        // The bespoke `limit` was folded into the shared page window, which is
+        // referenced rather than restated on each endpoint.
+        $refs = array_column($get['parameters'] ?? [], '$ref');
+        self::assertContains('#/components/parameters/PageParam', $refs);
+        self::assertContains('#/components/parameters/PerPageParam', $refs);
+
         $items = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('#/components/schemas/ListeningSessionDTO', $items['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/ListeningSessionDTO', $items['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $items['properties']['pagination']['$ref'] ?? null);
     }
 
     public function testLogSessionDocumentsRequiredBodyAndBadRequest(): void
@@ -140,10 +156,12 @@ final class MusicYouTubeApiDocTest extends WebTestCase
     {
         $doc = $this->fetchSpec(static::createClient());
 
-        $videos = $this->nestedArray($doc, 'paths', '/api/v1/youtube-progress/watchlist', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'videos');
+        // Both used to answer under their own key (`videos` / `sessions`); they
+        // now use the shared `data` key so every list endpoint has one shape.
+        $videos = $this->nestedArray($doc, 'paths', '/api/v1/youtube-progress/watchlist', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'data');
         self::assertSame('#/components/schemas/VideoDTO', $videos['items']['$ref'] ?? null);
 
-        $sessions = $this->nestedArray($doc, 'paths', '/api/v1/youtube-progress/sessions', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'sessions');
+        $sessions = $this->nestedArray($doc, 'paths', '/api/v1/youtube-progress/sessions', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'data');
         self::assertSame('#/components/schemas/WatchSessionDTO', $sessions['items']['$ref'] ?? null);
 
         // The session read model nests its videos.

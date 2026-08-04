@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Controller\Recipes\RecipesRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -17,6 +18,7 @@ use App\Module\Recipes\Application\Exception\RecipeIsPlannedException;
 use App\Module\Recipes\Application\Exception\RecipeNotFoundException;
 use App\Module\Recipes\Application\Query\GetRecipeDetail;
 use App\Module\Recipes\Application\Query\GetRecipes;
+use App\Shared\Pagination\Page;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
@@ -42,6 +44,7 @@ final class RecipesController extends AbstractController
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
         private readonly RecipesRequestParser $parser,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
@@ -53,22 +56,33 @@ final class RecipesController extends AbstractController
         parameters: [
             new OA\Parameter(name: 'tag', in: 'query', required: false, description: 'Exact tag to filter by, matched case-insensitively.', schema: new OA\Schema(type: 'string', example: 'obiad')),
             new OA\Parameter(name: 'phrase', in: 'query', required: false, description: 'Substring of the title. Wildcards typed by the user are escaped, so `100%` matches a literal per-cent sign.', schema: new OA\Schema(type: 'string', example: 'naleśniki')),
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
         ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The matching recipes, ordered by title.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: RecipeDTO::class))),
+                description: 'One page of matching recipes, ordered by title.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: RecipeDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
     public function list(Request $request): JsonResponse
     {
-        /** @var RecipeDTO[] $recipes */
+        /** @var Page<RecipeDTO> $recipes */
         $recipes = $this->queryBus->ask(new GetRecipes(
             tag: $this->parser->optionalQuery($request, 'tag'),
             phrase: $this->parser->optionalQuery($request, 'phrase'),
+            page: $this->pagination->parse($request),
         ));
 
         return new JsonResponse($this->normalizer->normalize($recipes));

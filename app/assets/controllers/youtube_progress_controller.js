@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, pageQuery, unwrapPage } from '../pagination.js';
 
 const STATUS_LABELS = {
     'split-pool': 'W puli',
@@ -102,26 +103,32 @@ export default class extends Controller {
     }
 
 
-    async loadSessions() {
+    async loadSessions(page = FIRST_PAGE) {
         this.sessionsTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
-            const { sessions } = await apiCall('/api/youtube-progress/sessions');
+            const { items: sessions, pagination } = unwrapPage(
+                await apiCall(`/api/youtube-progress/sessions${pageQuery(new URLSearchParams(), page)}`),
+            );
             this.sessionsTarget.innerHTML = sessions.length
                 ? sessions.map(renderSession).join('')
                 : '<div class="empty-state">Brak sesji. Zsynchronizuj watchlistę.</div>';
+            mountPagerAfter(this.sessionsTarget, pagination, (next) => this.loadSessions(next));
         } catch {
             this.showError('Nie udało się wczytać sesji.');
             this.sessionsTarget.innerHTML = '';
         }
     }
 
-    async loadWatchlist() {
+    async loadWatchlist(page = FIRST_PAGE) {
         this.watchlistTarget.innerHTML = '<div class="loading">Ładowanie…</div>';
         try {
-            const { videos } = await apiCall('/api/youtube-progress/watchlist');
+            const { items: videos, pagination } = unwrapPage(
+                await apiCall(`/api/youtube-progress/watchlist${pageQuery(new URLSearchParams(), page)}`),
+            );
             this.watchlistTarget.innerHTML = videos.length
                 ? videos.map(renderVideoRow).join('')
                 : '<div class="empty-state">Watchlista jest pusta.</div>';
+            mountPagerAfter(this.watchlistTarget, pagination, (next) => this.loadWatchlist(next));
         } catch {
             this.showError('Nie udało się wczytać watchlisty.');
             this.watchlistTarget.innerHTML = '';

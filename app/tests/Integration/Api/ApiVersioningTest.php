@@ -41,7 +41,7 @@ final class ApiVersioningTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $versioned = $this->jsonResponse($this->client);
 
-        self::assertCount(1, $versioned);
+        self::assertCount(1, $versioned['data']);
         self::assertSame($legacy, $versioned, 'The /api and /api/v1 prefixes must return byte-identical payloads.');
     }
 

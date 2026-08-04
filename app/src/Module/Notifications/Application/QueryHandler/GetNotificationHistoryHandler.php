@@ -6,6 +6,7 @@ namespace App\Module\Notifications\Application\QueryHandler;
 
 use App\Module\Notifications\Application\DTO\NotificationDTO;
 use App\Module\Notifications\Application\Query\GetNotificationHistory;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\DBAL\Connection;
@@ -20,18 +21,20 @@ final readonly class GetNotificationHistoryHandler
     }
 
     /**
-     * @return list<NotificationDTO>
+     * @return Page<NotificationDTO>
      */
-    public function __invoke(GetNotificationHistory $query): array
+    public function __invoke(GetNotificationHistory $query): Page
     {
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM notifications');
+
         $rows = $this->connection->fetchAllAssociative(
             'SELECT id, type, channel, status, payload, created_at, sent_at, failure_reason '
-            .'FROM notifications ORDER BY created_at DESC, id DESC LIMIT :limit',
-            ['limit' => $query->limit],
-            ['limit' => ParameterType::INTEGER],
+            .'FROM notifications ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset',
+            ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
-        return array_map(
+        return Page::of(array_map(
             static function (array $row): NotificationDTO {
                 /** @var array<string, mixed> $payload */
                 $payload = json_decode((string) $row['payload'], true, 512, \JSON_THROW_ON_ERROR);
@@ -50,6 +53,6 @@ final readonly class GetNotificationHistoryHandler
                 );
             },
             $rows,
-        );
+        ), $total, $query->page);
     }
 }

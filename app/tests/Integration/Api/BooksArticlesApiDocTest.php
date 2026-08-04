@@ -62,8 +62,9 @@ final class BooksArticlesApiDocTest extends WebTestCase
         self::assertSame(['to_read', 'reading', 'completed'], $status['schema']['enum'] ?? null);
 
         $items = $this->nestedArray($get, 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('array', $items['type'] ?? null);
-        self::assertSame('#/components/schemas/BookDTO', $items['items']['$ref'] ?? null);
+        self::assertSame('object', $items['type'] ?? null);
+        self::assertSame('#/components/schemas/BookDTO', $items['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $items['properties']['pagination']['$ref'] ?? null);
     }
 
     public function testBookDetailComposesBookDtoWithReadingSessions(): void
@@ -132,7 +133,8 @@ final class BooksArticlesApiDocTest extends WebTestCase
         $doc = $this->fetchSpec(static::createClient());
 
         $items = $this->nestedArray($doc, 'paths', '/api/v1/articles', 'get', 'responses', '200', 'content', 'application/json', 'schema');
-        self::assertSame('#/components/schemas/ArticleDTO', $items['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/ArticleDTO', $items['properties']['data']['items']['$ref'] ?? null);
+        self::assertSame('#/components/schemas/Pagination', $items['properties']['pagination']['$ref'] ?? null);
 
         // The article-of-the-day returns the article or an empty 204.
         $today = $this->nestedArray($doc, 'paths', '/api/v1/articles/today', 'get', 'responses');

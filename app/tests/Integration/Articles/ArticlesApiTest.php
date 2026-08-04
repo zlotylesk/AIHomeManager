@@ -38,7 +38,7 @@ class ArticlesApiTest extends WebTestCase
         $this->client->request('GET', '/api/articles');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonResponse($this->client));
+        self::assertSame([], $this->jsonList($this->client));
     }
 
     public function testCreateArticleReturns201(): void

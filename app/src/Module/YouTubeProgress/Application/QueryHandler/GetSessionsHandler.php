@@ -7,9 +7,11 @@ namespace App\Module\YouTubeProgress\Application\QueryHandler;
 use App\Module\YouTubeProgress\Application\DTO\VideoDTO;
 use App\Module\YouTubeProgress\Application\DTO\WatchSessionDTO;
 use App\Module\YouTubeProgress\Application\Query\GetSessions;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
@@ -19,16 +21,21 @@ final readonly class GetSessionsHandler
     {
     }
 
-    /** @return list<WatchSessionDTO> */
-    public function __invoke(GetSessions $query): array
+    /** @return Page<WatchSessionDTO> */
+    public function __invoke(GetSessions $query): Page
     {
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM watch_sessions');
+
         $sessions = $this->connection->fetchAllAssociative(
             'SELECT id, total_duration_seconds, created_at, youtube_playlist_id
              FROM watch_sessions
-             ORDER BY created_at DESC, id ASC',
+             ORDER BY created_at DESC, id ASC
+             LIMIT :limit OFFSET :offset',
+            ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
-        return array_map($this->toDTO(...), $sessions);
+        return Page::of(array_map($this->toDTO(...), $sessions), $total, $query->page);
     }
 
     /**

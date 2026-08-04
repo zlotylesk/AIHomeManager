@@ -32,4 +32,40 @@ trait AuthenticatedApiTrait
 
         return $decoded;
     }
+
+    /**
+     * The `data` array of a list response.
+     *
+     * Every list endpoint answers with the `{data, pagination}` envelope, so the
+     * unwrapping lives here instead of being spelled out at each of the ~90
+     * assertion sites — and a test that reaches for the items cannot silently
+     * pass against a response that lost its envelope.
+     *
+     * @return array<mixed>
+     */
+    private function jsonList(KernelBrowser $client): array
+    {
+        $body = $this->jsonResponse($client);
+        self::assertArrayHasKey('data', $body, 'A list response must carry the {data, pagination} envelope.');
+        self::assertIsArray($body['data']);
+
+        return $body['data'];
+    }
+
+    /**
+     * The `pagination` block of a list response.
+     *
+     * @return array<string, mixed>
+     */
+    private function jsonPagination(KernelBrowser $client): array
+    {
+        $body = $this->jsonResponse($client);
+        self::assertArrayHasKey('pagination', $body, 'A list response must carry the {data, pagination} envelope.');
+        self::assertIsArray($body['pagination']);
+
+        /** @var array<string, mixed> $pagination */
+        $pagination = $body['pagination'];
+
+        return $pagination;
+    }
 }

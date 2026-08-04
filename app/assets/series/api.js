@@ -1,9 +1,15 @@
 import { apiCall } from '../util.js';
+import { pageQuery } from '../pagination.js';
 
 // Thin HTTP layer for the Series module. One method per backend endpoint —
 // every fetch the Series UI makes goes through here.
 export const API = {
-    series: () => apiCall('/api/series'),
+    // Through pageQuery, so page 1 asks for `/api/series` with no query at all,
+    // byte-identical to the pre-pagination URL. Spelling the page out
+    // unconditionally would work against the server but changes the URL of the
+    // very first request every panel makes, which silently steps past anything
+    // matching on it — a route stub in a test, or an HTTP cache key.
+    series: (page = 1) => apiCall(`/api/series${pageQuery(new URLSearchParams(), page)}`),
     seriesDetail: (id) => apiCall(`/api/series/${id}`),
     createSeries: (payload) => apiCall('/api/series', {
         method: 'POST',

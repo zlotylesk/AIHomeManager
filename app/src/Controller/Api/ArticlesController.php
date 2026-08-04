@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Csv\CsvBuilder;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
@@ -18,6 +19,7 @@ use App\Module\Articles\Application\Query\GetArticleOfTheDay;
 use App\Module\Articles\Application\Service\ArticleCsvExporter;
 use App\Module\Articles\Application\Service\ArticleImporter;
 use App\Pdf\PdfBuilder;
+use App\Shared\Pagination\Page;
 use DomainException;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
@@ -40,26 +42,40 @@ final class ArticlesController extends AbstractController
         private readonly QueryBus $queryBus,
         private readonly LoggerInterface $logger,
         private readonly NormalizerInterface $normalizer,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
     #[OA\Get(
         summary: 'List articles',
+        description: 'Returns one page of articles, newest first.',
         tags: ['Articles'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The list of articles.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: ArticleDTO::class))),
+                description: 'One page of articles.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: ArticleDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function list(): JsonResponse
+    public function list(Request $request): JsonResponse
     {
-        /** @var ArticleDTO[] $articles */
-        $articles = $this->queryBus->ask(new GetAllArticles());
+        /** @var Page<ArticleDTO> $articles */
+        $articles = $this->queryBus->ask(new GetAllArticles($this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($articles));
     }

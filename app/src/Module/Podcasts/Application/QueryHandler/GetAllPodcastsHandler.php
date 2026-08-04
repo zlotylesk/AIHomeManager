@@ -6,9 +6,11 @@ namespace App\Module\Podcasts\Application\QueryHandler;
 
 use App\Module\Podcasts\Application\DTO\PodcastDTO;
 use App\Module\Podcasts\Application\Query\GetAllPodcasts;
+use App\Shared\Pagination\Page;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(bus: 'query.bus')]
@@ -20,9 +22,9 @@ final readonly class GetAllPodcastsHandler
     }
 
     /**
-     * @return list<PodcastDTO>
+     * @return Page<PodcastDTO>
      */
-    public function __invoke(GetAllPodcasts $query): array
+    public function __invoke(GetAllPodcasts $query): Page
     {
         // The counters are aggregated here rather than at serialize time
         // (HMAI-242). Two independent LEFT JOINs would multiply each other's
@@ -40,12 +42,19 @@ final readonly class GetAllPodcastsHandler
                 (SELECT COUNT(DISTINCT s.episode_id) FROM podcast_listening_sessions s WHERE s.podcast_id = p.id) AS listened_episode_count,
                 (SELECT MAX(s.listened_at) FROM podcast_listening_sessions s WHERE s.podcast_id = p.id) AS last_listened_at
             FROM podcasts p
-            ORDER BY last_listened_at IS NULL, last_listened_at DESC, p.title ASC
+            ORDER BY last_listened_at IS NULL, last_listened_at DESC, p.title ASC, p.id ASC
+            LIMIT :limit OFFSET :offset
             SQL;
 
-        $rows = $this->connection->executeQuery($sql)->fetchAllAssociative();
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM podcasts');
 
-        return array_map(
+        $rows = $this->connection->fetchAllAssociative(
+            $sql,
+            ['limit' => $query->page->perPage, 'offset' => $query->page->offset()],
+            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
+        );
+
+        return Page::of(array_map(
             static fn (array $row): PodcastDTO => new PodcastDTO(
                 id: (string) $row['id'],
                 title: (string) $row['title'],
@@ -60,6 +69,6 @@ final readonly class GetAllPodcastsHandler
                 createdAt: new DateTimeImmutable((string) $row['created_at'], new DateTimeZone('UTC'))->format(DATE_ATOM),
             ),
             $rows,
-        );
+        ), $total, $query->page);
     }
 }

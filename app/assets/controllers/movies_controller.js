@@ -1,5 +1,6 @@
 import { Controller } from '@hotwired/stimulus';
 import { TOAST_TIMEOUT_MS, apiCall, escHtml, safeUrl } from '../util.js';
+import { FIRST_PAGE, mountPagerAfter, unwrapPage, withPage } from '../pagination.js';
 import {
     FILTERS,
     MOVIE_STATUSES,
@@ -93,13 +94,19 @@ export default class extends Controller {
         this.loadMovies();
     }
 
-    async loadMovies() {
+    async loadMovies(page = FIRST_PAGE) {
         this.listTarget.innerHTML = '<div class="loading">Loading…</div>';
         try {
-            const movies = await apiCall(`/api/movies${watchedQuery(this.filter)}`);
+            // watchedQuery() already yields a leading "?" or "", so the page is
+            // appended with the right separator rather than a second "?".
+            const filter = watchedQuery(this.filter);
+            const pageQuery = withPage(new URLSearchParams(), page).toString();
+            const query = [filter.replace(/^\?/, ''), pageQuery].filter(Boolean).join('&');
+            const { items: movies, pagination } = unwrapPage(await apiCall(`/api/movies${query ? `?${query}` : ''}`));
             this.listTarget.innerHTML = movies.length
                 ? movies.map(cardHtml).join('')
                 : `<div class="empty-state">${'all' === this.filter ? 'Brak filmów. Dodaj pierwszy film.' : 'Brak filmów w tym filtrze.'}</div>`;
+            mountPagerAfter(this.listTarget, pagination, (next) => this.loadMovies(next));
         } catch {
             this.showError('Nie udało się wczytać filmów.');
             this.listTarget.innerHTML = '';

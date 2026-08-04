@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Controller\PaginationRequestParser;
 use App\Messaging\CommandBus;
 use App\Messaging\QueryBus;
 use App\Module\Goals\Application\Command\CreateGoal;
@@ -14,6 +15,7 @@ use App\Module\Goals\Application\DTO\StreakDTO;
 use App\Module\Goals\Application\Exception\GoalNotFoundException;
 use App\Module\Goals\Application\Query\GetGoalsProgress;
 use App\Module\Goals\Application\Query\GetStreaks;
+use App\Shared\Pagination\Page;
 use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
@@ -32,27 +34,40 @@ final class GoalsController extends AbstractController
         private readonly CommandBus $commandBus,
         private readonly QueryBus $queryBus,
         private readonly NormalizerInterface $normalizer,
+        private readonly PaginationRequestParser $pagination,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
     #[OA\Get(
         summary: 'List goals with progress',
-        description: 'Returns every defined goal with its current-window progress (achieved amount, capped percent, met flag).',
+        description: 'Returns one page of defined goals with their current-window progress (achieved amount, capped percent, met flag).',
         tags: ['Goals'],
+        parameters: [
+            new OA\Parameter(ref: '#/components/parameters/PageParam'),
+            new OA\Parameter(ref: '#/components/parameters/PerPageParam'),
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'The goals with their computed progress.',
-                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: new Model(type: GoalProgressDTO::class))),
+                description: 'One page of goals with their computed progress.',
+                content: new OA\JsonContent(
+                    required: ['data', 'pagination'],
+                    properties: [
+                        new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: new Model(type: GoalProgressDTO::class))),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object',
+                ),
             ),
             new OA\Response(response: 401, ref: '#/components/responses/UnauthorizedError'),
+            new OA\Response(response: 422, ref: '#/components/responses/UnprocessableEntityError'),
         ],
     )]
-    public function list(): JsonResponse
+    public function list(Request $request): JsonResponse
     {
-        /** @var GoalProgressDTO[] $progress */
-        $progress = $this->queryBus->ask(new GetGoalsProgress());
+        /** @var Page<GoalProgressDTO> $progress */
+        $progress = $this->queryBus->ask(new GetGoalsProgress($this->pagination->parse($request)));
 
         return new JsonResponse($this->normalizer->normalize($progress));
     }
