@@ -14,7 +14,7 @@ Operational. Current release **1.34.0** (2026-08-05), which is also the highest-
 
 | Gate | State |
 |---|---|
-| PHPUnit | 2477 tests |
+| PHPUnit | 2485 tests |
 | Playwright | 169 tests |
 | Vitest | 249 tests |
 | Newman | 121 assertions |
@@ -292,6 +292,58 @@ The backup job has **two image-level dependencies**: `bash -o pipefail` (POSIX `
 
 **CI cannot catch either.** It runs PHPUnit on the GitHub runner, never inside the image the app ships in, so an image-level runtime dependency is invisible to every job. `make doctor` is what covers that gap — and it checks the *outcome* (is the newest backup non-empty, and is it recent) rather than only the causes already known.
 
+### Production configuration
+
+Development and production are two compose files rather than a flag —
+`docker-compose.yml` plus `docker-compose.prod.yml`, and every `make prod-*`
+target passes both. Development bind-mounts `./app` over the code; production
+runs what is baked into the image. **The overlay declares its volumes with the
+Compose `!override` tag**, because Compose *merges* untagged sequences: without
+it the base file's `./app:/var/www/html` survives the merge and the host working
+copy silently shadows every file in the image.
+
+`docker/php/Dockerfile` is multi-stage over a repository-root build context: a
+shared `base` (so the two images never differ in *which extensions exist*), an
+empty `dev`, `assets` (the Encore production build, so a deployed image carries
+the bundle its own code was built against), and `prod` — code copied in,
+`composer install --no-dev`, cache warmed at build time. nginx has its own image
+with `public/` baked in, because `try_files` resolves static files on nginx's own
+filesystem — and it takes that directory **from the application image**, not from
+the build context: `public/build/` and `public/bundles/` are gitignored generated
+output, so copying them from the context yields a working image on a machine that
+happens to have them and a half-empty one on a clean clone. That is what makes
+`make prod-build` two ordered steps.
+
+**Secrets reach production as environment variables, never as a file in the
+image.** `app/.env.local` is excluded from the build context and read by the prod
+overlay as an `env_file`; it is required, because the tracked `app/.env` holds
+empty placeholders and an instance booted from those would have an empty
+`API_KEY` and an empty `FRONTEND_PASSWORD_HASH` while looking healthy.
+
+**A class under `src/` that extends a `require-dev` class breaks the production
+build, and two separate scans have to exclude it**: the routing attribute loader
+reflects on every class under `../src/`, and the `App\` service resource does the
+same — reflection loads the parent, which a `--no-dev` install does not have.
+`src/DataFixtures/` is therefore excluded in *both* `routes.yaml` and
+`services.yaml`, and re-registered under `when@dev` / `when@test`. Neither dev
+nor test can catch this, since both install the package.
+
+**OPcache is not off in development** — `php:8.5-fpm-alpine` ships it enabled.
+What production changes is `validate_timestamps=0`, which stops a `stat()` per
+included file per request, and a `max_accelerated_files` above the ~50k-file
+working set that the 10000 default sits below.
+`docker/php/opcache-prod.ini` is loaded only by the prod stage.
+
+**`.dockerignore` is load-bearing, not a build-speed tweak.** The build context
+is the repository root and `app/.env.local` holds the real credentials; a layer
+that captured it would keep them after any later deletion.
+
+Cache warming at build time runs with placeholder token keys of the correct
+length, because `TokenCipher` rejects anything that is not 32 bytes and is built
+at container-compile time. Symfony compiles `%env()%` as a runtime placeholder,
+so none of those values reach the warmed container — the real ones arrive as
+environment variables.
+
 ### Environment
 
 `app/.env` holds placeholders, `app/.env.local` the real values. Full reference: `docs/configuration.md`. The startup-critical set is `API_KEY`, `FRONTEND_USER`/`FRONTEND_PASSWORD_HASH`, and four **different** 32-byte base64 keys `DISCOGS_TOKEN_KEY` / `GOOGLE_TOKEN_KEY` / `TRAKT_TOKEN_KEY` / `SPOTIFY_TOKEN_KEY` — `TokenCipher` throws for any other length, and it is built at container-compile time, so a wrong key is a boot failure.
@@ -306,6 +358,8 @@ The backup job has **two image-level dependencies**: `bash -o pipefail` (POSIX `
 |---|---|
 | Start (full / lean) | `make up` / `make min-up` |
 | Full initialization | `make setup` (build + up + composer install + migrate) |
+| Production build / start / stop | `make prod-build` / `make prod-up` / `make prod-down` |
+| Production migrate / verify / logs / shell | `make prod-migrate` / `make prod-about` / `make prod-logs` / `make prod-shell` |
 | Preflight health check | `make doctor` |
 | PHP shell | `make shell` |
 | All tests / unit / integration | `make test` / `make test-unit` / `make test-integration` |

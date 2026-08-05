@@ -32,7 +32,14 @@ services:
 
     App\:
         resource: '../src/'
-
+        exclude:
+            # The fixture classes extend Doctrine\Bundle\FixturesBundle\Fixture,
+            # which ships in a require-dev package. A production install
+            # (`composer install --no-dev`) does not have it, so registering
+            # them here makes compiling the container fatal — "Attempted to load
+            # class Fixture" — before a single request is served. They are
+            # registered below for the two environments that install the bundle.
+            - '../src/DataFixtures/'
 
     App\Infrastructure\Backup\DatabaseBackupService:
         arguments:
@@ -664,8 +671,26 @@ services:
     App\Module\Dashboard\Domain\Port\DashboardDataProviderInterface:
         alias: App\Module\Dashboard\Infrastructure\Provider\CompositeDashboardDataProvider
 
+when@dev:
+    services:
+        # `make fixtures` needs these tagged as ORM fixtures, which is what
+        # autoconfigure does once the bundle is present. The flags are set per
+        # entry rather than through _defaults: a `when@` block has its own
+        # defaults, and widening them here would silently re-configure every
+        # other service the block declares.
+        App\DataFixtures\:
+            resource: '../src/DataFixtures/'
+            autowire: true
+            autoconfigure: true
+
 when@test:
     services:
+        # FixturesLoadTest loads them, so the test environment registers them too.
+        App\DataFixtures\:
+            resource: '../src/DataFixtures/'
+            autowire: true
+            autoconfigure: true
+
         App\Tests\Support\SpyLogger:
             public: true
 

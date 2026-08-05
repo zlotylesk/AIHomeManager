@@ -9,6 +9,109 @@ Start with `make doctor`. It checks the Docker daemon, the containers, the
 bytes), the php image, the backup archive and the dead-letter queue depth, and
 it exits non-zero on a real failure.
 
+## Production deployment
+
+Development and production are two stacks, and what separates them is not a
+flag — it is where the code comes from.
+
+| | Development | Production |
+|---|---|---|
+| Source | `./app` bind-mounted over `/var/www/html` | baked into the image |
+| Environment | `dev`, debug on | `prod`, debug off |
+| Dependencies | including `require-dev` | `composer install --no-dev` |
+| Frontend bundle | built on demand in the `node` container | built by the image's `assets` stage |
+| Symfony cache | compiled on the first request | warmed during the build |
+| OPcache | `validate_timestamps=1` — every included file stat()ed per request | `validate_timestamps=0` |
+
+Production is `docker-compose.yml` **plus** `docker-compose.prod.yml`, always
+both. Every `make prod-*` target passes the pair, which is why nothing below
+spells out a bare `docker compose` command: without `-f` you are talking to the
+development stack.
+
+### Before the first deployment
+
+`app/.env.local` must exist on the host with the real values. It is deliberately
+**not** in the image — `.dockerignore` excludes it, because a layer that
+captured it would keep the secrets there after any later deletion. Instead the
+production overlay reads it as an `env_file`, so the values reach the containers
+as environment variables and Symfony's real-environment precedence puts them
+above the placeholders in the tracked `app/.env`.
+
+That file is therefore required, not optional: without it Compose refuses to
+start, which is the intended outcome. The alternative is worse than a failed
+deploy — the placeholders in `app/.env` are empty, so an instance would come up
+with an empty `API_KEY` and an empty `FRONTEND_PASSWORD_HASH` and look perfectly
+healthy while authenticating nobody.
+
+The startup-critical set is `API_KEY`, `FRONTEND_USER`/`FRONTEND_PASSWORD_HASH`
+and the four 32-byte base64 token keys; `docs/configuration.md` lists every
+variable and how to generate it. `make doctor` decodes the keys and reports a
+wrong one before a container refuses to boot over it.
+
+### First deployment
+
+```bash
+make prod-build      # image with the code, the bundle and a warm cache
+make prod-migrate    # creates the schema; brings MySQL up via depends_on
+make prod-up         # start serving
+make search-index    # only when SEARCH_ENGINE_BACKEND=opensearch
+```
+
+### Updating a running instance
+
+```bash
+git pull
+make prod-build      # the running containers are untouched throughout
+make prod-migrate    # new migrations, old code still serving
+make prod-up         # recreates the containers on the new image
+```
+
+**The migration step sits in the middle, and that is the whole of the ordering
+question.** `prod-migrate` uses `docker compose run --rm`, so it runs the
+migrations from the image just built rather than from whatever the running
+container holds — and it runs them before any new container serves a request
+against the schema they change.
+
+The cost of that order is a window between `prod-migrate` and `prod-up` in which
+the OLD code runs against the NEW schema. That is safe for an additive migration
+— a new table, a new nullable column, a new index — which is what nearly all of
+them are. A migration that drops or renames something the running version still
+reads is not safe in either order: stop first, then migrate.
+
+```bash
+make prod-down && make prod-migrate && make prod-up
+```
+
+### Verifying a deployment
+
+```bash
+make prod-about   # must report Environment prod / Debug false
+curl -s -o /dev/null -w 'health %{time_total}s\n' http://localhost:8080/api/health
+```
+
+`prod-about` is the check that would have caught a stack serving `dev` with
+debug on, which is exactly what ran here before there was a production
+configuration at all.
+
+The health call is the second half. Measured on the development machine, same
+endpoint, same data: **13 ms in production against 5.2 s in development**, and
+an unauthenticated `/api/series` at 7 ms against the 3.8 s that prompted this
+work. The cause is not one setting — it is `prod` without the debug machinery,
+a container compiled at build time instead of on the first request, and OPcache
+no longer re-`stat()`ing every included file.
+
+### Rolling back
+
+Images are tagged `aihm-php:prod` and `aihm-nginx:prod`, so a rollback is a
+checkout of the previous revision plus `make prod-build && make prod-up`. Roll
+the schema back only if the release actually changed it —
+`doctrine:migrations:migrate prev` — and only when the migration was reversible.
+
+Not configured yet, and worth knowing before this is exposed to anything: HTTPS
+and HSTS, infrastructure ports still published on the host, broker and Redis
+still on default credentials, no restart policies or resource limits, no log
+rotation.
+
 ## Workers
 
 Two of them, and they consume different things:
