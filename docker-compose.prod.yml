@@ -1,0 +1,102 @@
+# Production overlay. Never used alone — it is merged on top of
+# docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# The `make prod-*` targets pass both files for you.
+#
+# What this file changes is WHERE THE CODE COMES FROM. Development mounts
+# ./app over /var/www/html, so the image contents are irrelevant and an edit is
+# live. Production runs the code baked into the image, which is what makes a
+# deployment a single reproducible artifact instead of the state of a working
+# copy.
+#
+# Not in scope here, and deliberately so: publishing (or not publishing)
+# infrastructure ports and broker credentials, restart policies and resource
+# limits, log rotation, HTTPS. Each is its own change.
+
+services:
+  php:
+    build:
+      target: prod
+    image: aihm-php:prod
+    # !override REPLACES the base list rather than appending to it. Without it
+    # Compose would merge, ./app:/var/www/html would survive, and the host
+    # working copy would shadow every file in the image — the one mistake that
+    # makes a production container silently run development code.
+    volumes: !override
+      - ./backups:/backups
+    # The secrets, as environment variables rather than a file in the image.
+    # app/.env.local is deliberately excluded from the build context, so without
+    # this the container falls back to the placeholder values in the tracked
+    # app/.env and boots with an EMPTY API_KEY and an empty
+    # FRONTEND_PASSWORD_HASH — authentication that silently protects nothing.
+    #
+    # Required, not optional: a missing secrets file must stop a deployment
+    # rather than produce a running instance with no credentials.
+    env_file:
+      - app/.env.local
+    # Declared after env_file, which is what makes these win over anything the
+    # file happens to set.
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: 0
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: aihm-nginx:prod
+    # Drops both the ./app mount and the bind mount of default.conf: the config
+    # is copied into the image, so what nginx serves is versioned with it.
+    volumes: !override []
+
+  messenger_worker:
+    build:
+      target: prod
+    image: aihm-php:prod
+    volumes: !override []
+    # The secrets, as environment variables rather than a file in the image.
+    # app/.env.local is deliberately excluded from the build context, so without
+    # this the container falls back to the placeholder values in the tracked
+    # app/.env and boots with an EMPTY API_KEY and an empty
+    # FRONTEND_PASSWORD_HASH — authentication that silently protects nothing.
+    #
+    # Required, not optional: a missing secrets file must stop a deployment
+    # rather than produce a running instance with no credentials.
+    env_file:
+      - app/.env.local
+    # Declared after env_file, which is what makes these win over anything the
+    # file happens to set.
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: 0
+
+  scheduler_worker:
+    build:
+      target: prod
+    image: aihm-php:prod
+    volumes: !override
+      - ./backups:/backups
+    # The secrets, as environment variables rather than a file in the image.
+    # app/.env.local is deliberately excluded from the build context, so without
+    # this the container falls back to the placeholder values in the tracked
+    # app/.env and boots with an EMPTY API_KEY and an empty
+    # FRONTEND_PASSWORD_HASH — authentication that silently protects nothing.
+    #
+    # Required, not optional: a missing secrets file must stop a deployment
+    # rather than produce a running instance with no credentials.
+    env_file:
+      - app/.env.local
+    # Declared after env_file, which is what makes these win over anything the
+    # file happens to set.
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: 0
+
+  # The frontend bundle is built inside the image by the `assets` stage, so the
+  # long-running Node container has nothing to do in production. Parking it
+  # behind a profile keeps it out of `prod-up` while leaving `make up` — which
+  # requests no profile beyond `monitoring` — exactly as it was.
+  node:
+    profiles: [tools]

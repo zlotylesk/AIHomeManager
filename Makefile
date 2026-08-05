@@ -1,4 +1,50 @@
-.PHONY: up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+
+# Production runs from a different pair of compose files, and every target below
+# names both explicitly. A prod command that worked by leaving out `-f` would be
+# one forgotten flag away from doing the same thing to the development stack.
+#
+# The deployment procedure these implement — including where migrations go in
+# the order — is in docs/operations.md.
+#
+# `-p aihm-prod` keeps the production stack in its own Compose project, with its
+# own containers and its own volumes. Without it both stacks share the project
+# name Compose derives from the directory, and `prod-up` on a machine that also
+# develops here would RECREATE the running development containers as production
+# ones — in place, without asking. With it the two collide on published ports
+# instead, which is a refusal to start rather than a silent conversion.
+COMPOSE_PROD = docker compose -p aihm-prod -f docker-compose.yml -f docker-compose.prod.yml
+
+# Two steps, in this order, on purpose: the nginx image is built FROM the
+# application image so that public/ has exactly one source. Compose does not
+# order parallel builds by depends_on, so the order is spelled out here.
+prod-build:
+	$(COMPOSE_PROD) build php
+	$(COMPOSE_PROD) build nginx
+
+prod-up:
+	$(COMPOSE_PROD) up -d
+
+prod-down:
+	$(COMPOSE_PROD) down
+
+# `run --rm`, not `exec`: this has to work before the application containers are
+# swapped, so migrations from the NEW image land while the OLD one is still
+# serving. It also starts the database via depends_on, so it works on a host
+# where nothing is up yet.
+prod-migrate:
+	$(COMPOSE_PROD) run --rm php bin/console doctrine:migrations:migrate --no-interaction
+
+prod-logs:
+	$(COMPOSE_PROD) logs -f
+
+prod-shell:
+	$(COMPOSE_PROD) exec php bash
+
+# Reports the environment and debug state the container actually booted with —
+# the check that would have caught `dev` running in production.
+prod-about:
+	$(COMPOSE_PROD) exec php bin/console about
 
 up:
 	docker compose --profile monitoring up -d

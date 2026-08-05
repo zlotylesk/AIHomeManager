@@ -106,6 +106,8 @@ first shows up as a dead panel in a browser.
 | `make down` | Stop everything |
 | `make setup` | `build` + `up` + `composer install` + create DB + migrate |
 | `make doctor` | Preflight health check (env, image, backups, queues) |
+| `make prod-build` / `make prod-up` / `make prod-down` | The production stack — see [operations.md](operations.md#production-deployment) |
+| `make prod-migrate` / `make prod-about` | Migrate from the new image / confirm `prod` + debug off |
 | `make shell` | Shell in the php container |
 | `make logs` | Tail all services (`logs-php`, `logs-worker`, … for one) |
 | `make services` / `make routes` | DI container / routing dump |
