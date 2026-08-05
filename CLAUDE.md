@@ -375,3 +375,5 @@ Regression: `tests/Integration/Security/SecurityHeadersTest.php` (4 tests: front
 
 - Confluence hub: https://honemanager.atlassian.net/wiki/spaces/H/pages/46661633
 - Repo: `zlotylesk/AIHomeManager` (GitHub)
+- `README.md` — the project's front door: prerequisites, the fresh-clone quick start, the secrets table, and a map of everything else. It is deliberately short and links onward rather than restating.
+- `docs/` — the reference material README used to carry inline: `configuration.md` (every env var, how to obtain each key, the OAuth flows), `development.md` (branches, naming, layout, the full Makefile), `testing.md` (test layers, coverage ratchet, static analysis, CI), `operations.md` (workers, DLQ, monitoring, backups), `search.md` (backends, cutover, recovery), `api.md` (versioning, auth, pagination), `pwa.md` (Service Worker, offline queue).
