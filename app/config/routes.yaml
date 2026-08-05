@@ -9,6 +9,13 @@ controllers:
         - '../src/Infrastructure/'
         - '../src/Kernel.php'
         - '../src/Controller/Api/'
+        # The attribute loader REFLECTS on every class it scans, which loads the
+        # class and its parents. The fixtures extend a class from a require-dev
+        # package, so in a production install (`composer install --no-dev`) this
+        # scan is what dies — "Attempted to load class Fixture" — long before
+        # anything asks whether they are services. Excluded from the service
+        # registration in services.yaml for the same reason.
+        - '../src/DataFixtures/'
 
 # API versioning (HMAI-338, ADR-008). The module controllers under
 # App\Controller\Api declare version-agnostic paths (e.g. `/series`); the version

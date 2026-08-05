@@ -1,7 +1,9 @@
 services:
   php:
     build:
-      context: docker/php
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: dev
     volumes:
       - ./app:/var/www/html
       - ./backups:/backups
@@ -106,7 +108,9 @@ services:
 
   messenger_worker:
     build:
-      context: docker/php
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: dev
     volumes:
       - ./app:/var/www/html
     environment:
@@ -133,7 +137,9 @@ services:
 
   scheduler_worker:
     build:
-      context: docker/php
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: dev
     volumes:
       - ./app:/var/www/html
       - ./backups:/backups
