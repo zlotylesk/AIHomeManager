@@ -8,6 +8,24 @@ Run-and-setup documentation is in `README.md` and `docs/`. This file is the work
 
 ---
 
+## Status
+
+Operational. Current release **1.34.0** (2026-08-05), which is also the highest-numbered tag and GitHub `latest`.
+
+| Gate | State |
+|---|---|
+| PHPUnit | 2477 tests |
+| Playwright | 169 tests |
+| Vitest | 249 tests |
+| Newman | 121 assertions |
+| PHPStan | level 8, clean; one baseline entry |
+| Deptrac | 0 violations, 0 `skip_violations` |
+| Coverage floor | 90 % |
+
+Release history belongs in `CHANGELOG.md`, not here — this table is the current reading, and it is updated rather than appended to.
+
+---
+
 ## Modules
 
 Fifteen bounded contexts under `src/Module/`. The right-hand column is not a summary — it is the rule that still binds when working in that module.
