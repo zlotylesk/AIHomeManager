@@ -1,159 +1,26 @@
 # AIHomeManager
 
-Single-user system for automating everyday activities — television (Series, Movies), calendar (Tasks), reading (Books / Articles), listening (Music, Podcasts), YouTube watching progress (YouTubeProgress), home finances (Budget), cooking (Recipes), plus the cross-cutting Goals, Search, Dashboard, Notifications and Insights modules. A modular Symfony 8 monolith with hexagonal architecture and CQRS.
+A single-user system for automating everyday activities across fifteen domain
+modules — television, calendar, reading, listening, watching progress, home
+finances and cooking, plus the cross-cutting goals, search, dashboard,
+notifications and trends layers on top of them.
 
----
-
-## Table of contents
-
-- [About the project](#about-the-project)
-- [Modules](#modules)
-- [Architecture](#architecture)
-- [Tech stack](#tech-stack)
-- [Requirements](#requirements)
-- [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [Makefile commands](#makefile-commands)
-- [Development](#development)
-- [Tests](#tests)
-- [Static analysis](#static-analysis)
-- [Continuous integration (CI) pipeline](#continuous-integration-ci-pipeline)
-- [Monitoring](#monitoring)
-- [Global search (OpenSearch)](#global-search-opensearch)
-- [Project structure](#project-structure)
-- [API](#api)
-- [Progressive Web App (PWA)](#progressive-web-app-pwa)
-- [Links](#links)
-- [License](#license)
-
----
-
-## About the project
-
-AIHomeManager aggregates one user's everyday activities across fifteen domain modules. Each module is architecturally independent (Domain free of any framework, its own ubiquitous language), loosely coupled through the CQRS bus and Symfony Messenger. Dual-track frontend: every module built since 1.19.0 uses Webpack Encore + Stimulus (Series, Books, YouTubeProgress, Goals, Search, Dashboard, Movies, Notifications, Podcasts, Insights, Budget, Recipes), while three legacy panels (Tasks/Articles/Music) still run on Twig + vanilla JS — sharing `window.apiCall` from `public/js/util.js`.
-
-**Core principles:**
-
-- Single user (no multi-tenant).
-- Stateless API protected by a key (`X-API-Key`); the UI is public.
-- Hexagonal architecture — `Domain` knows nothing about Doctrine or Symfony, boundaries enforced by Deptrac in CI (currently zero violations and zero `skip_violations`).
-- Doctrine XML mapping (ADR-001 — we do not migrate to PHP attributes).
-- CQRS with two buses: `command.bus` and `query.bus`, plus `event.bus` for domain events (Series.`EpisodeRated`, Books.`BookCompleted`).
-- Versioned REST contract under `/api/v1` (ADR-008), documented as OpenAPI 3.1 and enforced in CI.
-- Per-IP rate limiting on `^/api/*` (60/min), proactive throttling of external API clients (Last.fm, Discogs, National Library, YouTube Data API, Trakt, Spotify).
-- OAuth tokens encrypted at rest (libsodium secretbox, separate key per provider: Google, Discogs, Trakt, Spotify).
-- Defense-in-depth security headers (dual-layer: nginx + Symfony listener).
-- Daily mysqldump → gzip + retention (30 daily + 12 monthly).
-
----
-
-## Modules
-
-| Module | What it does | Key integrations |
-|---|---|---|
-| **Series** | Catalog of shows, seasons, episodes, own rating 1–10 + average from episodes, "watched" flag, edit/delete, import of watched shows from Trakt | Trakt.tv API (OAuth2) |
-| **Tasks** | Full REST CRUD for tasks with `TimeSlot`, time report, CSV/PDF export, sync with Google Calendar | Google Calendar API (OAuth2) |
-| **Books** | Library, status (`to_read` / `reading` / `completed`), reading sessions, metadata by ISBN, CSV/PDF export | National Library API (XML) |
-| **Articles** | Daily article to read, CSV import from Pocket, categories, CSV/PDF export | — |
-| **Music** | Top albums + local listening history (Last.fm), vinyl collection (Discogs), comparison of owned vs listened | Last.fm API, Discogs OAuth1 |
-| **YouTubeProgress** | Sync of the "watchlist" playlist from YouTube, auto-splitting of unwatched videos into sessions ≤30 min (grouped by channel), progress tracking, pushing a session back out as a new playlist | YouTube Data API v3 (OAuth2) |
-| **Movies** | Catalog of films alongside Series — CRUD, watched flag, own 1–10 rating, catalog metadata, import of watched movies + ratings from Trakt | Trakt.tv API (OAuth2) |
-| **Podcasts** | Podcast listening history. Spotify exposes no listen timestamp for episodes, so listens are **derived** from each episode's resume point — a stored moment means "no later than", never the exact listening time | Spotify Web API (OAuth2) |
-| **Goals** | Cross-module goals and day-continuity streaks over the other modules' activity (reading, watching, articles, video), read through DBAL adapters so no module is coupled to another | — |
-| **Search** | Global search spanning every module — relevance-ranked, type-filtered with per-type counts, Redis-cached, reindexed every 15 min. Runs on OpenSearch (Polish stemming, diacritic-free and typo-tolerant matching) with MySQL FULLTEXT behind it as both the automatic fallback and the one-line rollback | OpenSearch 2.x |
-| **Dashboard** | The startup cockpit at `/` — one "today" slice per module (tasks, the daily article, goal snapshots, recommendations, recent tracks), each widget fault-isolated so one failing source degrades to an empty card | — |
-| **Notifications** | Proactive delivery — e-mail + WebPush channels, reactive (domain event) and scheduled triggers, per-type/per-channel opt-in with quiet hours | Symfony Mailer, WebPush + VAPID |
-| **Insights** | The trends dashboard at `/insights` — reading pace, episodes and YouTube minutes watched, tracks played and the task completion rate, charted per week or month. Read-only: no tables of its own, every metric read through a DBAL adapter behind one port and fault-isolated per metric | — |
-| **Budget** | Home finances at `/budget` — a transaction ledger with categories and monthly spending limits, a monthly income/expense/balance report with a spend-vs-limit breakdown per category, and CSV/PDF export. Amounts are stored as whole minor units (grosze), never floats, so a month of summed transactions cannot drift on rounding; a category's type is immutable and a transaction filed under it must match it | — |
-| **Recipes** | Cooking at `/recipes` and `/meal-plan` — a recipe catalog with tag and phrase filters, a weekly meal-planning calendar, and a shopping list generated from the plan, scaled by each meal's own servings and exportable to CSV/PDF. Ingredient units are a closed enum because the list aggregates by (name, unit) — "g" and "gram" typed on two recipes would silently become two lines of the same item | — |
-
----
-
-## Architecture
-
-```
-src/Module/{Name}/
-├── Domain/             ← pure PHP, aggregates, VOs, events, repository interfaces
-│   ├── Entity/
-│   ├── ValueObject/
-│   ├── ReadModel/      ← what Domain ports return (never Application DTOs)
-│   ├── Port/           ← outbound contracts implemented in Infrastructure
-│   ├── Event/
-│   └── Repository/
-├── Application/        ← orchestration: commands, queries, handlers, DTOs
-│   ├── Command/
-│   ├── Handler/
-│   ├── Query/
-│   ├── QueryHandler/
-│   └── DTO/
-└── Infrastructure/     ← Doctrine, HTTP clients, external integrations
-    ├── Persistence/Doctrine/    ← .orm.xml mappings
-    ├── External/                ← API clients
-    └── Messenger/               ← async event handlers
-```
-
-**Inviolable rules:**
-
-- `grep -r "use Doctrine" src/Module/*/Domain/` MUST return an empty result. Enforced by `make deptrac` in CI — Domain → [`Shared`], cross-module coupling forbidden.
-- Genuinely cross-context value objects and contracts live in the **shared kernel** `src/Shared/` (`App\Shared\…`) — the one sanctioned exception to "no cross-module coupling". Everything else stays inside its module.
-- Cross-module reads (Goals, Search, Dashboard, Notifications, Insights) go through **DBAL adapters behind a Domain port**, reading the source module's tables with raw SQL rather than importing its classes — which is how those five modules stay at zero deptrac violations.
-- The aggregate root collects events in `$recordedEvents`, the handler dispatches them after `releaseEvents()` (pattern: the `Series` aggregate).
-- Query handlers use DBAL directly — we do not hydrate aggregates for reads.
-- Command handler: `#[AsMessageHandler(bus: 'command.bus')]`. Query handler: `#[AsMessageHandler(bus: 'query.bus')]`. Event handler: `#[AsMessageHandler]` (default bus).
-
-Architecture decisions (ADR): see Confluence space `H` → ADRs.
-
----
-
-## Tech stack
-
-| Layer | Technology                                              |
-|---|----------------------------------------------------------|
-| Language | PHP 8.5                                                  |
-| Framework | Symfony 8                                                |
-| ORM | Doctrine ORM (XML mapping)                               |
-| DB | MySQL 8.4 LTS (image pinned to `mysql:8.4`)               |
-| Cache / KV | Redis 8                                                  |
-| Async messaging | RabbitMQ 4.x + Symfony Messenger                         |
-| Search engine | OpenSearch 2.x + `analysis-stempel` (Polish), MySQL FULLTEXT as fallback |
-| API contract | OpenAPI 3.1 via NelmioApiDocBundle (`/api/doc`)           |
-| Frontend (all modules since 1.19.0) | Webpack Encore + Stimulus (Node.js 24 LTS in a container)  |
-| Frontend (Tasks, Articles, Music) | Twig + vanilla JavaScript (`public/js/`)                 |
-| Backend tests | PHPUnit 13                                               |
-| Frontend unit tests | Vitest 4 + jsdom (`app/assets/tests/`)                   |
-| E2E tests | Playwright 1.61 (`tests-e2e/`)                           |
-| API smoke tests | Newman / Postman v2.1 (`tests-e2e/postman/`)             |
-| Logging | Monolog → Graylog 6.3 (GELF UDP) + optionally New Relic |
-| PDF | dompdf/dompdf ^3.1                                       |
-| Containerization | Docker + Docker Compose                                  |
-
-**Static analysis:** PHPStan level 8 (`phpstan-symfony` + `phpstan-doctrine` + `phpstan-phpunit`), PHP CS Fixer (`@Symfony` + `@PHP84Migration`), Rector (`withPhpSets()` + `deadCode`), Deptrac (hexagonal boundaries).
-
----
-
-## Requirements
-
-- **Docker Desktop** 4.x or Docker Engine 24+ with Docker Compose v2.
-- **GNU Make** (Windows: `choco install make` or WSL).
-- **Git** 2.40+.
-- ~4 GB of free RAM for the containers (8 GB if you enable the monitoring stack).
-
-You do **not** need PHP, Composer, MySQL, or Redis directly on the host — everything runs in containers.
-
-**On Windows, clone with the repo's `.gitattributes` in effect** (any normal `git clone` does this — it only matters if you carry an older working tree across). The containers bind-mount the working tree, and a shebang is not a comment: with `core.autocrlf=true` a checkout would write `#!/usr/bin/env php\r`, and Linux `env` then looks for a program literally named `php\r`. Every Makefile target that runs `bin/console` through its shebang — `make migrate`, `make cc`, `make setup`, `make openapi-dump`, `make backup-now` and nine others — fails with the thoroughly misleading `env: can't execute 'php': No such file or directory`, while the same commands work in CI and on Linux. `.gitattributes` pins `*.sh` and `app/bin/console` to LF so this cannot happen. If you are on a working tree that predates it:
-
-```bash
-git rm --cached -r . >/dev/null && git reset --hard   # re-checkout with the attributes applied
-git ls-files --eol app/bin/console                    # expect: i/lf  w/lf
-```
+A modular Symfony 8 monolith: hexagonal architecture, CQRS over two buses, a
+versioned OpenAPI 3.1 REST contract, and everything running in Docker.
 
 ---
 
 ## Quick start
 
-The first run takes ~5 minutes on a fresh host (mostly pulling Docker images and `composer install`).
+You need **Docker** (Desktop 4.x or Engine 24+ with Compose v2), **GNU Make**,
+**Git**, and about 4 GB of free RAM — 8 GB with the monitoring stack. You do
+*not* need PHP, Composer, MySQL or Node on the host; everything runs in
+containers.
 
-### 1. Clone the repo and prepare secrets
+The first run takes roughly five minutes, mostly pulling images and installing
+dependencies.
+
+### 1. Clone and configure
 
 ```bash
 git clone git@github.com:zlotylesk/AIHomeManager.git
@@ -161,709 +28,264 @@ cd AIHomeManager
 cp app/.env app/.env.local
 ```
 
-Fill in `app/.env.local` according to the [Configuration](#configuration) section. **Without valid `API_KEY` + `DISCOGS_TOKEN_KEY` + `GOOGLE_TOKEN_KEY` + `TRAKT_TOKEN_KEY` + `SPOTIFY_TOKEN_KEY` keys the application will not start** (DI will not boot the value objects with empty arguments — the encryption keys must be valid 32-byte base64, otherwise `TokenCipher` throws). OAuth/API keys (`GOOGLE_CLIENT_*`, `DISCOGS_CONSUMER_*`, `LASTFM_*`, `TRAKT_CLIENT_*`, `SPOTIFY_CLIENT_*`, `YOUTUBE_WATCHLIST_PLAYLIST_ID`) can stay empty until you want to use a specific module — the dependent endpoints will then return 503/400/409 instead of 500.
+On Windows, clone normally and let the repo's `.gitattributes` apply. It pins
+`app/bin/console` to LF, and it has to: a shebang is not a comment, so a CRLF
+checkout makes Linux `env` look for a program literally named `php\r` and every
+Make target that runs `bin/console` fails with a thoroughly misleading error.
+An older working tree needs one re-checkout — see
+[docs/development.md](docs/development.md#windows-note).
 
-### 2. Start the stack
+Now fill in `app/.env.local`. **Do this before step 2** — `composer install`
+runs `cache:clear` as an auto-script, which boots the Symfony kernel, and the
+service container will not compile with an encryption key of the wrong length.
+Five values are enough to start:
+
+```bash
+# run four times — a separate key per OAuth provider, so a compromised
+# provider costs one provider
+openssl rand -base64 32
+```
+
+```dotenv
+API_KEY=<any strong random string>
+DISCOGS_TOKEN_KEY=<32-byte base64>
+GOOGLE_TOKEN_KEY=<32-byte base64>
+TRAKT_TOKEN_KEY=<32-byte base64>
+SPOTIFY_TOKEN_KEY=<32-byte base64>
+```
+
+`FRONTEND_USER` / `FRONTEND_PASSWORD_HASH` already carry a working placeholder
+pair in `app/.env` (`admin` / the literal word `test`), so a clone boots — but
+override both before the application is reachable from anything but localhost.
+
+Everything else is per-integration and optional; see [Secrets and
+keys](#secrets-and-keys) below.
+
+### 2. Start the stack and migrate
 
 ```bash
 make setup
 ```
 
-`make setup` does it all in one command: build Docker images → `docker compose up -d` → `composer install` → `npm install` (Node container, for Webpack Encore) → MySQL migrations → cache warmup.
+That is `docker compose build` → `up -d` → `composer install` → create the
+database → run the migrations.
+
+### 3. Install and build the frontend
 
 ```bash
-make services            # list of containers + ports
-make logs                # tail logs of all services
-make messenger-status    # whether the worker consumes the async transport
+make node-install
+make assets-prod
 ```
 
-### 3. Build the frontend (Webpack Encore)
+Both are required, and neither is part of `make setup`. `node_modules` is not
+committed, so without `make node-install` the Encore build has no binary to run;
+and without the build there is no `entrypoints.json`, so Twig throws a 500 on
+the `encore_entry_*` helpers that `base.html.twig` uses for **every** page.
+
+### 4. Provision the search index
 
 ```bash
-make assets-prod         # build artifacts into public/build/
+make search-index
+make search-populate
 ```
 
-Required — without `entrypoints.json` Twig throws 500 on the `encore_entry_*` helpers (`base.html.twig` uses them for every page).
+Also not part of `make setup`. The shipped configuration runs global search on
+OpenSearch, and an unprovisioned engine does not raise an error — it degrades to
+the MySQL fallback, which is equally empty until the 15-minute reindex first
+fires. So skipping this gives you a search box that quietly finds nothing.
 
-### 4. Service addresses
+### 5. Verify
+
+```bash
+make doctor
+curl -s localhost:8080/api/health | jq
+```
+
+`make doctor` checks the containers, decodes each encryption key to confirm it
+is really 32 bytes, verifies the php image can actually take a backup, and
+reports the dead-letter queue depth. The health endpoint is public and needs no
+key.
+
+Optionally load demo data and run the suites:
+
+```bash
+make fixtures
+make test
+```
+
+### Service addresses
 
 | Service | Address |
 |---|---|
 | Application (UI + API) | http://localhost:8080 |
-| Health check (public, no auth) | http://localhost:8080/api/health |
-| API documentation — Swagger UI (public) | http://localhost:8080/api/doc |
-| API documentation — Redoc / raw spec | http://localhost:8080/api/doc/redoc · http://localhost:8080/api/doc.json |
+| Health check (public) | http://localhost:8080/api/health |
+| API docs — Swagger UI / Redoc / raw spec | `/api/doc` · `/api/doc/redoc` · `/api/doc.json` |
 | RabbitMQ Management | http://localhost:15672 (guest/guest) |
 | MySQL | localhost:3306 (homemanager/homemanager, DB `homemanager`) |
 | Redis | localhost:6379 |
-| Search engine (OpenSearch) | http://localhost:9200 — the app-data instance, separate from Graylog's |
-| Graylog (optional) | http://localhost:9000 (admin/admin) — requires `make monitoring-up` |
+| Search engine (OpenSearch) | http://localhost:9200 |
+| Graylog (optional) | http://localhost:9000 (admin/admin), after `make monitoring-up` |
 
-UI routes: `/` (the **Dashboard cockpit** — not a redirect), `/series`, `/movies`, `/tasks`, `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`, `/notifications`, `/insights`, `/budget`, `/recipes`, `/meal-plan`. Global search lives in the navbar on every page.
+UI routes: `/` (the dashboard cockpit), `/series`, `/movies`, `/tasks`,
+`/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`,
+`/notifications`, `/insights`, `/budget`, `/recipes`, `/meal-plan`. Global
+search sits in the navbar on every page.
 
-### 5. (Optional) load fixtures + verify tests
-
-```bash
-make fixtures            # demo data for the dev env
-make test                # PHPUnit (unit + integration)
-make test-e2e            # Playwright (desktop + mobile)
-make test-newman         # Newman/Postman smoke
-```
-
-> **The first run of modules that require OAuth / API keys** (Google Calendar, YouTube, Discogs, Last.fm, Trakt) is described step by step on Confluence: [First boot — configuring external services](https://honemanager.atlassian.net/wiki/spaces/H/pages/50659329/First+boot+configuring+external+services).
+The frontend is behind HTTP Basic, so the first page load asks for
+`FRONTEND_USER` and the password behind `FRONTEND_PASSWORD_HASH`. That is not
+optional decoration: every page renders `API_KEY` into a `<meta>` tag for the
+JavaScript to use, so an anonymous frontend would hand out full API access.
 
 ---
 
-## Configuration
+## Secrets and keys
 
-The application reads variables from `app/.env` (committed, placeholders) and `app/.env.local` (gitignored, the actual secrets).
+`app/.env` is committed and holds placeholders; `app/.env.local` is gitignored
+and holds the real values.
 
-### Required secrets in `.env.local`
+| Variable | Required | Where it comes from |
+|---|---|---|
+| `API_KEY` | **yes** | Any strong random string. Sent as `X-API-Key`. |
+| `FRONTEND_USER`, `FRONTEND_PASSWORD_HASH` | **yes** (placeholder shipped) | `bin/console security:hash-password` |
+| `DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `TRAKT_TOKEN_KEY`, `SPOTIFY_TOKEN_KEY` | **yes** | Four *different* 32-byte base64 keys — see step 1. A wrong length is a boot failure, not a runtime one. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Tasks, YouTubeProgress | [console.cloud.google.com](https://console.cloud.google.com) — one OAuth client, Calendar + YouTube scopes |
+| `YOUTUBE_WATCHLIST_PLAYLIST_ID` | YouTubeProgress | The part of the playlist URL after `list=` |
+| `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `DISCOGS_USERNAME` | Music | [discogs.com/settings/developers](https://www.discogs.com/settings/developers) |
+| `LASTFM_API_KEY`, `LASTFM_USERNAME` | Music | [last.fm/api/account/create](https://www.last.fm/api/account/create) |
+| `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` | Series, Movies | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Podcasts | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
+| `MAILER_DSN`, `NOTIFICATIONS_MAIL_FROM/TO` | Notifications (e-mail) | Any Symfony Mailer DSN; `null://null` disables delivery without breaking |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notifications (push) | Generated once — see [docs/configuration.md](docs/configuration.md) |
+| `SEARCH_ENGINE_BACKEND`, `SEARCH_INDEX_ALIAS` | defaults shipped | `opensearch` or `fulltext` — see [docs/search.md](docs/search.md) |
+| `BUDGET_CURRENCY` | defaults to `PLN` | The single currency the ledger is kept in |
 
-```dotenv
-# API key protecting /api/* (any strong, random string)
-API_KEY=...
+An empty integration block disables that integration; the dependent endpoints
+answer 503/400/409 rather than 500. Once the keys are in place, connect each
+provider once by visiting `/auth/google`, `/auth/discogs`, `/auth/trakt` and
+`/auth/spotify`. Tokens are encrypted at rest with libsodium secretbox.
 
-# HTTP Basic credentials protecting the frontend pages and /auth/* (the `main` firewall).
-# REQUIRED: every page renders API_KEY into a <meta name="api-key"> tag, so an anonymous
-# frontend hands out full /api/* access. Generate the hash with:
-#   docker exec aihm-php-1 bin/console security:hash-password
-# app/.env ships a placeholder pair (admin / the literal word "test") so a fresh clone
-# boots — override BOTH here before exposing the app to anything beyond localhost.
-FRONTEND_USER=...
-FRONTEND_PASSWORD_HASH=...
-
-# OAuth token encryption keys at rest (libsodium secretbox) — 32 bytes base64.
-# REQUIRED for the application to start (TokenCipher throws for any other key length).
-# Generate EACH one separately (see below).
-DISCOGS_TOKEN_KEY=...
-GOOGLE_TOKEN_KEY=...
-TRAKT_TOKEN_KEY=...
-SPOTIFY_TOKEN_KEY=...
-
-# OAuth2 — Google Calendar (Tasks) + YouTube Data API (YouTubeProgress); one client, two scopes
-# https://console.cloud.google.com
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=http://localhost:8080/auth/google/callback
-
-# YouTubeProgress — ID of the "AIHM Watchlist" playlist (the part of the URL after `list=`); empty = /sync returns 400
-YOUTUBE_WATCHLIST_PLAYLIST_ID=...
-
-# OAuth1 — Discogs (Music) — https://www.discogs.com/settings/developers
-DISCOGS_CONSUMER_KEY=...
-DISCOGS_CONSUMER_SECRET=...
-DISCOGS_USERNAME=...
-DISCOGS_CALLBACK_URL=http://localhost:8080/auth/discogs/callback
-
-# Last.fm (Music) — read-only API key — https://www.last.fm/api/account/create
-LASTFM_API_KEY=...
-LASTFM_USERNAME=...
-
-# OAuth2 — Trakt.tv (Series + Movies — import of watched shows/films) — https://trakt.tv/oauth/applications
-TRAKT_CLIENT_ID=...
-TRAKT_CLIENT_SECRET=...
-TRAKT_REDIRECT_URI=http://localhost:8080/auth/trakt/callback
-
-# OAuth2 — Spotify (Podcasts — derived listening history) — https://developer.spotify.com/dashboard
-# Scopes requested: user-library-read, user-read-playback-position, user-read-currently-playing.
-# WITHOUT user-read-playback-position Spotify omits resume points entirely — the integration
-# then connects successfully and reports nothing.
-SPOTIFY_CLIENT_ID=...
-SPOTIFY_CLIENT_SECRET=...
-SPOTIFY_REDIRECT_URI=http://localhost:8080/auth/spotify/callback
-
-# Notifications — e-mail channel (Symfony Mailer). null://null disables delivery without breaking.
-MAILER_DSN=null://null
-NOTIFICATIONS_MAIL_FROM=...
-NOTIFICATIONS_MAIL_TO=...
-
-# Notifications — WebPush. VAPID identifies this server to the push service (no FCM, no third party).
-# Generate the pair: php -r "require 'vendor/autoload.php'; var_dump(Minishlink\WebPush\VAPID::createVapidKeys());"
-# The private key never leaves the server; the public one is handed to the browser on subscribe.
-VAPID_PUBLIC_KEY=...
-VAPID_PRIVATE_KEY=...
-VAPID_SUBJECT=mailto:you@example.com
-```
-
-### Generating encryption keys
-
-```bash
-docker compose exec php php -r "echo base64_encode(sodium_crypto_secretbox_keygen()), PHP_EOL;"
-```
-
-Generate **four different** keys — a separate one for Discogs, Google, Trakt, and Spotify. Separate keys isolate the blast radius if one provider is compromised.
-
-### How to obtain keys and tokens
-
-The full step-by-step guide (scopes, consent screen, common mistakes) is on Confluence: [First boot — configuring external services](https://honemanager.atlassian.net/wiki/spaces/H/pages/50659329/First+boot+configuring+external+services). In short:
-
-| Provider | Module | Where to register | What goes into `.env.local` |
-|---|---|---|---|
-| **Google Cloud** (Calendar + YouTube) | Tasks, YouTubeProgress | [console.cloud.google.com](https://console.cloud.google.com) → new project → enable **Google Calendar API** and **YouTube Data API v3** → configure the consent screen (type *External*, add your account as a *test user*) → *Credentials* → OAuth client ID of type **Web application** with redirect URI `http://localhost:8080/auth/google/callback` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| **YouTube playlist** | YouTubeProgress | In your YouTube account create an "AIHM Watchlist" playlist and copy its ID from the URL (the part after `list=`) | `YOUTUBE_WATCHLIST_PLAYLIST_ID` |
-| **Discogs** | Music | [discogs.com/settings/developers](https://www.discogs.com/settings/developers) → *Create an Application* → callback `http://localhost:8080/auth/discogs/callback` | `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `DISCOGS_USERNAME` |
-| **Last.fm** | Music | [last.fm/api/account/create](https://www.last.fm/api/account/create) → create an API account | `LASTFM_API_KEY`, `LASTFM_USERNAME` |
-| **Trakt.tv** | Series, Movies | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) → *New Application* → Redirect URI `http://localhost:8080/auth/trakt/callback` | `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` |
-| **Spotify** | Podcasts | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → *Create app* → Redirect URI `http://localhost:8080/auth/spotify/callback`. One token covers the followed-show catalog and every episode's resume point | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` |
-| **National Library** | Books | no registration — public `data.bn.org.pl` API (throttled 60/min by a shared client) | — |
-
-Google cumulatively requires the `calendar.events` **and** `youtube` (read/write) scopes on a single token; after the first authorization both modules (Tasks + YouTubeProgress) work on the same encrypted token.
-
-### First OAuth connection
-
-After starting the application and filling in `.env.local`, open in a browser:
-
-- `http://localhost:8080/auth/google` — OAuth2 Google (Calendar + YouTube; forces the consent screen for both scopes)
-- `http://localhost:8080/auth/discogs` — OAuth1 Discogs
-- `http://localhost:8080/auth/trakt` — OAuth2 Trakt.tv (Series + Movies imports)
-- `http://localhost:8080/auth/spotify` — OAuth2 Spotify (Podcasts)
-
-The tokens are encrypted (libsodium secretbox) and stored in MySQL. Last.fm and the National Library do not require an OAuth flow — Last.fm works right after setting the API key, and BN needs no keys at all.
+Full reference, including how to register each application and what each scope
+buys: **[docs/configuration.md](docs/configuration.md)**.
 
 ---
 
-## Makefile commands
+## Everyday commands
 
-| Action | Command |
+```bash
+make up / make min-up      # start with / without the monitoring stack
+make down                  # stop
+make doctor                # preflight check: env, image, backups, queues
+make shell                 # shell in the php container
+make logs                  # tail everything (logs-php, logs-worker, … for one)
+make migrate               # run new migrations
+make assets-watch          # Encore in watch mode while working on the frontend
+make test                  # PHPUnit
+make analyse               # CS Fixer + PHPStan + Deptrac + Composer audit
+```
+
+The full table is in [docs/development.md](docs/development.md#makefile-reference).
+
+---
+
+## Modules
+
+| Module | What it does | External integration |
+|---|---|---|
+| **Series** | Shows, seasons, episodes; own rating and the average from episodes; watched flag; import of watched shows | Trakt.tv |
+| **Movies** | Films alongside Series — CRUD, watched, own rating, metadata, import of watched films and ratings | Trakt.tv |
+| **Tasks** | REST CRUD over time slots, time report, CSV/PDF export, calendar sync | Google Calendar |
+| **Books** | Library with reading sessions and per-ISBN metadata, CSV/PDF export | National Library (public API) |
+| **Articles** | A daily article to read, categories, CSV import from Pocket, CSV/PDF export | — |
+| **Music** | Listening history and top albums, vinyl collection, owned-vs-listened comparison | Last.fm, Discogs |
+| **Podcasts** | Listening history derived from each episode's resume point, because the source exposes no listen timestamp — a stored moment means "no later than" | Spotify |
+| **YouTubeProgress** | Watchlist sync, unwatched videos split into sessions ≤30 min by channel, progress, pushing a session back out as a playlist | YouTube Data API |
+| **Budget** | Transactions, categories with monthly limits, a monthly income/expense/balance report, CSV/PDF export | — |
+| **Recipes** | Recipe catalog, a weekly meal-planning calendar, and a shopping list generated from the plan | — |
+| **Goals** | Cross-module goals and day-continuity streaks over the other modules' activity | — |
+| **Search** | Global search spanning every module — ranked, type-filtered with per-type counts, cached, reindexed every 15 min | OpenSearch |
+| **Dashboard** | The cockpit at `/` — one "today" slice per module, each widget fault-isolated | — |
+| **Insights** | Trends at `/insights` — reading pace, episodes and minutes watched, tracks played, task completion rate, per week or month | — |
+| **Notifications** | E-mail and Web Push delivery, reactive and scheduled triggers, per-type opt-in with quiet hours | Symfony Mailer, WebPush/VAPID |
+
+---
+
+## Architecture
+
+```
+src/Module/{Name}/
+├── Domain/          ← pure PHP: aggregates, value objects, read models, ports, events
+├── Application/     ← commands, queries, handlers, DTOs
+└── Infrastructure/  ← Doctrine XML mappings, HTTP clients, external integrations
+```
+
+The rules that are actually enforced, not merely intended:
+
+- **The Domain imports no framework.** `grep -r "use Doctrine"
+  src/Module/*/Domain/` must come back empty; `make deptrac` gates it in CI, at
+  zero violations and zero `skip_violations`.
+- **No cross-module coupling.** The one sanctioned exception is the shared
+  kernel `src/Shared/`, for value objects and contracts that genuinely belong to
+  more than one context.
+- **A module that reads another module's data does it through a DBAL adapter
+  behind its own Domain port** — raw SQL against the source tables, importing
+  none of its classes. That is how Goals, Search, Dashboard, Notifications and
+  Insights read five other modules and still hold at zero violations.
+- **Query handlers use DBAL, not the ORM.** Reads do not hydrate aggregates.
+- **Doctrine mapping is XML**, deliberately, and is not being migrated to
+  attributes.
+- Command handler: `#[AsMessageHandler(bus: 'command.bus')]`. Query handler:
+  `bus: 'query.bus'`. Event handler: no `bus:` at all.
+
+| Layer | Technology |
 |---|---|
-| Start the environment (full stack + monitoring) | `make up` |
-| Start the environment (lean, no monitoring) | `make min-up` |
-| Full initialization (build + migrations + node install) | `make setup` |
-| Stop the environment | `make down` |
-| Preflight env health check | `make doctor` |
-| Shell in the PHP container | `make shell` |
-| All tests | `make test` |
-| Unit only (Domain) | `make test-unit` |
-| Integration only | `make test-integration` |
-| E2E Playwright (install + run) | `make test-e2e-install` / `make test-e2e` |
-| Newman/Postman smoke | `make test-newman-install` / `make test-newman` |
-| Migrations dev / test | `make migrate` / `make migrate-test` |
-| Cache clear | `make cc` |
-| Routing | `make routes` |
-| List of DI services | `make services` |
-| Worker status | `make messenger-status` |
-| Logs | `make logs` |
-| Fixtures (demo data, dev only) | `make fixtures` |
-| Webpack Encore (frontend build) | `make assets` / `make assets-watch` / `make assets-prod` |
-| JS unit tests (Vitest) | `make test-js` |
-| Tests with coverage + threshold gate | `make test-coverage` |
-| OpenAPI contract dump / lint | `make openapi-dump` / `make openapi-lint` |
-| Reinstall npm in the node container | `make node-install` |
-| Static analysis (CS Fixer + PHPStan + Deptrac) | `make analyse` |
-| PHPStan | `make phpstan` / `make phpstan-baseline` |
-| CS Fixer | `make cs-check` / `make cs-fix` |
-| Rector | `make rector-dry` / `make rector` |
-| Deptrac (architecture boundaries) | `make deptrac` / `make deptrac-baseline` |
-| Composer / npm audit (CVE gate) | `make audit` / `make node-audit` |
-| Doctrine schema validate (ORM XML ↔ MySQL) | `make schema-validate` |
-| Backup MySQL (manual) | `make backup-now` |
-| Restore MySQL from gzip | `make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz` |
-| Monitoring up/down/logs | `make monitoring-up` / `make monitoring-down` / `make monitoring-logs` |
-| Graylog bootstrap (inputs + indexes + streams) | `make monitoring-bootstrap` |
+| Runtime | PHP 8.5, Symfony 8 |
+| Persistence | MySQL 8.4 LTS, Doctrine ORM (XML mapping) |
+| Cache / KV | Redis 8 |
+| Async | RabbitMQ 4.x + Symfony Messenger |
+| Search | OpenSearch 2.x with `analysis-stempel`, MySQL FULLTEXT as fallback |
+| API contract | OpenAPI 3.1 via NelmioApiDocBundle |
+| Frontend | Webpack Encore + Stimulus (Node 24); three legacy panels on Twig + vanilla JS |
+| Tests | PHPUnit 13, Vitest 4, Playwright 1.61, Newman |
+| Logging | Monolog → Graylog 6.3 (GELF), optionally New Relic |
+
+Architecture decisions are recorded as ADRs on Confluence.
 
 ---
 
-## Development
+## Quality gates
 
-### Branches
+Five CI jobs run on every push and PR, and all must be green to merge: static
+analysis (Rector, CS Fixer, PHPStan level 8, Deptrac, Composer audit — one
+parallel leg each), the OpenAPI contract (dump → Spectral lint), PHPUnit through
+paratest with a coverage floor, Playwright plus a Lighthouse installability
+audit, and a Newman API smoke run.
 
-```
-master   ← stable, synced from develop at each release
-develop  ← integration, default for PRs
-feature/fix branches  ← created from develop
-```
+The OpenAPI contract is a gate rather than documentation: real responses are
+validated against the schema documented for the status they returned, so a
+serializer drifting from its documented shape fails the build.
 
-Branches are created from `develop` and merged into it via PR. **Every PR is merged with "Rebase and merge"** (`gh pr merge <n> --rebase`) — the new commits are replayed on the target's tip, keeping both branches linear; merge commits are not used. Realigning two branches that have drifted is likewise done by rebasing and force-pushing, never by merging one into the other.
-
-At release time `develop` is synced onto `master` through a PR merged the same way, and `develop` is then rebased back onto `master` so both refs point at the same commit. **The release tag is created after that sync, never before** — a rebase creates new commit objects, so a tag made on the pre-sync commit would be left on an orphan that no branch can reach.
-
-### Symfony Messenger worker
-
-Two workers: `messenger_worker` (async — `EpisodeRated`, the Trakt imports, `RefreshDiscogsCollection`, `PollLastFmRecentTracks`, `RecalculateStreaks`, `DispatchNotification`, `PollPodcastListens`) and `scheduler_worker` (the `scheduler_default` transport — 10 recurring tasks: backup, weekly report, daily article reset, Discogs refresh, Last.fm poll, streak recompute, search reindex, two notification sweeps, podcast poll). Command:
-
-```
-bin/console messenger:consume async --time-limit=3600 -vv
-bin/console messenger:consume scheduler_default --time-limit=3600 -vv
-```
-
-Routing is defined in `app/config/packages/messenger.yaml`. In the test env the transports are switched to `in-memory://`.
-
-#### Dead-letter queue
-
-A message that exhausts its retries lands in the `failed` transport (queue `series_events_failed`) and stays there. **Nothing consumes it by design** — it is waiting for a person — so nothing surfaces it either, however deep it gets. `make doctor` now reports the depth, and these are the commands behind it:
-
-```bash
-docker compose exec php bin/console messenger:stats          # depth per transport (async, failed)
-docker compose exec php bin/console messenger:failed:retry   # replay them, one prompt each
-docker exec aihm-rabbitmq-1 rabbitmqctl list_queues name messages
-```
-
-**`messenger:failed:show` does not work here.** It needs a receiver that can list and address messages by id, which the Doctrine transport offers and AMQP does not — it answers `The "failed" receiver does not support listing or showing specific messages`. Use `messenger:stats` for the depth and `messenger:failed:retry` to work through them.
-
-#### Is anything consuming?
-
-`GET /api/health` carries a `worker` component that answers this, because nothing else does: the `rabbitmq` probe opens a socket to the broker, and the broker is perfectly happy with nobody consuming. An instance with both workers dead used to report five green components while every import, notification, search-index update and the nightly backup silently stopped.
-
-Each worker writes a heartbeat to Redis from its own run loop, one key per transport. `worker` is `up` only when **every** expected transport has beaten within 5 minutes — all of them, not any, because the failure that prompted this had the async worker alive and the scheduler dead. It reports `degraded` (HTTP 200), never `down`: the instance still serves every request it is asked to, and the fix is restarting a worker rather than shifting traffic away.
-
-Asking RabbitMQ for consumer counts would not work: `scheduler_default` is a Symfony Scheduler transport and never touches the broker, so the worker whose silence actually costs something is invisible from there.
-
-```bash
-curl -s localhost:8080/api/health | jq '.components.worker'
-docker compose restart messenger_worker scheduler_worker
-```
-
-Two things to know. **The heartbeat only starts once the workers run this code**, so after pulling this change they must be restarted or `worker` stays `degraded`. And a single message taking longer than 5 minutes reads as `degraded` while the worker is in fact busy — a deliberate trade, since the reading is informational and the failure worth catching lasts days rather than minutes.
-
-The broker keeps a named volume and a **fixed hostname**, and both are required (see the comment in `docker-compose.yml`). The queues, exchanges and messages have always been durable — Symfony's AMQP transport declares `AMQP_DURABLE` and sets `delivery_mode: 2` — but durability is written to `/var/lib/rabbitmq`, and without a volume that lived in the container's writable layer: a plain `restart` kept everything, while recreating the container (`docker compose down`, an image bump, any edit to the compose file) took the DLQ with it. The hostname matters for the same outcome by a different route: RabbitMQ derives its node name from it and stores each node's database under `mnesia/rabbit@<hostname>`, so with Docker's default (the container id) every recreation would start an empty new node while the old one's data sat untouched beside it in the volume — the mount would look like it was working and the messages would still be gone.
-
-Introducing the volume starts from an **empty broker once**: anything parked in the DLQ at the moment of the upgrade is lost. Check the depth before pulling this change if that matters.
-
-### Naming conventions
-
-| Element | Pattern | Location |
-|---|---|---|
-| Aggregate Root | `Series`, `Task`, `Book`, `Article` | `Domain/Entity/` |
-| Value Object (`final readonly`) | `Rating`, `ISBN`, `CoverUrl`, `TimeSlot` | `Domain/ValueObject/` |
-| Read Model (what a Domain port returns) | `BookMetadata`, `Album`, `ListenedEpisode` | `Domain/ReadModel/` |
-| Command | `CreateSeries`, `LogReadingSession` | `Application/Command/` |
-| Command Handler | `*Handler` | `Application/Handler/` |
-| Query | `GetAllSeries`, `GetSeriesDetail` | `Application/Query/` |
-| Query Handler | `*Handler` | `Application/QueryHandler/` |
-| DTO | `*DTO` | `Application/DTO/` |
-| Repository Interface | `*RepositoryInterface` | `Domain/Repository/` |
-| Repository Implementation | `Doctrine*Repository` | `Infrastructure/Persistence/` |
-| Serializer Normalizer (DTO → JSON) | `*DTONormalizer` | `src/Serializer/` (Glue) |
+Details, including the coverage ratchet procedure and what CI structurally
+*cannot* catch: **[docs/testing.md](docs/testing.md)**.
 
 ---
 
-## Tests
+## Documentation
 
-```bash
-make test               # PHPUnit (Unit + Integration)
-make test-unit          # Domain only
-make test-integration   # integration only
-make test-js            # Vitest (frontend pure helpers, jsdom)
-make test-coverage      # PHPUnit + coverage report + threshold gate
-make test-parallel      # PHPUnit in parallel (paratest) — the CI test-run profile
-make test-e2e           # Playwright (desktop + mobile)
-make test-newman        # Newman/Postman smoke
-```
-
-- **Unit:** `tests/Unit/Module/{Name}/Domain/` — pattern `tests/Unit/Module/Series/Domain/SeriesAggregateTest.php` (gold standard).
-- **Integration:** `tests/Integration/` — a real database + Redis + in-memory transport (`when@test` in `messenger.yaml`).
-- `*ApiTest` tests use `App\Tests\Support\AuthenticatedApiTrait` — the `X-API-Key: test-api-key` header (see `app/.env.test`).
-- **E2E (Playwright)** in `tests-e2e/`, TypeScript. Files matching `*.desktop.spec.ts` (1440×900) or `*.mobile.spec.ts` (Pixel 5 viewport).
-- **Smoke (Newman)** in `tests-e2e/postman/AIHomeManager.postman_collection.json`. Run via `make test-newman` (truncate + newman with `--ignore-redirects`).
-- **JS unit (Vitest)** in `app/assets/tests/*.test.js` — fast jsdom tests for the frontend's pure helpers (labels, formatting, grouping, sorting). They must NOT live under `assets/controllers/`, where the Stimulus `webpackContext` would auto-mount every `.js` as a controller and break the build.
-- **Coverage gate + trend:** `make test-coverage` measures line coverage via pcov and fails below the floor (`COVERAGE_MIN`, default 90; measured 93.66% at the 1.18.0 baseline). CI enforces the same floor, uploads the HTML report as an artifact, and publishes a coverage summary to the job's **GitHub step summary** — current %, floor, baseline and the **run-over-run trend** (Δ vs the previous run, persisted between runs via `actions/cache`). `make test-coverage` prints the same summary to the terminal locally.
-  - **Ratchet the floor:** the floor only moves **up**. When the job-summary trend shows coverage sitting comfortably above a higher number across several runs, raise the floor in one small PR — bump `COVERAGE_MIN` (default in the `Makefile`) **and** the literal `90` in the `tests` job of `.github/workflows/ci.yml` (the two are kept in sync). Never lower it to make a red build pass — add the missing tests instead.
-- **Parallel run:** CI's `tests` job runs the PHPUnit suite through **paratest** across `PARATEST_PROCESSES` workers (default 4), each isolated on its own database (`homemanager_test{n}`, via the `dbname_suffix: '_test{TEST_TOKEN}'` in `doctrine.yaml`) and its own Redis logical DB (`tests/bootstrap.php`), so integration tests never collide on the shared MySQL/Redis. Per-worker coverage is merged into one clover and the floor still gates. `make test` stays **sequential** (fast for TDD); `make test-parallel` mirrors CI locally — it provisions the token databases (as root), migrates each, then runs paratest with coverage.
-- **E2E/Newman prerequisite:** `API_KEY=e2e-test-key` in `app/.env.local`, Discogs/Last.fm/Google placeholders set to anything non-empty (DI will not boot with empty VOs).
-
----
-
-## Static analysis
-
-```bash
-make analyse              # CS Fixer (dry-run) + PHPStan + Deptrac
-make phpstan              # PHPStan analyse
-make phpstan-baseline     # regenerate the baseline after fixing errors
-make cs-check / cs-fix    # PHP CS Fixer
-make rector-dry / rector  # Rector
-make deptrac              # Deptrac architecture boundaries
-```
-
-The PHPStan baseline (`app/phpstan-baseline.neon`) holds the existing debt. New errors require a fix or an explicit addition to the baseline via `make phpstan-baseline`.
-
-Deptrac formalizes the hexagonal boundaries: every module has separate Domain/Application/Infrastructure layers, plus a cross-cutting `Shared` kernel layer. Domain → [`Shared`] (otherwise zero dependencies beyond PHP core), cross-module coupling forbidden. It runs with **zero violations and zero `skip_violations`** — the four grandfathered exceptions were resolved rather than re-baselined, so a new violation is a hard failure with nothing to hide behind.
-
-CI (`.github/workflows/ci.yml`) runs five jobs on every push and PR: `static-analysis` (Rector dry-run + CS Fixer + PHPStan level 8 + Deptrac + Composer audit), `openapi-contract` (dump `openapi.json` → Spectral lint → upload the spec artifact), `tests` (PHPUnit + the coverage threshold gate), `e2e-playwright` (Playwright desktop + mobile), and `e2e-newman` (Newman API smoke). The E2E jobs start the application via `symfony server:start` (env `test`, `in-memory://` transport) and upload HTML reports as artifacts (30-day retention).
-
----
-
-## Continuous integration (CI) pipeline
-
-`.github/workflows/ci.yml` runs on every push to `master`/`develop` and on every PR. A **`concurrency` group per ref** (`ci-${{ github.ref }}`, `cancel-in-progress: true`) cancels a superseded run the moment a newer commit lands on the same branch — without touching runs on other branches.
-
-**Jobs** (all must be green to merge):
-
-| Job | Gate | Observed | `timeout-minutes` |
-|---|---|---|---|
-| `static-analysis` | Rector · CS Fixer · PHPStan L8 · Deptrac · Composer audit — **one parallel matrix leg per tool** (`fail-fast: false`, so every failure surfaces in one run) | ~20–51 s / leg | 6 |
-| `openapi-contract` | dump `openapi.json` → Spectral lint → upload the spec artifact | ~30 s | 5 |
-| `tests` | PHPUnit (unit + integration) via **paratest** + the coverage floor gate | ~2m15s | 12 |
-| `e2e-playwright` | Playwright desktop + mobile + the Lighthouse installability audit | ~3m10s | 15 |
-| `e2e-newman` | Newman API smoke | ~1m30s | 7 |
-
-**Dependency caching** (keyed on lockfiles / versions, so the right cache is invalidated on change):
-- **Composer** — the download dir + `app/vendor`, keyed on `composer.lock` (all PHP jobs).
-- **npm** — the npm cache via `setup-node`, keyed on the relevant `package-lock.json` (`app/` for Encore, root for Playwright/Newman).
-- **Playwright browsers** — `~/.cache/ms-playwright`, keyed on the exact `@playwright/test` version (a bump re-downloads a matching build).
-- **Coverage history** — a one-line file rolled across runs to feed the coverage trend.
-
-**Parallelism**: PHPUnit runs across `PARATEST_PROCESSES` (4) workers, each isolated on its own database (`homemanager_test{token}`) + Redis logical DB; the static-analysis tools run as parallel matrix legs; the `concurrency` block drops superseded runs.
-
-**Coverage trend + ratchet**: the `tests` job publishes a coverage summary (current % / floor / baseline / Δ-vs-previous-run / Δ-vs-baseline) to the GitHub job summary and gates on the floor — see [Tests](#tests) for the ratchet procedure.
-
-**Observability**: GitHub surfaces per-job and per-step durations natively in the Actions UI; the `tests` job additionally publishes its coverage metrics + wall-clock to the job summary. The `timeout-minutes` above were **re-based to this (post-caching, post-parallelism) profile** with deliberate headroom — a flaky timeout is worse than a loose one, so each sits well under 25 % utilisation at the observed peak and is raised (never lowered reactively) only if a job later approaches 70 % of its bound.
-
----
-
-## Monitoring
-
-The `graylog + mongodb + opensearch` stack runs under the Compose `monitoring` profile. `make up` starts the **full** stack (including monitoring); `make min-up` is the lean variant without monitoring. You can also control the profile manually:
-
-```bash
-make monitoring-up           # start (if you previously ran lean via make min-up)
-make monitoring-bootstrap    # GELF UDP input + index sets + streams (idempotent)
-make monitoring-logs         # view
-make monitoring-down         # stop
-```
-
-After the first start, log in to http://localhost:9000 (admin/admin). `make monitoring-bootstrap` creates the GELF UDP input (port 12201), the `auth-events` (90-day retention) and `series-events` (30-day) index sets, plus streams filtering by `channel`. A non-running Graylog does not crash the application — the `series`/`auth` log channels are then silently dropped (graceful degrade).
-
-`NewRelicMonologHandler` (`src/Module/Series/Infrastructure/Logging/`) — graceful degrade when the `newrelic` extension is absent (logs are not sent, but the application does not fail).
-
-### MySQL backup
-
-The Symfony Scheduler runs `App\Application\Scheduled\BackupDatabase` daily at 03:00:
-
-```bash
-make backup-now                                         # ad-hoc backup
-make restore BACKUP=backups/homemanager-2026-06-01.sql.gz
-```
-
-Retention: 30 daily + 12 monthly (the 1st of each month is kept). Runbook: Confluence → Disaster recovery — MySQL restore.
-
-The dump runs as `bash -o pipefail -c "mysqldump … | gzip …"`. POSIX `sh` reports only the **last** pipeline member's exit code, so a failed `mysqldump` (MySQL down, bad credentials, missing `PROCESS` privilege) would be masked by a successful `gzip` and leave a truncated archive that looks like a healthy backup. `bash` is therefore installed in `docker/php/Dockerfile` — **an image built before that line was added must be rebuilt**:
-
-```bash
-docker compose build php && docker compose up -d php messenger_worker scheduler_worker
-```
-
-Without the rebuild the scheduled backup aborts with `bash: not found`. That failure is loud, not silent (an `error` log entry plus a Messenger retry and DLQ), but no backup is produced until the image is refreshed.
-
-#### Freshness check
-
-The two guards above name causes. `make doctor` additionally checks the **outcome**, because the causes worth guarding against are only the ones already known — and the failure that actually happened twice was one nobody had named:
-
-| Check | Threshold | Verdict |
-|---|---|---|
-| Newest backup's size | > 1024 B | `fail` — an empty dump (20 B is gzip's empty stream); restoring from it yields nothing |
-| Newest backup's **age** | < 48 h (`BACKUP_MAX_AGE_HOURS`) | `fail` — the schedule has stopped producing backups |
-| Retained backups that are empty | any | `warn` — those days have no restore point, but today's is intact |
-
-The age check exists because a schedule that simply **stops firing** leaves a perfectly valid dump in place, and a size-only check passes it indefinitely. That is not hypothetical: nothing ran between 29.07 and 03.08.2026 and `make doctor` reported `OK` throughout.
-
-**48 hours, not 24**, because the 03:00 cron is not when the backup actually runs on a workstation that is powered off overnight — the Scheduler fires the missed window whenever the host next comes up, so real dumps land anywhere between 07:00 and 22:00. A 24-hour threshold would cry wolf on an ordinary day, and a check that is routinely wrong is one people stop reading.
-
-When it fails:
-
-```bash
-make backup-now                    # take one immediately — this is the restore point you are missing
-docker compose ps scheduler_worker # then find out why the schedule stopped
-docker compose logs scheduler_worker | grep -i backup
-```
-
-To reproduce either verdict without waiting two days or touching the real archive, point the check at a throwaway directory — `BACKUP_DIR` and `BACKUP_MAX_AGE_HOURS` exist for exactly that:
-
-```bash
-mkdir -p /tmp/bk && head -c 20000 /dev/urandom > /tmp/bk/homemanager-2026-01-01.sql.gz
-BACKUP_DIR=/tmp/bk bash scripts/doctor.sh   # exits 1
-```
-
-Age is read from the **date in the filename**, not from mtime. The two normally agree, but copying, restoring or syncing the backup directory stamps every file with "now" — so an mtime check would call a months-old archive perfectly fresh, which is the exact class of wrong-but-reassuring answer the check exists to remove. The filename is also what `make restore BACKUP=…` takes.
-
----
-
-## Global search (OpenSearch)
-
-Global search runs on one of two interchangeable backends behind the same domain port, selected by `SEARCH_ENGINE_BACKEND`:
-
-| Value | Backend | Notes |
-|---|---|---|
-| `opensearch` (current) | OpenSearch 2.x via `app.search_client` | Polish stemming (`analysis-stempel`), diacritic-free matching, fuzzy search, facets. |
-| `fulltext` | MySQL `search_documents` + `MATCH … AGAINST` | No extra service. Title boosting and per-type facets, no typo tolerance. The rollback target, and the automatic fallback. |
-
-The flag is read by a **factory**, not a container alias (an alias is resolved at compile time and cannot read an env var), so switching backends is a restart, not a deploy. An unknown value is rejected at boot rather than silently defaulted — an operator who mistypes `opensarch` would otherwise never learn the switch did nothing.
-
-Two defaults sit behind the flag and they differ on purpose. `app/.env` ships `opensearch` — that is the configuration the project actually runs. The container parameter `app.search_backend.default` stays `fulltext`, so an environment with no `SEARCH_ENGINE_BACKEND` set at all still boots on the backend that needs no extra service. `app/.env.test` also pins `fulltext`: most of the search test suite seeds `search_documents` with SQL, and the CI E2E/Newman jobs run no engine, so inheriting the cutover would leave them exercising a backend they are not set up for. The engine path is covered by the tests that boot it deliberately.
-
-### Provisioning and filling the index
-
-```bash
-make search-index       # create the index + alias if missing (idempotent, safe on every deploy)
-make search-reindex     # rebuild into a new index and move the alias in one atomic step
-make search-populate    # fill the active backend's index from the source modules
-```
-
-Everything addresses the index through the **alias** (`SEARCH_INDEX_ALIAS`, default `search_documents`), never a physical index name — mappings are largely immutable once a field exists, so a schema change means building a new index and moving the alias. `make search-index` is the search-side counterpart of `doctrine:migrations:migrate`; run it on deploy. Beyond that the index maintains itself: the Scheduler rebuilds it every 15 minutes, and entity changes that emit domain events are indexed incrementally within seconds.
-
-### Cutover and rollback
-
-Switching backends is a five-step procedure, and the order matters — flipping the flag before the index is filled would leave search answering from an empty engine (and, thanks to the fallback, doing so *quietly*).
-
-```bash
-# 1. Build the index the new backend will read (idempotent).
-make search-index
-
-# 2. Fill it from the source modules, and check the count against what you expect.
-make search-populate
-
-# 3. Validate relevance while still serving the old backend — the engine is
-#    readable before anything reads from it in anger.
-curl -s -H "X-API-Key: $API_KEY" 'http://localhost/api/v1/search?q=<a phrase you know the answer to>'
-
-# 4. Flip the flag and restart. SEARCH_ENGINE_BACKEND=opensearch in .env.local
-#    (or the deployment's environment), then:
-docker compose restart php messenger_worker scheduler_worker
-
-# 5. Observe. Any degrade is logged as a warning, so grep the logs for it:
-docker compose logs php | grep 'Search degraded to the fallback engine'
-```
-
-**Rollback is one line and needs no data work:** set `SEARCH_ENGINE_BACKEND=fulltext` and restart. The MySQL index was never allowed to go stale — the dual write keeps it current for exactly this moment — so FULLTEXT answers immediately with the same result shape, only ranked less well. Nothing has to be rebuilt, re-migrated or re-synced, which is why the flag is worth having at all rather than deleting the old backend on cutover day.
-
-Worth knowing while observing step 5: a degrade does **not** wait for a rollback. If the engine becomes unreachable the fallback already serves FULLTEXT automatically; the rollback is for the case where the engine is *up* but wrong — bad relevance, a broken mapping, a half-finished reindex — which no automatic mechanism can detect for you.
-
-### Resilience — what an engine outage costs
-
-OpenSearch is treated as **optional infrastructure**, and three mechanisms keep it that way:
-
-- **Reads degrade, they do not fail.** With `opensearch` selected, the engine is wrapped in a fallback to MySQL FULLTEXT: an unreachable engine costs relevance (no fuzzy matching, weaker ranking) but still answers, logging a `warning` per degraded query. Only a failure of *both* backends surfaces as an error — reporting "no results" when search is broken would be a lie about the library's contents.
-- **The standby index stays current.** Selecting `opensearch` also turns on a dual write, so the MySQL `search_documents` table keeps being maintained. Without it the table would freeze the day the flag was flipped and the fallback would serve a months-old library — plausible, wrong, and far harder to notice than an error.
-- **Health reports `degraded`, not `down`.** `GET /api/health` returns HTTP 200 with `search: degraded` when the engine is unreachable, so an orchestrator does not pull a working instance out of rotation over a search outage.
-
-### Recovery
-
-**The index is not backed up — it is rebuilt.** Every document in it is derived from the source module tables, so the MySQL backup already contains everything needed; a snapshot of the engine would only add a second thing to keep in sync. To recover from a lost, corrupted or half-migrated index:
-
-```bash
-make search-index       # recreate the index + alias
-make search-populate    # refill from the source modules
-```
-
-Search stays available throughout: the rebuild is mark-and-sweep (documents are upserted, then anything not touched by the run is deleted), so the index answers queries the whole time rather than going empty for the duration. If the engine is gone entirely, set `SEARCH_ENGINE_BACKEND=fulltext` and restart — search keeps working on MySQL while the engine is rebuilt.
-
-### Growth and retention
-
-The index holds one document per searchable entity, not a history — its size tracks the size of the library, not the passage of time, and the 15-minute rebuild sweeps documents whose source rows are gone. There is nothing to prune on a schedule. The one thing worth watching is that a **superseded index** left behind by an interrupted `make search-reindex` is dropped; a completed reindex removes it itself.
-
----
-
-## Project structure
-
-```
-.
-├── app/                            ← Symfony root
-│   ├── assets/                     ← Webpack Encore source
-│   │   ├── app.js
-│   │   ├── bootstrap.js
-│   │   ├── util.js                 ← ES module helpers
-│   │   ├── controllers/            ← Stimulus controllers (auto-mounted)
-│   │   ├── {series,goals,movies,…}/← pure helpers + view builders (NOT auto-mounted)
-│   │   ├── tests/                  ← Vitest unit tests
-│   │   └── styles/app.css
-│   ├── bin/console
-│   ├── config/
-│   │   └── packages/
-│   │       ├── security.yaml       ← API Key authenticator
-│   │       ├── messenger.yaml      ← async transport, routing
-│   │       └── rate_limiter.yaml
-│   ├── deptrac.yaml                ← architecture boundary config
-│   ├── migrations/
-│   ├── public/
-│   │   ├── index.php
-│   │   ├── build/                  ← Encore build output (gitignored)
-│   │   └── js/                     ← vanilla JS (Tasks/Articles/Music)
-│   ├── src/
-│   │   ├── Controller/
-│   │   │   └── Api/                ← version-agnostic API controllers (imported twice)
-│   │   ├── EventListener/
-│   │   ├── Health/
-│   │   ├── Http/                   ← RateLimitedHttpClient
-│   │   ├── Logging/                ← Monolog processors, request-id holder
-│   │   ├── Messaging/              ← typed Query/Command bus + Messenger middleware
-│   │   ├── Module/                 ← 15 modules (Series, Tasks, Books, Articles, Music,
-│   │   │   │                          YouTubeProgress, Goals, Search, Dashboard,
-│   │   │   │                          Movies, Notifications, Podcasts, Insights, Budget,
-│   │   │   │                          Recipes)
-│   │   │   └── {Name}/{Domain,Application,Infrastructure}/
-│   │   ├── Schedule.php
-│   │   ├── Security/
-│   │   ├── Serializer/             ← *DTONormalizer (DTO → JSON)
-│   │   └── Shared/                 ← shared kernel (cross-context VOs + contracts)
-│   ├── templates/                  ← Twig
-│   ├── tests/
-│   │   ├── Unit/
-│   │   └── Integration/
-│   ├── webpack.config.js
-│   ├── composer.json
-│   └── phpunit.dist.xml
-├── docker/                         ← Dockerfiles, nginx config
-├── docker-compose.yml
-├── scripts/
-│   └── graylog-bootstrap.sh
-├── tests-e2e/                      ← Playwright + Newman
-│   └── postman/
-├── Makefile
-├── CHANGELOG.md
-├── CLAUDE.md                       ← context for Claude Code
-└── README.md
-```
-
----
-
-## API
-
-### Versioning and documentation
-
-The REST surface is served under the versioned base **`/api/v1`**, with the bare **`/api`** prefix kept as a backward-compatible alias — both resolve to the same controllers and return byte-identical responses (ADR-008). Versioning is by path prefix, not by an `Accept` header. A breaking change would ship as `/api/v2`; `/api/v1` is never mutated in place.
-
-The whole contract is generated as **OpenAPI 3.1** from the controllers' attributes and published without a key:
-
-| What | Where |
+| Where | What |
 |---|---|
-| Swagger UI (interactive) | `/api/doc` |
-| Redoc | `/api/doc/redoc` |
-| Raw spec (JSON) | `/api/doc.json` |
-
-The contract is a CI gate, not just documentation: a dedicated job dumps the spec, lints it with Spectral, and PHPUnit validates real responses against the schema documented for the status code they actually returned — so a normalizer drifting from its documented shape fails the build. Locally: `make openapi-dump` / `make openapi-lint`.
-
-### Authentication
-
-The `^/api/*` endpoints are protected by the `api` firewall (stateless, custom authenticator) — the pattern covers both `/api/v1/*` and the `/api/*` alias. Add the header:
-
-```
-X-API-Key: <value from .env.local>
-```
-
-Missing / invalid key → `401 {"error": "..."}`.
-
-Exceptions: `GET /api/health` — a public readiness probe (MySQL + Redis + RabbitMQ + OpenSearch + async worker + a 3-state disk probe) — and the three API-doc routes above.
-
-The frontend pages (`/`, `/series`, …) and the `/auth/google*`, `/auth/discogs*`, `/auth/trakt*`, `/auth/spotify*` OAuth endpoints are served by the separate `main` firewall and require **HTTP Basic** (`FRONTEND_USER` / `FRONTEND_PASSWORD_HASH`): every page renders `API_KEY` into a `<meta name="api-key">` tag, so leaving them anonymous would hand out full `/api/*` access.
-
-The two firewalls are disjoint — `/api/*` still authenticates with `X-API-Key` alone and never needs the Basic credentials, and `/api/health` stays public. A browser that authenticated once resends the credentials automatically for the rest of the realm, so the OAuth callbacks work unchanged.
-
-### Example — Series
-
-```bash
-# List of shows
-curl -H "X-API-Key: $API_KEY" http://localhost:8080/api/series
-
-# Create a show
-curl -X POST http://localhost:8080/api/series \
-  -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Severance"}'
-
-# Rate an episode (scale 1–10)
-curl -X POST http://localhost:8080/api/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/rate \
-  -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"rating": 9}'
-```
-
-### Export — Books / Articles / Tasks
-
-```bash
-curl -H "X-API-Key: $API_KEY" "http://localhost:8080/api/books/export?format=csv" -o books.csv
-curl -H "X-API-Key: $API_KEY" "http://localhost:8080/api/books/export?format=pdf" -o books.pdf
-```
-
-### Notifications — enabling the daily digest
-
-Notification types are opt-in/out per type and per channel. Every type is **on by default except the daily digest** (`daily_digest`), which ships **off** — with every type enabled it would duplicate the individual reminders (task deadlines, the daily article, streak warnings) it summarises. Turn it on when you want the once-a-day summary instead of, or in addition to, the per-item notifications.
-
-Two ways to enable it:
-
-- **UI** — open `/notifications`, find the **Podsumowanie dnia** (Daily summary) row and tick its enable checkbox. Optionally pick the channels (e-mail / push) and quiet hours on the same row.
-- **API** — flip the type on directly:
-
-  ```bash
-  curl -X PATCH http://localhost:8080/api/notifications/preferences/daily_digest/enabled \
-    -H "X-API-Key: $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"enabled": true}'
-  ```
-
-  Read back the current preferences (every type, with its channels and quiet hours) any time:
-
-  ```bash
-  curl -H "X-API-Key: $API_KEY" http://localhost:8080/api/notifications/preferences
-  ```
-
-The digest is produced by the twice-daily scheduler sweep, so it starts arriving on the next run after you enable it. Disabling it again is the same call with `{"enabled": false}`.
-
-Full list of endpoints: `make routes`. Detailed API documentation: Confluence → API documentation.
-
----
-
-## Progressive Web App (PWA)
-
-The web frontend is an installable PWA (epic HMAI-344): a Web App Manifest + maskable icons (Add-to-Home-Screen), a Workbox Service Worker with an offline mode, an offline write queue, and Web Push. Everything is built inside the existing Encore pipeline — there is no separate bundler.
-
-### Service Worker
-
-- **Source:** `app/assets/pwa/sw.js`, built by Workbox `InjectManifest` and emitted to the site root as `public/sw.js` (a gitignored build artifact). It is served from the root **on purpose** so its scope is the whole origin (`/`) — a hashed `/build/` path would narrow the scope and break registration.
-- **Emitted in production builds only.** `make assets-prod` / `npm run build` produce `public/sw.js`; a dev build does not, and registration fails soft (nothing breaks in `make assets`).
-- **Registered** from `app.js` via `registerPushServiceWorker()` on every page.
-- **Caches:**
-  - *Precache* (`workbox-precache-*`) — the content-hashed app-shell (Encore statics + `offline.html`); self-invalidating via Workbox revisions + `cleanupOutdatedCaches()`.
-  - *Runtime* `aihm-runtime-api-reads-v1` — `GET /api/*`, NetworkFirst, 200-only, bounded (60 entries / 24 h).
-  - *Runtime* `aihm-runtime-pages-v1` — navigations, NetworkFirst, bounded (30 entries / 7 d); `/auth/*` and `/api/*` are denylisted (always network).
-  - *Queue* `api-writes` — offline `POST`/`PATCH`/`DELETE` (Background Sync, IndexedDB), replayed on reconnect.
-
-### Update strategy & cache versioning
-
-- `skipWaiting()` + `clientsClaim()` make a newly installed worker take over immediately, so a shipped app-shell update is never stranded behind the old worker.
-- `nginx` serves `/sw.js` with `Cache-Control: no-cache`, so the browser revalidates the worker script on every navigation and a new deploy is picked up at once (see `docker/nginx/default.conf`).
-- The **runtime** read caches persist by design, so they carry an explicit lever: bump `CACHE_VERSION` in `sw.js` (`v1` → `v2`) after a change that would make a stale cached read render wrong (e.g. an `/api` response-shape change). On the next activation a no-zombie sweep deletes every runtime bucket that is not current (old versions + the pre-versioning names). The `api-writes` queue is never swept — dropping it would lose a user's offline writes.
-
-### Scope, headers & CSP
-
-- Scope is `/` (root-served worker); `nginx` also sends `Service-Worker-Allowed: /` on `/sw.js` to pin the intent explicitly (redundant for a root-served worker, but future-proof).
-- A location-level `add_header` in nginx **replaces** the inherited server-level ones, so the `/sw.js` location re-declares all four security headers — `/sw.js` stays consistent with `SecurityHeadersListener` and every other response (verified by `SecurityHeadersTest`).
-- There is **no `Content-Security-Policy`** header in this project, so the same-origin Service Worker needs no CSP allowance; nothing in `SecurityHeadersListener` had to change for the PWA.
-
-### Emergency kill-switch
-
-If a bad worker ever traps clients on stale content, deploy a **self-unregistering** `public/sw.js` (overriding the Workbox build) and ship it — the `no-cache` header guarantees every client fetches it on the next navigation:
-
-```js
-// public/sw.js — emergency kill-switch. Unregisters itself and drops all caches.
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    await self.registration.unregister();
-    await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
-    const clients = await self.clients.matchAll({ type: 'window' });
-    clients.forEach((c) => c.navigate(c.url)); // reload each tab, now uncontrolled
-  })());
-});
-```
-
-Once every client has updated, revert to the normal Workbox build.
-
-### Testing
-
-- E2E: `tests-e2e/pwa.mobile.spec.ts` (Pixel 5) — manifest installability, SW registers/activates/controls, offline serves cached view + offline page. Runs against a **production** build (the SW only exists there), opting into the worker with `test.use({ serviceWorkers: 'allow' })`.
-- CI gate: a Lighthouse `installable-manifest` audit in the `e2e-playwright` job (`@lhci/cli@0.13.0` pinned — Lighthouse 12 removed the PWA category; config `lighthouserc.json`). A broken manifest / lost icons / a dead SW drops the score below 1 and blocks the merge.
-
----
-
-## Links
-
-- **Confluence hub:** https://honemanager.atlassian.net/wiki/spaces/H/pages/46661633
-- **Repository:** https://github.com/zlotylesk/AIHomeManager
-- **Claude Code context documentation:** [`CLAUDE.md`](CLAUDE.md)
-- **Changelog:** [`CHANGELOG.md`](CHANGELOG.md)
+| [docs/configuration.md](docs/configuration.md) | Every environment variable, how to obtain each key, the first OAuth connection |
+| [docs/development.md](docs/development.md) | Branches and releases, naming conventions, project layout, the full Makefile |
+| [docs/testing.md](docs/testing.md) | Test layers, coverage gate and ratchet, static analysis, the CI pipeline |
+| [docs/operations.md](docs/operations.md) | Workers, the dead-letter queue, monitoring, backups and their freshness check |
+| [docs/search.md](docs/search.md) | Search backends, provisioning, cutover and rollback, recovery |
+| [docs/api.md](docs/api.md) | Versioning, authentication, pagination, rate limits, examples |
+| [docs/pwa.md](docs/pwa.md) | Service Worker, offline reads and the offline write queue, push |
+| [`CLAUDE.md`](CLAUDE.md) | Working context for Claude Code — current rules and conventions |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history |
+| [Confluence](https://honemanager.atlassian.net/wiki/spaces/H/pages/46661633) | ADRs, module pages, runbooks |
 
 ---
 
 ## License
 
-Private / single-user project. No public license — contact the author before use.
+Private, single-user project. No public license — contact the author before use.
