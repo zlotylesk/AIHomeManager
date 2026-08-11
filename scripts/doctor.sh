@@ -107,7 +107,10 @@ fi
 echo ""
 echo "== Backups =="
 backup_dir="${BACKUP_DIR:-backups}"
+# The same two variables App\Monitoring\Probe\BackupFreshnessProbe reads, so the
+# nightly alert and this command cannot disagree about whether a backup is fresh.
 max_age_hours="${BACKUP_MAX_AGE_HOURS:-48}"
+min_bytes="${BACKUP_MIN_BYTES:-1024}"
 
 # Newest by the date in the FILENAME, not by mtime.
 #
@@ -124,7 +127,7 @@ if [ -z "$newest" ]; then
     check_warn "no backup files yet (run 'make backup-now')"
 else
     size=$(wc -c < "$newest" | tr -d ' ')
-    if [ "$size" -gt 1024 ]; then
+    if [ "$size" -ge "$min_bytes" ]; then
         check_ok "newest backup $(basename "$newest") is ${size}B"
     else
         check_fail "newest backup $(basename "$newest") is only ${size}B — an empty dump (a 20-byte file is gzip's empty stream); restore from it would yield nothing"
@@ -224,6 +227,46 @@ else
         check_warn "${dlq} message(s) parked in the dead-letter queue — a failed job is waiting for you (inspect: 'docker compose exec php bin/console messenger:stats'; retry: '… messenger:failed:retry')"
     fi
 fi
+
+# Everything above detects. This one asks whether detection can reach anybody.
+#
+# The monitoring sweep is only as useful as the mailbox at the end of it, and the
+# committed app/.env ships MAILER_DSN=null://null — a transport that accepts
+# every message and sends none, reporting success as it does so. An instance left
+# on that default has working probes, a correct alert state file, and no
+# alerting at all: exactly the shape of failure the alerting exists to end, one
+# level up.
+#
+# Warnings, not failures, and for the reason the DLQ check gives: a laptop that
+# does not e-mail itself is a correctly configured laptop, and a check that is
+# red on every dev box stops being read. It still has to be said out loud, since
+# nothing else ever will.
+echo ""
+echo "== Alerting =="
+mailer_dsn=$(grep -E "^MAILER_DSN=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+case "$mailer_dsn" in
+    "")
+        check_warn "MAILER_DSN not set in .env.local — falling back to null://null in app/.env, which accepts every alert and delivers none; monitoring runs but nobody is told (docs/operations.md, 'Failure alerting')"
+        ;;
+    null://*)
+        check_warn "MAILER_DSN is ${mailer_dsn} — the null transport accepts every alert and delivers none; monitoring runs but nobody is told"
+        ;;
+    *)
+        check_ok "MAILER_DSN configured (operational alerts have somewhere to go)"
+        ;;
+esac
+
+# A real transport pointed at the placeholder inbox is the same outcome by a
+# different route, so it is worth its own line rather than being folded above.
+mail_to=$(grep -E "^NOTIFICATIONS_MAIL_TO=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+case "$mail_to" in
+    ""|owner@localhost)
+        check_warn "NOTIFICATIONS_MAIL_TO is the placeholder (owner@localhost) — alerts would be addressed to a mailbox nobody reads"
+        ;;
+    *)
+        check_ok "NOTIFICATIONS_MAIL_TO set to a real address"
+        ;;
+esac
 
 echo ""
 echo "== Summary =="

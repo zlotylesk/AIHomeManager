@@ -119,7 +119,7 @@ Two of them, and they consume different things:
 | Container | Transport | Carries |
 |---|---|---|
 | `messenger_worker` | `async` (RabbitMQ) | Trakt imports, Discogs refresh, Last.fm and Spotify polls, streak recompute, notification dispatch, incremental search indexing |
-| `scheduler_worker` | `scheduler_default` (Symfony Scheduler) | 10 recurring tasks — nightly backup, weekly report, daily article reset, Discogs refresh, Last.fm poll, streak recompute, search reindex, two notification sweeps, podcast poll |
+| `scheduler_worker` | `scheduler_default` (Symfony Scheduler) | 11 recurring tasks — nightly backup, weekly report, daily article reset, Discogs refresh, Last.fm poll, streak recompute, search reindex, two notification sweeps, podcast poll, and the monitoring sweep, which runs inline here rather than being routed (see [Failure alerting](#failure-alerting)) |
 
 ```bash
 docker compose exec php bin/console debug:scheduler     # the recurring tasks and their next run
@@ -169,8 +169,9 @@ and the failure worth catching lasts days rather than minutes.
 
 A message that exhausts its retries lands in the `failed` transport (queue
 `series_events_failed`) and stays there. **Nothing consumes it by design** — it
-is waiting for a person — so nothing surfaces it either, however deep it gets.
-`make doctor` reports the depth; these are the commands behind it:
+is waiting for a person. The monitoring sweep is what surfaces it now (the
+`queue:failed` alert); `make doctor` reports the depth on demand, and these are
+the commands behind both:
 
 ```bash
 docker compose exec php bin/console messenger:stats          # depth per transport
@@ -227,6 +228,150 @@ This Graylog OpenSearch is a **different instance** from the one global search
 uses — different lifecycle, different retention, and the search one starts with
 the lean stack too.
 
+## Failure alerting
+
+Detection was never the missing part. The health endpoint has known the state of
+six components for a long time, the backup job logs its own failures, the DLQ
+counts its own depth — and each of those went somewhere nobody was looking. The
+alerter is the last metre: every five minutes it asks each probe what is wrong
+and e-mails the owner about anything that **changed**.
+
+```bash
+make monitor-run       # one sweep now, and print what it found
+```
+
+### What is watched
+
+| Alert key | Source | Fires when | Severity |
+|---|---|---|---|
+| `health:mysql` / `health:redis` / `health:rabbitmq` | `HealthChecker` | the component is `down` | critical |
+| `health:search` / `health:worker` | `HealthChecker` | the component is `degraded` | warning |
+| `health:disk` | `HealthChecker` | ≥ 80 % used → warning, ≥ 95 % → critical | both |
+| `backup:missing` | `BACKUP_DIR` | no `homemanager-*.sql.gz` at all | critical |
+| `backup:stale` | `BACKUP_DIR` | the newest dump is older than `BACKUP_MAX_AGE_HOURS` | critical |
+| `backup:empty` | `BACKUP_DIR` | the newest dump is recent but under `BACKUP_MIN_BYTES` | critical |
+| `queue:failed` | `failed` transport | depth ≥ `MONITORING_DLQ_THRESHOLD` | warning |
+| `probe:*` | the monitor itself | a probe threw instead of answering | critical |
+
+The health probe is asked **in process**, not over HTTP. An HTTP call would put
+nginx, the firewall and the network between the alerter and the thing it is
+reporting on, and would blame the application for their failures. `/api/health`
+still exists and is the better target for an *external* uptime monitor, which is
+the job HTTP is genuinely good at.
+
+The backup thresholds are read from the same two variables `scripts/doctor.sh`
+uses, and age is taken from the **date in the filename** for the same reason —
+copying, restoring or syncing the backup directory stamps every file with "now",
+so an mtime check calls a months-old archive perfectly fresh.
+
+### When you get mail
+
+Only on a change of state, never on the state itself:
+
+| Transition | Subject | Meaning |
+|---|---|---|
+| firing | `[AIHM] CRITICAL — …` | first time this was seen |
+| escalated | `[AIHM] ESCALATED to CRITICAL — …` | already announced, and it got worse |
+| resolved | `[AIHM] RESOLVED — …` | it stopped, and how long it lasted |
+
+A failure standing for a week costs one e-mail, not two thousand — otherwise the
+channel becomes noise and the next real alert is the one that gets ignored. A
+severity that **rises** is announced again, because a disk at 82 % and a disk at
+96 % are different situations. A severity that falls is not: the thing is still
+broken.
+
+Nothing was delivered means nothing was announced. An alert no channel accepted
+is left un-recorded and retried on the next sweep, so a mail outage delays an
+alert rather than swallowing it.
+
+### Two rules that look like exceptions
+
+**Quiet hours do not apply.** Not by an opt-out flag — operational alerting does
+not go through the Notifications module at all, so there is no quiet-hours rule
+in the path to exempt. Quiet hours exist because a held *reminder* announces a
+deadline that may already have passed; infrastructure is the opposite case,
+where delay costs rather than saves.
+
+**Nothing here touches MySQL, Redis or RabbitMQ.** The Notifications dispatch
+engine reads a preference row and writes a notification row before sending,
+which is right for user notifications and fatal here: it could not announce that
+the database is down, because announcing it needs the database. Alerts go
+straight through Symfony Mailer, and the "already announced" set is a JSON file
+on local disk (`var/monitoring/alert-state.json`, or `MONITORING_STATE_FILE`).
+The e-mail body is built in PHP rather than rendered from a Twig template, for
+the same reason: fewest moving parts on the path that runs when everything else
+is already broken.
+
+### What to do about each alert
+
+Every alert carries a first step in its body. The short version:
+
+| Alert | First move |
+|---|---|
+| `health:mysql` | `make logs-mysql`; nothing writes until it is back |
+| `health:redis` | rating averages, rate limiting and read caches are degraded; worker heartbeats stop being recorded |
+| `health:rabbitmq` | `make logs-rabbitmq`; check the named volume **and** the fixed hostname |
+| `health:search` | not user-visible — global search already fell back to FULLTEXT — but the index is going stale |
+| `health:worker` | `docker compose ps`; while it stands, imports, reindexing, notifications and the nightly backup are all stopped |
+| `health:disk` | above 95 % MySQL cannot flush or write binlogs; `BACKUP_DIR` is usually the largest thing to prune |
+| `backup:*` | `make backup-now`, then `make doctor` for the fuller picture |
+| `queue:failed` | `messenger:stats` for the depth, `messenger:failed:retry` to drain — see [Dead-letter queue](#dead-letter-queue) |
+| `probe:*` | nothing that probe watches is being monitored while this stands; the body names the exception |
+
+### Configuration
+
+| Variable | Default | What it sets |
+|---|---|---|
+| `NOTIFICATIONS_MAIL_FROM` / `_TO` | — | sender and recipient, shared with notification e-mails |
+| `BACKUP_MAX_AGE_HOURS` | 48 | how old the newest dump may be |
+| `BACKUP_MIN_BYTES` | 1024 | below this a dump cannot be real |
+| `MONITORING_DLQ_THRESHOLD` | 1 | dead-letter depth worth an e-mail |
+| `MONITORING_STATE_FILE` | `var/monitoring/alert-state.json` | where the announced set is kept |
+
+`MAILER_DSN` ships as `null://null`, which accepts everything and sends nothing.
+**An instance without a real `MAILER_DSN` has monitoring and no alerting** —
+that is the one setting whose absence this whole section cannot survive, so
+`make doctor` says so out loud:
+
+```
+== Alerting ==
+  !! MAILER_DSN not set in .env.local — falling back to null://null …
+  !! NOTIFICATIONS_MAIL_TO is the placeholder (owner@localhost) …
+```
+
+Warnings rather than failures, because a laptop that does not e-mail itself is a
+correctly configured laptop and a check that is red on every dev box stops being
+read. On anything you actually depend on, both should be green.
+
+In production the announced-alert state is kept on the `monitoring_state` named
+volume, mounted into `scheduler_worker`. Without it the file would live in the
+container's writable layer and every recreation — an image bump, an edit to the
+compose file — would re-announce whatever was already failing.
+
+### The blind spot, and how to cover it
+
+The sweep runs **inline in `scheduler_worker`**, deliberately unrouted. Sending
+it to the async transport would park the alert about a dead async worker in the
+queue that worker was meant to drain, and would need RabbitMQ up in order to
+report RabbitMQ down.
+
+The cost is that the scheduler worker's own death is the one failure it cannot
+report. Cover it from outside the stack — host cron, a systemd timer, anything
+that is not the thing being watched:
+
+```bash
+*/5 * * * * cd /srv/aihm && docker compose exec -T php bin/console app:monitor:run
+```
+
+An external uptime monitor pointed at `GET /api/health` covers the same gap from
+the other direction, and additionally covers the whole host being gone.
+
+One more limit worth stating rather than hiding: a transport that cannot report
+its depth — the in-memory one the test suite binds — makes `queue:failed`
+silently inapplicable. `messenger:stats` is what shows whether the real transport
+can be counted; against AMQP it reports a number, and names the transports it
+could not count.
+
 ## MySQL backup
 
 The Scheduler runs `App\Application\Scheduled\BackupDatabase` daily at 03:00.
@@ -266,11 +411,13 @@ dependencies directly.
 
 The two guards above name causes. `make doctor` additionally checks the
 **outcome**, because the causes worth guarding against are only the ones already
-known, and the failures that actually happened were not on that list:
+known, and the failures that actually happened were not on that list. The same
+two thresholds drive the `backup:*` alerts in [Failure alerting](#failure-alerting),
+under the same variable names — one answer to "is the backup fresh", not two:
 
 | Check | Threshold | Verdict |
 |---|---|---|
-| Newest backup's size | > 1024 B | `fail` — an empty dump (20 B is gzip's empty stream); restoring from it yields nothing |
+| Newest backup's size | ≥ 1024 B (`BACKUP_MIN_BYTES`) | `fail` — an empty dump (20 B is gzip's empty stream); restoring from it yields nothing |
 | Newest backup's **age** | < 48 h (`BACKUP_MAX_AGE_HOURS`) | `fail` — the schedule has stopped producing backups |
 | Retained backups that are empty | any | `warn` — those days have no restore point, but today's is intact |
 

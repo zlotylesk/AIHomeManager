@@ -14,7 +14,7 @@ Operational. Current release **1.34.0** (2026-08-05), which is also the highest-
 
 | Gate | State |
 |---|---|
-| PHPUnit | 2485 tests |
+| PHPUnit | 2550 tests |
 | Playwright | 169 tests |
 | Vitest | 249 tests |
 | Newman | 121 assertions |
@@ -273,7 +273,7 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 
 ### Scheduler
 
-`src/Schedule.php`, 10 recurring tasks. `bin/console debug:scheduler` shows state. Stateful via `cache.app` with `processOnlyLastMissedRun(true)`, so a restart fires at most one missed window.
+`src/Schedule.php`, 11 recurring tasks. `bin/console debug:scheduler` shows state. Stateful via `cache.app` with `processOnlyLastMissedRun(true)`, so a restart fires at most one missed window.
 
 | Cron | Message | Effect |
 |---|---|---|
@@ -287,6 +287,7 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 | `*/15 * * * *` | `ReindexSearchDocuments` | Rebuilds the search index; the only thing keeping event-less modules current |
 | `*/30 * * * *` | `PollLastFmRecentTracks` | Last.fm → listening history, idempotent by `dedup_hash` |
 | `*/30 * * * *` | `PollPodcastListens` | Spotify sweep; overlapping windows are harmless because the source reports state |
+| `*/5 * * * *` | `MonitorSystemHealth` | Sweeps the alert probes and mails the owner about anything that changed. **The one recurring command that is deliberately not async-routed** — see [Operational alerting](#operational-alerting) |
 
 The backup job has **two image-level dependencies**: `bash -o pipefail` (POSIX `sh` reports only the last pipeline member, so a dead `mysqldump` is masked by a successful `gzip`) and `mariadb-connector-c` (Alpine's `mysql-client` is MariaDB's and ships no `caching_sha2_password`, MySQL 8.4's default plugin). Both are in `docker/php/Dockerfile`; **an image built before those lines must be rebuilt.**
 
@@ -361,6 +362,7 @@ environment variables.
 | Production build / start / stop | `make prod-build` / `make prod-up` / `make prod-down` |
 | Production migrate / verify / logs / shell | `make prod-migrate` / `make prod-about` / `make prod-logs` / `make prod-shell` |
 | Preflight health check | `make doctor` |
+| One monitoring sweep now | `make monitor-run` |
 | PHP shell | `make shell` |
 | All tests / unit / integration | `make test` / `make test-unit` / `make test-integration` |
 | Coverage + floor gate | `make test-coverage` |
@@ -481,6 +483,21 @@ Disk has three states: `< 80 %` up, `80–95 %` degraded, `> 95 %` **down** (503
 
 ---
 
+## Operational alerting
+
+`src/Monitoring/` — probes on a timer, e-mail out. It is what closes the gap the health endpoint left: six components correctly reported to nobody. Runbook, thresholds and per-alert first steps live in `docs/operations.md`.
+
+- **It does not go through the Notifications module, and that is the whole design.** That engine reads a preference row and writes a notification row before sending — correct for user notifications, and unable to announce the database being down, because announcing needs the database. Alerting therefore reaches Mailer directly, keeps its dedup state in a **JSON file on local disk**, and builds the e-mail body in PHP rather than Twig. Nothing on the path touches MySQL, Redis or RabbitMQ. `AlertDeliveryIndependenceTest` breaks the lot at once and still demands the mail.
+- **Quiet hours do not apply, and not via an exemption flag** — there is no `DispatchPolicy` in this path to exempt. Quiet hours suppress because a held *reminder* announces a passed deadline; infrastructure is the case where delay costs rather than saves.
+- **The sweep announces transitions, never state.** Probes report everything wrong on every run; a week-long outage must cost one e-mail. A severity that **rises** is announced again (82 % and 96 % disk are different situations); one that falls is not. An alert no channel accepted is left un-recorded, so a mail outage delays rather than swallows it.
+- **A probe that throws does not resolve its own alerts.** Its keys are held and the failure becomes a `probe:*` alert — otherwise the first act of a broken probe would be an all-clear for everything it used to watch. That is why keys are namespaced by probe, and why the monitor iterates the probes itself instead of hiding them behind a composite.
+- **`MonitorSystemHealth` is the one recurring command deliberately left out of `messenger.yaml` routing.** Routed to async, the alert about a dead async worker would sit in the queue that worker was meant to drain, and reporting RabbitMQ down would need RabbitMQ up. It runs inline in the scheduler worker; that worker's own death is the known blind spot, which is what `app:monitor:run` (`make monitor-run`) exists for — an external timer covers it.
+- **Backup freshness is single-sourced with `scripts/doctor.sh`**: same `BACKUP_MAX_AGE_HOURS` / `BACKUP_MIN_BYTES`, and age read from the **date in the filename**, because copying or restoring the backup directory stamps every file's mtime with "now" and would make a months-old archive look fresh.
+- The health probe is called **in process**, not over HTTP — an HTTP hop would put nginx, the firewall and the network between the alerter and the thing it reports on. `/api/health` stays for external uptime monitors, which is what HTTP is good for.
+- **`MAILER_DSN` ships as `null://null`, which accepts every alert and delivers none — reporting success as it does so.** An instance left on that default has working probes and no alerting at all: the same shape of failure this exists to end, one level up. `make doctor` warns about it, and about `NOTIFICATIONS_MAIL_TO` still being the placeholder. In production the state file needs the `monitoring_state` volume, or every container recreation re-announces whatever was already failing.
+
+---
+
 ## MCP servers (`.mcp.json`)
 
 `sequential-thinking`, `github`, `context7`, `filesystem`, `mysql` (read-only), `playwright`, `redis`, `docker` (needs `uv` on the host). Atlassian Rovo is configured through claude.ai, not `.mcp.json`; when it is unresponsive, Jira REST v3 with the same token is the fallback — it needs ADF, not markdown.
@@ -528,5 +545,5 @@ So, when closing a ticket or an epic:
 - Confluence hub: https://honemanager.atlassian.net/wiki/spaces/H/pages/46661633
 - Repo: `zlotylesk/AIHomeManager` (GitHub)
 - `README.md` — the project's front door: prerequisites, the fresh-clone quick start, the secrets table, a map of everything else.
-- `docs/` — reference material: `configuration.md` (every env var, how to obtain each key, the OAuth flows), `development.md` (branches, naming, layout, the full Makefile), `testing.md` (test layers, coverage ratchet, static analysis, CI), `operations.md` (workers, DLQ, monitoring, backups), `search.md` (backends, cutover, recovery), `api.md` (versioning, auth, pagination), `pwa.md` (Service Worker, offline queue).
+- `docs/` — reference material: `configuration.md` (every env var, how to obtain each key, the OAuth flows), `development.md` (branches, naming, layout, the full Makefile), `testing.md` (test layers, coverage ratchet, static analysis, CI), `operations.md` (workers, DLQ, monitoring, failure alerting, backups), `search.md` (backends, cutover, recovery), `api.md` (versioning, auth, pagination), `pwa.md` (Service Worker, offline queue).
 - `CHANGELOG.md` — release history and the decisions behind it.

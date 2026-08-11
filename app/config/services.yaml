@@ -17,6 +17,12 @@ parameters:
     # amount in any other currency is rejected rather than converted or silently
     # relabelled (see App\Module\Budget\Application\SystemCurrency).
     app.budget.default_currency: 'PLN'
+    # Where the monitor remembers which alerts it has already announced
+    # (HMAI-432), when MONITORING_STATE_FILE is unset. A path rather than a cache
+    # pool or a table on purpose: this is read and written by the one code path
+    # that has to keep working while MySQL, Redis and RabbitMQ are the thing
+    # being reported on.
+    monitoring.default_state_file: '%kernel.project_dir%/var/monitoring/alert-state.json'
 
 services:
     _defaults:
@@ -179,6 +185,55 @@ services:
     App\Module\Notifications\Infrastructure\Provider\CompositeNotificationCandidateProvider:
         arguments:
             $providers: !tagged_iterator notifications.candidate_provider
+
+    # Operational alerting (HMAI-432). Deliberately wired outside the
+    # Notifications module: its dispatch engine reads preferences from MySQL and
+    # persists a row before sending, which is right for user notifications and
+    # impossible for an alert whose job is to announce that MySQL is gone. These
+    # services touch nothing but Mailer and the local disk.
+    #
+    # Probes are tagged explicitly rather than by _instanceof, the same reason
+    # the notification candidate providers are: the tag is the registration, so
+    # adding a probe should be a visible decision.
+    App\Monitoring\Probe\HealthComponentProbe:
+        tags: ['monitoring.probe']
+
+    # The same variable and the same numbers scripts/doctor.sh uses. Two answers
+    # to "is the backup fresh" in one repository is how one of them quietly
+    # starts tolerating a state the other rejects.
+    App\Monitoring\Probe\BackupFreshnessProbe:
+        arguments:
+            $backupDir: '%env(BACKUP_DIR)%'
+            $maxAgeHours: '%env(int:BACKUP_MAX_AGE_HOURS)%'
+            $minBytes: '%env(int:BACKUP_MIN_BYTES)%'
+        tags: ['monitoring.probe']
+
+    App\Monitoring\Probe\DeadLetterQueueProbe:
+        arguments:
+            $transport: '@messenger.transport.failed'
+            $threshold: '%env(int:MONITORING_DLQ_THRESHOLD)%'
+        tags: ['monitoring.probe']
+
+    # One sender, one recipient — the same pair the notification e-mails use,
+    # because there is one owner and splitting them would only create a second
+    # address to forget to configure.
+    App\Monitoring\EmailAlertChannel:
+        arguments:
+            $from: '%env(NOTIFICATIONS_MAIL_FROM)%'
+            $to: '%env(NOTIFICATIONS_MAIL_TO)%'
+        tags: ['monitoring.channel']
+
+    App\Monitoring\FileAlertStateStore:
+        arguments:
+            $stateFile: '%env(default:monitoring.default_state_file:MONITORING_STATE_FILE)%'
+
+    App\Monitoring\AlertStateStoreInterface:
+        alias: App\Monitoring\FileAlertStateStore
+
+    App\Monitoring\SystemMonitor:
+        arguments:
+            $probes: !tagged_iterator monitoring.probe
+            $channels: !tagged_iterator monitoring.channel
 
     App\Module\Notifications\Domain\Repository\PushSubscriptionRepositoryInterface:
         alias: App\Module\Notifications\Infrastructure\Persistence\DoctrinePushSubscriptionRepository
