@@ -23,6 +23,12 @@ services:
     volumes:
       - ./app:/var/www/html
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      # The header and location rules development shares with production. The
+      # site configuration above `include`s them, so nginx will not start
+      # without this mount — which is the intended failure: the alternative is a
+      # development stack quietly serving the app under different rules from the
+      # one that ships.
+      - ./docker/nginx/snippets:/etc/nginx/snippets:ro
     depends_on:
       - php
     healthcheck:

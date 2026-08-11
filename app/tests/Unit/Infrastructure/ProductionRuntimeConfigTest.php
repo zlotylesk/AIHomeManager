@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Infrastructure;
 
+use App\EventListener\SecurityHeadersListener;
 use Override;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Tag\TaggedValue;
@@ -177,6 +178,155 @@ final class ProductionRuntimeConfigTest extends TestCase
         // keep it even after a later delete.
         self::assertContains('**/.env.local', $ignored);
         self::assertContains('**/.env.*.local', $ignored);
+    }
+
+    public function testPlainHttpRedirectsToHttpsWithoutSwallowingTheAcmeChallenge(): void
+    {
+        $conf = $this->read('docker/nginx/default.prod.conf');
+
+        self::assertMatchesRegularExpression(
+            '/return\s+301\s+https:\/\/\$host\$request_uri;/',
+            $conf,
+            'Plain HTTP no longer redirects to HTTPS, or no longer keeps the path and query.',
+        );
+
+        // `^~` is what makes this beat the `/` prefix that carries the
+        // redirect. Downgraded to a plain prefix match the challenge would be
+        // redirected to HTTPS, and the one moment it has to work is when the
+        // certificate has expired and HTTPS is exactly what does not.
+        self::assertStringContainsString(
+            'location ^~ /.well-known/acme-challenge/',
+            $conf,
+            'The ACME challenge is no longer exempt from the redirect; renewal cannot recover an expired certificate.',
+        );
+    }
+
+    /**
+     * nginx does not ADD a location-level `add_header` to the inherited ones —
+     * it replaces them. A location that sets any header of its own therefore
+     * silently loses every security header unless it re-declares the set, and
+     * /sw.js sets two of its own.
+     */
+    public function testEveryLocationThatSetsAHeaderReDeclaresTheSecurityHeaders(): void
+    {
+        foreach (['docker/nginx/snippets/app.conf', 'docker/nginx/default.conf', 'docker/nginx/default.prod.conf'] as $file) {
+            foreach ($this->locationBlocks($this->read($file)) as $location => $body) {
+                if (!str_contains($body, 'add_header')) {
+                    continue;
+                }
+
+                self::assertStringContainsString(
+                    'include /etc/nginx/snippets/security-headers.conf;',
+                    $body,
+                    sprintf(
+                        '%s: "%s" sets headers of its own, which discards the inherited ones. '
+                        .'It must include the shared set or it answers with none of them.',
+                        $file,
+                        $location,
+                    ),
+                );
+            }
+        }
+    }
+
+    public function testTheTwoLayersAnnounceTheSameHstsPolicy(): void
+    {
+        $map = $this->read('docker/nginx/snippets/hsts-map.conf');
+
+        self::assertStringContainsString(
+            '"'.SecurityHeadersListener::STRICT_TRANSPORT_SECURITY.'"',
+            $map,
+            'nginx and SecurityHeadersListener now advertise different HSTS policies; '
+            .'which one applies would depend on the last response the browser happened to see.',
+        );
+
+        // Keyed on the scheme, not a constant: the header is meaningless over
+        // plain HTTP and a browser must ignore it there.
+        self::assertMatchesRegularExpression(
+            '/map\s+\$scheme\s+\$hsts_max_age/',
+            $map,
+            'HSTS is no longer conditional on the scheme.',
+        );
+        self::assertMatchesRegularExpression(
+            '/default\s+"";/',
+            $map,
+            'The plain-HTTP branch no longer maps to an empty value, which is what makes nginx omit the header.',
+        );
+    }
+
+    /**
+     * Renewal writes the challenge token to a directory; nginx serves it from
+     * one. If those are not the same directory, everything looks correct and
+     * healthy for sixty days and then the certificate expires.
+     */
+    public function testRenewalWritesTheChallengeWhereNginxServesIt(): void
+    {
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        $nginxVolumes = $prod['services']['nginx']['volumes'];
+        self::assertInstanceOf(TaggedValue::class, $nginxVolumes);
+
+        /** @var list<string> $nginxMounts */
+        $nginxMounts = $nginxVolumes->getValue();
+        /** @var list<string> $certbotMounts */
+        $certbotMounts = $prod['services']['certbot']['volumes'] ?? [];
+
+        foreach (['certbot_webroot:/var/www/certbot', 'letsencrypt:/etc/letsencrypt'] as $shared) {
+            self::assertContains($shared, $nginxMounts, 'nginx lost the shared mount '.$shared);
+            self::assertContains($shared, $certbotMounts, 'certbot lost the shared mount '.$shared);
+        }
+
+        self::assertStringContainsString(
+            'root /var/www/certbot;',
+            $this->read('docker/nginx/default.prod.conf'),
+            'nginx serves the ACME challenge from somewhere other than the directory certbot writes it to.',
+        );
+    }
+
+    /**
+     * Splits an nginx configuration into its `location` blocks.
+     *
+     * Brace counting rather than a regex: the bodies contain braces of their
+     * own, and a non-greedy match to the first `}` would cut a block short and
+     * quietly pass the assertion above for the part it did not read.
+     *
+     * @return array<string, string> header line => block body
+     */
+    private function locationBlocks(string $config): array
+    {
+        $blocks = [];
+        $offset = 0;
+
+        while (false !== ($start = strpos($config, 'location ', $offset))) {
+            $open = strpos($config, '{', $start);
+
+            if (false === $open) {
+                break;
+            }
+
+            $depth = 0;
+            $cursor = $open;
+            $length = \strlen($config);
+
+            while ($cursor < $length) {
+                if ('{' === $config[$cursor]) {
+                    ++$depth;
+                } elseif ('}' === $config[$cursor]) {
+                    --$depth;
+
+                    if (0 === $depth) {
+                        break;
+                    }
+                }
+
+                ++$cursor;
+            }
+
+            $blocks[trim(substr($config, $start, $open - $start))] = substr($config, $open, $cursor - $open + 1);
+            $offset = $cursor + 1;
+        }
+
+        return $blocks;
     }
 
     /**

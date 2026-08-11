@@ -66,8 +66,15 @@ the intent explicitly — redundant for a root-served worker, but it states what
 is meant.
 
 A location-level `add_header` in nginx **replaces** the inherited server-level
-ones, so the `/sw.js` location re-declares all four security headers; `/sw.js`
-stays consistent with every other response, which `SecurityHeadersTest` checks.
+ones, so the `/sw.js` location re-declares the security headers by including
+`snippets/security-headers.conf` — the same file every other block includes,
+which is what keeps the copies from drifting.
+`ProductionRuntimeConfigTest` fails the build for any location that sets a
+header of its own without re-declaring the set.
+
+A Service Worker only registers in a secure context. Development is exempt
+because browsers treat `localhost` as one; a production instance is not, which
+is the PWA's share of the reason production terminates TLS.
 
 There is no `Content-Security-Policy` header in this project, so the same-origin
 Service Worker needs no CSP allowance.
