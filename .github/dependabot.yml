@@ -36,6 +36,18 @@ updates:
       # app/composer.json.
       - dependency-name: "doctrine/orm"
         versions: [">=3.6.8"]
+      # phpunit 13.3 deprecates the --do-not-cache-result CLI option, which
+      # paratest still passes to every worker it spawns. phpunit.dist.xml sets
+      # failOnPhpunitDeprecation, so the parallel run CI uses exits 1 on a suite
+      # where every test passed. Upgrading paratest does not help: 7.24 is the
+      # first release requiring phpunit ^13.3, and it emits the same flag.
+      #
+      # The constraint in app/composer.json (>=13.1.13 <13.3) is what actually
+      # holds the pair together — paratest 7.24 needs ^13.3.0, so capping phpunit
+      # keeps both on the last combination that runs clean. Lift both once
+      # paratest stops passing the deprecated flag.
+      - dependency-name: "phpunit/phpunit"
+        versions: [">=13.3.0"]
     groups:
       symfony:
         patterns:
