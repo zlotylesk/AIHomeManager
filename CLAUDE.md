@@ -423,6 +423,7 @@ environment variables.
 - **Rector:** `withPhpSets()` + `deadCode`. It will collapse an aggregate with no mutator to `final readonly class`; that is expected, and the class reopens when a ticket adds the behaviour that needs it.
 - **Deptrac:** per-module Domain / Application / Infrastructure layers plus the `Shared` kernel and a `Glue` layer (controllers, listeners, Kernel, Security) that may depend on everything. Zero violations, zero `skip_violations`.
 - **Composer audit** runs in CI. A finding means bumping the package, not suppressing it. The frontend equivalent is `npm audit --audit-level=high` after every `npm ci` in `app/`; the root `package.json` (Playwright + Newman) is deliberately outside the gate, because newman's tree carries advisories with no forward fix and `audit fix --force` would break the collection.
+- **`doctrine/orm` is pinned to an exact `3.6.7`, and `dependabot.yml` ignores anything above it.** 3.6.8 adds `GenerateSchemaEventArgs::setSchema()`, which throws unless DBAL exposes `Schema::edit()` — an API its own source comment calls unreleased (it wants `doctrine/dbal ^4.5`; the newest stable is 4.4.4). `symfony/doctrine-bridge` feature-detects that method with `method_exists()`, so the bump makes the detection a false positive and every `doctrine:schema:validate` a `BadMethodCallException`. Unpin both once DBAL 4.5 ships. The npm-side counterpart is the Encore peer range below.
 
 ---
 
