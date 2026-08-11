@@ -78,6 +78,13 @@ services:
     image: aihm-php:prod
     volumes: !override
       - ./backups:/backups
+      # The monitoring sweep's "already announced" set. Without a mount it lives
+      # in the container's writable layer, so every recreation — an image bump,
+      # any edit to this file — would re-announce whatever was already failing.
+      # The state is deliberately not in MySQL or Redis (it has to survive those
+      # being the thing that broke), which is exactly why it needs a volume of
+      # its own rather than inheriting one.
+      - monitoring_state:/var/www/html/var/monitoring
     # The secrets, as environment variables rather than a file in the image.
     # app/.env.local is deliberately excluded from the build context, so without
     # this the container falls back to the placeholder values in the tracked
@@ -100,3 +107,10 @@ services:
   # requests no profile beyond `monitoring` — exactly as it was.
   node:
     profiles: [tools]
+
+# Merged with the base file's volumes rather than replacing them: top-level
+# mappings are combined key by key, which is why this needs no !override (unlike
+# the service-level `volumes:` sequences above, where an untagged list would be
+# appended to the dev bind mount instead of replacing it).
+volumes:
+  monitoring_state:

@@ -276,7 +276,7 @@ Details, including the coverage ratchet procedure and what CI structurally
 | [docs/configuration.md](docs/configuration.md) | Every environment variable, how to obtain each key, the first OAuth connection |
 | [docs/development.md](docs/development.md) | Branches and releases, naming conventions, project layout, the full Makefile |
 | [docs/testing.md](docs/testing.md) | Test layers, coverage gate and ratchet, static analysis, the CI pipeline |
-| [docs/operations.md](docs/operations.md) | Production deployment and updates, workers, the dead-letter queue, monitoring, backups and their freshness check |
+| [docs/operations.md](docs/operations.md) | Production deployment and updates, workers, the dead-letter queue, monitoring, failure alerting, backups and their freshness check |
 | [docs/search.md](docs/search.md) | Search backends, provisioning, cutover and rollback, recovery |
 | [docs/api.md](docs/api.md) | Versioning, authentication, pagination, rate limits, examples |
 | [docs/pwa.md](docs/pwa.md) | Service Worker, offline reads and the offline write queue, push |
