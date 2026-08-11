@@ -6,6 +6,7 @@ namespace App;
 
 use App\Application\Scheduled\BackupDatabase;
 use App\Application\Scheduled\GenerateWeeklyActivityReport;
+use App\Application\Scheduled\MonitorSystemHealth;
 use App\Module\Articles\Application\Command\ResetDailyArticleCache;
 use App\Module\Goals\Application\Command\RecalculateStreaks;
 use App\Module\Music\Application\Command\PollLastFmRecentTracks;
@@ -31,6 +32,8 @@ use Symfony\Contracts\Cache\CacheInterface;
  *                 (HMAI-144); the dedup hash makes re-polls idempotent.
  *  - Every 30m  — poll Spotify for podcast listening (HMAI-325); likewise
  *                 idempotent, so overlapping windows cost nothing.
+ *  - Every 5m   — sweep the monitoring probes and e-mail the owner about
+ *                 anything that changed (HMAI-432). Runs inline in this worker.
  *
  * `stateful($cache)` means a worker restart replays any missed window once
  * (we accept the occasional duplicate; the handlers are idempotent).
@@ -75,6 +78,13 @@ final readonly class Schedule implements ScheduleProviderInterface
                 // is actually playing — a slower cadence would miss most of
                 // them and leave every listen dated by observation time.
                 RecurringMessage::cron('*/30 * * * *', new PollPodcastListens()),
+                // Five minutes is the promise: an outage reaches the owner in
+                // minutes rather than whenever they next notice something is
+                // wrong. Cheap to run — the probes are one health check, one
+                // directory listing and one queue depth — and unrouted, so it
+                // executes in this worker rather than needing the broker and the
+                // async worker it is watching.
+                RecurringMessage::cron('*/5 * * * *', new MonitorSystemHealth()),
             );
     }
 }

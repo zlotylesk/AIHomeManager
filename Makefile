@@ -1,4 +1,4 @@
-.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor
+.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor monitor-run
 
 # Production runs from a different pair of compose files, and every target below
 # names both explicitly. A prod command that worked by leaving out `-f` would be
@@ -262,3 +262,6 @@ restore:
 
 doctor:
 	bash scripts/doctor.sh
+
+monitor-run:
+	docker compose exec php bin/console app:monitor:run
