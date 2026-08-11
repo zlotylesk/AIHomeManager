@@ -315,6 +315,26 @@ output, so copying them from the context yields a working image on a machine tha
 happens to have them and a half-empty one on a clean clone. That is what makes
 `make prod-build` two ordered steps.
 
+**TLS terminates in nginx, in production only.** Development stays on plain
+HTTP at `:8080`, because a browser already treats localhost as a secure context
+and every E2E suite talks to it. The two site configurations are separate files
+(`default.conf`, `default.prod.conf`) that `include` the same `snippets/`, so
+the serving rules cannot drift apart. In production `:80` answers the ACME
+challenge and 301s everything else; `:443` serves the app.
+
+**The public hostname appears once in the repository — the `DOMAIN=` argument
+to `make prod-cert-init`.** Certificates are issued under the fixed lineage name
+`aihm`, so nginx names a lineage and not a domain, and no config is templated.
+An entrypoint script symlinks that lineage into `/etc/nginx/certs/` at start, or
+writes a self-signed placeholder when there is none: nginx refuses to start
+without a certificate, and the only way to obtain one is a challenge served by a
+running nginx, so the placeholder is what breaks the deadlock on a fresh host.
+The ACME location is exempt from the redirect for the same reason — the route
+back from an expired certificate must not run through HTTPS. Renewal is the
+`certbot` service plus nginx reloading on a timer; both containers share the
+`certbot_webroot` volume, and a mismatch there is a renewal that fails sixty
+days later, which is why the test compares the two mounts.
+
 **Secrets reach production as environment variables, never as a file in the
 image.** `app/.env.local` is excluded from the build context and read by the prod
 overlay as an `env_file`; it is required, because the tracked `app/.env` holds
@@ -361,6 +381,7 @@ environment variables.
 | Full initialization | `make setup` (build + up + composer install + migrate) |
 | Production build / start / stop | `make prod-build` / `make prod-up` / `make prod-down` |
 | Production migrate / verify / logs / shell | `make prod-migrate` / `make prod-about` / `make prod-logs` / `make prod-shell` |
+| First certificate / renew now | `make prod-cert-init DOMAIN=… EMAIL=…` / `make prod-cert-renew` |
 | Preflight health check | `make doctor` |
 | One monitoring sweep now | `make monitor-run` |
 | PHP shell | `make shell` |
@@ -446,9 +467,11 @@ In the **test** environment `security.yaml`'s `when@test` sets `firewalls.main.s
 
 ### HTTP headers
 
-Dual layer — nginx and `SecurityHeadersListener` (`kernel.response`, priority -128) both set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` and `Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()`. HSTS is commented out until HTTPS is configured. There is **no CSP** in this project.
+Dual layer — nginx and `SecurityHeadersListener` (`kernel.response`, priority -128) both set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` and `Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()`. There is **no CSP** in this project.
 
-A location-level nginx `add_header` **replaces** the inherited server-level ones, so any new `location` block must re-declare all four.
+**HSTS is sent only over TLS, from both layers, with one value.** nginx drives it from a `map $scheme` (`snippets/hsts-map.conf`) — an `add_header` whose value evaluates to empty is omitted entirely — and the listener sets it behind `$request->isSecure()`. RFC 6797 has a browser ignore the header on a plain-HTTP connection, so sending it there is not weaker protection but none, dressed as some. The value lives in the nginx map and in `SecurityHeadersListener::STRICT_TRANSPORT_SECURITY`, and `ProductionRuntimeConfigTest` fails the build when they disagree. No `preload`: that is a submission to a list shipped inside browser binaries, and its undo takes months.
+
+A location-level nginx `add_header` **replaces** the inherited server-level ones, so any `location` block that sets a header of its own must re-declare the whole set — which is why it `include`s `snippets/security-headers.conf` rather than repeating it, and why the test asserts the include for every such block.
 
 ### Encryption at rest
 

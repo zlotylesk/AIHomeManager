@@ -53,9 +53,67 @@ wrong one before a container refuses to boot over it.
 ```bash
 make prod-build      # image with the code, the bundle and a warm cache
 make prod-migrate    # creates the schema; brings MySQL up via depends_on
-make prod-up         # start serving
+make prod-up         # start serving, on a self-signed placeholder certificate
+make prod-cert-init DOMAIN=aihm.example.com EMAIL=you@example.com
 make search-index    # only when SEARCH_ENGINE_BACKEND=opensearch
 ```
+
+`prod-up` comes **before** the certificate, not after. Let's Encrypt proves you
+control the domain by fetching a file over plain HTTP from the server answering
+for it, so there has to be a server answering first — which is why nginx starts
+on a self-signed placeholder rather than refusing to start without a
+certificate.
+
+### HTTPS and certificates
+
+Browser traffic is HTTPS. Port 80 keeps two jobs and nothing else: it answers
+the ACME challenge, and it 301s every other request to the same resource over
+HTTPS.
+
+The public hostname appears in exactly one place in this repository — the
+`DOMAIN=` argument above. Certificates are issued under the fixed lineage name
+`aihm`, so nginx names a lineage instead of a domain and a change of domain is
+a re-run of `prod-cert-init`, not an edit.
+
+| | |
+|---|---|
+| Issued by | Let's Encrypt, http-01 challenge over the webroot |
+| Lives in | the `letsencrypt` volume, symlinked to `/etc/nginx/certs/` at container start |
+| Renewed by | the `certbot` service, `certbot renew` twice a day |
+| Picked up by | nginx reloading itself every 12 h |
+| HSTS | `max-age=31536000; includeSubDomains`, no `preload` |
+
+**Renewal needs nothing from you and no restart.** `certbot renew` is a no-op
+until thirty days before expiry, then replaces the file the symlink already
+points at; the next reload serves it. Roughly sixty attempts happen before
+anything expires, so a spell of downtime or a rate limit costs an attempt.
+
+**The first issuance does need one restart**, which `prod-cert-init` performs:
+until the lineage exists nginx is serving the placeholder, and the swap happens
+at container start.
+
+To read the outcome rather than wait for it:
+
+```bash
+make prod-cert-renew                       # dry-run against staging, then for real
+docker compose -p aihm-prod exec certbot certbot certificates
+```
+
+**When renewal fails**, the certificate is still valid for up to thirty days —
+this is not an outage, it is the warning before one. In order of likelihood:
+the domain no longer resolves to this host; port 80 is not reachable from the
+internet (the challenge is answered there, and only there); the `certbot_webroot`
+volume is no longer shared by both containers, so certbot writes the token
+where nginx cannot serve it. `make prod-cert-renew` reports which.
+
+An expired certificate does **not** lock you out of fixing it: the ACME location
+on port 80 is exempt from the redirect precisely so that the route back to a
+working certificate never runs through HTTPS.
+
+**HSTS outlives the certificate.** Once a browser has seen the header it refuses
+plain HTTP for a year, so an instance cannot be moved back to HTTP by reverting
+this configuration — visitors would see a connection failure, not a downgrade.
+Reverting means keeping HTTPS working until the max-age has run out.
 
 ### Updating a running instance
 
@@ -86,7 +144,9 @@ make prod-down && make prod-migrate && make prod-up
 
 ```bash
 make prod-about   # must report Environment prod / Debug false
-curl -s -o /dev/null -w 'health %{time_total}s\n' http://localhost:8080/api/health
+curl -sI http://aihm.example.com/api/health | head -1          # expect 301
+curl -s -o /dev/null -w 'health %{time_total}s\n' https://aihm.example.com/api/health
+curl -sI https://aihm.example.com/ | grep -i strict-transport  # expect the HSTS header
 ```
 
 `prod-about` is the check that would have caught a stack serving `dev` with
@@ -107,10 +167,12 @@ checkout of the previous revision plus `make prod-build && make prod-up`. Roll
 the schema back only if the release actually changed it —
 `doctrine:migrations:migrate prev` — and only when the migration was reversible.
 
-Not configured yet, and worth knowing before this is exposed to anything: HTTPS
-and HSTS, infrastructure ports still published on the host, broker and Redis
-still on default credentials, no restart policies or resource limits, no log
-rotation.
+A rollback does not touch the certificates: they live in a volume, not in the
+image, and the lineage name does not change between revisions.
+
+Not configured yet, and worth knowing before this is exposed to anything:
+infrastructure ports still published on the host, broker and Redis still on
+default credentials, no restart policies or resource limits, no log rotation.
 
 ## Workers
 

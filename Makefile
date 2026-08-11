@@ -1,4 +1,4 @@
-.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor monitor-run
+.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about prod-cert-init prod-cert-renew up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor monitor-run
 
 # Production runs from a different pair of compose files, and every target below
 # names both explicitly. A prod command that worked by leaving out `-f` would be
@@ -45,6 +45,39 @@ prod-shell:
 # the check that would have caught `dev` running in production.
 prod-about:
 	$(COMPOSE_PROD) exec php bin/console about
+
+# The first certificate. Run once per instance, with nginx already up on the
+# self-signed placeholder — the challenge is answered over HTTP by the running
+# server, so this cannot work before `prod-up`.
+#
+# DOMAIN is the only place the public hostname appears in this repository.
+# `--cert-name aihm` is what keeps it that way: it fixes the path the
+# certificate lands at, so nginx and the entrypoint script name a lineage rather
+# than a domain and neither changes when the domain does.
+#
+# The restart at the end is not optional. Until the lineage exists the container
+# is serving a self-signed placeholder, and the entrypoint script only swaps it
+# for the real certificate at start — a reload would re-read the placeholder.
+# Renewals need nothing: they replace the file this symlink already points at,
+# and nginx reloads on its own timer.
+prod-cert-init:
+	@test -n "$(DOMAIN)" || { echo "Usage: make prod-cert-init DOMAIN=example.com EMAIL=you@example.com"; exit 1; }
+	@test -n "$(EMAIL)" || { echo "Usage: make prod-cert-init DOMAIN=example.com EMAIL=you@example.com"; exit 1; }
+	$(COMPOSE_PROD) run --rm --entrypoint certbot certbot certonly \
+		--webroot -w /var/www/certbot \
+		--cert-name aihm -d $(DOMAIN) \
+		--email $(EMAIL) --agree-tos --no-eff-email --non-interactive
+	$(COMPOSE_PROD) restart nginx
+
+# Renewal on demand. The certbot service already does this twice a day; this is
+# for reading the outcome rather than for causing it — after a failed renewal,
+# or to check the plumbing without waiting out the expiry window. `--dry-run`
+# first: it exercises the whole challenge against the CA's staging environment
+# and so costs nothing against the rate limit for the domain.
+prod-cert-renew:
+	$(COMPOSE_PROD) run --rm --entrypoint certbot certbot renew --dry-run
+	$(COMPOSE_PROD) run --rm --entrypoint certbot certbot renew
+	$(COMPOSE_PROD) exec nginx nginx -s reload
 
 up:
 	docker compose --profile monitoring up -d

@@ -47,9 +47,48 @@ services:
       context: .
       dockerfile: docker/nginx/Dockerfile
     image: aihm-nginx:prod
-    # Drops both the ./app mount and the bind mount of default.conf: the config
-    # is copied into the image, so what nginx serves is versioned with it.
-    volumes: !override []
+    # The public ports. !override because Compose APPENDS sequences: merged, the
+    # base file's 8080:80 would survive alongside these and the instance would
+    # answer on a third port nobody configured a certificate or a callback for.
+    ports: !override
+      - "80:80"
+      - "443:443"
+    # Drops the ./app and default.conf bind mounts — the config is copied into
+    # the image, so what nginx serves is versioned with it — and adds the two
+    # volumes it shares with certbot: the certificates it serves, and the
+    # directory the challenge is written into. Both are shared, and a mismatch
+    # in either is a renewal that fails sixty days later, which is why
+    # ProductionRuntimeConfigTest compares the two services' mounts.
+    volumes: !override
+      - letsencrypt:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    # Reload on a timer, because a renewed certificate is a new file that a
+    # running nginx never re-reads. certbot cannot signal a process in another
+    # container, so the reload lives with the process that needs it. A graceful
+    # reload costs nothing and twelve hours is well inside the thirty days
+    # between a successful renewal and the old certificate expiring.
+    #
+    # `exec` on the server itself: nginx becomes PID 1 and receives the TERM
+    # from `docker stop` directly, instead of a shell swallowing it and every
+    # deployment waiting out the ten-second kill timer.
+    #
+    # And it execs /docker-entrypoint.sh rather than nginx, which is not
+    # ceremony. The image's entrypoint runs the scripts in
+    # /docker-entrypoint.d/ ONLY when its first argument is `nginx`; overriding
+    # the command makes that argument `/bin/sh`, so the whole directory is
+    # skipped in silence — including the script that puts a certificate where
+    # ssl_certificate points. nginx would then fail to start, on a stack whose
+    # every other piece is correct. Naming the entrypoint explicitly restores
+    # the argument it tests for.
+    command: ["/bin/sh", "-c", "while :; do sleep 12h & wait $${!}; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+    healthcheck:
+      # Against HTTPS, and !override because the base file's plain-HTTP probe
+      # would now be answered by the redirect. wget FOLLOWS a 301, so it would
+      # arrive at https://127.0.0.1 and reject a certificate issued for the
+      # public name — an instance serving perfectly while Compose reports it
+      # unhealthy. The certificate is not what this probe is asking about;
+      # whether nginx is answering is.
+      test: !override ["CMD", "wget", "--no-check-certificate", "--quiet", "--spider", "https://127.0.0.1/api/health"]
 
   messenger_worker:
     build:
@@ -101,6 +140,33 @@ services:
       APP_ENV: prod
       APP_DEBUG: 0
 
+  # Certificate renewal, running as its own process rather than as a host cron
+  # job, so it is deployed and started by the same command as everything else
+  # and cannot be the one piece of the stack that was never set up.
+  #
+  # `certbot renew` is a no-op until a certificate is inside thirty days of
+  # expiry, which is what makes running it twice a day the normal
+  # configuration rather than an aggressive one: renewal gets roughly sixty
+  # attempts before anything expires, so a spell of downtime, a rate limit or a
+  # DNS change costs an attempt instead of the certificate.
+  #
+  # It needs no domain: the lineage and its authenticator were recorded in
+  # /etc/letsencrypt/renewal/aihm.conf at issuance, so this survives a domain
+  # change with no edit here.
+  certbot:
+    # Deliberately unpinned, and the only image here that is. Renewal talks to
+    # an external CA over a protocol that has changed under its users before —
+    # ACMEv1 shutdown, the 2021 root expiry. A certbot pinned to the version
+    # that was current at deployment fails on the day the CA moves, and it fails
+    # sixty days after anyone touched this file.
+    image: certbot/certbot:latest
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done"]
+    depends_on:
+      - nginx
+
   # The frontend bundle is built inside the image by the `assets` stage, so the
   # long-running Node container has nothing to do in production. Parking it
   # behind a profile keeps it out of `prod-up` while leaving `make up` — which
@@ -114,3 +180,12 @@ services:
 # appended to the dev bind mount instead of replacing it).
 volumes:
   monitoring_state:
+  # The certificates and, with them, certbot's account key and the renewal
+  # configuration that records the lineage. Losing this volume does not only
+  # cost the certificate — it costs the ability to renew, and a re-issue counts
+  # against the CA's rate limit for the domain.
+  letsencrypt:
+  # Where certbot writes the challenge token and nginx reads it from. It holds
+  # nothing worth keeping; it exists so that the two containers are looking at
+  # one directory.
+  certbot_webroot:

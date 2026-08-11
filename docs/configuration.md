@@ -31,6 +31,41 @@ docker compose exec php php -r "echo base64_encode(sodium_crypto_secretbox_keyge
 `make doctor` decodes all four and reports the length, so a truncated paste is
 caught before the next `docker compose up`.
 
+## Public address and OAuth callbacks
+
+Six variables carry the instance's own address. `app/.env` holds the
+**development** values — `http://localhost:8080`, which is what the dev stack
+actually serves — and a production instance overrides all six in
+`app/.env.local` with its public HTTPS address.
+
+| Variable | Development | Production |
+|---|---|---|
+| `DEFAULT_URI` | `http://localhost` | `https://aihm.example.com` |
+| `GOOGLE_REDIRECT_URI` | `http://localhost:8080/auth/google/callback` | `https://aihm.example.com/auth/google/callback` |
+| `DISCOGS_CALLBACK_URL` | `http://localhost:8080/auth/discogs/callback` | `https://aihm.example.com/auth/discogs/callback` |
+| `TRAKT_REDIRECT_URI` | `http://localhost:8080/auth/trakt/callback` | `https://aihm.example.com/auth/trakt/callback` |
+| `SPOTIFY_REDIRECT_URI` | `http://localhost:8080/auth/spotify/callback` | `https://aihm.example.com/auth/spotify/callback` |
+
+**Each callback must also be registered, character for character, in the
+provider's own console** — Google Cloud, Discogs, Trakt, Spotify. The providers
+compare the string, not the destination: a trailing slash, `http` instead of
+`https` or a `www.` prefix on one side only is a rejected authorization rather
+than a redirect that happens to work.
+
+This is the functional half of HTTPS, and the reason it is not merely a
+hardening task. **Google, Trakt and Spotify refuse an `http://` redirect URI
+outside the loopback interface**, so on a public domain Calendar sync, the Trakt
+imports and podcast listening do not degrade without TLS — they cannot be
+authorized at all. Discogs is the exception that proves nothing: it accepts
+plain HTTP, and sends an OAuth1 token over it.
+
+`DEFAULT_URI` is what the CLI generates absolute URLs from — notification
+e-mails and Web Push payloads have no incoming request to infer a host from.
+Left at `http://localhost`, a production instance sends itself perfectly valid
+links to nowhere. Requests handled over HTTP need no such setting: nginx passes
+the scheme it terminated and `framework.yaml` trusts it, so generated URLs come
+out as `https` on their own.
+
 ## Per-integration variables
 
 Each block is optional. Leaving one empty disables its module's external calls;
@@ -201,6 +236,12 @@ reuse it for the callbacks.
 | `http://localhost:8080/auth/discogs` | Discogs (OAuth1) |
 | `http://localhost:8080/auth/trakt` | Trakt.tv |
 | `http://localhost:8080/auth/spotify` | Spotify |
+
+On a production instance the same four paths sit under the public HTTPS address,
+and each provider must already have that callback registered — see [Public
+address and OAuth callbacks](#public-address-and-oauth-callbacks). Run all four
+after the certificate is issued: they are the end-to-end proof that TLS, the
+redirect and the callback registration agree.
 
 Tokens are encrypted with libsodium secretbox and stored in MySQL. Last.fm and
 the National Library need no flow at all.
