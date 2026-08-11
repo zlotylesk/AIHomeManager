@@ -20,6 +20,22 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      # doctrine/orm 3.6.8 adds GenerateSchemaEventArgs::setSchema(), which
+      # throws unless DBAL exposes Schema::edit() — an API its own source
+      # comment calls unreleased, requiring doctrine/dbal ^4.5 when the newest
+      # stable is 4.4.4. symfony/doctrine-bridge feature-detects the method with
+      # method_exists(), so the bump turns that detection into a false positive
+      # and every `doctrine:schema:validate` into a BadMethodCallException —
+      # which is CI's first red step, before a single test runs.
+      #
+      # The same shape as the webpack-cli peer range Encore pins on the npm
+      # side: a bump that is correct in isolation and broken in combination,
+      # where the only safe move is to wait for the other half to catch up.
+      # Drop this once DBAL 4.5 is released, then unpin doctrine/orm in
+      # app/composer.json.
+      - dependency-name: "doctrine/orm"
+        versions: [">=3.6.8"]
     groups:
       symfony:
         patterns:
