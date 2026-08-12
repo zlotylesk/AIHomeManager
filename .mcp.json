@@ -56,7 +56,7 @@
     "redis": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-redis", "redis://127.0.0.1:6379"]
+      "args": ["-y", "@modelcontextprotocol/server-redis", "redis://:homemanager@127.0.0.1:6379"]
     },
     "docker": {
       "type": "stdio",

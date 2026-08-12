@@ -13,7 +13,21 @@
 # develops here would RECREATE the running development containers as production
 # ones — in place, without asking. With it the two collide on published ports
 # instead, which is a refusal to start rather than a silent conversion.
-COMPOSE_PROD = docker compose -p aihm-prod -f docker-compose.yml -f docker-compose.prod.yml
+# The infrastructure credentials, layered the way app/.env and app/.env.local
+# already are. `.env` is tracked and holds development values so a fresh clone
+# comes up without a setup step; `.env.local` is ignored by git and, when it
+# exists, is read second and wins. Production therefore gets a broker password
+# and a Redis password that were never committed, without templating anything.
+#
+# Naming `.env` explicitly is required rather than tidy: passing --env-file at
+# all replaces the default file, so listing only `.env.local` would drop
+# MYSQL_* and every other value the compose files interpolate.
+#
+# The `wildcard` guard is what keeps this working on a machine that has no
+# `.env.local` — Compose errors on a missing --env-file rather than skipping it,
+# which would make `prod-build` fail on a clean clone.
+COMPOSE_PROD_ENV = --env-file .env $(if $(wildcard .env.local),--env-file .env.local)
+COMPOSE_PROD = docker compose -p aihm-prod $(COMPOSE_PROD_ENV) -f docker-compose.yml -f docker-compose.prod.yml
 
 # Two steps, in this order, on purpose: the nginx image is built FROM the
 # application image so that public/ has exactly one source. Compose does not

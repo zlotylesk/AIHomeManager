@@ -170,9 +170,101 @@ the schema back only if the release actually changed it —
 A rollback does not touch the certificates: they live in a volume, not in the
 image, and the lineage name does not change between revisions.
 
-Not configured yet, and worth knowing before this is exposed to anything:
-infrastructure ports still published on the host, broker and Redis still on
-default credentials, no restart policies or resource limits, no log rotation.
+Not configured yet, and worth knowing before this is exposed to anything: no
+restart policies or resource limits, no log rotation.
+
+## Network surface
+
+Production publishes exactly two ports, both on nginx: 80, which answers the
+ACME challenge and redirects everything else, and 443. **The database, Redis,
+the broker and the search engine publish nothing at all** — the application
+reaches them by service name over the Compose network, which publishing never
+affected either way. What it decided was whether the host, and on a machine
+with a public address everything that can route to it, could reach them too.
+
+That mattered more than a missing password usually does, because for three of
+the four there was no password to miss: the broker's management UI answered on
+15672 to the built-in `guest` account, OpenSearch runs with its security plugin
+off, and Redis had no `requirepass` at all. Only MySQL asked for anything, and
+what it asked for was in a tracked file.
+
+**Development still publishes all of them**, unchanged — 3306, 6379, 5672,
+15672, 9200 — because that is what the MCP servers and every host-side client
+talk to, and a development box is not what this protects. The two configurations
+differ here on purpose, and `ProductionRuntimeConfigTest` pins both halves so
+neither drifts into the other.
+
+Graylog is the one exception in production: behind the `monitoring` profile, so
+`make prod-up` does not start it, and bound to `127.0.0.1:9000` rather than
+dropped entirely, because it is a UI whose whole point is being looked at.
+Reach it over an SSH tunnel:
+
+```bash
+ssh -L 9000:127.0.0.1:9000 you@host    # then http://localhost:9000
+```
+
+### Diagnosing a service with no published port
+
+Run the client inside the container. This is closer to the thing being
+diagnosed than a host port ever was — it proves the path the application
+actually uses — and it works on a host where the port was never published:
+
+```bash
+# MySQL — quoted so the container's shell expands it, not yours; the password
+# is never typed and never lands in your shell history
+docker compose -p aihm-prod exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SHOW PROCESSLIST"'
+
+# Redis — --no-auth-warning only silences the notice about -a on the command line
+docker compose -p aihm-prod exec redis sh -c 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" info clients'
+
+# Broker: queue depths, and the management UI's data without the management UI
+docker compose -p aihm-prod exec rabbitmq rabbitmqctl list_queues name messages consumers
+docker compose -p aihm-prod exec rabbitmq rabbitmqctl list_connections user peer_host state
+
+# Search engine
+docker compose -p aihm-prod exec search curl -s localhost:9200/_cluster/health
+```
+
+`make prod-shell` drops into the application container, from which the same
+services are reachable by name — useful when the question is "can the app see
+it", not "is it up".
+
+The broker's management UI is simply not reachable in production, and the
+`rabbitmqctl` calls above are the substitute rather than a workaround — they
+report the same queue depths, connections and consumers the UI shows. If the UI
+itself is genuinely needed, change `rabbitmq`'s `ports:` in
+`docker-compose.prod.yml` to `- "127.0.0.1:15672:15672"`, run
+`make prod-up`, tunnel to it as with Graylog above, and put the file back
+afterwards. Do not reach for the default `guest` account while you are there:
+it does not exist on an instance deployed from this configuration.
+
+### Rotating the broker account
+
+`RABBITMQ_USER` and `RABBITMQ_PASSWORD` are read by the image when it
+**initialises an empty database**. On a fresh volume that is the whole story,
+and the built-in `guest` account is never created. On a volume that already
+exists, changing them achieves nothing except breaking every worker's
+connection: the old accounts are still the only ones the broker knows.
+
+Three commands, run against the running broker, then recreate the workers:
+
+```bash
+docker compose exec rabbitmq rabbitmqctl add_user "$NEW_USER" "$NEW_PASSWORD"
+docker compose exec rabbitmq rabbitmqctl set_user_tags "$NEW_USER" administrator
+docker compose exec rabbitmq rabbitmqctl set_permissions -p / "$NEW_USER" '.*' '.*' '.*'
+
+# Only once the above succeeded, and only on an instance that still has it:
+docker compose exec rabbitmq rabbitmqctl delete_user guest
+docker compose exec rabbitmq rabbitmqctl list_users     # confirm what is left
+
+docker compose up -d --force-recreate messenger_worker scheduler_worker
+```
+
+Until `guest` is deleted it stays an administrator, which is why
+`docker/rabbitmq/20-aihm.conf` sets `loopback_users.guest = true`: the image
+ships the opposite, baked in and not derived from `RABBITMQ_DEFAULT_USER`, so
+naming a different default account does not confine the old one. That file makes
+deleting the account a housekeeping step rather than an urgent one.
 
 ## Workers
 
