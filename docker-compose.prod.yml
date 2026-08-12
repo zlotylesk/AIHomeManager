@@ -11,8 +11,16 @@
 # deployment a single reproducible artifact instead of the state of a working
 # copy.
 #
-# Not in scope here, and deliberately so: restart policies and resource limits,
-# log rotation. Each is its own change.
+# restart policies live in the base docker-compose.yml (restart: unless-stopped
+# is a scalar and merges into this overlay unmodified, the same as it already
+# does for messenger_worker/scheduler_worker/node) — nothing to repeat here
+# except for certbot, which this file defines and the base one does not.
+#
+# Memory limits are prod-only, and deliberately not in the base file: `php`
+# and `scheduler_worker` are also where `docker exec` runs the heavier dev
+# tooling — `make phpstan` alone asks for `--memory-limit=1G` — and a cgroup
+# ceiling sized for the running application would starve that. Log rotation
+# remains out of scope; it is its own change.
 
 services:
   php:
@@ -45,6 +53,12 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: 0
+    # Sized above php.ini's own 512M `memory_limit`: one request near that
+    # ceiling plus opcache's shared segment plus a few lightweight concurrent
+    # requests (the dashboard alone fans out one fetch per widget) has to fit
+    # without the cgroup killing the process before PHP's own limit ever
+    # would. See docs/operations.md for the full budget.
+    mem_limit: 1024m
 
   nginx:
     build:
@@ -93,6 +107,9 @@ services:
       # unhealthy. The certificate is not what this probe is asking about;
       # whether nginx is answering is.
       test: !override ["CMD", "wget", "--no-check-certificate", "--quiet", "--spider", "https://127.0.0.1/api/health"]
+    # A static file server plus a TLS terminator; idle nginx workers run in
+    # single-digit megabytes each.
+    mem_limit: 64m
 
   messenger_worker:
     build:
@@ -114,6 +131,11 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: 0
+    # A single long-running CLI process rather than php-fpm's several children,
+    # so it needs no multiplier — just php.ini's own 512M `memory_limit` plus
+    # opcache and interpreter overhead, with headroom for the heaviest handler
+    # (a full Trakt catalog import).
+    mem_limit: 768m
 
   scheduler_worker:
     build:
@@ -159,6 +181,11 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: 0
+    # As messenger_worker above, plus the monitoring sweep it runs in-process
+    # on every scheduler tick — no larger a footprint than a request handler,
+    # since the backup dump itself runs as an external `mysqldump`/`gzip`
+    # process rather than inside the PHP heap.
+    mem_limit: 768m
 
   # The four infrastructure services, none of which publishes a port here.
   #
@@ -183,17 +210,39 @@ services:
   # inside the container, which is both closer to the thing being diagnosed and
   # available on a host where the port never was — docs/operations.md carries
   # the commands for each service, and `make prod-*` targets several of them.
+  # Each limit is justified in docs/operations.md alongside the total budget;
+  # the short version lives in the comment on each service below.
   mysql:
     ports: !override []
+    # Headroom over the 128M default InnoDB buffer pool for server threads,
+    # per-connection buffers and the library's own small, mostly-relational
+    # dataset — no tuned my.cnf exists, so this is sized around the defaults.
+    mem_limit: 768m
 
   redis:
     ports: !override []
+    # No `maxmemory` is configured — see docs/operations.md for why an
+    # eviction policy is deliberately not part of this change — so the limit
+    # exists purely as a ceiling against a runaway, not a tuned working set.
+    # What actually lives here (cache pools, lock keys, worker heartbeats) is
+    # tens of megabytes for a single-user instance.
+    mem_limit: 256m
 
   rabbitmq:
     ports: !override []
+    # The Erlang VM alone runs close to 150–200M near-idle. RabbitMQ
+    # auto-detects this cgroup limit and sets its own publish-throttling
+    # watermark at 40% of it (~200M here), so the broker degrades by pausing
+    # publishers under memory pressure well before the container would be
+    # OOM-killed.
+    mem_limit: 512m
 
   search:
     ports: !override []
+    # Same reasoning as the monitoring OpenSearch in docker-compose.yml:
+    # roughly double the service's own -Xmx512m JVM heap for what lives
+    # outside it.
+    mem_limit: 1024m
 
   # Graylog is behind the `monitoring` profile and so does not start with
   # `make prod-up` at all. It is pinned to loopback rather than left alone
@@ -235,6 +284,12 @@ services:
     entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done"]
     depends_on:
       - nginx
+    # No base-file entry to inherit from — certbot exists only in this
+    # overlay — so both the restart policy and the limit are declared here
+    # directly rather than merged in.
+    restart: unless-stopped
+    # A Python CLI that wakes up twice a day; comfortably lightweight.
+    mem_limit: 128m
 
   # The frontend bundle is built inside the image by the `assets` stage, so the
   # long-running Node container has nothing to do in production. Parking it
