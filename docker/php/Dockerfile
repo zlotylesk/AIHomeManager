@@ -36,7 +36,11 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # encrypting and copying backups is that nobody finds out during a restore. The
 # `directory` backend needs none of this, and an instance using it simply carries
 # an unused binary; `make doctor` checks rclone only when it is actually selected.
-RUN apk add --no-cache $PHPIZE_DEPS rabbitmq-c-dev mysql-client mariadb-connector-c bash rclone \
+# fcgi: supplies `cgi-fcgi`, the client the compose healthcheck uses to speak
+# FastCGI to php-fpm's own `ping` endpoint on 127.0.0.1:9000 — there is no HTTP
+# server in this container, so a `wget`/`curl` probe like nginx's has nothing to
+# ask.
+RUN apk add --no-cache $PHPIZE_DEPS rabbitmq-c-dev mysql-client mariadb-connector-c bash rclone fcgi \
     && pecl install amqp \
     && pecl install redis \
     && pecl install pcov \
@@ -44,6 +48,14 @@ RUN apk add --no-cache $PHPIZE_DEPS rabbitmq-c-dev mysql-client mariadb-connecto
     && docker-php-ext-install pdo_mysql
 
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini
+
+# Enables the pool's built-in `ping` responder (off by default) so the
+# healthcheck has something to ask that answers from php-fpm itself, not from
+# the application it serves — a broken Symfony boot must not read as "up".
+# Appended rather than a second php-fpm.d/*.conf file: a later file declaring
+# the same `[www]` pool name is a second pool, not an override, and php-fpm
+# refuses to start with two pools of the same name.
+RUN printf '\nping.path = /ping\nping.response = pong\n' >> /usr/local/etc/php-fpm.d/www.conf
 
 WORKDIR /var/www/html
 

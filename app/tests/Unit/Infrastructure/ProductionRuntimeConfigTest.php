@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Infrastructure;
 
 use App\EventListener\SecurityHeadersListener;
+use InvalidArgumentException;
 use Override;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Tag\TaggedValue;
@@ -45,6 +46,26 @@ final class ProductionRuntimeConfigTest extends TestCase
      * `messenger_worker` is deliberately absent — it runs neither.
      */
     private const array DISK_PROBE_SERVICES = ['php', 'scheduler_worker'];
+
+    /**
+     * Every service the base file runs outside the `monitoring` profile.
+     * `messenger_worker`, `scheduler_worker` and `node` already had a restart
+     * policy before this ticket; the rest gained one here. Listed together
+     * because the AC is "every production service", not "every service this
+     * ticket happened to touch" — a regression on any one of them, old or
+     * new, has to fail here.
+     */
+    private const array CORE_SERVICES = [
+        'php', 'nginx', 'mysql', 'redis', 'rabbitmq', 'search',
+        'messenger_worker', 'scheduler_worker', 'node',
+    ];
+
+    /**
+     * The `monitoring` profile's own three services. They carry their memory
+     * limits in the base file rather than the prod overlay, because it is
+     * their only definition regardless of environment.
+     */
+    private const array MONITORING_SERVICES = ['mongodb', 'opensearch', 'graylog'];
 
     /**
      * The deployment files sit beside app/, not inside it.
@@ -210,6 +231,167 @@ final class ProductionRuntimeConfigTest extends TestCase
                 ),
             );
         }
+    }
+
+    /**
+     * `restart` is a scalar field: the prod overlay does not redeclare it for
+     * `messenger_worker`/`scheduler_worker`/`node` and still inherits it, so
+     * asserting against the base file alone is enough to pin what the merged
+     * production configuration actually runs with. `certbot` only exists in
+     * the overlay and is checked separately below.
+     */
+    public function testEveryProductionServiceRecoversOnItsOwnAfterAHostReboot(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        foreach ([...self::CORE_SERVICES, ...self::MONITORING_SERVICES] as $service) {
+            self::assertSame(
+                'unless-stopped',
+                $dev['services'][$service]['restart'] ?? null,
+                sprintf('Service "%s" still has no restart policy, so a host reboot leaves it down.', $service),
+            );
+        }
+    }
+
+    public function testCertbotHasARestartPolicy(): void
+    {
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        self::assertSame('unless-stopped', $prod['services']['certbot']['restart'] ?? null);
+    }
+
+    /**
+     * Prod-only, and deliberately not in the base file: `php` and
+     * `scheduler_worker` are also where `docker exec` runs heavier local
+     * tooling — `make phpstan` alone asks for `--memory-limit=1G` — and a
+     * ceiling sized for the running application would starve that on a
+     * development machine.
+     */
+    public function testEveryCoreProductionServiceHasAMemoryLimit(): void
+    {
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        foreach ([...self::APP_SERVICES, 'nginx', ...self::INFRASTRUCTURE_SERVICES, 'certbot'] as $service) {
+            $limit = $prod['services'][$service]['mem_limit'] ?? null;
+
+            self::assertIsString($limit, sprintf('Service "%s" has no memory limit in production.', $service));
+            self::assertMatchesRegularExpression(
+                '/^\d+[kmg]$/i',
+                $limit,
+                sprintf('Service "%s" has a memory limit in an unexpected format: "%s".', $service, $limit),
+            );
+        }
+    }
+
+    /**
+     * Separate from the assertion above: without this, sizing `mysql` and the
+     * monitoring stack independently is only a comment, not something a
+     * change to either could actually break.
+     */
+    public function testTheMonitoringProfileHasItsOwnMemoryLimitsSeparateFromTheCoreStack(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        foreach (self::MONITORING_SERVICES as $service) {
+            $limit = $dev['services'][$service]['mem_limit'] ?? null;
+
+            self::assertIsString($limit, sprintf('Monitoring service "%s" has no memory limit.', $service));
+            self::assertMatchesRegularExpression('/^\d+[kmg]$/i', $limit, $service);
+        }
+    }
+
+    /**
+     * A guard against a typo rather than a tuned budget: a limit entered as
+     * "10240m" instead of "1024m" would pass the two tests above on its own
+     * and only show up here, where the total no longer fits any host anyone
+     * would actually run this on.
+     */
+    public function testTheMemoryLimitsFitAConservativeHostBudget(): void
+    {
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        $coreServices = [...self::APP_SERVICES, 'nginx', ...self::INFRASTRUCTURE_SERVICES, 'certbot'];
+        $coreBytes = array_sum(array_map(
+            fn (string $service): int => self::bytesFromMemoryLimit((string) $prod['services'][$service]['mem_limit']),
+            $coreServices,
+        ));
+        $monitoringBytes = array_sum(array_map(
+            fn (string $service): int => self::bytesFromMemoryLimit((string) $dev['services'][$service]['mem_limit']),
+            self::MONITORING_SERVICES,
+        ));
+
+        // ~5.2 GiB lean, ~7.7 GiB with monitoring — see docs/operations.md.
+        // The ceilings below leave generous slack for a deliberate re-sizing
+        // while still catching an order-of-magnitude typo.
+        self::assertLessThan(8 * 1024 ** 3, $coreBytes, 'The lean production stack no longer fits an 8 GB host with room for the OS.');
+        self::assertLessThan(12 * 1024 ** 3, $coreBytes + $monitoringBytes, 'The stack with monitoring enabled no longer fits a 12 GB host with room for the OS.');
+    }
+
+    /**
+     * `php` has no HTTP server of its own, only php-fpm's socket — so the
+     * probe has to speak FastCGI, the same protocol nginx does, rather than
+     * ask an HTTP route that would need the application fully booted to
+     * answer.
+     */
+    public function testPhpHasAFastCgiHealthcheck(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+        $test = implode(' ', (array) ($dev['services']['php']['healthcheck']['test'] ?? []));
+
+        self::assertStringContainsString('cgi-fcgi', $test, 'php no longer probes php-fpm directly.');
+        self::assertStringContainsString('pong', $test, 'php no longer checks for the ping responder\'s expected reply.');
+    }
+
+    /**
+     * Without this, a fresh boot has nginx proxying to a php-fpm that has not
+     * finished starting, and every request in that window answers 502 —
+     * exactly the manual-intervention moment the AC rules out.
+     */
+    public function testNginxWaitsForPhpToBeHealthyBeforeStarting(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        self::assertSame(
+            'service_healthy',
+            $dev['services']['nginx']['depends_on']['php']['condition'] ?? null,
+            'nginx no longer waits for php to be healthy before it starts proxying to it.',
+        );
+    }
+
+    /**
+     * `php` handles requests that reach mysql, redis and rabbitmq directly
+     * (a cache read, a lock, an async dispatch), so a request served during
+     * the boot window would fail against a dependency that has not started
+     * yet.
+     */
+    public function testPhpWaitsForItsDependenciesToBeHealthyBeforeStarting(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+        $dependsOn = $dev['services']['php']['depends_on'] ?? [];
+
+        foreach (['mysql', 'redis', 'rabbitmq'] as $dependency) {
+            self::assertSame(
+                'service_healthy',
+                $dependsOn[$dependency]['condition'] ?? null,
+                sprintf('php no longer waits for "%s" to be healthy before it starts.', $dependency),
+            );
+        }
+    }
+
+    private static function bytesFromMemoryLimit(string $limit): int
+    {
+        if (1 !== preg_match('/^(\d+)([kmg])$/i', $limit, $matches)) {
+            throw new InvalidArgumentException(sprintf('"%s" is not a recognised memory limit.', $limit));
+        }
+
+        $multiplier = match (strtolower($matches[2])) {
+            'k' => 1024,
+            'm' => 1024 ** 2,
+            default => 1024 ** 3,
+        };
+
+        return (int) $matches[1] * $multiplier;
     }
 
     public function testDevelopmentStillMountsSourceForEveryApplicationService(): void
