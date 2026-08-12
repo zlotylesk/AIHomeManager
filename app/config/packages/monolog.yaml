@@ -8,9 +8,19 @@ monolog:
 when@dev:
     monolog:
         handlers:
+            # `rotating_file`, not `stream`: a plain stream handler never
+            # trims its own file, and this one grew to 640 MB with nothing to
+            # notice. Monolog rotates it onto a dated filename at the first
+            # write after midnight and prunes anything past `max_files`, so
+            # the directory stays bounded without a host-level cron or
+            # logrotate entry — the same reasoning as `docker-compose.yml`'s
+            # `logging:` limits, applied to the one log that bypasses Docker's
+            # driver entirely because it is written to a bind-mounted file,
+            # not stdout/stderr.
             main:
-                type: stream
+                type: rotating_file
                 path: "%kernel.logs_dir%/%kernel.environment%.log"
+                max_files: 7
                 level: debug
                 channels: ["!event"]
             console:
@@ -74,11 +84,20 @@ when@prod:
                 type: console
                 process_psr_3_messages: false
                 channels: ["!event", "!doctrine"]
+            # `null`, not a stream to stderr: unlike `main`, this channel was
+            # never wrapped in `fingers_crossed`, so every deprecation notice
+            # wrote to production logs on its own — measured at ~30 lines per
+            # request that touched the OpenSearch client alone (a vendor
+            # deprecation, not application code). A test-suite gate
+            # (`failOnDeprecation` in phpunit.dist.xml) is what actually
+            # forces these to be fixed; a production instance re-logging an
+            # already-known, already-accepted one on every request is pure
+            # volume with nothing actionable behind it. `when@dev` and
+            # `when@test` are untouched — deprecations stay loud exactly
+            # where a developer is looking for them.
             deprecation:
-                type: stream
+                type: null
                 channels: [deprecation]
-                path: php://stderr
-                formatter: monolog.formatter.json
             gelf:
                 type: gelf
                 publisher:

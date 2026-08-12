@@ -61,9 +61,21 @@ final class ProductionRuntimeConfigTest extends TestCase
     ];
 
     /**
+     * `CORE_SERVICES` plus `certbot`, which only the prod overlay defines —
+     * the full set that needs a bounded `logging:` driver, since the default
+     * `json-file` has no limit at all and the log lives on the same disk as
+     * the database.
+     */
+    private const array LOGGED_CORE_SERVICES = [
+        ...self::CORE_SERVICES,
+        'certbot',
+    ];
+
+    /**
      * The `monitoring` profile's own three services. They carry their memory
-     * limits in the base file rather than the prod overlay, because it is
-     * their only definition regardless of environment.
+     * and logging limits in the base file rather than the prod overlay,
+     * because it is their only definition regardless of environment — and
+     * independently of the core stack's, the same reasoning both times.
      */
     private const array MONITORING_SERVICES = ['mongodb', 'opensearch', 'graylog'];
 
@@ -301,6 +313,35 @@ final class ProductionRuntimeConfigTest extends TestCase
     }
 
     /**
+     * The default `json-file` driver has no limit at all, and the log lives
+     * on the same disk as the database — an unbounded log is exactly the
+     * failure mode `disk_database` going `down` at 95% exists to catch, one
+     * layer further up. `certbot` is checked against the prod overlay, the
+     * only file that defines it; every other service is checked against the
+     * base file, which the overlay inherits unmodified.
+     */
+    public function testEveryCoreServiceHasABoundedLoggingDriver(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        foreach (self::LOGGED_CORE_SERVICES as $service) {
+            $definition = 'certbot' === $service ? $prod['services'][$service] : $dev['services'][$service];
+
+            self::assertLoggingIsBounded($definition, $service);
+        }
+    }
+
+    public function testTheMonitoringProfileHasItsOwnLoggingLimitsSeparateFromTheCoreStack(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        foreach (self::MONITORING_SERVICES as $service) {
+            self::assertLoggingIsBounded($dev['services'][$service], $service);
+        }
+    }
+
+    /**
      * A guard against a typo rather than a tuned budget: a limit entered as
      * "10240m" instead of "1024m" would pass the two tests above on its own
      * and only show up here, where the total no longer fits any host anyone
@@ -377,6 +418,60 @@ final class ProductionRuntimeConfigTest extends TestCase
                 sprintf('php no longer waits for "%s" to be healthy before it starts.', $dependency),
             );
         }
+    }
+
+    /**
+     * A guard against a typo rather than a tuned budget, the same reasoning
+     * as the memory-limit sum test: a `max-size` entered as "200m" instead of
+     * "20m" would pass the assertion above on its own.
+     */
+    public function testTheLoggingLimitsFitAConservativeTotalBudget(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        $coreBytes = 0;
+        foreach (self::LOGGED_CORE_SERVICES as $service) {
+            $definition = 'certbot' === $service ? $prod['services'][$service] : $dev['services'][$service];
+            $coreBytes += self::loggingCapacityInBytes($definition);
+        }
+
+        $monitoringBytes = 0;
+        foreach (self::MONITORING_SERVICES as $service) {
+            $monitoringBytes += self::loggingCapacityInBytes($dev['services'][$service]);
+        }
+
+        // ~500M lean, ~650M with monitoring — see docs/operations.md.
+        self::assertLessThan(1024 ** 3, $coreBytes, 'The lean stack\'s logging budget no longer fits comfortably under 1 GiB.');
+        self::assertLessThan(1536 * 1024 ** 2, $coreBytes + $monitoringBytes, 'The stack with monitoring enabled no longer fits comfortably under 1.5 GiB of logs.');
+    }
+
+    /**
+     * @param array<string, mixed> $definition
+     */
+    private static function assertLoggingIsBounded(array $definition, string $service): void
+    {
+        self::assertSame('json-file', $definition['logging']['driver'] ?? null, sprintf('Service "%s" no longer uses the json-file logging driver.', $service));
+
+        $options = $definition['logging']['options'] ?? [];
+        self::assertMatchesRegularExpression('/^\d+[km]$/i', (string) ($options['max-size'] ?? ''), sprintf('Service "%s" has no bounded max-size.', $service));
+        self::assertMatchesRegularExpression('/^\d+$/', (string) ($options['max-file'] ?? ''), sprintf('Service "%s" has no bounded max-file.', $service));
+    }
+
+    /**
+     * @param array<string, mixed> $definition
+     */
+    private static function loggingCapacityInBytes(array $definition): int
+    {
+        $options = $definition['logging']['options'] ?? [];
+
+        if (1 !== preg_match('/^(\d+)([km])$/i', (string) ($options['max-size'] ?? ''), $matches)) {
+            throw new InvalidArgumentException('Not a recognised max-size.');
+        }
+
+        $multiplier = 'k' === strtolower($matches[2]) ? 1024 : 1024 ** 2;
+
+        return (int) $matches[1] * $multiplier * (int) ($options['max-file'] ?? 0);
     }
 
     private static function bytesFromMemoryLimit(string $limit): int

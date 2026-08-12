@@ -193,9 +193,6 @@ the schema back only if the release actually changed it —
 A rollback does not touch the certificates: they live in a volume, not in the
 image, and the lineage name does not change between revisions.
 
-Not configured yet, and worth knowing before this is exposed to anything: no
-log rotation.
-
 ## Restart policy and memory limits
 
 Every service in the production configuration carries `restart:
@@ -272,6 +269,56 @@ docker compose -p aihm-prod restart
 # then, once containers report healthy:
 curl -sf http://127.0.0.1/api/health   # or https://, once a real certificate is issued
 ```
+
+## Container logs
+
+Every service's `logging:` driver is capped (`json-file`, a `max-size` per
+file and a `max-file` count), because nothing in `docker-compose.yml` did
+that before and the default is unlimited: a log grows until the disk it
+shares with the database runs out, and the same disk running out is what
+turns `disk_database` `down` and the health endpoint `503` — the loop the
+container-level limits and the disk-usage warning below both exist to break
+before it closes.
+
+| Service | Per-file / files | Cap | Why |
+|---|---|---|---|
+| `php` | 20M / 5 | 100M | The busiest source: one line per request, plus, before this change, an unbuffered line per PHP deprecation notice |
+| `messenger_worker` | 20M / 5 | 100M | `-vv` — one line per consumed message, not only per failure |
+| `scheduler_worker` | 20M / 5 | 100M | As `messenger_worker`, plus the monitoring sweep |
+| `search` | 20M / 3 | 60M | JVM startup and query logging |
+| `nginx` | 10M / 5 | 50M | Access and error logs |
+| `mysql` | 10M / 3 | 30M | Error log and occasional slow query |
+| `rabbitmq` | 10M / 3 | 30M | Connection churn |
+| `redis` | 5M / 2 | 10M | Minimal — a cache server logs little once started |
+| `certbot` | 5M / 2 | 10M | A twice-daily renewal check |
+| `node` | 5M / 2 | 10M | Idle in production (`profiles: [tools]`) |
+
+Sum: **≈500M** for the lean stack. The `monitoring` profile's three services
+are budgeted separately, the same reasoning as their memory limits: `mongodb`
+10M/3 (30M), `opensearch` 20M/3 (60M), `graylog` 20M/3 (60M) — **≈150M**
+more (≈650M total), so enabling the profile adds a known, bounded quantity
+rather than an open-ended one.
+
+**`app/var/log` is rotated too, including in development** — it is written
+to directly by a bind-mounted stream handler rather than through Docker's
+logging driver, so the container-level limits above never touched it. It had
+grown to 640M with nothing to notice. `config/packages/monolog.yaml`'s `dev`
+handler is now `type: rotating_file` with `max_files: 7`: Monolog rotates the
+file onto a dated name at the first write after midnight and prunes anything
+older, with no host cron or logrotate entry required.
+
+**Production's `deprecation` channel is `type: null`.** It was the one
+handler never wrapped in `fingers_crossed`, so it wrote every PHP deprecation
+notice straight to stderr — measured at roughly 30 lines per request that
+touched the OpenSearch client, for a single vendor-level deprecation that no
+amount of production logging makes actionable. `phpunit.dist.xml`'s
+`failOnDeprecation` is what actually forces these to be fixed, during
+testing; `when@dev` and `when@test` still log every one.
+
+`make doctor`'s **Disk** section warns at 80% usage on the filesystems behind
+`DATABASE_DATA_DIR` and `BACKUP_DIR` — the same threshold `HealthChecker`
+degrades at, read before the 503 that only `disk_database` reaching 95%
+would produce. `DISK_WARN_PERCENT` overrides it.
 
 ## Network surface
 
