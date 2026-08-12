@@ -64,12 +64,26 @@ final class BackupCommandTest extends KernelTestCase
     }
 
     /**
-     * The whole point, end to end: what is on disk decrypts back to the dump it
-     * was made from. Every other check in the backup chain — size, age,
+     * The whole point, end to end: what is on disk decrypts back to exactly the
+     * dump mysqldump produced. Every other check in the backup chain — size, age,
      * freshness — can pass on a file that no longer restores, which is how six
      * days of empty dumps once went unnoticed.
+     *
+     * It asserts the dump's header and its completion marker rather than
+     * `CREATE TABLE`, and the distinction is not cosmetic. The service dumps
+     * whatever `DATABASE_URL` names, which under `when@test` is the base schema —
+     * not the `homemanager_test{token}` database the suite actually populates. On
+     * CI that schema is empty, so a `CREATE TABLE` assertion tests how the fixture
+     * database happens to be provisioned rather than anything about the backup.
+     *
+     * `Dump completed on` is the assertion worth having, and the only portable
+     * one: mysqldump writes it last, so it is present only if the dump ran to the
+     * end — exactly the property a backup needs and a truncated one lacks. The
+     * banner above it is not portable, because the two environments do not run
+     * the same client: the Alpine image carries MariaDB's mysqldump while the CI
+     * runner has MySQL's, and they disagree about what to call themselves.
      */
-    public function testTheEncryptedBackupDecryptsBackToARestorableDump(): void
+    public function testTheEncryptedBackupDecryptsBackToACompleteDump(): void
     {
         $this->runBackup();
 
@@ -87,7 +101,7 @@ final class BackupCommandTest extends KernelTestCase
 
         $sql = gzdecode($gzipped);
         self::assertIsString($sql);
-        self::assertStringContainsString('CREATE TABLE', $sql);
+        self::assertStringContainsString('Dump completed on', $sql);
     }
 
     /**
