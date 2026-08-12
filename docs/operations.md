@@ -194,7 +194,84 @@ A rollback does not touch the certificates: they live in a volume, not in the
 image, and the lineage name does not change between revisions.
 
 Not configured yet, and worth knowing before this is exposed to anything: no
-restart policies or resource limits, no log rotation.
+log rotation.
+
+## Restart policy and memory limits
+
+Every service in the production configuration carries `restart:
+unless-stopped`, so a host reboot or a power failure brings the whole stack
+back with no manual step. It lives in the base `docker-compose.yml` rather
+than the prod overlay — a scalar field, so the overlay inherits it unmodified
+— except for `certbot`, which only the overlay defines.
+
+`php` and `nginx` are the two services that previously had no healthcheck at
+all. `php` has no HTTP server of its own — only php-fpm's socket — so its
+probe speaks FastCGI directly to the pool's built-in `ping` responder via
+`cgi-fcgi`, rather than asking a route the application would have to be fully
+booted to answer. `nginx` in turn `depends_on: php: condition:
+service_healthy`, so it does not start proxying until php-fpm is actually
+serving — without it, a fresh boot answers with `502`s for however long
+php-fpm takes to warm up. `php` itself waits on `mysql`, `redis` and
+`rabbitmq` being `service_healthy` before starting, because a request
+handled during that window would fail its own dependency the moment it tried
+to use it.
+
+### Memory limits
+
+`mem_limit` is set in `docker-compose.prod.yml` for the core stack (not the
+base file): `php` and `scheduler_worker` are also where `docker exec` runs
+the heavier local tooling — `make phpstan` alone asks for
+`--memory-limit=1G` — and a ceiling sized for the running application would
+starve that on a development machine. The monitoring profile's three
+services (`mongodb`, `opensearch`, `graylog`) carry their limits in the base
+file instead, since it is their only definition regardless of environment.
+
+| Service | Limit | Why |
+|---|---|---|
+| `php` | 1024M | Above php.ini's own 512M `memory_limit` ceiling for one request, plus opcache's shared segment, plus headroom for a few lightweight concurrent requests — the dashboard alone fans out one fetch per widget |
+| `nginx` | 64M | Static files and TLS termination; idle workers run in single-digit megabytes |
+| `mysql` | 768M | Headroom over the 128M default InnoDB buffer pool for threads and per-connection buffers; no tuned `my.cnf` exists |
+| `redis` | 256M | No `maxmemory` is configured (see below), so this is a ceiling against a runaway rather than a tuned working set — actual usage is tens of megabytes for a single-user instance |
+| `rabbitmq` | 512M | The Erlang VM alone runs 150–200M near-idle. RabbitMQ auto-detects the cgroup limit and throttles publishers at 40% of it, degrading gracefully well before the container would be OOM-killed |
+| `search` | 1024M | Roughly double the service's own `-Xmx512m` JVM heap, for what a JVM keeps outside `-Xmx` — thread stacks, direct buffers, Lucene's off-heap structures |
+| `messenger_worker` | 768M | A single long-running CLI process, not php-fpm's several children — php.ini's 512M `memory_limit` plus opcache and interpreter overhead, with headroom for the heaviest handler (a full Trakt catalog import) |
+| `scheduler_worker` | 768M | As `messenger_worker`, plus the monitoring sweep it runs in-process — no larger a footprint, since the backup dump itself runs as an external `mysqldump`/`gzip` process rather than inside the PHP heap |
+| `certbot` | 128M | A Python CLI that wakes up twice a day |
+
+Sum: **≈5.2 GiB**, which is why **8 GB of RAM is the minimum** for the lean
+production stack — leaving headroom for the host OS, the Docker daemon and
+filesystem cache on top of the containers' own ceilings.
+
+The `monitoring` profile adds its own three services, sized independently so
+enabling it never takes memory from `mysql` or anything else already
+running:
+
+| Service | Limit | Why |
+|---|---|---|
+| `mongodb` | 512M | Graylog's own configuration and log metadata only — the log bodies live in `opensearch` below. WiredTiger auto-sizes its cache off the cgroup limit it detects |
+| `opensearch` (monitoring) | 1024M | Same reasoning as the app-data `search` service: roughly double its `-Xmx512m` heap |
+| `graylog` | 1024M | No `-Xmx` is configured for Graylog's own JVM, so it ergonomically sizes itself off this cgroup limit — adequate for a single-user instance's log volume |
+
+Adding those (≈2.5 GiB) to the lean sum gives **≈7.7 GiB**, which is why
+**12 GB of RAM is recommended** with the monitoring profile enabled.
+
+**Redis has no `maxmemory` or eviction policy**, deliberately left out of
+this change: `LOCK_DSN` and the worker heartbeats live in the same instance
+as the cache pools, and an `allkeys-lru` policy would evict a held lock key
+under memory pressure exactly as readily as a stale cache entry — turning a
+mutual-exclusion guarantee into a race the moment the instance ever filled
+up. Given the realistic footprint for a single-user library (tens of
+megabytes), hitting the 256M ceiling at all is not expected; if it ever
+happens, `restart: unless-stopped` recovers the container the same way it
+would any other crash.
+
+Verify a reboot recovers the stack without touching anything by hand:
+
+```bash
+docker compose -p aihm-prod restart
+# then, once containers report healthy:
+curl -sf http://127.0.0.1/api/health   # or https://, once a real certificate is issued
+```
 
 ## Network surface
 

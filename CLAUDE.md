@@ -281,6 +281,10 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 
 **`messenger:failed:show` does not work here.** It needs a receiver that can list messages by id, which Doctrine offers and AMQP does not. Use `messenger:stats` for the depth and `messenger:failed:retry` to work through them.
 
+**Every service carries `restart: unless-stopped` and a `mem_limit`, so a host reboot brings the stack back with no manual step and no service can starve the others.** The restart policy lives in the base `docker-compose.yml` — a scalar, so the prod overlay inherits it unmodified — except for `certbot`, which only the overlay defines. `mem_limit` is prod-overlay-only rather than shared: `php` and `scheduler_worker` are also where `docker exec` runs heavier local tooling (`make phpstan` alone asks for `--memory-limit=1G`), and a ceiling sized for the running application would starve that on a development machine. The `monitoring` profile's three services carry their limits in the base file instead, since it is their only definition regardless of environment — keeping the profile's budget independent of the core stack's is what lets it be enabled without taking memory from `mysql`. Full per-service numbers and reasoning: `docs/operations.md`.
+
+**`php` and `nginx` have healthchecks, and boot order is enforced through `depends_on: condition: service_healthy`.** `php` has no HTTP server of its own — only php-fpm's socket — so its probe speaks FastCGI directly via `cgi-fcgi` to the pool's built-in `ping` responder, rather than asking a route that needs the application fully booted to answer. `nginx` waits on `php` being healthy before it starts proxying, or a fresh boot answers with `502`s for however long php-fpm takes to warm up; `php` in turn waits on `mysql`, `redis` and `rabbitmq`.
+
 ### Scheduler
 
 `src/Schedule.php`, 11 recurring tasks. `bin/console debug:scheduler` shows state. Stateful via `cache.app` with `processOnlyLastMissedRun(true)`, so a restart fires at most one missed window.

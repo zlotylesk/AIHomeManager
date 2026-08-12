@@ -37,11 +37,24 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
       LOCK_DSN: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
       MESSENGER_TRANSPORT_DSN: amqp://${RABBITMQ_USER:?set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/%2f/messages
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    # FastCGI, not HTTP: there is no web server in this container, only
+    # php-fpm's own socket. `cgi-fcgi` speaks the protocol nginx speaks to
+    # reach the `ping` responder enabled above — a check that answers only if
+    # php-fpm itself is serving, not merely that the process is running.
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q pong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   nginx:
     image: nginx:alpine
@@ -56,8 +69,13 @@ services:
       # development stack quietly serving the app under different rules from the
       # one that ships.
       - ./docker/nginx/snippets:/etc/nginx/snippets:ro
+    restart: unless-stopped
+    # Waits for php to answer its own healthcheck, not merely to have started —
+    # nginx proxies every request to php-fpm, so a restart that brings nginx up
+    # first would serve 502s for however long php-fpm takes to warm up.
     depends_on:
-      - php
+      php:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/api/health"]
       interval: 30s
@@ -76,6 +94,7 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -86,6 +105,7 @@ services:
     image: redis:8-alpine
     ports:
       - "6379:6379"
+    restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     # The password is read from the environment inside the container rather than
@@ -165,6 +185,7 @@ services:
       # broker cannot be configured one way where it is tested and another way
       # where it runs.
       - ./docker/rabbitmq/20-aihm.conf:/etc/rabbitmq/conf.d/20-aihm.conf:ro
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -253,6 +274,7 @@ services:
       - "${SEARCH_HTTP_PORT:-9200}:9200"
     volumes:
       - search_data:/usr/share/opensearch/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
       interval: 10s
@@ -260,11 +282,20 @@ services:
       retries: 12
       start_period: 40s
 
+  # The `monitoring` profile services carry their own memory limits here —
+  # their only definition, dev and prod alike — precisely so that turning the
+  # profile on never competes with mysql/redis/rabbitmq/search for a shared
+  # budget: each of the two stacks is sized independently.
   mongodb:
     image: mongo:7
     profiles: [monitoring]
     volumes:
       - mongodb_data:/data/db
+    restart: unless-stopped
+    # Log metadata and Graylog's own configuration only — the log bodies live
+    # in the opensearch service below. WiredTiger auto-sizes its cache off the
+    # cgroup limit it detects, so this is a ceiling rather than a tuned value.
+    mem_limit: 512m
 
   opensearch:
     # Stays on OpenSearch 2.x: Graylog 6.3 supports OpenSearch 1.1.x–2.19.5 only,
@@ -277,10 +308,21 @@ services:
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
     volumes:
       - opensearch_data:/usr/share/opensearch/data
+    restart: unless-stopped
+    # Roughly double the fixed 512m JVM heap above: the rest of a JVM's
+    # footprint — thread stacks, direct buffers, Lucene's own off-heap
+    # structures — lives outside `-Xmx` and a limit pinned to the heap size
+    # alone gets the container OOM-killed the moment those add up.
+    mem_limit: 1024m
 
   graylog:
     image: graylog/graylog:6.3
     profiles: [monitoring]
+    restart: unless-stopped
+    # No -Xmx configured for Graylog's own JVM, so it ergonomically sizes
+    # itself off the cgroup limit below rather than the host's full memory —
+    # adequate for a single-user instance's log volume.
+    mem_limit: 1024m
     environment:
       # From the environment, with no default here, exactly like the Redis and
       # broker credentials above.
