@@ -894,6 +894,62 @@ final class ProductionRuntimeConfigTest extends TestCase
     }
 
     /**
+     * The production map must carry no script-src exception at all — that is
+     * what keeps the jsdelivr allowance confined to a code path
+     * (FRANKENPHP_HOT_RELOAD) that only ever renders under APP_ENV=dev.
+     */
+    public function testTheProductionCspMapAnnouncesTheSameStrictPolicyAsThePhpListener(): void
+    {
+        $map = $this->read('docker/nginx/snippets/csp-map.conf');
+
+        self::assertStringContainsString(
+            '"'.SecurityHeadersListener::CONTENT_SECURITY_POLICY.'"',
+            $map,
+            'nginx (production) and SecurityHeadersListener now advertise different default Content-Security-Policy values.',
+        );
+        self::assertStringContainsString(
+            '"'.SecurityHeadersListener::CONTENT_SECURITY_POLICY_API_DOC.'"',
+            $map,
+            'nginx (production) and SecurityHeadersListener now advertise different Content-Security-Policy values for /api/doc*.',
+        );
+        self::assertStringNotContainsString(
+            'cdn.jsdelivr.net',
+            $map,
+            'The production CSP map carries the dev-only jsdelivr exception.',
+        );
+    }
+
+    public function testTheDevelopmentCspMapAnnouncesTheSameRelaxedApiDocPolicyAsThePhpListener(): void
+    {
+        $map = $this->read('docker/nginx/snippets/csp-map.dev.conf');
+
+        self::assertStringContainsString(
+            '"'.SecurityHeadersListener::CONTENT_SECURITY_POLICY_API_DOC.'"',
+            $map,
+            'nginx (development) and SecurityHeadersListener now advertise different Content-Security-Policy values for /api/doc*.',
+        );
+        self::assertStringContainsString(
+            'cdn.jsdelivr.net',
+            $map,
+            'The development CSP map lost the jsdelivr exception the FrankenPHP hot-reload script needs.',
+        );
+    }
+
+    public function testBothSiteConfigurationsIncludeACspMap(): void
+    {
+        self::assertStringContainsString(
+            'include /etc/nginx/snippets/csp-map.dev.conf;',
+            $this->read('docker/nginx/default.conf'),
+            'The development site configuration no longer includes a CSP map.',
+        );
+        self::assertStringContainsString(
+            'include /etc/nginx/snippets/csp-map.conf;',
+            $this->read('docker/nginx/default.prod.conf'),
+            'The production site configuration no longer includes a CSP map.',
+        );
+    }
+
+    /**
      * Renewal writes the challenge token to a directory; nginx serves it from
      * one. If those are not the same directory, everything looks correct and
      * healthy for sixty days and then the certificate expires.
