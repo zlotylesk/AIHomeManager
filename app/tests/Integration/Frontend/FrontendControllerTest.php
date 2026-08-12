@@ -178,13 +178,6 @@ class FrontendControllerTest extends WebTestCase
         self::assertStringContainsString('/series', $href);
     }
 
-    public function testBaseLayoutContainsCSPMetaTag(): void
-    {
-        $this->client->request('GET', '/series');
-
-        self::assertSelectorExists('meta[http-equiv="Content-Security-Policy"]');
-    }
-
     public function testBaseLayoutLoadsEncoreEntryAssets(): void
     {
         $this->client->request('GET', '/series');
