@@ -127,7 +127,7 @@ final class BackupFreshnessProbeTest extends TestCase
     public function testFilesThatAreNotBackupsAreIgnored(): void
     {
         file_put_contents($this->backupDir.'/notes.txt', str_repeat('x', 400_000));
-        file_put_contents($this->backupDir.'/homemanager-latest.sql.gz', str_repeat('x', 400_000));
+        file_put_contents($this->backupDir.'/homemanager-latest.sql.gz.enc', str_repeat('x', 400_000));
 
         self::assertSame('missing', $this->probe()[0]->key);
     }
@@ -148,7 +148,7 @@ final class BackupFreshnessProbeTest extends TestCase
 
     private function writeBackup(string $date, int $bytes): string
     {
-        $path = sprintf('%s/homemanager-%s.sql.gz', $this->backupDir, $date);
+        $path = sprintf('%s/homemanager-%s.sql.gz.enc', $this->backupDir, $date);
         file_put_contents($path, str_repeat('x', $bytes));
 
         return $path;

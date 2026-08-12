@@ -124,6 +124,20 @@ services:
       # being the thing that broke), which is exactly why it needs a volume of
       # its own rather than inheriting one.
       - monitoring_state:/var/www/html/var/monitoring
+      # Off-host copies with BACKUP_REMOTE_BACKEND=directory. Deliberately left
+      # commented and un-defaulted: the whole value of this mount is that the
+      # left-hand side is storage that does not die with this machine — a NAS
+      # export, an external disk — and only the operator knows where that is on
+      # their host. A default pointing somewhere under the project directory
+      # would be refused at push time anyway (LocalDirectoryBackupDestination
+      # compares filesystems), which is the right outcome but a confusing way to
+      # learn about the setting.
+      #
+      #   - /mnt/nas/aihm-backups:/backups-offsite
+      #
+      # then BACKUP_REMOTE_BACKEND=directory and BACKUP_REMOTE_DIR=/backups-offsite
+      # in app/.env.local. With BACKUP_REMOTE_BACKEND=rclone no mount is needed —
+      # add ~/.config/rclone/rclone.conf instead. See docs/operations.md.
     # The secrets, as environment variables rather than a file in the image.
     # app/.env.local is deliberately excluded from the build context, so without
     # this the container falls back to the placeholder values in the tracked

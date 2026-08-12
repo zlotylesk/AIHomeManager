@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Backup;
 
+use App\Infrastructure\Backup\BackupCipher;
 use App\Infrastructure\Backup\DatabaseBackupService;
+use App\Infrastructure\Backup\Destination\NullBackupDestination;
 use Override;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -50,7 +52,7 @@ final class DatabaseBackupServiceFailureTest extends TestCase
         $logger->expects(self::once())
             ->method('error')
             ->with('Database backup failed', self::callback(
-                static fn (array $ctx): bool => 0 !== $ctx['exit_code'],
+                static fn (array $ctx): bool => str_contains((string) $ctx['error'], 'Database backup failed'),
             ));
 
         $service = new DatabaseBackupService(
@@ -58,6 +60,8 @@ final class DatabaseBackupServiceFailureTest extends TestCase
             // still runs on its (empty) stdin and would happily exit 0.
             'mysql://u:p@nonexistent-host-xyz-hmai397:3306/db',
             $this->tmpDir,
+            new BackupCipher(sodium_crypto_secretstream_xchacha20poly1305_keygen()),
+            new NullBackupDestination(),
             $logger,
         );
 
@@ -68,10 +72,15 @@ final class DatabaseBackupServiceFailureTest extends TestCase
             $service->backup();
         } finally {
             // The bug this pins: without `pipefail`, this glob would find a
-            // gzip-produced (empty/corrupted) .sql.gz even after the throw.
-            $files = glob($this->tmpDir.'/homemanager-*.sql.gz');
+            // gzip-produced (empty/corrupted) file even after the throw.
+            //
+            // The brace glob covers the dot-prefixed temporary plaintext too. A
+            // failed run must leave nothing at all: neither something the
+            // freshness probe would count as tonight's backup, nor an
+            // unencrypted fragment of the database.
+            $files = glob($this->tmpDir.'/{,.}homemanager-*', \GLOB_BRACE);
             self::assertNotFalse($files);
-            self::assertSame([], $files, 'a failed backup must not leave a partial .sql.gz behind');
+            self::assertSame([], $files, 'a failed backup must leave neither a partial artifact nor a plaintext dump behind');
         }
     }
 }

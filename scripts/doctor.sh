@@ -48,7 +48,14 @@ fi
 # key. A wrong-length key surfaces as a 500 on first OAuth init request —
 # usually a base64 typo, a manually pasted shorter string, or a hex-encoded
 # key (64 hex chars base64-decode to 48 bytes — the HMAI-219 Trakt regression).
-for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY SPOTIFY_TOKEN_KEY; do
+#
+# BACKUP_ENCRYPTION_KEY sits in the same list and is checked the same way, but it
+# fails differently and worse. The token keys can be regenerated — re-authorise
+# with the provider and carry on. This one cannot: it is the only thing that
+# turns the stored dumps back into a database, so losing it loses every backup at
+# once, retroactively, including the copies that made it off the host. Keep it
+# somewhere that is neither the backup directory nor a copy of it.
+for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY SPOTIFY_TOKEN_KEY BACKUP_ENCRYPTION_KEY; do
     val=$(grep -E "^${key_name}=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
     if [ -z "$val" ]; then
         check_warn "$key_name not set"
@@ -122,7 +129,7 @@ min_bytes="${BACKUP_MIN_BYTES:-1024}"
 # what `make restore BACKUP=...` takes, so it is the date a human acts on.
 #
 # YYYY-MM-DD sorts lexicographically in date order, so plain `sort` is enough.
-newest=$(ls -1 "$backup_dir"/homemanager-*.sql.gz 2>/dev/null | sort | tail -n 1)
+newest=$(ls -1 "$backup_dir"/homemanager-*.sql.gz.enc 2>/dev/null | sort | tail -n 1)
 if [ -z "$newest" ]; then
     check_warn "no backup files yet (run 'make backup-now')"
 else
@@ -143,7 +150,7 @@ else
     # window whenever the host next comes up, so observed dumps land anywhere
     # from 07:00 to 22:00. A 24h threshold would cry wolf on an ordinary day, and
     # a check that is routinely wrong is one people learn to ignore.
-    stamp=$(basename "$newest" .sql.gz)
+    stamp=$(basename "$newest" .sql.gz.enc)
     stamp=${stamp#homemanager-}
     backup_epoch=$(date -d "$stamp" +%s 2>/dev/null)
     if [ -z "$backup_epoch" ]; then
@@ -178,13 +185,13 @@ else
     total_count=0
     empty_count=0
     newest_usable=""
-    for f in "$backup_dir"/homemanager-*.sql.gz; do
+    for f in "$backup_dir"/homemanager-*.sql.gz.enc; do
         [ -f "$f" ] || continue
         total_count=$((total_count + 1))
         if [ "$(wc -c < "$f" | tr -d ' ')" -le 1024 ]; then
             empty_count=$((empty_count + 1))
         else
-            newest_usable=$(basename "$f" .sql.gz)
+            newest_usable=$(basename "$f" .sql.gz.enc)
             newest_usable=${newest_usable#homemanager-}
         fi
     done
@@ -197,6 +204,67 @@ else
         # nothing.
         check_warn "only ${usable_count} of ${total_count} retained backups are usable (${empty_count} are empty dumps); newest usable is from ${newest_usable:-none}"
     fi
+fi
+
+# The local checks above all answer "is there a good backup on this machine",
+# which stays true right up until the machine is what is lost. This one asks the
+# question that survives that.
+#
+# Delegated to the application rather than checked in shell, and for a reason
+# that is not tidiness: BACKUP_REMOTE_DIR is a path INSIDE the container, and an
+# rclone remote is reachable only with credentials in the container's own config.
+# A host-side `ls` would be inspecting a different filesystem entirely and would
+# cheerfully report on nothing. `app:backup:offsite-status` reads the same
+# destination object the nightly job pushes to and BackupOffsiteProbe watches, so
+# all three cannot disagree.
+echo ""
+echo "== Off-host backups =="
+if ! docker inspect -f '{{.State.Status}}' aihm-php-1 2>/dev/null | grep -q running; then
+    check_warn "php container not running — off-host backup state not checked"
+else
+    offsite=$(docker exec aihm-php-1 sh -c 'cd /var/www/html && bin/console app:backup:offsite-status 2>/dev/null' | tr -d '\r')
+    case "$offsite" in
+        backend=none*)
+            # A warning, not a failure, and for the same reason MAILER_DSN is: a
+            # laptop that keeps its backups locally is a correctly configured
+            # laptop. It still has to be said out loud, because "we have off-host
+            # backups" is exactly the kind of thing an instance is assumed to be
+            # doing until the day it is needed.
+            check_warn "no off-host copy configured (BACKUP_REMOTE_BACKEND=none) — every backup exists only on this machine"
+            ;;
+        *state=unreachable*)
+            check_fail "off-host destination cannot be read: ${offsite#* } (mount dropped, or the remote's credentials changed)"
+            ;;
+        *state=empty*)
+            check_fail "off-host destination is reachable but holds no backup — run 'make backup-now' and read what it says about the copy"
+            ;;
+        *state=stale*)
+            check_fail "off-host copy has stopped arriving: ${offsite#*state=stale }"
+            ;;
+        *state=ok*)
+            check_ok "off-host copy current: ${offsite#*state=ok }"
+            ;;
+        "")
+            check_warn "could not read off-host backup state (is the container's console working?)"
+            ;;
+        *)
+            check_warn "unexpected off-host backup state: $offsite"
+            ;;
+    esac
+
+    # rclone is installed by docker/php/Dockerfile. A container that predates
+    # that line selects the backend happily and then fails every night at push
+    # time — the same invisible, image-level gap as bash and the MySQL auth
+    # plugin, which CI cannot see because it never runs inside this image.
+    case "$offsite" in
+        backend=rclone*)
+            if docker exec aihm-php-1 sh -c 'command -v rclone' >/dev/null 2>&1; then
+                check_ok "php image has rclone"
+            else
+                check_fail "BACKUP_REMOTE_BACKEND=rclone but the php image has no rclone — stale image (run 'docker compose build php && docker compose up -d')"
+            fi
+            ;;
+    esac
 fi
 
 # A message in the dead-letter queue is a failure that has already happened and

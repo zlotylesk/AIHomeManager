@@ -29,7 +29,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # pipeline used to run under POSIX `sh`, gzip's success hid mysqldump's failure
 # and the run reported "Backup created". This package supplies
 # caching_sha2_password.so, so the dump can actually log in.
-RUN apk add --no-cache $PHPIZE_DEPS rabbitmq-c-dev mysql-client mariadb-connector-c bash \
+# rclone: what carries the encrypted dump off the machine when
+# BACKUP_REMOTE_BACKEND=rclone. Installed rather than left to the operator for
+# the same reason as the two packages above — a missing binary here surfaces only
+# as a nightly off-host copy that stops happening, and the whole point of
+# encrypting and copying backups is that nobody finds out during a restore. The
+# `directory` backend needs none of this, and an instance using it simply carries
+# an unused binary; `make doctor` checks rclone only when it is actually selected.
+RUN apk add --no-cache $PHPIZE_DEPS rabbitmq-c-dev mysql-client mariadb-connector-c bash rclone \
     && pecl install amqp \
     && pecl install redis \
     && pecl install pcov \
@@ -108,12 +115,14 @@ RUN APP_SECRET=build-time-only \
     GOOGLE_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
     TRAKT_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
     SPOTIFY_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
+    BACKUP_ENCRYPTION_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
     composer dump-autoload --no-dev --classmap-authoritative --no-interaction \
     && APP_SECRET=build-time-only \
        DISCOGS_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
        GOOGLE_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
        TRAKT_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
        SPOTIFY_TOKEN_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
+       BACKUP_ENCRYPTION_KEY=YnVpbGQtdGltZS1wbGFjZWhvbGRlci0zMi1ieXRlcyE= \
        php bin/console cache:warmup --no-interaction \
     && php bin/console assets:install public --no-interaction \
     && chown -R www-data:www-data var public
