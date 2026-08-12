@@ -24,8 +24,11 @@ use DateTimeImmutable;
  * The severity mapping is the health check's own distinction, kept intact:
  * `down` is something the system needs being gone, `degraded` is a component
  * that has a fallback or does not affect serving. That is also what makes disk
- * pressure escalate on its own — 80 % is a warning, 95 % is critical, and the
- * monitor announces the step up.
+ * pressure escalate on its own — `disk_database` is a warning at 80 % and
+ * critical at 95 %, and the monitor announces the step up. `disk_backups` never
+ * makes that step, by the same rule: it never reports `down`, because a full
+ * backup filesystem costs tonight's dump rather than today's requests, and the
+ * loss itself is what `BackupFreshnessProbe` announces as critical.
  */
 final readonly class HealthComponentProbe implements AlertProbeInterface
 {
@@ -39,7 +42,8 @@ final readonly class HealthComponentProbe implements AlertProbeInterface
         'rabbitmq' => 'The broker is unreachable. Async commands are not being delivered; check `make logs-rabbitmq` and that its named volume and fixed hostname are intact.',
         'search' => 'The search engine is unreachable. Global search has already fallen back to MySQL FULLTEXT, so this is not user-visible — but the OpenSearch index is going stale.',
         'worker' => 'A Messenger worker has not beaten within five minutes. Check `docker compose ps` for messenger_worker and scheduler_worker; while this stands, imports, the search reindex, notifications and the nightly backup are all stopped.',
-        'disk' => 'The disk is filling up. Above 95 % MySQL cannot flush or write binlogs. Backups under BACKUP_DIR are usually the largest thing worth pruning.',
+        'disk_database' => 'The filesystem holding the database data directory (DATABASE_DATA_DIR) is filling up. Above 95 % MySQL cannot flush or write binlogs. A `degraded` here can also mean the measurement failed — check that the volume is still mounted into the container.',
+        'disk_backups' => 'The filesystem holding BACKUP_DIR is filling up. Old dumps are usually the largest thing worth pruning, and the retention sweep runs with the nightly backup. Deal with it before it becomes a backup:* alert, which is this same problem after a dump has already been lost. A `degraded` here can also mean the measurement failed — check that the directory is still mounted into the container.',
     ];
 
     public function __construct(private HealthChecker $health)

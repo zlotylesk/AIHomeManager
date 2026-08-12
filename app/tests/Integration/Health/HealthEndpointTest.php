@@ -28,8 +28,14 @@ final class HealthEndpointTest extends WebTestCase
         self::assertArrayHasKey('redis', $body['components']);
         self::assertArrayHasKey('rabbitmq', $body['components']);
         self::assertArrayHasKey('search', $body['components']);
-        self::assertArrayHasKey('disk', $body['components']);
-        self::assertContains($body['components']['disk'], ['up', 'degraded', 'down']);
+        // Two disk components, not one: the database's data directory and the
+        // backup directory are separate filesystems the moment either is given
+        // a volume of its own, and knowing which filled up is what decides
+        // whether pruning dumps would help.
+        self::assertArrayHasKey('disk_database', $body['components']);
+        self::assertArrayHasKey('disk_backups', $body['components']);
+        self::assertContains($body['components']['disk_database'], ['up', 'degraded', 'down']);
+        self::assertContains($body['components']['disk_backups'], ['up', 'degraded', 'down']);
         // Search is optional infra (graceful degrade to FULLTEXT) — reachable or
         // 'degraded', but never 'down'.
         self::assertContains($body['components']['search'], ['up', 'degraded']);

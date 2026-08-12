@@ -7,6 +7,27 @@ services:
     volumes:
       - ./app:/var/www/html
       - ./backups:/backups
+      # Read-only, and here only so the disk probe can measure the filesystem
+      # the database data actually lives on. `disk_free_space` reports on the
+      # device holding a path, and the only path in this container that resolves
+      # to the database's device is a mount of its volume — without one the
+      # probe can only see the PHP image layer, which is what it used to
+      # measure and what makes a green reading meaningless the moment the data
+      # gets a volume or partition of its own.
+      #
+      # It grants no access the application does not already have: it holds the
+      # credentials to every row in there. `:ro` is what keeps the files this
+      # container can read from being files it could corrupt, and
+      # ProductionRuntimeConfigTest fails the build if any service ever mounts
+      # this volume writable.
+      #
+      # Compose's `volume.subpath` would narrow the exposure to one directory
+      # inside the volume — same device, so the measurement would be identical.
+      # Not used: every candidate subdirectory is MySQL's own (`sys`,
+      # `#innodb_redo`), so the mount would break on a server version that
+      # rearranged them, and it would trade a real dependency for a cosmetic
+      # gain over a container that already holds the database password.
+      - mysql_data:/var/lib/mysql:ro
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
       # Both Redis DSNs, and both carry the password. LOCK_DSN is the one that is
@@ -188,6 +209,11 @@ services:
     volumes:
       - ./app:/var/www/html
       - ./backups:/backups
+      # The same read-only mount as the php service, for the same probe: the
+      # monitoring sweep asks HealthChecker in-process from THIS container, so
+      # without it the alerting half would report a measurement it cannot take
+      # while the endpoint half measured fine.
+      - mysql_data:/var/lib/mysql:ro
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379

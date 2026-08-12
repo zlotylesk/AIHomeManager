@@ -18,7 +18,7 @@ final class HealthControllerTest extends TestCase
             'mysql' => 'up',
             'redis' => 'up',
             'rabbitmq' => 'up',
-            'disk' => 'up',
+            'disk_database' => 'up',
         ]);
 
         $controller = new HealthController($checker);
@@ -27,7 +27,7 @@ final class HealthControllerTest extends TestCase
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true);
         self::assertSame('healthy', $body['status']);
-        self::assertSame(['mysql' => 'up', 'redis' => 'up', 'rabbitmq' => 'up', 'disk' => 'up'], $body['components']);
+        self::assertSame(['mysql' => 'up', 'redis' => 'up', 'rabbitmq' => 'up', 'disk_database' => 'up'], $body['components']);
 
         self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T/', (string) $body['timestamp']);
     }
@@ -39,7 +39,7 @@ final class HealthControllerTest extends TestCase
             'mysql' => 'up',
             'redis' => 'down',
             'rabbitmq' => 'up',
-            'disk' => 'up',
+            'disk_database' => 'up',
         ]);
 
         $controller = new HealthController($checker);
@@ -58,7 +58,7 @@ final class HealthControllerTest extends TestCase
             'mysql' => 'up',
             'redis' => 'up',
             'rabbitmq' => 'up',
-            'disk' => 'degraded',
+            'disk_database' => 'degraded',
         ]);
 
         $controller = new HealthController($checker);
@@ -67,7 +67,7 @@ final class HealthControllerTest extends TestCase
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true);
         self::assertSame('degraded', $body['status']);
-        self::assertSame('degraded', $body['components']['disk']);
+        self::assertSame('degraded', $body['components']['disk_database']);
     }
 
     public function testDeadWorkersReturn200WithDegradedStatus(): void
@@ -85,7 +85,7 @@ final class HealthControllerTest extends TestCase
             'redis' => 'up',
             'rabbitmq' => 'up',
             'worker' => 'degraded',
-            'disk' => 'up',
+            'disk_database' => 'up',
         ]);
 
         $controller = new HealthController($checker);
@@ -104,7 +104,7 @@ final class HealthControllerTest extends TestCase
             'mysql' => 'up',
             'redis' => 'up',
             'rabbitmq' => 'up',
-            'disk' => 'down',
+            'disk_database' => 'down',
         ]);
 
         $controller = new HealthController($checker);
@@ -113,6 +113,6 @@ final class HealthControllerTest extends TestCase
         self::assertSame(Response::HTTP_SERVICE_UNAVAILABLE, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true);
         self::assertSame('unhealthy', $body['status']);
-        self::assertSame('down', $body['components']['disk']);
+        self::assertSame('down', $body['components']['disk_database']);
     }
 }

@@ -342,6 +342,66 @@ a single message taking longer than 5 minutes reads as `degraded` while the
 worker is in fact busy — a deliberate trade, since the reading is informational
 and the failure worth catching lasts days rather than minutes.
 
+### What the disk probe measures
+
+Two filesystems, reported as two components, because the two answers lead to
+different actions:
+
+| Component | Filesystem | Why it matters |
+|---|---|---|
+| `disk_database` | the one holding `DATABASE_DATA_DIR` (`/var/lib/mysql`, the `mysql_data` volume) | with no headroom MySQL cannot flush or write binlogs |
+| `disk_backups` | the one holding `BACKUP_DIR` | the nightly dump needs somewhere to land; old dumps are what to prune |
+
+```bash
+curl -s localhost:8080/api/health | jq '.components | with_entries(select(.key | startswith("disk")))'
+```
+
+Neither is the PHP container's root filesystem, which is what this used to
+measure and is nothing but that container's own image layer. On a single-machine
+install all three sit on the same device, so the reading was accidentally right
+— and stopped being right the moment the database or the backups were given a
+volume or a partition of their own, which is a normal step in standing
+production up. The `php` and `scheduler_worker` services therefore mount
+`mysql_data` **read-only**: `statvfs` reports on the device holding a path, and
+without a path into that volume there is nothing in the container that resolves
+to it. `scheduler_worker` needs it as much as `php` does, because the monitoring
+sweep asks the same checker in-process.
+
+Thresholds are per location and identical — 80 % used is `degraded`, 95 % is
+critical. What critical *means* is not identical: `disk_database` at 95 % is
+`down` (HTTP 503), because MySQL is about to stop writing, while `disk_backups`
+stays `degraded` however full it gets. The instance is serving every request it
+is asked to; a 503 would take it out of rotation without freeing a byte. That
+puts it with `search` and `worker` under the same rule, and what a full backup
+filesystem actually costs is announced as **critical** by the `backup:*` probes
+the moment a dump goes missing, short or stale — this component is the warning
+that arrives before that happens.
+
+A **failed measurement is `degraded`, not `down`**: a missing path is a mount
+that has gone or a configuration mistake, and answering it with a 503 would take
+an instance out of rotation while it was serving every request perfectly. It is
+logged as a `warning` naming the path, so it cannot pass for a healthy reading
+either.
+
+Two properties of the measurement itself, worth knowing before reading a number
+off it. `disk_free_space` reports what is free to the *application*, while
+`disk_total_space` reports the whole device — ext4 keeps 5 % back for root, so a
+filesystem an ordinary process has entirely filled reads as roughly 95 %, a few
+points ahead of `df` in a root shell. That reserve is not space MySQL or the
+backup job can use, so it is the right reading to threshold on. And `statvfs`
+can block on a hung mount, with no timeout to pass it from PHP; both measured
+paths are local, which is what keeps that theoretical — an off-host backup
+destination is deliberately read by `BackupOffsiteProbe` on the monitoring
+sweep, never on the request path.
+
+**Upgrading an existing instance:** the single `disk` component became
+`disk_database` and `disk_backups`. An external uptime monitor keyed on
+`components.disk` needs updating — it will otherwise find nothing there and
+report on a field that no longer exists. Nothing inside the project reads it,
+and a standing `health:disk` alert resolves itself on the first sweep after the
+upgrade, because the monitor announces a key that has stopped being reported as
+RESOLVED and then forgets it.
+
 ### Dead-letter queue
 
 A message that exhausts its retries lands in the `failed` transport (queue
@@ -423,7 +483,8 @@ make monitor-run       # one sweep now, and print what it found
 |---|---|---|---|
 | `health:mysql` / `health:redis` / `health:rabbitmq` | `HealthChecker` | the component is `down` | critical |
 | `health:search` / `health:worker` | `HealthChecker` | the component is `degraded` | warning |
-| `health:disk` | `HealthChecker` | ≥ 80 % used → warning, ≥ 95 % → critical | both |
+| `health:disk_database` | `HealthChecker` | the filesystem holding `DATABASE_DATA_DIR` is ≥ 80 % used → warning, ≥ 95 % → critical; unmeasurable → warning | both |
+| `health:disk_backups` | `HealthChecker` | the filesystem holding `BACKUP_DIR`, same thresholds, but **never critical** — a full backup disk does not stop the instance serving, and what it costs is caught by `backup:*` below | warning |
 | `backup:missing` | `BACKUP_DIR` | no `homemanager-*.sql.gz.enc` at all | critical |
 | `backup:stale` | `BACKUP_DIR` | the newest dump is older than `BACKUP_MAX_AGE_HOURS` | critical |
 | `backup:empty` | `BACKUP_DIR` | the newest dump is recent but under `BACKUP_MIN_BYTES` | critical |
@@ -494,7 +555,8 @@ Every alert carries a first step in its body. The short version:
 | `health:rabbitmq` | `make logs-rabbitmq`; check the named volume **and** the fixed hostname |
 | `health:search` | not user-visible — global search already fell back to FULLTEXT — but the index is going stale |
 | `health:worker` | `docker compose ps`; while it stands, imports, reindexing, notifications and the nightly backup are all stopped |
-| `health:disk` | above 95 % MySQL cannot flush or write binlogs; `BACKUP_DIR` is usually the largest thing to prune |
+| `health:disk_database` | above 95 % MySQL cannot flush or write binlogs. A `degraded` can also mean the measurement failed — check that the `mysql_data` volume is still mounted into the container |
+| `health:disk_backups` | old dumps are usually the largest thing to prune; retention runs with the nightly backup. Act on it before it becomes a `backup:*` alert, which is the same problem after a dump has already been lost. A `degraded` can also mean `BACKUP_DIR` is no longer mounted |
 | `backup:*` | `make backup-now`, then `make doctor` for the fuller picture |
 | `backup_offsite:*` | the local backup is probably fine — this says the copy stopped leaving the machine. `docker compose logs scheduler_worker \| grep -i off-host` for the reason the nightly job recorded, fix the destination, then `make backup-now`. The job deliberately does not retry |
 | `queue:failed` | `messenger:stats` for the depth, `messenger:failed:retry` to drain — see [Dead-letter queue](#dead-letter-queue) |
@@ -782,7 +844,7 @@ estimate. Times are wall-clock on a laptop, MySQL 8.4 in Docker.
 |---|---|
 | `app:backup-database` — dump, gzip, encrypt, retention | **5.2 s** |
 | Restore into an empty schema — decrypt, gunzip, load | **5.5 s** |
-| `/api/health` afterwards | 200, all six components `up` |
+| `/api/health` afterwards | 200, every component `up` |
 
 The encrypted artifact was **354 333 bytes** for a database of 33 tables, the
 largest being 3 274 listening sessions and 989 search documents.
