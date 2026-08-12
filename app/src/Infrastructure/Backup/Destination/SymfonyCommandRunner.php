@@ -26,12 +26,7 @@ final readonly class SymfonyCommandRunner implements CommandRunnerInterface
         }
 
         if (!$process->isSuccessful()) {
-            throw new RuntimeException(sprintf(
-                '%s exited with %s: %s',
-                $command[0] ?? 'command',
-                var_export($process->getExitCode(), true),
-                trim($process->getErrorOutput()) ?: trim($process->getOutput()),
-            ));
+            throw new RuntimeException(sprintf('%s exited with %s: %s', $command[0] ?? 'command', var_export($process->getExitCode(), true), trim($process->getErrorOutput()) ?: trim($process->getOutput())));
         }
 
         return $process->getOutput();

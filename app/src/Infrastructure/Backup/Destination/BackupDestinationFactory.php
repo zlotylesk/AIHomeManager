@@ -42,11 +42,7 @@ final readonly class BackupDestinationFactory
             self::NONE => new NullBackupDestination(),
             self::DIRECTORY => $this->directory(),
             self::RCLONE => $this->rclone(),
-            default => throw new InvalidArgumentException(sprintf(
-                'Unknown BACKUP_REMOTE_BACKEND "%s". Expected one of: %s.',
-                $this->backend,
-                implode(', ', [self::NONE, self::DIRECTORY, self::RCLONE]),
-            )),
+            default => throw new InvalidArgumentException(sprintf('Unknown BACKUP_REMOTE_BACKEND "%s". Expected one of: %s.', $this->backend, implode(', ', [self::NONE, self::DIRECTORY, self::RCLONE]))),
         };
     }
 
