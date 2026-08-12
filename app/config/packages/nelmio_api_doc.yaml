@@ -223,11 +223,11 @@ nelmio_api_doc:
                     tags:
                         - Health
                     summary: 'Readiness probe (public).'
-                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / search engine / async worker / disk status for orchestrators and uptime monitors. Two components report `degraded` (HTTP 200) rather than `down`, because neither stops the instance from serving requests and taking it out of rotation would help nothing: the search engine is optional infrastructure (global search falls back to MySQL FULLTEXT), and `worker` describes background processing — a stale worker heartbeat means imports, notifications, search indexing and the nightly backup have stopped, which is fixed by restarting a worker rather than by shifting traffic. Note that `rabbitmq` answers whether the broker is reachable, which it is even with nothing consuming; `worker` is the component that says anything is.'
+                    description: 'Public readiness probe — no API key required. Reports MySQL / Redis / RabbitMQ / search engine / async worker / disk status for orchestrators and uptime monitors. Three components report `degraded` (HTTP 200) rather than `down`, because none of them stops the instance from serving requests and taking it out of rotation would help nothing: the search engine is optional infrastructure (global search falls back to MySQL FULLTEXT); `worker` describes background processing — a stale worker heartbeat means imports, notifications, search indexing and the nightly backup have stopped, which is fixed by restarting a worker rather than by shifting traffic; and `disk_backups` is about tonight''s dump rather than today''s requests. Note that `rabbitmq` answers whether the broker is reachable, which it is even with nothing consuming; `worker` is the component that says anything is. Disk is reported as two components, because the answer to "which one filled up" decides what to do about it: `disk_database` measures the filesystem holding the database data directory (`DATABASE_DATA_DIR`), whose last free byte stops MySQL flushing and writing binlogs, and `disk_backups` measures the one holding `BACKUP_DIR`. Both use the same thresholds — 80 %% used is `degraded`, 95 %% is critical — but only `disk_database` turns critical into `down`: a full backup filesystem is announced, not 503''d, and what it actually costs is caught by the backup freshness alerts. Both report `degraded` when the measurement itself fails (a path that is not there, a mount that has gone), because not knowing how much space is left is not the same as knowing there is none.'
                     security: []
                     responses:
                         '200':
-                            description: 'Service healthy (or disk degraded but still serving).'
+                            description: 'Service healthy (or degraded — a full-ish disk, an unmeasurable one, a stale worker — but still serving).'
                             headers:
                                 X-Request-ID:
                                     $ref: '#/components/headers/X-Request-ID'
@@ -260,12 +260,13 @@ nelmio_api_doc:
                                                     rabbitmq: up
                                                     search: up
                                                     worker: up
-                                                    disk: up
+                                                    disk_database: up
+                                                    disk_backups: up
                                             timestamp:
                                                 type: string
                                                 format: date-time
                         '503':
-                            description: 'Service unhealthy — a dependency probe failed or the disk is critically full.'
+                            description: 'Service unhealthy — a dependency probe failed or one of the measured filesystems is critically full.'
                             headers:
                                 X-Request-ID:
                                     $ref: '#/components/headers/X-Request-ID'

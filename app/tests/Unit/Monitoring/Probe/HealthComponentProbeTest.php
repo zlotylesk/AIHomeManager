@@ -21,7 +21,8 @@ final class HealthComponentProbeTest extends TestCase
             'rabbitmq' => 'up',
             'search' => 'up',
             'worker' => 'up',
-            'disk' => 'up',
+            'disk_database' => 'up',
+            'disk_backups' => 'up',
         ]);
 
         self::assertSame([], $alerts);
@@ -44,30 +45,35 @@ final class HealthComponentProbeTest extends TestCase
 
     public function testTheAlertNamesTheComponentAndItsState(): void
     {
-        $alerts = $this->probeReporting(['disk' => 'degraded']);
+        $alerts = $this->probeReporting(['disk_backups' => 'degraded']);
 
-        self::assertSame('Health component "disk" is degraded', $alerts[0]->title);
+        self::assertSame('Health component "disk_backups" is degraded', $alerts[0]->title);
     }
 
     /**
-     * The disk component is the one that genuinely walks up the severity scale
-     * on its own — 80 % degraded, 95 % down — which is what makes escalation a
-     * real path rather than a theoretical one.
+     * The disk components are the ones that genuinely walk up the severity
+     * scale on their own — 80 % degraded, 95 % down — which is what makes
+     * escalation a real path rather than a theoretical one.
      */
     public function testTheSameComponentCanEscalateFromWarningToCritical(): void
     {
-        self::assertSame(AlertSeverity::WARNING, $this->probeReporting(['disk' => 'degraded'])[0]->severity);
-        self::assertSame(AlertSeverity::CRITICAL, $this->probeReporting(['disk' => 'down'])[0]->severity);
+        self::assertSame(AlertSeverity::WARNING, $this->probeReporting(['disk_database' => 'degraded'])[0]->severity);
+        self::assertSame(AlertSeverity::CRITICAL, $this->probeReporting(['disk_database' => 'down'])[0]->severity);
     }
 
-    public function testEveryComponentTheHealthCheckReportsCarriesARunbookHint(): void
+    /**
+     * A component with no entry still produces a deliverable alert — it says so
+     * instead of pretending to advise. That every component actually HAS an
+     * entry is asserted against the real checker in
+     * {@see \App\Tests\Integration\Monitoring\HealthRunbookCoverageTest}, and
+     * deliberately not against a list written down here: a hand-kept list is
+     * what lets a probe added later ship with no hint and a green suite.
+     */
+    public function testAComponentWithNoRunbookEntrySaysSoRatherThanFallingSilent(): void
     {
-        foreach (['mysql', 'redis', 'rabbitmq', 'search', 'worker', 'disk'] as $component) {
-            $alerts = $this->probeReporting([$component => 'down']);
+        $alerts = $this->probeReporting(['something_new' => 'down']);
 
-            self::assertNotEmpty($alerts[0]->detail, sprintf('The "%s" component has no runbook hint.', $component));
-            self::assertStringNotContainsString('No runbook entry', $alerts[0]->detail, sprintf('The "%s" component has no runbook hint.', $component));
-        }
+        self::assertStringContainsString('No runbook entry', $alerts[0]->detail);
     }
 
     public function testAnUnrecognisedStatusIsIgnoredRatherThanGuessedAt(): void

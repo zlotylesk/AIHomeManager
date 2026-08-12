@@ -37,8 +37,11 @@ X-API-Key: <value from .env.local>
 A missing or invalid key answers `401 {"error": "..."}`.
 
 Public exceptions: `GET /api/health` (readiness probe — MySQL, Redis, RabbitMQ,
-OpenSearch, the async workers and a 3-state disk probe) and the three API-doc
-routes above.
+OpenSearch, the async workers, and two disk components: `disk_database` for the
+filesystem holding the database data directory, 3-state up to `down`, and
+`disk_backups` for the one holding the backups, which never goes past
+`degraded` — see [operations](operations.md#what-the-disk-probe-measures)) and
+the three API-doc routes above.
 
 The frontend pages and the `/auth/*` OAuth endpoints are served by the separate
 `main` firewall and require **HTTP Basic** (`FRONTEND_USER` /
