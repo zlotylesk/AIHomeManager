@@ -228,7 +228,7 @@ file instead, since it is their only definition regardless of environment.
 | `php` | 1024M | Above php.ini's own 512M `memory_limit` ceiling for one request, plus opcache's shared segment, plus headroom for a few lightweight concurrent requests — the dashboard alone fans out one fetch per widget |
 | `nginx` | 64M | Static files and TLS termination; idle workers run in single-digit megabytes |
 | `mysql` | 768M | Headroom over the 128M default InnoDB buffer pool for threads and per-connection buffers; no tuned `my.cnf` exists |
-| `redis` | 256M | No `maxmemory` is configured (see below), so this is a ceiling against a runaway rather than a tuned working set — actual usage is tens of megabytes for a single-user instance |
+| `redis` | 256M | `maxmemory 192mb` leaves roughly a quarter of this ceiling for Redis's own process, client buffers and a BGSAVE fork — see below for the eviction policy and the per-key-group review |
 | `rabbitmq` | 512M | The Erlang VM alone runs 150–200M near-idle. RabbitMQ auto-detects the cgroup limit and throttles publishers at 40% of it, degrading gracefully well before the container would be OOM-killed |
 | `search` | 1024M | Roughly double the service's own `-Xmx512m` JVM heap, for what a JVM keeps outside `-Xmx` — thread stacks, direct buffers, Lucene's off-heap structures |
 | `messenger_worker` | 768M | A single long-running CLI process, not php-fpm's several children — php.ini's 512M `memory_limit` plus opcache and interpreter overhead, with headroom for the heaviest handler (a full Trakt catalog import) |
@@ -252,15 +252,43 @@ running:
 Adding those (≈2.5 GiB) to the lean sum gives **≈7.7 GiB**, which is why
 **12 GB of RAM is recommended** with the monitoring profile enabled.
 
-**Redis has no `maxmemory` or eviction policy**, deliberately left out of
-this change: `LOCK_DSN` and the worker heartbeats live in the same instance
-as the cache pools, and an `allkeys-lru` policy would evict a held lock key
-under memory pressure exactly as readily as a stale cache entry — turning a
-mutual-exclusion guarantee into a race the moment the instance ever filled
-up. Given the realistic footprint for a single-user library (tens of
-megabytes), hitting the 256M ceiling at all is not expected; if it ever
-happens, `restart: unless-stopped` recovers the container the same way it
-would any other crash.
+**Redis runs with `maxmemory 192mb` and `maxmemory-policy allkeys-lru`.** The
+alternative considered was `volatile-lru` — restricting eviction to keys that
+already carry a TTL sounds like the safer half-measure, but every write path
+into this instance sets one anyway (the review below), so the two policies
+evict identically in practice. The difference only shows up in the failure
+mode: if a write ever landed without an expiry, `volatile-lru` would run out
+of evictable keys once the keyspace filled with it and start behaving like
+`noeviction` — rejecting writes with an error, the exact failure this change
+removes. `allkeys-lru` always has something to evict, so a cache write here
+cannot surface as a user-visible error regardless of what is holding memory
+at the time. `192mb` rather than the full 256M container ceiling: Redis's
+own process, client output buffers and a `BGSAVE` fork all sit on top of the
+dataset `maxmemory` bounds, and the gap is what lets Redis's own eviction
+trip before the cgroup limit does and the OOM killer gets involved instead.
+
+**Every key group Redis holds was reviewed for what its loss actually
+costs**, since `allkeys-lru` will evict any of them under pressure and the
+policy is only correct if nothing here depends on surviving that:
+
+| Key group | Where | Reversible? |
+|---|---|---|
+| `cache.rate_limiter` / `cache.search` / `cache.dashboard` / `cache.insights` | Symfony cache pools (`cache.yaml`) | Yes — every entry is written with `expiresAfter()`; a miss recomputes from the source (DB, OpenSearch, or the composed read model) |
+| `series:avg:{id}` / `season:avg:{id}` | `EpisodeRatedHandler`, `setex` | Yes — written with a TTL and recomputed on the next episode rating; nothing in the application currently reads them back, so today a loss has no observable effect at all |
+| Discogs collection / Last.fm top albums / National Library metadata / the music comparison view | `DiscogsApiClient`, `LastFmApiClient`, `NationalLibraryApiClient`, `GetMusicComparisonHandler`, all `setex` | Yes — a miss re-fetches from the upstream API; Discogs specifically schedules its existing async refresh and answers "try again in a minute", the same response a cold 6h TTL already produces today |
+| `articles:today` | `GetArticleOfTheDayHandler`, `setex` to midnight | Yes — a miss re-runs the daily-pick query |
+| `aihm:worker:heartbeat:{transport}` | `WorkerHeartbeat`, `setex` 3600s, rewritten every ≤15s | Yes — self-healing within one write cycle; a gap only ever reads as `degraded`, never `down` |
+| The rate limiter's internal locks (`lock.factory`, backed by `LOCK_DSN`) | Auto-wired into every `framework.rate_limiter` limiter | Yes — each lock is acquired and released within a single request; `LOCK_DSN` resolves to the same instance as `REDIS_URL`, but nothing here holds a lock across the window that would matter |
+
+No group needed a new durability or reconstruction mechanism beyond what
+already existed — this container has never had a volume, so every one of
+them was already designed to survive Redis losing its data outright. The one
+thing not stored in Redis at all is the recurring-task scheduler's state:
+`Schedule::stateful()` runs on the framework's default `cache.app` pool,
+which is filesystem-backed — `cache.yaml` only redirects the four named
+pools above to `cache.adapter.redis` — so memory pressure on Redis can
+neither lose nor replay the nightly backup regardless of what happens to the
+cache.
 
 Verify a reboot recovers the stack without touching anything by hand:
 
