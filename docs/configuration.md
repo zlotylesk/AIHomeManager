@@ -14,8 +14,9 @@ else degrades a single feature.
 | `API_KEY` | The `^/api/*` firewall compares against it with `hash_equals`. |
 | `FRONTEND_USER` / `FRONTEND_PASSWORD_HASH` | HTTP Basic on the `main` firewall. `app/.env` ships a placeholder pair so a clone boots; override both before the app is reachable from anywhere but localhost. |
 | `DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `TRAKT_TOKEN_KEY`, `SPOTIFY_TOKEN_KEY` | `TokenCipher` throws for any key that does not decode to exactly 32 bytes, and it is constructed at container build time — a wrong length is a boot failure, not a runtime one. |
+| `BACKUP_ENCRYPTION_KEY` | `BackupCipher` throws for anything but 32 bytes. Unset, it fails the moment a backup runs or is restored. **The one secret here that cannot be regenerated** — see [Backups](#backups-and-monitoring). |
 
-Generate each encryption key **separately** — four different values. Separate
+Generate each encryption key **separately** — five different values. Separate
 keys mean a compromised provider costs one provider:
 
 ```bash
@@ -208,6 +209,12 @@ variable still boots.
 
 ```dotenv
 BACKUP_DIR=/backups
+BACKUP_ENCRYPTION_KEY=
+BACKUP_REMOTE_BACKEND=none
+BACKUP_REMOTE_DIR=
+BACKUP_REMOTE_TARGET=
+BACKUP_REMOTE_RETENTION_DAYS=90
+BACKUP_REMOTE_ALLOW_SAME_FILESYSTEM=0
 GRAYLOG_HOST=graylog
 GRAYLOG_PORT=12201
 NEW_RELIC_LICENSE_KEY=
@@ -218,6 +225,19 @@ NEW_RELIC_APP_NAME=AIHomeManager
 `make doctor` also honours `BACKUP_DIR` and `BACKUP_MAX_AGE_HOURS` on the host,
 which is how the freshness check can be reproduced against a throwaway directory
 — see [operations.md](operations.md).
+
+| Variable | Default | What it does |
+|---|---|---|
+| `BACKUP_ENCRYPTION_KEY` | — | 32 bytes, base64. Encrypts the dump. **Not recoverable**: lose it and every stored backup becomes unreadable, including the off-host copies. Store it outside the backup directory and outside any copy of it. Generate with `docker compose exec php php -r "echo base64_encode(sodium_crypto_secretstream_xchacha20poly1305_keygen()), PHP_EOL;"` |
+| `BACKUP_REMOTE_BACKEND` | `none` | `none`, `directory` or `rclone`. An unrecognised value is **refused at boot** rather than silently disabling off-host copies |
+| `BACKUP_REMOTE_DIR` | — | `directory` backend: the mounted off-host path, inside the container. Refused if it shares a filesystem with `BACKUP_DIR` |
+| `BACKUP_REMOTE_TARGET` | — | `rclone` backend: a `remote:path`. Credentials live in `rclone.conf`, never here |
+| `BACKUP_REMOTE_RETENTION_DAYS` | `90` | The off-host window. Longer than the 30 local dailies on purpose. A value below 1 prunes nothing rather than everything |
+| `BACKUP_REMOTE_ALLOW_SAME_FILESYSTEM` | `0` | Set to `1` only when something else (Syncthing, a Dropbox client, a cron'd rsync) carries `BACKUP_REMOTE_DIR` off the machine |
+
+The last five all have container-parameter defaults, so an instance that has
+never heard of them still boots — the same arrangement `SEARCH_ENGINE_BACKEND`
+uses. `BACKUP_ENCRYPTION_KEY` deliberately has none.
 
 A Graylog that is not running does not break anything: the `series` and `auth`
 log channels are dropped and the request continues. Same for New Relic when the

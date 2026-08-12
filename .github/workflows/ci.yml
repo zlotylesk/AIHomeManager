@@ -234,6 +234,12 @@ jobs:
       SEARCH_ENGINE_DSN: 'http://127.0.0.1:9200'
       MESSENGER_TRANSPORT_DSN: 'in-memory://'
       API_KEY: 'test-api-key'
+      # Encrypts the nightly dump. A throwaway value: it only has to be 32 bytes
+      # after base64-decoding, because BackupCipher refuses anything else and the
+      # backup tests round-trip a real dump through it. Set here as well as in
+      # app/.env.test so the suite does not depend on which of the two a runner
+      # happens to read first.
+      BACKUP_ENCRYPTION_KEY: 'MEbZVsqEBq1iDj9Zk+LsvsRIp1zexa/82vY61iJC0t4='
       # HMAI-355: paratest worker count. Each worker runs in its own database
       # (homemanager_test{token}) + Redis logical DB, so the suite parallelises
       # without integration tests colliding on shared MySQL/Redis.

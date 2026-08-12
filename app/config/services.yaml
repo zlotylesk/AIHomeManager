@@ -23,6 +23,21 @@ parameters:
     # that has to keep working while MySQL, Redis and RabbitMQ are the thing
     # being reported on.
     monitoring.default_state_file: '%kernel.project_dir%/var/monitoring/alert-state.json'
+    # Off-host backup defaults, used when the corresponding variables are unset —
+    # so an instance that predates these settings still boots, exactly as the
+    # search backend flag does. The default is `none`: copying backups somewhere
+    # is switched on deliberately, never by merely deploying, because a default
+    # that guessed at a destination would report success for a copy nobody chose.
+    # It is still a *stated* none — `make doctor` and `app:backup-database` both
+    # say out loud that the backup exists only on this machine.
+    app.backup.remote_backend.default: 'none'
+    app.backup.remote_dir.default: ''
+    app.backup.remote_target.default: ''
+    # 90 days, against 30 local dailies: the off-host copy is the one that has to
+    # survive losing the machine, and a remote that mirrored local retention
+    # exactly would lose the same days at the same moment.
+    app.backup.remote_retention_days.default: 90
+    app.backup.remote_allow_same_filesystem.default: false
 
 services:
     _defaults:
@@ -51,6 +66,41 @@ services:
         arguments:
             $databaseUrl: '%env(DATABASE_URL)%'
             $backupDir: '%env(BACKUP_DIR)%'
+
+    # The dump is encrypted with its own key, not one of the four token keys: a
+    # backup is the one artifact that leaves the machine, and a key that also
+    # decrypts stored OAuth tokens would turn losing it into losing both.
+    App\Infrastructure\Backup\BackupCipher:
+        arguments:
+            $key: '%env(base64:BACKUP_ENCRYPTION_KEY)%'
+
+    App\Infrastructure\Backup\DecryptBackupCommand:
+        arguments:
+            $backupDir: '%env(BACKUP_DIR)%'
+
+    App\Infrastructure\Backup\OffsiteStatusCommand:
+        arguments:
+            $maxAgeHours: '%env(int:BACKUP_MAX_AGE_HOURS)%'
+
+    App\Infrastructure\Backup\Destination\CommandRunnerInterface:
+        alias: App\Infrastructure\Backup\Destination\SymfonyCommandRunner
+
+    # A factory, not an alias: an alias is resolved when the container compiles
+    # and cannot read an environment variable. An unknown backend is refused here
+    # rather than defaulting to "none" — a typo that silently switched off-host
+    # backups off would leave an instance that looks configured and copies
+    # nothing anywhere.
+    App\Infrastructure\Backup\Destination\BackupDestinationFactory:
+        arguments:
+            $backend: '%env(default:app.backup.remote_backend.default:BACKUP_REMOTE_BACKEND)%'
+            $remoteDir: '%env(default:app.backup.remote_dir.default:BACKUP_REMOTE_DIR)%'
+            $rcloneTarget: '%env(default:app.backup.remote_target.default:BACKUP_REMOTE_TARGET)%'
+            $localDir: '%env(BACKUP_DIR)%'
+            $retentionDays: '%env(int:default:app.backup.remote_retention_days.default:BACKUP_REMOTE_RETENTION_DAYS)%'
+            $allowSameFilesystem: '%env(bool:default:app.backup.remote_allow_same_filesystem.default:BACKUP_REMOTE_ALLOW_SAME_FILESYSTEM)%'
+
+    App\Infrastructure\Backup\Destination\BackupDestinationInterface:
+        factory: ['@App\Infrastructure\Backup\Destination\BackupDestinationFactory', 'create']
 
     App\Module\Series\Domain\Repository\SeriesRepositoryInterface:
         alias: App\Module\Series\Infrastructure\Persistence\DoctrineSeriesRepository
@@ -204,6 +254,15 @@ services:
     App\Monitoring\Probe\BackupFreshnessProbe:
         arguments:
             $backupDir: '%env(BACKUP_DIR)%'
+            $maxAgeHours: '%env(int:BACKUP_MAX_AGE_HOURS)%'
+            $minBytes: '%env(int:BACKUP_MIN_BYTES)%'
+        tags: ['monitoring.probe']
+
+    # Same thresholds as the local freshness probe on purpose: "recent enough"
+    # and "big enough to be real" mean the same thing wherever the copy sits, and
+    # two numbers would eventually disagree.
+    App\Monitoring\Probe\BackupOffsiteProbe:
+        arguments:
             $maxAgeHours: '%env(int:BACKUP_MAX_AGE_HOURS)%'
             $minBytes: '%env(int:BACKUP_MIN_BYTES)%'
         tags: ['monitoring.probe']
