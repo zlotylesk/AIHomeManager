@@ -400,8 +400,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/bk-fresh /tmp/bk-stale
-          head -c 20000 /dev/urandom > "/tmp/bk-fresh/homemanager-$(date +%F).sql.gz"
-          head -c 20000 /dev/urandom > "/tmp/bk-stale/homemanager-$(date -d '5 days ago' +%F).sql.gz"
+          # `.sql.gz.enc` — the encrypted artifact is the only thing that counts
+          # as a backup now, and the fixtures have to carry the same name the job
+          # writes. Random bytes are fine: this exercises the freshness rule, not
+          # the cipher, and doctor only ever looks at the name and the size.
+          head -c 20000 /dev/urandom > "/tmp/bk-fresh/homemanager-$(date +%F).sql.gz.enc"
+          head -c 20000 /dev/urandom > "/tmp/bk-stale/homemanager-$(date -d '5 days ago' +%F).sql.gz.enc"
 
           BACKUP_DIR=/tmp/bk-fresh bash scripts/doctor.sh > /tmp/fresh.log 2>&1 || true
           BACKUP_DIR=/tmp/bk-stale bash scripts/doctor.sh > /tmp/stale.log 2>&1 || true

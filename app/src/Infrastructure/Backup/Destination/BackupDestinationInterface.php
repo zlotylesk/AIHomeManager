@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Backup\Destination;
 
 use DateTimeImmutable;
+use RuntimeException;
 
 /**
  * Where the encrypted dump goes once it exists locally.
@@ -35,7 +36,7 @@ interface BackupDestinationInterface
     /** Human-readable target, for logs and operator messages. Never contains a secret. */
     public function describe(): string;
 
-    /** @throws \RuntimeException when the copy did not arrive intact */
+    /** @throws RuntimeException when the copy did not arrive intact */
     public function push(string $localPath): void;
 
     /**
@@ -43,7 +44,7 @@ interface BackupDestinationInterface
      *
      * @return list<RemoteBackup>
      *
-     * @throws \RuntimeException when the destination cannot be read at all
+     * @throws RuntimeException when the destination cannot be read at all
      */
     public function listBackups(): array;
 
