@@ -312,6 +312,46 @@ else
     fi
 fi
 
+# HealthChecker's own disk probes report `degraded` at 80% and only go as far
+# as `down` (503, disk_database only) at 95% — a threshold this check reads
+# BEFORE, not instead of. By the time /api/health is returning 503 the
+# instance is already refusing traffic over its own logs or dumps; this is
+# the warning meant to arrive while there is still time to prune something.
+#
+# The two paths are the container-internal mount targets from
+# docker-compose.yml (the read-only mysql_data mount and the backups bind
+# mount) — the same defaults HealthChecker's own DATABASE_DATA_DIR/BACKUP_DIR
+# env vars resolve to. They are read inside the php container rather than on
+# the host, because `df` on the host would answer about a different
+# filesystem entirely.
+#
+# Deliberately NOT read from a $BACKUP_DIR shell override: the backup
+# freshness check below already gives that name a different meaning — the
+# HOST-side directory holding the dump files, for exercising the check
+# without waiting on the real schedule. Reusing it here would point this
+# check at whatever fixture directory a caller passed for that purpose
+# instead of the real container mount.
+echo ""
+echo "== Disk =="
+disk_warn_percent="${DISK_WARN_PERCENT:-80}"
+if ! docker inspect -f '{{.State.Status}}' aihm-php-1 2>/dev/null | grep -q running; then
+    check_warn "php container not running — disk usage not checked"
+else
+    for label_path in "database:/var/lib/mysql" "backups:/backups"; do
+        label=${label_path%%:*}
+        path=${label_path#*:}
+
+        used=$(docker exec aihm-php-1 sh -c "df -P '$path' 2>/dev/null | tail -n 1 | awk '{print \$5}' | tr -d '%'")
+        if [ -z "$used" ]; then
+            check_warn "$label ($path): could not read disk usage — mount missing?"
+        elif [ "$used" -ge "$disk_warn_percent" ]; then
+            check_warn "$label ($path) is ${used}% full — at or above the ${disk_warn_percent}% warning threshold (HealthChecker degrades at 80%, and disk_database goes down at 95%)"
+        else
+            check_ok "$label ($path): ${used}% full"
+        fi
+    done
+fi
+
 # The local checks above all answer "is there a good backup on this machine",
 # which stays true right up until the machine is what is lost. This one asks the
 # question that survives that.

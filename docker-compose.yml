@@ -55,6 +55,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    # The busiest source in the stack: the application's own log line per
+    # request plus, in production, an unbuffered line per PHP deprecation
+    # notice — see config/packages/monolog.yaml. Without a cap the default
+    # `json-file` driver keeps every line forever; nothing here rotates on
+    # its own.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   nginx:
     image: nginx:alpine
@@ -76,6 +86,11 @@ services:
     depends_on:
       php:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/api/health"]
       interval: 30s
@@ -100,6 +115,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:8-alpine
@@ -126,6 +146,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   rabbitmq:
     # Bumped 3.12 (EOL) → 4.x: current major (Khepri metadata backend, quorum
@@ -191,6 +216,11 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   messenger_worker:
     build:
@@ -213,6 +243,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    # `-vv` above makes this as busy a source as `php` itself — one line per
+    # consumed message, not just per failure.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   node:
     image: node:24-alpine
@@ -221,6 +258,11 @@ services:
       - ./app:/var/www/html
     command: ["sh", "-c", "tail -f /dev/null"]
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   scheduler_worker:
     build:
@@ -249,6 +291,11 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   search:
     # App-data search engine (HMAI-360, epic HMAI-359). A SEPARATE instance from
@@ -281,11 +328,17 @@ services:
       timeout: 10s
       retries: 12
       start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
 
-  # The `monitoring` profile services carry their own memory limits here —
-  # their only definition, dev and prod alike — precisely so that turning the
-  # profile on never competes with mysql/redis/rabbitmq/search for a shared
-  # budget: each of the two stacks is sized independently.
+  # The `monitoring` profile's own three services carry their own memory and
+  # logging limits here — their only definition, dev and prod alike —
+  # precisely so that turning the profile on never competes with
+  # mysql/redis/rabbitmq/search for a shared budget: each of the two stacks
+  # is sized independently.
   mongodb:
     image: mongo:7
     profiles: [monitoring]
@@ -296,6 +349,11 @@ services:
     # in the opensearch service below. WiredTiger auto-sizes its cache off the
     # cgroup limit it detects, so this is a ceiling rather than a tuned value.
     mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   opensearch:
     # Stays on OpenSearch 2.x: Graylog 6.3 supports OpenSearch 1.1.x–2.19.5 only,
@@ -314,6 +372,11 @@ services:
     # structures — lives outside `-Xmx` and a limit pinned to the heap size
     # alone gets the container OOM-killed the moment those add up.
     mem_limit: 1024m
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   graylog:
     image: graylog/graylog:6.3
@@ -346,6 +409,11 @@ services:
     depends_on:
       - mongodb
       - opensearch
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
 
 volumes:
   mysql_data:

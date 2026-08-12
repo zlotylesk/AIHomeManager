@@ -19,8 +19,11 @@
 # Memory limits are prod-only, and deliberately not in the base file: `php`
 # and `scheduler_worker` are also where `docker exec` runs the heavier dev
 # tooling — `make phpstan` alone asks for `--memory-limit=1G` — and a cgroup
-# ceiling sized for the running application would starve that. Log rotation
-# remains out of scope; it is its own change.
+# ceiling sized for the running application would starve that.
+#
+# Logging limits (a `logging:` driver cap per service) live in the base file
+# too, the same reasoning as restart policies — again except for `certbot`,
+# checked below alongside its own memory limit.
 
 services:
   php:
@@ -285,11 +288,16 @@ services:
     depends_on:
       - nginx
     # No base-file entry to inherit from — certbot exists only in this
-    # overlay — so both the restart policy and the limit are declared here
-    # directly rather than merged in.
+    # overlay — so the restart policy, the memory limit and the logging limit
+    # are all declared here directly rather than merged in.
     restart: unless-stopped
     # A Python CLI that wakes up twice a day; comfortably lightweight.
     mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   # The frontend bundle is built inside the image by the `assets` stage, so the
   # long-running Node container has nothing to do in production. Parking it
