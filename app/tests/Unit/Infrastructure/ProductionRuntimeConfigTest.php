@@ -38,6 +38,15 @@ final class ProductionRuntimeConfigTest extends TestCase
     private const array INFRASTRUCTURE_SERVICES = ['mysql', 'redis', 'rabbitmq', 'search'];
 
     /**
+     * The services that run the disk probe, and therefore have to be able to
+     * see what it measures: `php` answers `/api/health`, and `scheduler_worker`
+     * asks the same checker in-process on every monitoring sweep.
+     *
+     * `messenger_worker` is deliberately absent — it runs neither.
+     */
+    private const array DISK_PROBE_SERVICES = ['php', 'scheduler_worker'];
+
+    /**
      * The deployment files sit beside app/, not inside it.
      *
      * A containerised run only has app/ — it is mounted as /var/www/html and the
@@ -99,6 +108,74 @@ final class ProductionRuntimeConfigTest extends TestCase
                     $mount,
                     sprintf('Service "%s" mounts source over the application directory.', $service),
                 );
+            }
+        }
+    }
+
+    /**
+     * The disk probe measures the filesystem holding the database data and the
+     * one holding the backups, and it can only measure a path this container
+     * actually has. The database's data lives in a named volume mounted into
+     * the mysql service, so without a mount of its own the probe is back to
+     * measuring the PHP image layer — or, now, reporting that it cannot
+     * measure anything at all.
+     *
+     * Production is the half worth pinning: `volumes: !override` REPLACES the
+     * base list, so a mount added in development and not repeated here exists
+     * everywhere except the environment the measurement is for.
+     */
+    public function testTheServicesThatRunTheDiskProbeMountWhatItMeasures(): void
+    {
+        $dataDir = $this->trackedEnvironmentValue('DATABASE_DATA_DIR');
+        $expected = [sprintf('mysql_data:%s:ro', $dataDir), './backups:/backups'];
+
+        $dev = $this->parseYaml('docker-compose.yml');
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        foreach (self::DISK_PROBE_SERVICES as $service) {
+            $prodVolumes = $prod['services'][$service]['volumes'];
+            self::assertInstanceOf(TaggedValue::class, $prodVolumes);
+
+            /** @var list<string> $prodMounts */
+            $prodMounts = $prodVolumes->getValue();
+            /** @var list<string> $devMounts */
+            $devMounts = $dev['services'][$service]['volumes'] ?? [];
+
+            foreach ($expected as $mount) {
+                self::assertContains($mount, $devMounts, sprintf('Development service "%s" cannot see %s, so the disk probe measures nothing there.', $service, $mount));
+                self::assertContains($mount, $prodMounts, sprintf('Production service "%s" cannot see %s; !override dropped the mount the disk probe needs.', $service, $mount));
+            }
+        }
+    }
+
+    /**
+     * Read-only, because nothing in the application has any business writing to
+     * the database's own files — the mount exists so a `statvfs` can reach the
+     * right device, and read-only is what keeps "can see" from becoming "can
+     * corrupt".
+     */
+    public function testTheDatabaseVolumeIsNeverMountedWritableIntoTheApplication(): void
+    {
+        foreach (['docker-compose.yml', 'docker-compose.prod.yml'] as $file) {
+            $services = $this->parseYaml($file)['services'] ?? [];
+            self::assertIsArray($services);
+
+            foreach ($services as $name => $definition) {
+                if ('mysql' === $name || !is_array($definition)) {
+                    continue;
+                }
+
+                $volumes = $definition['volumes'] ?? [];
+                $mounts = $volumes instanceof TaggedValue ? $volumes->getValue() : $volumes;
+                self::assertIsArray($mounts);
+
+                foreach ($mounts as $mount) {
+                    if (!is_string($mount) || !str_starts_with($mount, 'mysql_data:')) {
+                        continue;
+                    }
+
+                    self::assertStringEndsWith(':ro', $mount, sprintf('%s: service "%s" mounts the database volume writable.', $file, $name));
+                }
             }
         }
     }
@@ -598,6 +675,22 @@ final class ProductionRuntimeConfigTest extends TestCase
         $parsed = Yaml::parse($this->read($relativePath), Yaml::PARSE_CUSTOM_TAGS);
 
         return $parsed;
+    }
+
+    /**
+     * A value from the tracked `app/.env`, so a path is read from the one place
+     * that defines it rather than restated here — a mount and the variable
+     * naming it are only useful while they agree.
+     */
+    private function trackedEnvironmentValue(string $variable): string
+    {
+        self::assertSame(
+            1,
+            preg_match('/^'.preg_quote($variable, '/').'=(.+)$/m', $this->read('app/.env'), $matches),
+            sprintf('app/.env no longer defines %s.', $variable),
+        );
+
+        return trim($matches[1], "\"' \r");
     }
 
     private function read(string $relativePath): string

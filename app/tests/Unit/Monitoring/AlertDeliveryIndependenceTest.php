@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Monitoring;
 
+use App\Health\DiskUsageReaderInterface;
 use App\Health\HealthChecker;
 use App\Health\WorkerHeartbeat;
 use App\Monitoring\EmailAlertChannel;
@@ -143,6 +144,12 @@ final class AlertDeliveryIndependenceTest extends TestCase
         $heartbeat = $this->createStub(WorkerHeartbeat::class);
         $heartbeat->method('lastSeen')->willReturn(null);
 
-        return new HealthChecker($connection, $redis, self::UNREACHABLE_BROKER, $search, $heartbeat, new NullLogger(), 0.2);
+        // Both measured filesystems unreadable too — "everything broken" has to
+        // include the disk probe, or the sweep would be carrying one component
+        // that still answers.
+        $disk = $this->createStub(DiskUsageReaderInterface::class);
+        $disk->method('usedRatio')->willReturn(null);
+
+        return new HealthChecker($connection, $redis, self::UNREACHABLE_BROKER, $search, $heartbeat, $disk, '/var/lib/mysql', '/backups', new NullLogger(), 0.2);
     }
 }

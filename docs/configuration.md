@@ -336,6 +336,7 @@ variable still boots.
 ## Backups and monitoring
 
 ```dotenv
+DATABASE_DATA_DIR=/var/lib/mysql
 BACKUP_DIR=/backups
 BACKUP_ENCRYPTION_KEY=
 BACKUP_REMOTE_BACKEND=none
@@ -356,6 +357,7 @@ which is how the freshness check can be reproduced against a throwaway directory
 
 | Variable | Default | What it does |
 |---|---|---|
+| `DATABASE_DATA_DIR` | `/var/lib/mysql` | Where the database's data directory is visible *inside* the container, for the `disk_database` health component. The data lives in the `mysql_data` volume, which `php` and `scheduler_worker` mount read-only at this path — change one and change the other, or the probe reports a measurement it cannot take. A path that is not there is `degraded` with a logged warning, never `down`. See [what the disk probe measures](operations.md#what-the-disk-probe-measures) |
 | `BACKUP_ENCRYPTION_KEY` | — | 32 bytes, base64. Encrypts the dump. **Not recoverable**: lose it and every stored backup becomes unreadable, including the off-host copies. Store it outside the backup directory and outside any copy of it. Generate with `docker compose exec php php -r "echo base64_encode(sodium_crypto_secretstream_xchacha20poly1305_keygen()), PHP_EOL;"` |
 | `BACKUP_REMOTE_BACKEND` | `none` | `none`, `directory` or `rclone`. An unrecognised value is **refused at boot** rather than silently disabling off-host copies |
 | `BACKUP_REMOTE_DIR` | — | `directory` backend: the mounted off-host path, inside the container. Refused if it shares a filesystem with `BACKUP_DIR` |

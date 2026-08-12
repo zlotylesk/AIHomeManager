@@ -25,6 +25,11 @@ use Throwable;
  */
 readonly class HealthChecker
 {
+    /**
+     * Applied per measured location, not to the two of them together: a
+     * database volume at 96 % is critical however much room the backup
+     * directory still has, and averaging them would hide exactly that.
+     */
     private const float DISK_DEGRADED_RATIO = 0.80;
     private const float DISK_DOWN_RATIO = 0.95;
 
@@ -59,6 +64,11 @@ readonly class HealthChecker
         #[Autowire(service: 'app.search_client')]
         private Client $searchClient,
         private WorkerHeartbeat $workerHeartbeat,
+        private DiskUsageReaderInterface $diskUsage,
+        #[Autowire(env: 'DATABASE_DATA_DIR')]
+        private string $databaseDataDir,
+        #[Autowire(env: 'BACKUP_DIR')]
+        private string $backupDir,
         #[Autowire(service: 'monolog.logger')]
         private LoggerInterface $logger = new NullLogger(),
         private float $rabbitMqTimeoutSeconds = 1.0,
@@ -76,7 +86,8 @@ readonly class HealthChecker
             'rabbitmq' => $this->probe(fn () => $this->openRabbitMqSocket(), 'rabbitmq'),
             'search' => $this->checkSearch(),
             'worker' => $this->checkWorker(),
-            'disk' => $this->checkDisk(),
+            'disk_database' => $this->checkDatabaseDisk(),
+            'disk_backups' => $this->checkBackupDisk(),
         ];
     }
 
@@ -139,17 +150,74 @@ readonly class HealthChecker
         }
     }
 
-    public function checkDisk(): string
+    /**
+     * The filesystem holding the database's data directory — the one whose last
+     * free byte stops MySQL flushing and writing binlogs, which is what this
+     * probe has always claimed to be about.
+     *
+     * It is measured through a path rather than assumed, because the data lives
+     * in a named volume: the PHP container's own root filesystem is its image
+     * layer and has nothing to do with it. On a single-machine install the two
+     * happen to sit on the same device, which is precisely why measuring the
+     * wrong one went unnoticed — and stops being true the moment the database
+     * gets a volume or a partition of its own, which is a normal step in
+     * standing production up.
+     */
+    public function checkDatabaseDisk(): string
     {
-        $free = @disk_free_space('/');
-        $total = @disk_total_space('/');
-        if (false === $free || false === $total || $total <= 0.0) {
-            return 'down';
+        return $this->checkDiskAt($this->databaseDataDir, 'disk_database', 'down');
+    }
+
+    /**
+     * The backup directory, reported separately from the database's own volume
+     * because the answer to "which one filled up" decides what to do: pruning
+     * old dumps fixes one of them and does nothing for the other. Off-host
+     * copies are a different matter again and belong to BackupOffsiteProbe.
+     *
+     * **`degraded`, never `down`** — the third component to follow the rule
+     * `search` and `worker` set. A full backup filesystem stops tonight's dump;
+     * it stops nothing the instance is being asked to do right now, and a 503
+     * would take a perfectly working instance out of rotation without freeing a
+     * single byte. It is a warning that arrives *before* the failure rather
+     * than instead of it: when a dump does go missing, short or stale, the
+     * `backup:*` probes announce that as critical.
+     */
+    public function checkBackupDisk(): string
+    {
+        return $this->checkDiskAt($this->backupDir, 'disk_backups', 'degraded');
+    }
+
+    /**
+     * A failed measurement is 'degraded', never 'down'.
+     *
+     * Not knowing how much space is left is not the same as knowing there is
+     * none: an unreadable path is a missing mount or a configuration mistake,
+     * and answering it with 'down' 503s an instance that is serving every
+     * request perfectly well. It still has to be said out loud, though — a
+     * silent 'up' would be a probe reporting on a filesystem it never looked
+     * at — so it degrades and logs.
+     *
+     * @param string $whenFull what crossing DISK_DOWN_RATIO means for THIS
+     *                         location — 'down' where the instance stops
+     *                         working, 'degraded' where only something later
+     *                         does
+     */
+    private function checkDiskAt(string $path, string $component, string $whenFull): string
+    {
+        $usedRatio = $this->diskUsage->usedRatio($path);
+
+        if (null === $usedRatio) {
+            $this->logger->warning('Health check degraded', [
+                'component' => $component,
+                'path' => $path,
+                'reason' => 'free space could not be measured',
+            ]);
+
+            return 'degraded';
         }
 
-        $usedRatio = 1.0 - ($free / $total);
         if ($usedRatio >= self::DISK_DOWN_RATIO) {
-            return 'down';
+            return $whenFull;
         }
         if ($usedRatio >= self::DISK_DEGRADED_RATIO) {
             return 'degraded';

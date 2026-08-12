@@ -509,24 +509,27 @@ Outbound calls are throttled **proactively** by `RateLimitedHttpClient`, which w
 
 ## Health endpoint
 
-`GET /api/health` is public. It probes MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP, 1 s timeout), Search (`ping()`), the workers (heartbeat) and disk.
+`GET /api/health` is public. It probes MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP, 1 s timeout), Search (`ping()`), the workers (heartbeat) and two disk locations.
 
-Two components report **`degraded` (HTTP 200), never `down`**, on purpose:
+Three components report **`degraded` (HTTP 200), never `down`**, on purpose:
 
 - **Search** — an unreachable engine falls back to FULLTEXT, so a search outage must not take a working instance out of rotation.
 - **Worker** — the instance still serves every request; the fix is restarting a worker, not shifting traffic.
+- **`disk_backups`** — a full backup filesystem stops tonight's dump, not today's requests, and a 503 would free no space. The cost is announced as *critical* by the `backup:*` probes the moment a dump goes missing, short or stale, so this is the warning that arrives before the failure rather than instead of it.
 
 The **worker probe answers a question nothing else does**: the `rabbitmq` probe opens a socket to the broker, and the broker is perfectly happy with nobody consuming. Each worker writes a heartbeat to Redis from its own run loop, one key per transport, and `worker` is `up` only when **every** transport in `WORKER_TRANSPORTS` has beaten within 5 minutes — all of them, not any, because the failure worth catching had the async worker alive and the scheduler dead. Asking RabbitMQ for consumer counts would not work either: `scheduler_default` never touches the broker.
 
 Known limitation, stated rather than hidden: a single message taking longer than the threshold reads as `degraded` while the worker is busy. The heartbeat also only starts once the workers run this code, so a box that pulls a change without restarting them reports `degraded` until it does.
 
-Disk has three states: `< 80 %` up, `80–95 %` degraded, `> 95 %` **down** (503) — MySQL flush and binlog die with no headroom.
+**Disk is two components, and it measures paths rather than the container it runs in.** `disk_database` reads the filesystem holding `DATABASE_DATA_DIR`, `disk_backups` the one holding `BACKUP_DIR` — which of the two filled up decides whether pruning dumps would help. Same thresholds (`< 80 %` up, `80–95 %` degraded, `≥ 95 %` critical), different meaning of critical: only `disk_database` turns it into `down`, because MySQL flush and binlog die with no headroom. The PHP container's root filesystem is its own image layer and answers for neither, so `php` and `scheduler_worker` mount `mysql_data` **read-only** at `DATABASE_DATA_DIR` — `statvfs` reports on the device holding a path, and both services run the probe (`php` serves the endpoint, `scheduler_worker` runs the monitoring sweep in-process). The prod overlay repeats both mounts, because `volumes: !override` replaces the list.
+
+**A failed measurement is `degraded`, never `down`**, logged as a `warning` naming the path: a missing path is a mount that has gone, and not knowing how much space is left is not the same as knowing there is none. The measurement itself sits behind `DiskUsageReaderInterface`, because there is no way to arrange a real 96 %-full filesystem inside a test. `disk_free_space` reports what is free to the application while `disk_total_space` reports the whole device, so a filesystem an ordinary process has entirely filled reads as ~95 % on ext4 — that reserve is not usable space, so it is the right reading to threshold on.
 
 ---
 
 ## Operational alerting
 
-`src/Monitoring/` — probes on a timer, e-mail out. It is what closes the gap the health endpoint left: six components correctly reported to nobody. Runbook, thresholds and per-alert first steps live in `docs/operations.md`.
+`src/Monitoring/` — probes on a timer, e-mail out. It is what closes the gap the health endpoint left: every component correctly reported to nobody. Runbook, thresholds and per-alert first steps live in `docs/operations.md`.
 
 - **It does not go through the Notifications module, and that is the whole design.** That engine reads a preference row and writes a notification row before sending — correct for user notifications, and unable to announce the database being down, because announcing needs the database. Alerting therefore reaches Mailer directly, keeps its dedup state in a **JSON file on local disk**, and builds the e-mail body in PHP rather than Twig. Nothing on the path touches MySQL, Redis or RabbitMQ. `AlertDeliveryIndependenceTest` breaks the lot at once and still demands the mail.
 - **Quiet hours do not apply, and not via an exemption flag** — there is no `DispatchPolicy` in this path to exempt. Quiet hours suppress because a held *reminder* announces a passed deadline; infrastructure is the case where delay costs rather than saves.

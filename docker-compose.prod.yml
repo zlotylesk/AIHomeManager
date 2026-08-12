@@ -25,6 +25,11 @@ services:
     # makes a production container silently run development code.
     volumes: !override
       - ./backups:/backups
+      # Repeated from the base file rather than inherited: !override replaces
+      # the list, so a mount left out here is one production simply does not
+      # have — and the disk probe would answer "cannot measure" on the one
+      # environment the measurement exists for.
+      - mysql_data:/var/lib/mysql:ro
     # The secrets, as environment variables rather than a file in the image.
     # app/.env.local is deliberately excluded from the build context, so without
     # this the container falls back to the placeholder values in the tracked
@@ -116,6 +121,8 @@ services:
     image: aihm-php:prod
     volumes: !override
       - ./backups:/backups
+      # As on php above, and for the probe this container runs itself.
+      - mysql_data:/var/lib/mysql:ro
       # The monitoring sweep's "already announced" set. Without a mount it lives
       # in the container's writable layer, so every recreation — an image bump,
       # any edit to this file — would re-announce whatever was already failing.
