@@ -256,8 +256,19 @@ services:
     image: graylog/graylog:6.3
     profiles: [monitoring]
     environment:
-      GRAYLOG_PASSWORD_SECRET: somepasswordpepper
-      GRAYLOG_ROOT_PASSWORD_SHA2: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      # From the environment, with no default here, exactly like the Redis and
+      # broker credentials above.
+      #
+      # A `:-default` would be worse than the literals it replaced: the file
+      # would read as configurable while a production stack that set nothing
+      # still came up on the image's own administrator password, and the way to
+      # find that out is the login page accepting `admin`/`admin`.
+      #
+      # Set in the tracked `.env` with development values. Compose interpolates
+      # every service in the file regardless of profile, so these are required
+      # even for a stack that never starts the monitoring one.
+      GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET:?set GRAYLOG_PASSWORD_SECRET in .env}
+      GRAYLOG_ROOT_PASSWORD_SHA2: ${GRAYLOG_ROOT_PASSWORD_SHA2:?set GRAYLOG_ROOT_PASSWORD_SHA2 in .env}
       GRAYLOG_HTTP_EXTERNAL_URI: http://localhost:9000/
       GRAYLOG_MONGODB_URI: mongodb://mongodb:27017/graylog
       GRAYLOG_ELASTICSEARCH_HOSTS: http://opensearch:9200

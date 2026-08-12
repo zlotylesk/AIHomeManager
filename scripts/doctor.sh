@@ -56,7 +56,7 @@ fi
 # once, retroactively, including the copies that made it off the host. Keep it
 # somewhere that is neither the backup directory nor a copy of it.
 for key_name in DISCOGS_TOKEN_KEY GOOGLE_TOKEN_KEY TRAKT_TOKEN_KEY SPOTIFY_TOKEN_KEY BACKUP_ENCRYPTION_KEY; do
-    val=$(grep -E "^${key_name}=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+    val=$(grep -E "^${key_name}=" app/.env.local 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
     if [ -z "$val" ]; then
         check_warn "$key_name not set"
         continue
@@ -77,6 +77,112 @@ if grep -qE "^FRONTEND_PASSWORD_HASH=" app/.env.local 2>/dev/null; then
     check_ok "FRONTEND_PASSWORD_HASH overridden locally"
 else
     check_warn "FRONTEND_PASSWORD_HASH not set in .env.local (falling back to the placeholder in app/.env — fine on localhost, never beyond it; generate via 'bin/console security:hash-password')"
+fi
+
+# Compose reads only `.env` from the project directory -- never `.env.local` --
+# and that file is tracked. Production therefore does not edit it: `make prod-*`
+# layers a gitignored `.env.local` beside it, read second, and the second wins.
+#
+# The layering fails quietly in one direction, which is what this section is
+# for. A variable MISSING from the overlay stops nothing; it falls through to
+# the tracked development value and the stack comes up on a password that is
+# published in a public repository. Every container starts, every health probe
+# is green, and the credential is one `git clone` away from anybody.
+#
+# Compared against whatever `.env` currently holds rather than against a copy of
+# those strings kept here, so rotating a development value cannot leave this
+# check measuring against a string nobody uses any more.
+#
+# COMPOSE_ENV_DIR moves both reads, so the verdicts can be exercised without a
+# production host:
+#   COMPOSE_ENV_DIR=/tmp/fake-host bash scripts/doctor.sh
+echo ""
+echo "== Production secrets =="
+compose_env_dir="${COMPOSE_ENV_DIR:-.}"
+
+# MYSQL_USER, MYSQL_DATABASE and RABBITMQ_USER are deliberately not here: they
+# are names, not secrets, and a production instance may keep them as they are.
+prod_secrets="MYSQL_ROOT_PASSWORD MYSQL_PASSWORD REDIS_PASSWORD RABBITMQ_PASSWORD GRAYLOG_PASSWORD_SECRET GRAYLOG_ROOT_PASSWORD_SHA2"
+
+# `tail -n 1`, not `head`: a duplicated key in a dotenv file resolves to the LAST
+# definition, which is what Compose interpolates -- verified against
+# `docker compose config`. Reading the first would answer about a line the stack
+# does not use, and the way that happens is an operator appending a corrected
+# password to the end of the file rather than editing it in place.
+#
+# The trailing `tr -d '\r'` is not decoration either. The repository is developed
+# on Windows, where a checkout writes `.env` with CRLF while an overlay created
+# on the production host has LF -- without stripping it, an identical password
+# compares as different and the check reports an override that never happened.
+env_value() {
+    grep -E "^${2}=" "$1" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r'
+}
+
+# Severity follows whether this host actually deploys, which is the difference
+# between a finding and an emergency. `make prod-*` runs the stack under its own
+# Compose project, so its containers are the one honest signal available here: a
+# root `.env.local` is not one, because a workstation has every reason to keep
+# one (the GitHub MCP token lives there, and the tracked `.env` says to put it
+# there rather than beside it).
+#
+# Getting this wrong in the safe-looking direction would cost the whole check.
+# A workstation that went red here on every run would teach its owner to skip
+# `make doctor`, and the checks it would then stop reading are the backup ones.
+#
+# Off a production host the same findings collapse to a single warning rather
+# than one line per variable: they are true there too, and also entirely
+# expected, so spending six lines on them buries the checks that are neither.
+# The wording of each finding is identical either way — only the severity and
+# the grouping move — so the CI step that pins both verdicts reads the same
+# strings a production host would.
+if docker ps -a --filter 'label=com.docker.compose.project=aihm-prod' -q 2>/dev/null | grep -q .; then
+    deploys_here=1
+else
+    deploys_here=0
+fi
+
+if [ ! -f "$compose_env_dir/.env" ]; then
+    check_fail "$compose_env_dir/.env is missing — Compose has nothing to interpolate and no service can start"
+elif [ ! -f "$compose_env_dir/.env.local" ]; then
+    if [ "$deploys_here" = "1" ]; then
+        check_fail "no $compose_env_dir/.env.local — every 'make prod-*' target on this host runs on the development passwords in the tracked .env (docs/configuration.md, 'Infrastructure credentials')"
+    else
+        check_ok "no production overlay, and none needed — the development stack runs on the tracked .env"
+    fi
+else
+    # The failure the overlay exists to prevent, having already happened. Worth
+    # its own check because the file looks entirely normal on disk either way,
+    # and `git status` stops mentioning it the moment it is committed.
+    if git ls-files --error-unmatch -- "$compose_env_dir/.env.local" >/dev/null 2>&1; then
+        check_fail ".env.local is TRACKED by git — the production secrets are in the repository history; untrack it ('git rm --cached .env.local') and rotate every value it holds"
+    else
+        check_ok ".env.local present and untracked"
+    fi
+
+    on_dev_value=""
+    for name in $prod_secrets; do
+        tracked_val=$(env_value "$compose_env_dir/.env" "$name")
+        local_val=$(env_value "$compose_env_dir/.env.local" "$name")
+
+        if [ -z "$local_val" ]; then
+            reason="not set in .env.local — it falls through to the development value in .env"
+        elif [ "$local_val" = "$tracked_val" ]; then
+            reason="the development value from .env, copied verbatim"
+        else
+            continue
+        fi
+
+        on_dev_value="$on_dev_value $name"
+        if [ "$deploys_here" = "1" ]; then
+            check_fail "$name is $reason"
+        fi
+    done
+
+    if [ -z "$on_dev_value" ]; then
+        check_ok "all $(echo $prod_secrets | wc -w | tr -d ' ') production secrets overridden with values of their own"
+    elif [ "$deploys_here" != "1" ]; then
+        check_warn "still on the development values from .env:$on_dev_value — expected on a workstation, and exactly what 'make prod-*' would deploy with (docs/configuration.md, 'Infrastructure credentials')"
+    fi
 fi
 
 # The scheduled MySQL backup pipes mysqldump into gzip under `bash -o pipefail`,
@@ -311,7 +417,7 @@ fi
 # nothing else ever will.
 echo ""
 echo "== Alerting =="
-mailer_dsn=$(grep -E "^MAILER_DSN=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+mailer_dsn=$(grep -E "^MAILER_DSN=" app/.env.local 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
 case "$mailer_dsn" in
     "")
         check_warn "MAILER_DSN not set in .env.local — falling back to null://null in app/.env, which accepts every alert and delivers none; monitoring runs but nobody is told (docs/operations.md, 'Failure alerting')"
@@ -326,7 +432,7 @@ esac
 
 # A real transport pointed at the placeholder inbox is the same outcome by a
 # different route, so it is worth its own line rather than being folded above.
-mail_to=$(grep -E "^NOTIFICATIONS_MAIL_TO=" app/.env.local 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+mail_to=$(grep -E "^NOTIFICATIONS_MAIL_TO=" app/.env.local 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")
 case "$mail_to" in
     ""|owner@localhost)
         check_warn "NOTIFICATIONS_MAIL_TO is the placeholder (owner@localhost) — alerts would be addressed to a mailbox nobody reads"
