@@ -13,7 +13,7 @@ Workflow Jira: **$ARGUMENTS**. Wykonuj kroki ściśle po kolei.
 Heurystyka — jeśli **dwie lub więcej** z poniższych są prawdziwe, zatrzymaj się i powiedz userowi `Kontekst nie jest świeży — uruchom `/clear`, a potem ponownie `/start-task $ARGUMENTS` (czysty start = pełny budżet tokenów na cały workflow).`:
 - Aktualna sesja ma >70% długości typowego okna kontekstu (≥1 kompaktowanie już się zdarzyło lub liczba wcześniejszych wywołań narzędzi przekracza ~150).
 - Jira opis zadania zapowiada szeroki scope (≥5 plików do tknięcia, nowa migracja, nowy moduł, refactor cross-cutting, epic review).
-- Zadanie wymaga długo trwających operacji (Playwright E2E, `make test` pełnym pakietem, build pipeline) wielokrotnie pod rząd.
+- Zadanie wymaga długo trwających operacji (Playwright E2E, build pipeline, wiele rund naprawiania CI) wielokrotnie pod rząd.
 - W tej sesji właśnie skończyłeś inny ticket — kolejny tego samego dnia w tej samej sesji rośnie ryzyko, że worklog drugiego nie zdąży.
 
 Gdy zatrzymujesz się: **nic nie zmieniaj w repo i nie ruszaj Jiry**. Tylko ostrzeżenie + rekomendacja `/clear` i ponowne `/start-task $ARGUMENTS`. User decyduje czy mimo to ruszamy bez resetu.
@@ -49,11 +49,21 @@ Zero wyników (nic w tej wersji nie jest jeszcze W toku/Code Review/Gotowe, żad
 
 **7. Implementacja:** hexagonal, Doctrine XML, Domain Events, query handlery DBAL.
 
-**8. Walidacja — pełny stack zgodny z CI w `.github/workflows/ci.yml`:**
+**8. Walidacja — statyka lokalnie w całości, testy lokalnie tylko dla zmienionych plików:**
 
-NIGDY nie pushuj kodu bez przejścia tego stacku w całości. CI uruchamia dokładnie Rector → CS Fixer → PHPStan → PHPUnit i blokuje PR przy pierwszym czerwonym kroku. Lokalna walidacja musi być 1:1 z CI, inaczej "działa u mnie" wraca z CI 5 minut później.
+Podział jest celowy i wynika z pomiaru, nie z wygody. **Statyka** (Rector → CS Fixer → PHPStan → Deptrac) jest szybka i deterministyczna, więc leci lokalnie w całości i musi być 1:1 z CI — inaczej "działa u mnie" wraca z CI pięć minut później. **Pełna suita PHPUnit nie leci lokalnie**: na tym hoście testy integracyjne chodzą po windowsowym bind-mouncie ok. 10 s/test, więc lokalny `make test` to godziny, podczas gdy CI robi to samo na paratest (4 workery, własna baza per worker) w kilka minut.
 
-- **Najpierw scoped phpunit:** `phpunit tests/Unit/Module/{TouchedModule}/` (sekundy zamiast 2 minut, szybki feedback).
+Konsekwencja jest jedna i nie wolno jej pomijać: **skoro pełną suitę uruchamia wyłącznie CI, to CI jest bramką, której masz aktywnie pilnować i naprawiać** — patrz Krok 12. Zielone lokalne testy scoped nie są dowodem, że nic nie zepsułeś gdzie indziej; dowodem jest zielony PHPUnit na CI.
+
+- **Zakres testów wyznaczasz z diffa, nie z pamięci:**
+  ```
+  git diff develop...HEAD --name-only
+  ```
+  Dla każdego zmienionego pliku w `src/` weź jego odpowiednik w `tests/Unit/…` i `tests/Integration/…`, dorzuć zmienione pliki testowe i odpal wszystko jedną komendą:
+  ```
+  vendor/bin/phpunit tests/Unit/Module/{Touched} tests/Integration/{Touched}
+  ```
+- **Zmiana w czymś współdzielonym = szerszy zakres.** Ruszenie `config/services.yaml`, `src/Shared/`, listenera, `Kernel`, `src/Serializer/` albo `src/Messaging/` dotyka wszystkiego, więc dorzuć całą suitę jednostkową — `vendor/bin/phpunit --testsuite unit` to ~6 s i nie ma powodu jej pomijać. Integracyjne zostaw CI.
 - `bin/console doctrine:schema:validate` (przez docker exec workaround jeśli `make` pada).
 - `bin/console doctrine:migrations:migrate --env=test` (gdy w PR jest migracja).
 - **Rector dry-run** — `make rector-dry` lub `vendor/bin/rector process --dry-run`. Jeśli zwraca **cokolwiek** poza `[OK] 0 files would have been changed (dry-run) by Rector`:
@@ -61,10 +71,21 @@ NIGDY nie pushuj kodu bez przejścia tego stacku w całości. CI uruchamia dokł
   2. Powtórz `--dry-run` aż zwróci `[OK]`.
   3. Jeśli zmienione pliki dotyczą ticketu — wrzuć w ten sam commit. Jeśli to ortogonalne pliki (poprzedni epic) — osobny follow-up commit `HMAI-XX - Apply rector cleanups` na tej samej gałęzi (precedens: PR #107).
 - **PHP CS Fixer** — `make cs-check` (= `vendor/bin/php-cs-fixer fix --dry-run --diff`). Jeśli pokazuje diff: `vendor/bin/php-cs-fixer fix src/Path/To/File.php` per plik (config odrzuca multi-path argument). Pełny `make cs-check` pokazuje cały dług projektu — wystarczy że Twoje pliki przechodzą.
-- **PHPStan level 8** — `make phpstan` lub `vendor/bin/phpstan analyse --memory-limit=1G --no-progress`. Zero nowych entries w baseline.
-- **Sanity check na końcu:** pełny `make test` tuż przed commitem — **wszystkie** testy zielone (rząd wielkości: 1684 na 1.26.0; liczba rośnie z każdym wydaniem, więc nie porównuj z zapamiętaną wartością, tylko sprawdź `Failures: 0` / `Errors: 0`).
 
-Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Rector/CS Fixer/PHPStan w CI = wstyd i forced-push do naprawy.
+  **Listę plików bierz z `git diff --name-only`, NIGDY z `git status --porcelain`.** Status raportuje nieśledzony KATALOG jako jeden wpis (`?? src/Foo/Bar/`), więc pętla filtrująca po `\.php$` wycina go w całości i żaden plik w środku nie zostaje sprawdzony — cały nowy katalog przechodzi lokalnie i wraca czerwony z CI. Gdy pliki nie są jeszcze zacommitowane, wymuś rozwinięcie: `git status --porcelain -uall`.
+
+  Pamiętaj też, że `global_namespace_import` obejmuje **docbloki**: `@throws \RuntimeException` musi być zaimportowanym `RuntimeException`, nie tylko kod.
+
+  **Na Windowsie `line_ending` daje fałszywe alarmy.** Po `git checkout` working tree bywa CRLF przy indeksie LF, więc fixer chce przepisać każdy plik w całości. Autorytetem jest indeks — CI robi checkout LF. Po przejściu fixera sprawdź `git diff`: jeśli pokazuje wyłącznie zmiany treści (a nie całe pliki), zmiany EOL są nieistotne.
+- **PHPStan level 8** — `make phpstan` lub `vendor/bin/phpstan analyse --memory-limit=1G --no-progress`. Zero nowych entries w baseline.
+- **Deptrac** — `make deptrac`. Zero violations, zero `skip_violations`; nowa klasa w złej warstwie wychodzi tu, nie w code review.
+
+Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Rector/CS Fixer/PHPStan/Deptrac w CI = wstyd i forced-push do naprawy — te cztery masz lokalnie, więc nie ma dla nich wymówki.
+
+**Czego lokalna walidacja z zasady nie zobaczy** — i dlatego Krok 12 nie jest formalnością:
+- **Testy integracyjne spoza Twojego scope'u.** Zmiana w `services.yaml` czy w kształcie odpowiedzi API potrafi zapalić moduł, którego nie tknąłeś.
+- **Kroki, które istnieją wyłącznie w `ci.yml`.** Job `tests` uruchamia m.in. `scripts/doctor.sh` na spreparowanym katalogu kopii i sprawdza werdykt fresh/stale, dumpuje kontrakt OpenAPI i lintuje go Spectralem. Żaden z nich nie odpala się przy `vendor/bin/phpunit`. Zmieniając nazwę artefaktu, ścieżkę albo format wypisywany przez skrypt — **przejrzyj `.github/workflows/ci.yml` pod kątem kroków, które na tym polegają**, zanim zapłaci za to CI.
+- **Środowisko:** CI to Linux z LF i realnym `.env.test`; lokalnie Windows z CRLF i `.env.local`.
 
 **9. CLAUDE.md:** zaktualizuj jeśli zmiany tego wymagają (nowe moduły/konwencje/Makefile/zamknięte epiki). Bugfix bez nowych konwencji — pomiń.
 
@@ -72,7 +93,7 @@ Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Re
 
 **11. Commit:** `git diff` → commit `$ARGUMENTS - {Tytuł EN}`.
 
-**12. PR** → [wspólna](#pr): utwórz PR, **poczekaj na zielone CI** (`gh pr checks {PR}` aż wszystkie joby = `pass`). **NIE mergujesz** — merge zostaje po stronie usera (albo orkiestratora `/start-fixVersion`). **Confluence** → [opcjonalnie](#confluence). Status → **Code Review** (transition id `2`) po zielonym CI. **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI).
+**12. PR** → [wspólna](#pr): utwórz PR, **doprowadź CI do zieleni** — to Twoja praca, nie oczekiwanie na cudzy wynik. Pełna suita testów jest tutaj i nigdzie indziej (Krok 8), więc czerwony job to Twój błąd do naprawienia na tej samej gałęzi, iteracyjnie aż wszystkie joby = `pass`. **NIE mergujesz** — merge zostaje po stronie usera (albo orkiestratora `/start-fixVersion`). **Confluence** → [opcjonalnie](#confluence). Status → **Code Review** (transition id `2`) dopiero po zielonym CI. **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI).
 
 **12a. Bug → komentarz z analizą** (tylko gdy `issuetype` to `Błąd`/Bug): dodaj do ticketu komentarz z dokładną analizą problemu i podjętymi działaniami do rozwiązania — patrz [bug-analiza](#bug-analysis). Obowiązkowe dla każdego Buga, niezależnie od scope'u; osobny byt od worklogu (Krok 13).
 
@@ -102,13 +123,13 @@ Napraw wszystkie błędy przed kontynuowaniem. Push'owanie kodu, który zwali Re
 
 **B9. Implementacja rekomendacji** (po akceptacji): tylko na branchu z B2, nigdy bezpośrednio na develop.
 
-**B10.** Walidacja jak w Kroku 8 (scoped phpunit → Rector dry-run → CS Fixer → PHPStan level 8 → pełny `make test`). Stack 1:1 z CI — Rectora nie pomijać.
+**B10.** Walidacja jak w Kroku 8: testy tylko dla zmienionych plików → Rector dry-run → CS Fixer → PHPStan level 8 → Deptrac. Pełną suitę uruchamia CI (B13) i to tam ją doprowadzasz do zieleni. Statyki nie pomijać — Rectora w szczególności.
 
 **B11. Code review:** uruchom `/code-review`. Napraw **Krytyczne** przed commitem.
 
 **B12. Commit:** `git diff` → commit `$ARGUMENTS - {Tytuł EN} — epic review`.
 
-**B13. PR** → [wspólna](#pr): utwórz PR, **poczekaj na zielone CI**. **NIE mergujesz** — merge zostaje po stronie usera (albo orkiestratora `/start-fixVersion`, który dla epica robi merge + `/release-version`). **Confluence** → [opcjonalnie](#confluence) (przy epiku zazwyczaj TAK — to zwykle aktualizacja dokumentacji modułu). Status epiku → **Code Review** (transition id `2`) po zielonym CI. **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI).
+**B13. PR** → [wspólna](#pr): utwórz PR, **doprowadź CI do zieleni** (pełna suita jest tylko tam — czerwony job naprawiasz na tej samej gałęzi). **NIE mergujesz** — merge zostaje po stronie usera (albo orkiestratora `/start-fixVersion`, który dla epica robi merge + `/release-version`). **Confluence** → [opcjonalnie](#confluence) (przy epiku zazwyczaj TAK — to zwykle aktualizacja dokumentacji modułu). Status epiku → **Code Review** (transition id `2`) po zielonym CI. **Zapamiętaj timestamp przejścia** (`endedAt` = po zielonym CI).
 
 **B14. Rejestr czasu pracy:** identycznie jak Krok 13 — różnica `endedAt − startedAt` zaokrąglona w górę do pełnych 15 min, `addWorklogToJiraIssue` na klucz epiku, `started=startedAt`, **bez `commentBody`**. Patrz [worklog](#worklog).
 
@@ -133,13 +154,17 @@ Fix: {1 zdanie — co zmieniliśmy}
 
 Tests: {N} nowych — {jeden bullet z najważniejszym}
 
-✓ phpstan level 8 / ✓ cs-fixer / ✓ make test ({N}/{N})
+✓ phpstan level 8 / ✓ cs-fixer / ✓ deptrac / ✓ testy zmienionych plików ({N}/{N}) — pełna suita na CI
 ```
 
-**Po utworzeniu PR — czekaj na zielone CI, NIE mergujesz.** Samodzielny `/start-task` kończy pracę na zielonym PR — merge nie należy do tego skilla:
+**Po utworzeniu PR — doprowadź CI do zieleni, NIE mergujesz.** Samodzielny `/start-task` kończy pracę na zielonym PR — merge nie należy do tego skilla:
 
-1. **Poczekaj na zielone CI.** `gh pr checks {PR}` aż wszystkie joby = `pass`. Ochrona gałęzi została zdjęta (2026-07-21), więc CI **nie blokuje** już mergu technicznie — tym bardziej czekaj sam: czerwony merge nikogo teraz nie zatrzyma. **To oczekiwanie liczy się do worklogu** — patrz [worklog](#worklog).
-2. **CI czerwone → napraw.** Przyczynę (Rector/CS Fixer/PHPStan/PHPUnit lub flaky) usuń na tej samej gałęzi i push. Nie zostawiaj czerwonego PR.
+1. **Pilnuj CI aktywnie.** `gh pr checks {PR} --watch --interval 20`, albo odpytuj `gh pr checks {PR}` — nie zawieszaj się na Monitorze, potrafi po cichu wygasnąć. Ochrona gałęzi została zdjęta (2026-07-21), więc CI **nie blokuje** mergu technicznie; tym bardziej to Ty jesteś bramką. **To liczy się do worklogu** — patrz [worklog](#worklog).
+
+   ⚠️ **`--watch` kończy się z kodem 0 także wtedy, gdy joby padły** — kod wyjścia mówi "checki się zakończyły", nie "przeszły". Zawsze przeczytaj wynik i policz `pass`/`fail`, zamiast wnioskować z exit code.
+2. **CI czerwone → napraw, to część zadania.** Pełna suita testów żyje wyłącznie na CI (Krok 8), więc czerwony PHPUnit jest normalnym elementem przebiegu, a nie sygnałem, że coś poszło nie tak z procesem. Pobierz przyczynę (`gh run view --job {ID} --log-failed`), napraw na tej samej gałęzi, push, i pilnuj ponownie — iteracyjnie aż wszystko `pass`. Nie zostawiaj czerwonego PR i nie przechodź do Kroku 13.
+
+   Jeśli job jest **flaky** (timeout runnera, sieć), przepuść go ponownie: `gh run rerun {RUN_ID} --failed`. Flaky rozpoznajesz po tym, że ta sama komenda przechodzi lokalnie i log nie wskazuje na Twój diff — nie po tym, że wolałbyś, żeby był flaky.
 3. **Merge zostaje po stronie usera.** PR zostaje otwarty; merguje go ręcznie user albo orkiestrator `/start-fixVersion`. Po zielonym CI ustaw status → **Code Review** (transition id `2`; jeśli id nie zadziała, pobierz listę przez `getJiraIssueTransitions`), zaloguj czas (Krok 13) i **zakończ** — nie idź dalej.
 
 > **Recepta mergu (używa jej orkiestrator `/start-fixVersion`, NIE samodzielny `/start-task`):** jeden commit na zadanie (jeśli na branchu >1 — `git reset --soft develop && git commit -m "$ARGUMENTS - {Tytuł EN}"` + `git push --force-with-lease`; `git rebase -i` niedostępny), potem **rebase-and-merge** (NIE squash-merge, NIE merge-commit): `gh pr merge {PR} --rebase --delete-branch`, a po mergu status → **Gotowe** (transition id `31`).
@@ -250,15 +275,12 @@ Reguły dotyczą wszystkich kroków workflow — zwłaszcza Kroku 4 (analiza), 7
 
 - **Read z `offset`/`limit` zamiast full file** — gdy z `Grep` masz konkretny `file:line`, czytaj tylko sąsiedztwo (np. `Read file_path=… offset=120 limit=80`). Pełny `Read` tylko gdy plik jest naprawdę krótki (<200 linii) albo musisz zobaczyć całość (np. nowy plik testowy do dopisania na końcu).
 - **Bundle Edit calls per plik** — jeśli zmieniasz 3 miejsca w tym samym pliku, wyślij 3 wywołania `Edit` w **jednym message bloku** (parallel). Nie czekaj na wynik każdego oddzielnie. Wyjątek: gdy drugi `Edit` zależy od kontekstu po pierwszym (rzadkie).
-- **`make test` — tnij output** — pełny PHPUnit z `--testdox` to ~3-5 KB tokenów. Filtruj:
+- **PHPUnit — tnij output** — pełny przebieg z `--testdox` to ~3-5 KB tokenów. Filtruj:
   ```
-  make test 2>&1 | tail -20
-  ```
-  lub jeszcze ciaśniej:
-  ```
-  make test 2>&1 | grep -E "OK|FAIL|Tests:|Errors:|Failures:" | tail -10
+  vendor/bin/phpunit tests/Unit/Module/{Touched} 2>&1 | tail -12
   ```
   Pełny output potrzebny tylko gdy widzisz `FAILED` i musisz znaleźć stack trace.
+- **Logi CI czytaj celowanym poleceniem, nie całym przebiegiem.** `gh run view --job {ID} --log-failed` zwraca wyłącznie kroki, które padły; `gh run view --log` wypluwa dziesiątki tysięcy linii i zapycha kontekst na resztę zadania.
 - **Newman/Playwright — `run_in_background=true`** — Newman trwa 30-60s i wypluwa 5-10 KB outputu request-by-request. Uruchamiaj w tle:
   ```
   Bash run_in_background=true command="make test-newman"
