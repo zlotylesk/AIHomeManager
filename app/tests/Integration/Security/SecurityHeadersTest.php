@@ -76,4 +76,54 @@ final class SecurityHeadersTest extends WebTestCase
         self::assertSame('strict-origin-when-cross-origin', $headers->get('Referrer-Policy'));
         self::assertSame('geolocation=(), microphone=(), camera=(), payment=()', $headers->get('Permissions-Policy'));
     }
+
+    public function testFrontendPageHasTheStrictContentSecurityPolicy(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/series');
+
+        self::assertResponseHeaderSame(
+            'Content-Security-Policy',
+            SecurityHeadersListener::CONTENT_SECURITY_POLICY,
+        );
+    }
+
+    public function testApiEndpointHasTheStrictContentSecurityPolicy(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/health');
+
+        self::assertResponseHeaderSame(
+            'Content-Security-Policy',
+            SecurityHeadersListener::CONTENT_SECURITY_POLICY,
+        );
+    }
+
+    /**
+     * Swagger UI and Redoc render an inline <script>, and Redoc an inline
+     * <style> plus a Google Fonts stylesheet — none of which the strict
+     * policy above would allow. The relaxation is confined to this one
+     * route so it never reaches a page that carries the API key.
+     */
+    public function testApiDocPageHasTheRelaxedContentSecurityPolicy(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/doc');
+
+        self::assertResponseHeaderSame(
+            'Content-Security-Policy',
+            SecurityHeadersListener::CONTENT_SECURITY_POLICY_API_DOC,
+        );
+    }
+
+    public function testRedocPageHasTheRelaxedContentSecurityPolicyToo(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/doc/redoc');
+
+        self::assertResponseHeaderSame(
+            'Content-Security-Policy',
+            SecurityHeadersListener::CONTENT_SECURITY_POLICY_API_DOC,
+        );
+    }
 }

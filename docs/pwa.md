@@ -76,8 +76,11 @@ A Service Worker only registers in a secure context. Development is exempt
 because browsers treat `localhost` as one; a production instance is not, which
 is the PWA's share of the reason production terminates TLS.
 
-There is no `Content-Security-Policy` header in this project, so the same-origin
-Service Worker needs no CSP allowance.
+`Content-Security-Policy` (`default-src 'self'`) applies here too, since `/sw.js`
+re-declares the full security-headers set. It needs no allowance of its own:
+`worker-src` falls back to `script-src`, which falls back to `default-src`, and
+the worker script — like everything else it registers, fetches or caches — is
+same-origin.
 
 ## Emergency kill-switch
 
