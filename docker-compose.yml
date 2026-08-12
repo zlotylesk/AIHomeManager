@@ -9,7 +9,13 @@ services:
       - ./backups:/backups
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
-      REDIS_URL: redis://redis:6379
+      # Both Redis DSNs, and both carry the password. LOCK_DSN is the one that is
+      # easy to forget — it is not derived from REDIS_URL, it is a separate
+      # variable read by config/packages/lock.yaml, so a password added to only
+      # one of them leaves every lock acquisition failing while the caches work.
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      LOCK_DSN: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      MESSENGER_TRANSPORT_DSN: amqp://${RABBITMQ_USER:?set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/%2f/messages
     depends_on:
       mysql:
         condition: service_healthy
@@ -59,8 +65,23 @@ services:
     image: redis:8-alpine
     ports:
       - "6379:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    # The password is read from the environment inside the container rather than
+    # interpolated into this line, so it does not end up in `docker ps`, in
+    # `docker inspect`'s Cmd, or in the process table of the host.
+    #
+    # `exec` so redis-server becomes PID 1 and receives the TERM from
+    # `docker stop` itself, instead of a shell swallowing it and every restart
+    # waiting out the ten-second kill timer.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    # Authenticated, and it has to be: an unauthenticated PING against a
+    # password-protected server answers NOAUTH, which redis-cli prints and then
+    # exits 0 for. The container would report healthy while every client was
+    # being refused. Grepping for the reply is what makes the probe read the
+    # answer rather than the exit code.
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -102,10 +123,27 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      # NOT `guest`, and the name is the mechanism rather than a preference. The
+      # image ships /etc/rabbitmq/conf.d/10-defaults.conf with
+      # `loopback_users.guest = false` compiled in, so the built-in account is
+      # reachable from anywhere the port is; and the built-in account only exists
+      # because RabbitMQ creates `default_user` when it initialises an EMPTY
+      # database. Naming a different default means a fresh volume never has a
+      # guest account at all.
+      #
+      # An existing volume is a different matter: the default user is created on
+      # first boot only, so `guest` survives this change and has to be deleted by
+      # hand. docs/operations.md carries that procedure; the conf.d file mounted
+      # below is what covers the gap in the meantime.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      # Read after the image's own 10-defaults.conf and therefore winning over
+      # it. Mounted in development too: the point of a shared file is that the
+      # broker cannot be configured one way where it is tested and another way
+      # where it runs.
+      - ./docker/rabbitmq/20-aihm.conf:/etc/rabbitmq/conf.d/20-aihm.conf:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -121,8 +159,9 @@ services:
       - ./app:/var/www/html
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
-      REDIS_URL: redis://redis:6379
-      MESSENGER_TRANSPORT_DSN: amqp://guest:guest@rabbitmq:5672/%2f/messages
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      LOCK_DSN: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      MESSENGER_TRANSPORT_DSN: amqp://${RABBITMQ_USER:?set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/%2f/messages
     command: php bin/console messenger:consume async --time-limit=3600 -vv
     restart: unless-stopped
     depends_on:
@@ -151,8 +190,9 @@ services:
       - ./backups:/backups
     environment:
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4
-      REDIS_URL: redis://redis:6379
-      MESSENGER_TRANSPORT_DSN: amqp://guest:guest@rabbitmq:5672/%2f/messages
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      LOCK_DSN: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      MESSENGER_TRANSPORT_DSN: amqp://${RABBITMQ_USER:?set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/%2f/messages
     command: php bin/console messenger:consume scheduler_default --time-limit=3600 -vv
     restart: unless-stopped
     depends_on:

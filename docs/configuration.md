@@ -32,6 +32,47 @@ docker compose exec php php -r "echo base64_encode(sodium_crypto_secretbox_keyge
 `make doctor` decodes all four and reports the length, so a truncated paste is
 caught before the next `docker compose up`.
 
+## Infrastructure credentials
+
+These live in the **repository-root** `.env`, not `app/.env`, because Compose
+reads them while it is building the stack — before any container exists to read
+an application environment file. That is also why they are the one group of
+secrets `app/.env.local` cannot carry.
+
+| Variable | Used by |
+|---|---|
+| `REDIS_PASSWORD` | Starts Redis with `--requirepass`, and is interpolated into `REDIS_URL` and `LOCK_DSN` for the application and both workers. |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | The broker's account, and the credentials in `MESSENGER_TRANSPORT_DSN`. |
+
+The tracked values are development values, deliberately, exactly as `MYSQL_USER`
+and `MYSQL_PASSWORD` beside them are: a fresh clone has to come up with
+`make up` and nothing else. **Production does not use them.** Every `make prod-*`
+target reads `.env` and then `.env.local` — the repository-root one, gitignored
+— on top, so the real passwords are never committed:
+
+```bash
+# .env.local, on the production host only
+REDIS_PASSWORD=$(openssl rand -base64 24)
+RABBITMQ_USER=aihm
+RABBITMQ_PASSWORD=$(openssl rand -base64 24)
+```
+
+All three are required rather than defaulted. Compose refuses to start without
+them instead of substituting an empty string, which for `--requirepass` would
+mean a Redis with no password at all while every file said otherwise.
+
+**Changing `RABBITMQ_USER` or `RABBITMQ_PASSWORD` has no effect on a broker
+whose volume already exists.** RabbitMQ creates the account named by
+`default_user` only when it initialises an empty database, so on an existing
+instance the new credentials are simply wrong and every worker fails to connect.
+[Operations](operations.md#rotating-the-broker-account) has the three commands.
+
+**`REDIS_PASSWORD` is safe to change at any time**, at the cost of the cache
+contents: the caches are all derived data and refill on the next read, the locks
+are held for seconds, and the worker heartbeats are rewritten within a minute of
+a restart. Redis must be recreated (not merely restarted) for a new password to
+take effect, since it is passed on the server's command line.
+
 ## Public address and OAuth callbacks
 
 Six variables carry the instance's own address. `app/.env` holds the
