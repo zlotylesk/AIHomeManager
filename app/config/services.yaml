@@ -514,10 +514,12 @@ services:
     App\Security\ApiKeyAuthenticator:
         arguments:
             $expectedApiKey: '%env(API_KEY)%'
+            $previousApiKey: '%env(API_KEY_PREVIOUS)%'
 
     App\EventListener\ApiRateLimitListener:
         arguments:
             $apiPerIpLimiter: '@limiter.api_per_ip'
+            $healthPerIpLimiter: '@limiter.health_per_ip'
 
     App\Http\RateLimitedHttpClient:
         abstract: true
@@ -812,6 +814,7 @@ when@test:
             autoconfigure: true
             arguments:
                 $apiPerIpLimiter: '@limiter.api_per_ip'
+                $healthPerIpLimiter: '@limiter.health_per_ip'
                 $logger: '@App\Tests\Support\SpyLogger'
 
         Gelf\Transport\IgnoreErrorTransportWrapper:

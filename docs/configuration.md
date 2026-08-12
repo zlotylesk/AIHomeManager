@@ -11,7 +11,7 @@ else degrades a single feature.
 
 | Variable | Why it is required |
 |---|---|
-| `API_KEY` | The `^/api/*` firewall compares against it with `hash_equals`. |
+| `API_KEY` | The `^/api/*` firewall compares against it with `hash_equals`. `API_KEY_PREVIOUS` is the optional rotation partner — empty by default, not startup-critical — see [Operations → API key rotation](operations.md#api-key-rotation). |
 | `FRONTEND_USER` / `FRONTEND_PASSWORD_HASH` | HTTP Basic on the `main` firewall. `app/.env` ships a placeholder pair so a clone boots; override both before the app is reachable from anywhere but localhost. |
 | `DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `TRAKT_TOKEN_KEY`, `SPOTIFY_TOKEN_KEY` | `TokenCipher` throws for any key that does not decode to exactly 32 bytes, and it is constructed at container build time — a wrong length is a boot failure, not a runtime one. |
 | `BACKUP_ENCRYPTION_KEY` | `BackupCipher` throws for anything but 32 bytes. Unset, it fails the moment a backup runs or is restored. **The one secret here that cannot be regenerated** — see [Backups](#backups-and-monitoring). |
@@ -132,6 +132,7 @@ The complete set, with how each value is produced:
 | `GRAYLOG_PASSWORD_SECRET` | `.env.local` | `openssl rand -base64 24` (≥ 16 characters) |
 | `GRAYLOG_ROOT_PASSWORD_SHA2` | `.env.local` | `printf '%s' 'the password' \| sha256sum \| cut -d' ' -f1` |
 | `API_KEY` | `app/.env.local` | `openssl rand -hex 32` |
+| `API_KEY_PREVIOUS` | `app/.env.local` | Not generated — set during a rotation to the value `API_KEY` just moved out of, empty otherwise. See [Operations → API key rotation](operations.md#api-key-rotation) |
 | `FRONTEND_USER` | `app/.env.local` | Any name |
 | `FRONTEND_PASSWORD_HASH` | `app/.env.local` | `bin/console security:hash-password` |
 | `APP_SECRET` | `app/.env.local` | `openssl rand -hex 16` |

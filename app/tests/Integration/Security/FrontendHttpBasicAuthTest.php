@@ -153,4 +153,43 @@ final class FrontendHttpBasicAuthTest extends WebTestCase
 
         self::assertNotSame(401, $client->getResponse()->getStatusCode());
     }
+
+    /**
+     * HMAI-434: `login_throttling` on the `main` firewall. Asserting "still 401
+     * after N wrong passwords" would not distinguish throttling from the password
+     * simply being wrong every time, so the signal here is the opposite —
+     * exhausting the per-username+IP budget (5 attempts, security.yaml) and then
+     * presenting the *correct* password, which the firewall must still refuse
+     * while locked out. Remove `login_throttling:` and this goes green with a 200.
+     *
+     * A random-per-run IP keeps this independent of any state a previous run left
+     * in `cache.rate_limiter` (real Redis here — the `dev` boot has no `when@test`
+     * override to swap in an isolated storage, unlike `api_per_ip`).
+     */
+    public function testFifthFailedLoginLocksOutTheSixthEvenWithValidCredentials(): void
+    {
+        self::bootKernel(['environment' => 'dev', 'debug' => false]);
+        $kernel = self::$kernel;
+        self::assertNotNull($kernel);
+
+        $ip = sprintf('10.%d.%d.%d', random_int(0, 255), random_int(0, 255), random_int(1, 254));
+
+        for ($attempt = 1; $attempt <= 5; ++$attempt) {
+            $response = $kernel->handle(Request::create('/series', 'GET', [], [], [], [
+                'PHP_AUTH_USER' => 'admin',
+                'PHP_AUTH_PW' => 'wrong-password',
+                'REMOTE_ADDR' => $ip,
+            ]));
+
+            self::assertSame(401, $response->getStatusCode(), sprintf('Attempt #%d should fail on bad credentials', $attempt));
+        }
+
+        $lockedOutResponse = $kernel->handle(Request::create('/series', 'GET', [], [], [], [
+            'PHP_AUTH_USER' => 'admin',
+            'PHP_AUTH_PW' => 'test',
+            'REMOTE_ADDR' => $ip,
+        ]));
+
+        self::assertSame(401, $lockedOutResponse->getStatusCode(), 'Valid credentials must still be refused while the login budget is exhausted.');
+    }
 }
