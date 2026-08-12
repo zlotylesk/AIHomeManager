@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Infrastructure\Backup;
 
+use App\Infrastructure\Backup\BackupCipher;
 use App\Infrastructure\Backup\DatabaseBackupService;
+use App\Infrastructure\Backup\Destination\NullBackupDestination;
 use DateTimeImmutable;
 use Override;
 use PHPUnit\Framework\TestCase;
@@ -39,12 +41,14 @@ final class DatabaseBackupServiceTest extends TestCase
 
         for ($i = 34; $i >= 0; --$i) {
             $date = $today->modify(sprintf('-%d days', $i));
-            touch($this->tmpDir.'/homemanager-'.$date->format('Y-m-d').'.sql.gz');
+            touch($this->tmpDir.'/homemanager-'.$date->format('Y-m-d').'.sql.gz.enc');
         }
 
         $service = new DatabaseBackupService(
             'mysql://u:p@localhost:3306/db',
             $this->tmpDir,
+            new BackupCipher(sodium_crypto_secretstream_xchacha20poly1305_keygen()),
+            new NullBackupDestination(),
             new NullLogger(),
         );
 
@@ -52,10 +56,10 @@ final class DatabaseBackupServiceTest extends TestCase
 
         self::assertSame(4, $deleted);
 
-        self::assertFileExists($this->tmpDir.'/homemanager-2026-06-15.sql.gz');
-        self::assertFileExists($this->tmpDir.'/homemanager-2026-05-16.sql.gz');
+        self::assertFileExists($this->tmpDir.'/homemanager-2026-06-15.sql.gz.enc');
+        self::assertFileExists($this->tmpDir.'/homemanager-2026-05-16.sql.gz.enc');
 
-        self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2026-05-12.sql.gz');
+        self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2026-05-12.sql.gz.enc');
     }
 
     public function testCleanupKeepsFirstOfMonthBackups(): void
@@ -64,14 +68,16 @@ final class DatabaseBackupServiceTest extends TestCase
 
         for ($m = 14; $m >= 0; --$m) {
             $date = $today->modify(sprintf('-%d months', $m))->modify('first day of this month');
-            touch($this->tmpDir.'/homemanager-'.$date->format('Y-m-d').'.sql.gz');
+            touch($this->tmpDir.'/homemanager-'.$date->format('Y-m-d').'.sql.gz.enc');
         }
 
-        touch($this->tmpDir.'/homemanager-2025-10-15.sql.gz');
+        touch($this->tmpDir.'/homemanager-2025-10-15.sql.gz.enc');
 
         $service = new DatabaseBackupService(
             'mysql://u:p@localhost:3306/db',
             $this->tmpDir,
+            new BackupCipher(sodium_crypto_secretstream_xchacha20poly1305_keygen()),
+            new NullBackupDestination(),
             new NullLogger(),
         );
 
@@ -79,8 +85,8 @@ final class DatabaseBackupServiceTest extends TestCase
 
         self::assertSame(3, $deleted);
 
-        self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2025-10-01.sql.gz');
-        self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2025-10-15.sql.gz');
+        self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2025-10-01.sql.gz.enc');
+        self::assertFileDoesNotExist($this->tmpDir.'/homemanager-2025-10-15.sql.gz.enc');
     }
 
     public function testCleanupIgnoresNonMatchingFiles(): void
@@ -88,11 +94,13 @@ final class DatabaseBackupServiceTest extends TestCase
         $today = new DateTimeImmutable('2026-06-15');
 
         touch($this->tmpDir.'/random-file.txt');
-        touch($this->tmpDir.'/homemanager-2026-06-14.sql.gz');
+        touch($this->tmpDir.'/homemanager-2026-06-14.sql.gz.enc');
 
         $service = new DatabaseBackupService(
             'mysql://u:p@localhost:3306/db',
             $this->tmpDir,
+            new BackupCipher(sodium_crypto_secretstream_xchacha20poly1305_keygen()),
+            new NullBackupDestination(),
             new NullLogger(),
         );
 
@@ -100,7 +108,7 @@ final class DatabaseBackupServiceTest extends TestCase
 
         self::assertSame(0, $deleted);
         self::assertFileExists($this->tmpDir.'/random-file.txt');
-        self::assertFileExists($this->tmpDir.'/homemanager-2026-06-14.sql.gz');
+        self::assertFileExists($this->tmpDir.'/homemanager-2026-06-14.sql.gz.enc');
     }
 
     public function testCleanupReturnsZeroWhenNoFiles(): void
@@ -108,6 +116,8 @@ final class DatabaseBackupServiceTest extends TestCase
         $service = new DatabaseBackupService(
             'mysql://u:p@localhost:3306/db',
             $this->tmpDir,
+            new BackupCipher(sodium_crypto_secretstream_xchacha20poly1305_keygen()),
+            new NullBackupDestination(),
             new NullLogger(),
         );
 
@@ -119,6 +129,8 @@ final class DatabaseBackupServiceTest extends TestCase
         $service = new DatabaseBackupService(
             'not-a-valid-url',
             $this->tmpDir,
+            new BackupCipher(sodium_crypto_secretstream_xchacha20poly1305_keygen()),
+            new NullBackupDestination(),
             new NullLogger(),
         );
 

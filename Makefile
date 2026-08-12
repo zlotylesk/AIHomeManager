@@ -1,4 +1,4 @@
-.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about prod-cert-init prod-cert-renew up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore doctor monitor-run
+.PHONY: prod-build prod-up prod-down prod-migrate prod-logs prod-shell prod-about prod-cert-init prod-cert-renew up min-up down build install migrate migrate-test schema-validate search-index search-reindex search-populate test test-unit test-integration test-coverage test-parallel test-e2e test-e2e-install test-newman test-newman-install shell logs logs-php logs-nginx logs-mysql logs-redis logs-rabbitmq logs-worker logs-scheduler logs-node cc routes services messenger-status setup monitoring-up monitoring-down monitoring-logs monitoring-bootstrap phpstan phpstan-baseline cs-check cs-fix rector rector-dry deptrac deptrac-baseline audit analyse openapi-dump openapi-lint fixtures node-install node-audit assets assets-watch assets-prod test-js backup-now restore restore-drill doctor monitor-run
 
 # Production runs from a different pair of compose files, and every target below
 # names both explicitly. A prod command that worked by leaving out `-f` would be
@@ -289,9 +289,33 @@ test-js:
 backup-now:
 	docker compose exec php bin/console app:backup-database
 
+# Decrypt in the php container, load in the mysql container, nothing on disk in
+# between — the plaintext dump exists only as bytes moving down a pipe.
+#
+# Neither half takes a credential from this file. The dump's key comes from
+# BACKUP_ENCRYPTION_KEY in the app's environment, and the database password is
+# read inside the mysql container from the variable Compose already put there,
+# via MYSQL_PWD rather than -p: an argument is visible to every process on the
+# box through `ps`. The old hard-coded `-uhomemanager -phomemanager` worked on
+# exactly one machine, and not on the one where this command matters.
+#
+# `bash -o pipefail` for the reason the backup pipeline uses it: without it the
+# pipeline reports gunzip's status, so a failed decrypt would exit 0 and this
+# would look like a restore that loaded nothing.
 restore:
-	@test -n "$(BACKUP)" || (echo "Usage: make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz" && exit 1)
-	gunzip -c $(BACKUP) | docker compose exec -T mysql mysql -uhomemanager -phomemanager homemanager
+	@test -n "$(BACKUP)" || (echo "Usage: make restore BACKUP=backups/homemanager-YYYY-MM-DD.sql.gz.enc" && exit 1)
+	docker compose exec -T php bash -o pipefail -c 'bin/console app:backup:decrypt "$$0" | gunzip' "$(BACKUP)" \
+		| docker compose exec -T mysql sh -c 'MYSQL_PWD="$$MYSQL_PASSWORD" exec mysql --default-character-set=utf8mb4 -h127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE"'
+
+# Proves the backups restore, without touching the live database.
+#
+# The one thing every freshness and size check in this system cannot tell you:
+# they establish that a file is recent and plausibly large, never that a database
+# can be rebuilt from it. This restores into a scratch schema and compares row
+# counts against the live one, so "our backups work" is a thing that gets
+# re-established on demand rather than remembered from the day someone tried it.
+restore-drill:
+	bash scripts/restore-drill.sh
 
 doctor:
 	bash scripts/doctor.sh

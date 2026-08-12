@@ -279,7 +279,7 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 |---|---|---|
 | `0 0 * * *` | `ResetDailyArticleCache` | Drops `articles:today`, prunes picks older than 7 days |
 | `0 1 * * *` | `RecalculateStreaks` | Recomputes and persists the per-type streak; carries the all-time longest forward once activity leaves the read window |
-| `0 3 * * *` | `BackupDatabase` | mysqldump + gzip, retention 30 daily + 12 monthly |
+| `0 3 * * *` | `BackupDatabase` | mysqldump + gzip, **encrypted**, retention 30 daily + 12 monthly, then copied off-host |
 | `0 8 * * 1` | `GenerateWeeklyActivityReport` | Logs the week's counters |
 | `0 8 * * *` | `ReviewNotificationCandidates` | Morning sweep — deadlines, the article pick, the digest |
 | `0 20 * * *` | `ReviewNotificationCandidates` | Evening sweep — when "your streak dies at midnight" first becomes true |
@@ -289,7 +289,13 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 | `*/30 * * * *` | `PollPodcastListens` | Spotify sweep; overlapping windows are harmless because the source reports state |
 | `*/5 * * * *` | `MonitorSystemHealth` | Sweeps the alert probes and mails the owner about anything that changed. **The one recurring command that is deliberately not async-routed** — see [Operational alerting](#operational-alerting) |
 
-The backup job has **two image-level dependencies**: `bash -o pipefail` (POSIX `sh` reports only the last pipeline member, so a dead `mysqldump` is masked by a successful `gzip`) and `mariadb-connector-c` (Alpine's `mysql-client` is MariaDB's and ships no `caching_sha2_password`, MySQL 8.4's default plugin). Both are in `docker/php/Dockerfile`; **an image built before those lines must be rebuilt.**
+The backup job has **three image-level dependencies**: `bash -o pipefail` (POSIX `sh` reports only the last pipeline member, so a dead `mysqldump` is masked by a successful `gzip`), `mariadb-connector-c` (Alpine's `mysql-client` is MariaDB's and ships no `caching_sha2_password`, MySQL 8.4's default plugin) and `rclone` (only when that off-host backend is selected). All three are in `docker/php/Dockerfile`; **an image built before those lines must be rebuilt.**
+
+**The stored artifact is encrypted, and that is the format, not a step on the way out** — `homemanager-YYYY-MM-DD.sql.gz.enc`, gzip inside (encrypted bytes do not compress), libsodium `secretstream` outside. `secretstream` rather than the `secretbox` `TokenCipher` uses, because a whole-string cipher would hold the database in memory twice; the plaintext dump exists only as a dot-prefixed 0600 temp file that no glob matches and that is unlinked in a `finally`. Decryption **insists on the final chunk's tag**: an upload cut off on a chunk boundary otherwise decrypts cleanly to a partial dump, and a truncated dump restores a database quietly missing everything after the cut. **`BACKUP_ENCRYPTION_KEY` cannot be regenerated** — unlike the four token keys, losing it loses every backup retroactively, off-host copies included.
+
+**Where the copy goes is a port with a factory**, `none` | `directory` | `rclone`, selected by `BACKUP_REMOTE_BACKEND` — an alias resolves at compile time and cannot read an env var, and an unknown value is refused at boot rather than degrading to `none`, which would leave an instance that looks configured and copies nothing. The `directory` backend **compares device ids, not paths**, at push time: a "remote" directory on the database's own disk protects against nothing, and a mount that has silently dropped since startup collapses back onto the host filesystem. Off-host retention is its own, longer window. **A failed upload does not fail the backup** — the dump already succeeded and a retry would re-dump the whole database — so it is logged and then announced by `BackupOffsiteProbe`, which reads the destination on every sweep. `make restore-drill` restores the newest artifact into a scratch schema and compares row counts, because freshness and size checks can all pass on a file that no longer restores.
+
+**Every backup filename is parsed by `BackupFilename`, never per reader** — the writer, both retention sweeps, both probes and the destinations all ask it, so none of them can develop its own idea of what a backup is or when it was taken.
 
 **CI cannot catch either.** It runs PHPUnit on the GitHub runner, never inside the image the app ships in, so an image-level runtime dependency is invisible to every job. `make doctor` is what covers that gap — and it checks the *outcome* (is the newest backup non-empty, and is it recent) rather than only the causes already known.
 
@@ -367,7 +373,7 @@ environment variables.
 
 ### Environment
 
-`app/.env` holds placeholders, `app/.env.local` the real values. Full reference: `docs/configuration.md`. The startup-critical set is `API_KEY`, `FRONTEND_USER`/`FRONTEND_PASSWORD_HASH`, and four **different** 32-byte base64 keys `DISCOGS_TOKEN_KEY` / `GOOGLE_TOKEN_KEY` / `TRAKT_TOKEN_KEY` / `SPOTIFY_TOKEN_KEY` — `TokenCipher` throws for any other length, and it is built at container-compile time, so a wrong key is a boot failure.
+`app/.env` holds placeholders, `app/.env.local` the real values. Full reference: `docs/configuration.md`. The startup-critical set is `API_KEY`, `FRONTEND_USER`/`FRONTEND_PASSWORD_HASH`, and four **different** 32-byte base64 keys `DISCOGS_TOKEN_KEY` / `GOOGLE_TOKEN_KEY` / `TRAKT_TOKEN_KEY` / `SPOTIFY_TOKEN_KEY` — `TokenCipher` throws for any other length, and it is built at container-compile time, so a wrong key is a boot failure. `BACKUP_ENCRYPTION_KEY` is a fifth 32-byte key with the same length rule, but it is resolved lazily, so a missing one fails when a backup runs or is restored rather than at boot.
 
 **`.gitattributes` pins `*.sh` and `app/bin/console` to LF.** A shebang is not a comment: a CRLF checkout makes Linux `env` look for a program literally named `php\r`, and every Make target running `bin/console` fails with a misleading error — on Windows only, so no gate can see it. Do not "fix" line endings with container busybox tools; they mangle sources.
 
@@ -402,7 +408,7 @@ environment variables.
 | Deptrac | `make deptrac` / `make deptrac-baseline` |
 | Composer audit | `make audit` |
 | OpenAPI dump / lint | `make openapi-dump` / `make openapi-lint` |
-| Backup / restore | `make backup-now` / `make restore BACKUP=…` |
+| Backup / restore / rehearse a restore | `make backup-now` / `make restore BACKUP=…` / `make restore-drill` |
 | Cache clear / routes / services | `make cc` / `make routes` / `make services` |
 | Logs (all / per service) | `make logs` / `make logs-{php,nginx,mysql,redis,rabbitmq,worker,scheduler,node}` |
 | Monitoring | `make monitoring-up` / `-down` / `-logs` / `-bootstrap` |

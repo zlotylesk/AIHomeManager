@@ -309,9 +309,13 @@ make monitor-run       # one sweep now, and print what it found
 | `health:mysql` / `health:redis` / `health:rabbitmq` | `HealthChecker` | the component is `down` | critical |
 | `health:search` / `health:worker` | `HealthChecker` | the component is `degraded` | warning |
 | `health:disk` | `HealthChecker` | ≥ 80 % used → warning, ≥ 95 % → critical | both |
-| `backup:missing` | `BACKUP_DIR` | no `homemanager-*.sql.gz` at all | critical |
+| `backup:missing` | `BACKUP_DIR` | no `homemanager-*.sql.gz.enc` at all | critical |
 | `backup:stale` | `BACKUP_DIR` | the newest dump is older than `BACKUP_MAX_AGE_HOURS` | critical |
 | `backup:empty` | `BACKUP_DIR` | the newest dump is recent but under `BACKUP_MIN_BYTES` | critical |
+| `backup_offsite:unreachable` | the off-host destination | the mount or remote cannot be read at all | critical |
+| `backup_offsite:missing` | the off-host destination | reachable, but holds no backup | critical |
+| `backup_offsite:stale` | the off-host destination | the newest copy there is older than `BACKUP_MAX_AGE_HOURS` | critical |
+| `backup_offsite:empty` | the off-host destination | the newest copy is recent but under `BACKUP_MIN_BYTES` | critical |
 | `queue:failed` | `failed` transport | depth ≥ `MONITORING_DLQ_THRESHOLD` | warning |
 | `probe:*` | the monitor itself | a probe threw instead of answering | critical |
 
@@ -377,6 +381,7 @@ Every alert carries a first step in its body. The short version:
 | `health:worker` | `docker compose ps`; while it stands, imports, reindexing, notifications and the nightly backup are all stopped |
 | `health:disk` | above 95 % MySQL cannot flush or write binlogs; `BACKUP_DIR` is usually the largest thing to prune |
 | `backup:*` | `make backup-now`, then `make doctor` for the fuller picture |
+| `backup_offsite:*` | the local backup is probably fine — this says the copy stopped leaving the machine. `docker compose logs scheduler_worker \| grep -i off-host` for the reason the nightly job recorded, fix the destination, then `make backup-now`. The job deliberately does not retry |
 | `queue:failed` | `messenger:stats` for the depth, `messenger:failed:retry` to drain — see [Dead-letter queue](#dead-letter-queue) |
 | `probe:*` | nothing that probe watches is being monitored while this stands; the body names the exception |
 
@@ -436,13 +441,82 @@ could not count.
 
 ## MySQL backup
 
-The Scheduler runs `App\Application\Scheduled\BackupDatabase` daily at 03:00.
-Retention is 30 daily plus 12 monthly (the 1st of each month is kept).
+The Scheduler runs `App\Application\Scheduled\BackupDatabase` daily at 03:00. It
+dumps the database, encrypts the dump, applies local retention (30 daily plus 12
+monthly — the 1st of each month is kept), then copies the artifact off the host.
 
 ```bash
 make backup-now
-make restore BACKUP=backups/homemanager-2026-06-01.sql.gz
+make restore BACKUP=backups/homemanager-2026-06-01.sql.gz.enc
+make restore-drill                 # prove the newest backup restores, without touching the live database
 ```
+
+### The artifact is encrypted, and the key is not recoverable
+
+The stored file is `homemanager-YYYY-MM-DD.sql.gz.enc`: gzip inside, libsodium
+`secretstream` (XChaCha20-Poly1305) outside. Compression has to come first —
+encrypted bytes do not compress.
+
+`mysqldump` cannot encrypt, so a plaintext dump exists for as long as it takes to
+read it back through the cipher. It is written under a dot-prefixed temporary
+name that no glob in this system matches, created `0600` before a byte goes into
+it, and removed in a `finally` whether the run succeeded or threw. A run that
+fails leaves neither a partial artifact nor a plaintext fragment.
+
+The stream is authenticated **per chunk**, and the last chunk carries a FINAL
+tag that decryption insists on seeing. That is what makes a half-transferred file
+an error instead of a partial success: without it, an upload cut off on a chunk
+boundary decrypts perfectly up to the cut, and a truncated SQL dump restores a
+database quietly missing everything after it.
+
+> **`BACKUP_ENCRYPTION_KEY` is the one secret in this system that cannot be
+> regenerated.** The four token keys can — re-authorise with the provider and
+> carry on. This one is the only thing that turns the stored dumps back into a
+> database, so losing it loses every backup at once, retroactively, including the
+> copies that made it off the host. **Store it somewhere that is neither the
+> backup directory nor any copy of it** — a key kept beside the ciphertext
+> protects nothing. `make doctor` checks it is present and 32 bytes.
+
+### The copy that leaves the machine
+
+Backups that live only on the database's own disk fail together with it: one
+medium dies, or the machine is lost, and both go at once. `BACKUP_REMOTE_BACKEND`
+selects where the encrypted artifact goes:
+
+| Backend | What it is | Needs |
+|---|---|---|
+| `none` | No off-host copy. Legitimate on a laptop, and **stated** — `make doctor` and `app:backup-database` both say so out loud | — |
+| `directory` | A second mounted path: NAS export, external disk, NFS | `BACKUP_REMOTE_DIR` |
+| `rclone` | Object storage — S3, B2, Drive, another box over SFTP | `BACKUP_REMOTE_TARGET`, and rclone's own config |
+
+The value is read by a factory, not a container alias — an alias is resolved when
+the container compiles and cannot read an environment variable. **An unrecognised
+value is refused at boot** rather than falling back to `none`: a typo that
+silently disabled off-host copies would leave an instance that looks configured
+and copies nothing anywhere, which is the failure this whole arrangement exists
+to prevent.
+
+The `directory` backend **refuses a destination on the same filesystem as
+`BACKUP_DIR`**, comparing device ids rather than paths — a subdirectory or a bind
+mount of the same disk is not an off-host copy however "remote" the path is
+called. The check runs at push time, not at boot, so a mount that has silently
+dropped since startup is caught rather than quietly collapsing back onto the host
+filesystem. If something else genuinely carries that directory off the machine —
+Syncthing, a Dropbox client, a cron'd rsync — say so with
+`BACKUP_REMOTE_ALLOW_SAME_FILESYSTEM=1`.
+
+Off-host retention is its own window (`BACKUP_REMOTE_RETENTION_DAYS`, default 90)
+and deliberately longer than the 30 local dailies: the copy that has to survive
+losing the machine should not lose the same days at the same moment.
+
+**A failed upload does not fail the backup.** The dump already succeeded; letting
+the upload's failure propagate would send the message back through the retry
+chain and re-dump the whole database three more times over a problem that had
+nothing to do with it. It is logged at `error` — and, because a log entry is
+precisely what nobody reads, `BackupOffsiteProbe` reads the destination on every
+monitoring sweep, so a copy that stops arriving becomes mail to the owner within
+one `BACKUP_MAX_AGE_HOURS` window. `make backup-now` exits non-zero on the same
+failure, so a manual run is loud immediately.
 
 ### Two image-level dependencies
 
@@ -516,3 +590,114 @@ BACKUP_DIR=/tmp/bk bash scripts/doctor.sh   # exits 1 on the age check
 The search index is deliberately **not** backed up — every document in it is
 derived from the MySQL tables, so the dump already contains everything. See
 [search.md](search.md#recovery).
+
+### Restoring
+
+Restore is the only thing about a backup that actually matters, and it is the one
+thing size and freshness checks cannot tell you. Both of the following are
+non-destructive rehearsals except where marked.
+
+**Credentials come from configuration, never from the command line.** The dump's
+key is `BACKUP_ENCRYPTION_KEY` in the application's environment; the database
+password is read inside the mysql container from the variable Compose already put
+there, and passed via `MYSQL_PWD` rather than `-p`, because an argument is
+visible to every process on the box through `ps`.
+
+#### Rehearse it: `make restore-drill`
+
+```bash
+make restore-drill                                    # newest backup, scratch schema, dropped afterwards
+BACKUP=backups/homemanager-2026-08-12.sql.gz.enc make restore-drill
+KEEP=1 make restore-drill                             # leave the scratch schema to look around
+```
+
+It restores into `homemanager_restore_drill`, compares row counts table by table
+against the live schema, and drops the scratch database again. **The live schema
+is never written to.** A table that gained rows since the 03:00 dump is reported
+as a note; a table that comes back *empty* against a non-empty original is a
+failure, because that is the shape the six days of empty dumps had.
+
+Run it after any change to the backup pipeline, and periodically regardless — the
+value of "our backups restore" decays from the day it was last established.
+
+#### The real thing
+
+**Destructive: this overwrites the live database.** Stop the workers first so
+nothing writes underneath the load.
+
+```bash
+docker compose stop messenger_worker scheduler_worker
+
+# 1. If the copy you need is off-host, fetch it first.
+#    directory backend:
+cp /mnt/nas/aihm-backups/homemanager-2026-08-12.sql.gz.enc backups/
+#    rclone backend:
+docker compose exec php rclone copy "$BACKUP_REMOTE_TARGET/homemanager-2026-08-12.sql.gz.enc" /backups/
+
+# 2. Restore. Decrypts in the php container, loads in the mysql container,
+#    nothing plaintext on disk in between.
+make restore BACKUP=backups/homemanager-2026-08-12.sql.gz.enc
+
+# 3. Bring everything back and check.
+docker compose start messenger_worker scheduler_worker
+docker compose exec php bin/console doctrine:migrations:migrate --no-interaction
+curl -s localhost:8080/api/health | jq
+make search-reindex        # the index is rebuilt, never restored
+```
+
+Step 3's migration matters when the dump predates the current code: the schema in
+the archive is the schema of the day it was taken.
+
+If the restore fails, the message says which of the three things went wrong, and
+they need different responses:
+
+| Message | Meaning |
+|---|---|
+| `not an encrypted AIHM backup` | A pre-encryption `.sql.gz`. Restore it the old way: `gunzip -c … \| docker compose exec -T mysql …` |
+| `wrong BACKUP_ENCRYPTION_KEY, or the file was altered in transit` | Failed on the *first* chunk — the key does not match this file |
+| `damaged or truncated at chunk N — the key is right` | The key decrypted earlier chunks. The file is damaged; re-fetch it from the off-host copy |
+| `ends without a final chunk` | Truncated on a chunk boundary — an upload that died partway. Re-fetch it |
+
+#### Measured
+
+An actual restore, run on the development stack against the real library — not an
+estimate. Times are wall-clock on a laptop, MySQL 8.4 in Docker.
+
+| Step | Time |
+|---|---|
+| `app:backup-database` — dump, gzip, encrypt, retention | **5.2 s** |
+| Restore into an empty schema — decrypt, gunzip, load | **5.5 s** |
+| `/api/health` afterwards | 200, all six components `up` |
+
+The encrypted artifact was **354 333 bytes** for a database of 33 tables, the
+largest being 3 274 listening sessions and 989 search documents.
+
+**Every one of the 33 tables came back with an identical row count** — compared
+table by table between the live schema and the restored one, not sampled.
+
+Two things this does not tell you. The times scale with the database, and this one
+is small; a library ten times the size is not ten times slower, but it is not 5 s
+either. And the numbers are for the mechanism only — on a real recovery the
+elapsed time is dominated by fetching the backup from off-host storage and by
+whatever it took to notice, neither of which anything here measures.
+
+Re-establish these with `make restore-drill` rather than trusting the table: it
+is a record of one run on one day, and the value of "our backups restore" decays
+from the moment it was last checked.
+
+#### Backups taken before encryption
+
+> **Run `make backup-now` as the last step of deploying this change.** Until one
+> encrypted artifact exists, `BackupFreshnessProbe` sees an empty directory and
+> raises `backup:missing` as critical — correctly, by its own rules, but about a
+> machine whose backups are fine. Left to the 03:00 schedule, that alert stands
+> for up to a day.
+
+Artifacts from before this change are plain `homemanager-YYYY-MM-DD.sql.gz` and
+are **no longer counted** by `make doctor`, `BackupFreshnessProbe` or
+`make restore-drill` — every glob now matches the encrypted artifact only, on
+purpose: an unencrypted dump is not something this system will hand to a restore.
+They remain perfectly restorable by hand with `gunzip`. Keep them until the
+encrypted set covers the window you care about, then delete them; they are
+unencrypted copies of the whole database sitting in the directory whose contents
+now get copied off the machine.
