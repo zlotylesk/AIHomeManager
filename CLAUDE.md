@@ -14,10 +14,10 @@ Operational. Current release **1.34.0** (2026-08-05), which is also the highest-
 
 | Gate | State |
 |---|---|
-| PHPUnit | 2607 tests |
+| PHPUnit | 2653 tests |
 | Playwright | 169 tests |
 | Vitest | 249 tests |
-| Newman | 161 assertions |
+| Newman | 165 assertions |
 | PHPStan | level 8, clean; one baseline entry |
 | Deptrac | 0 violations, 0 `skip_violations` |
 | Coverage floor | 90 % |
@@ -271,23 +271,23 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 
 **Production publishes nginx's 80 and 443 and nothing else; development publishes every infrastructure port and keeps doing so.** The two are opposite on purpose — the host clients and MCP servers talk to 3306/6379/5672/15672/9200, and a development box is not what this protects — and `ProductionRuntimeConfigTest` pins both halves. The overlay writes `ports: !override []`, because Compose *appends* untagged sequences: an overlay that merely listed loopback bindings would publish those **and** the base file's `0.0.0.0` mappings. Diagnostics run the client inside the container (`docker compose exec`), which also proves the path the application uses; Graylog is the one production exception, bound to `127.0.0.1` rather than dropped, because a UI exists to be looked at.
 
-**Infrastructure credentials live in the repository-root `.env`, not `app/.env.local`** — Compose reads them while building the stack, before a container exists to read an application env file. The tracked values are development values and the file says so at the top; `make prod-*` layers a gitignored root `.env.local` on top (`--env-file .env --env-file .env.local`, second wins), so production passwords are never committed and no tracked file is edited to deploy. `REDIS_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD` and Graylog's `GRAYLOG_PASSWORD_SECRET` / `GRAYLOG_ROOT_PASSWORD_SHA2` are `${VAR:?}`-guarded, never `:-`-defaulted: an empty `--requirepass` is a Redis with no password while every file claims otherwise, and a defaulted Graylog is one still answering to `admin`. Guarded means the tracked `.env` must carry a development value for each, or a fresh clone cannot start at all — including Graylog's, which Compose interpolates despite its `monitoring` profile.
+**Infrastructure credentials live in the repository-root `.env`, not `app/.env.local`** — Compose reads them while building the stack, before a container exists to read an application env file. The tracked values are development values; `make prod-*` layers a gitignored root `.env.local` on top (`--env-file .env --env-file .env.local`, second wins), so no tracked file is edited to deploy. `REDIS_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD` and Graylog's `GRAYLOG_PASSWORD_SECRET` / `GRAYLOG_ROOT_PASSWORD_SHA2` are `${VAR:?}`-guarded, never `:-`-defaulted: an empty `--requirepass` is a Redis with no password while every file claims otherwise, and a defaulted Graylog is one still answering to `admin`. Guarded means the tracked `.env` must carry a development value for each, or a fresh clone cannot start at all — including Graylog's, which Compose interpolates despite its `monitoring` profile.
 
-**The layering fails silently in one direction, and `make doctor` is what covers it.** A variable *missing* from `.env.local` does not stop a deployment — it falls through to the development value and the instance comes up healthy on a password published in a public repository. Nothing about the running stack looks wrong. The **Production secrets** check reads both files and names every variable still on its `.env` value (unset or copied verbatim), compares against what `.env` currently holds rather than a copy of those strings, and fails outright if `.env.local` has itself been committed. **Severity follows whether the host deploys** — one failure per variable where the `aihm-prod` Compose project exists, one collapsed warning anywhere else, because a workstation legitimately keeps a root `.env.local` (the GitHub MCP token) and a check red on every dev box stops being read. `COMPOSE_ENV_DIR` moves both reads and a labelled throwaway container supplies the production signal, which is how CI pins the real verdicts without a production host.
+**The layering fails silently in one direction, and `make doctor` is what covers it.** A variable *missing* from `.env.local` does not stop a deployment — it falls through to the development value and the instance comes up healthy on a password published in a public repository. Nothing about the running stack looks wrong. The **Production secrets** check names every variable still on its `.env` value, comparing against what `.env` currently holds rather than a copy of those strings, and fails outright if `.env.local` has itself been committed. **Severity follows whether the host deploys** — one failure per variable where the `aihm-prod` Compose project exists, one collapsed warning anywhere else, because a workstation legitimately keeps a root `.env.local` (the GitHub MCP token) and a check red on every dev box stops being read.
 
 **The broker does not run as `guest`, and renaming the account is only half of it.** RabbitMQ creates `default_user` when it initialises an **empty** database, so a fresh volume never gets a guest account — and an existing one keeps its guest administrator no matter what the environment says. The image also ships `loopback_users.guest = false` baked into its own `conf.d`, unaffected by `RABBITMQ_DEFAULT_USER`, which is why `docker/rabbitmq/20-aihm.conf` sets it back to `true` and is mounted in both environments. Deleting the account on an existing volume is a documented manual step.
 
 **Redis runs with `--requirepass`, and `LOCK_DSN` needs the password as much as `REDIS_URL` does** — it is a separate variable read by `lock.yaml`, not derived, so a password added to only one leaves every lock failing while the caches work. The healthcheck authenticates and greps for `PONG`: an unauthenticated `redis-cli ping` answers `NOAUTH` and **exits 0**, so the naive probe reports healthy on a server refusing every client.
 
-**Redis also runs with `maxmemory 192mb` and `maxmemory-policy allkeys-lru`, not `volatile-lru`.** Every key this instance holds — the four `cache.*` pools, `series:avg:{id}`/`season:avg:{id}`, the external-API response caches, `articles:today`, the worker heartbeats — already carries a TTL, so the two policies evict identically today; `allkeys-lru` is still the one chosen because it always has something to evict, where `volatile-lru` degrades back to `noeviction`'s write-rejecting errors the moment the keyspace ever fills with non-expiring keys. The rate limiter's internal locks (auto-wired from `LOCK_DSN` into every `framework.rate_limiter` limiter) are acquired and released within a single request, so they carry no held-across-eviction risk. The scheduler's own state is not in Redis at all — `Schedule::stateful()` runs on the filesystem-backed default `cache.app` pool — so it is unaffected either way. Full per-key-group review: `docs/operations.md`.
+**Redis also runs with `maxmemory 192mb` and `maxmemory-policy allkeys-lru`, not `volatile-lru`.** Every key this instance holds already carries a TTL, so the two policies evict identically today; `allkeys-lru` is still the one chosen because it always has something to evict, where `volatile-lru` degrades back to `noeviction`'s write-rejecting errors the moment the keyspace ever fills with non-expiring keys. The scheduler's own state is not in Redis at all — `Schedule::stateful()` runs on the filesystem-backed default `cache.app` pool. Full per-key-group review: `docs/operations.md`.
 
 **`messenger:failed:show` does not work here.** It needs a receiver that can list messages by id, which Doctrine offers and AMQP does not. Use `messenger:stats` for the depth and `messenger:failed:retry` to work through them.
 
-**Every service carries `restart: unless-stopped` and a `mem_limit`, so a host reboot brings the stack back with no manual step and no service can starve the others.** The restart policy lives in the base `docker-compose.yml` — a scalar, so the prod overlay inherits it unmodified — except for `certbot`, which only the overlay defines. `mem_limit` is prod-overlay-only rather than shared: `php` and `scheduler_worker` are also where `docker exec` runs heavier local tooling (`make phpstan` alone asks for `--memory-limit=1G`), and a ceiling sized for the running application would starve that on a development machine. The `monitoring` profile's three services carry their limits in the base file instead, since it is their only definition regardless of environment — keeping the profile's budget independent of the core stack's is what lets it be enabled without taking memory from `mysql`. Full per-service numbers and reasoning: `docs/operations.md`.
+**Every service carries `restart: unless-stopped` and a `mem_limit`, so a host reboot brings the stack back with no manual step and no service can starve the others.** The restart policy lives in the base `docker-compose.yml` — a scalar, so the prod overlay inherits it unmodified — except for `certbot`, which only the overlay defines. `mem_limit` is prod-overlay-only rather than shared: `php` and `scheduler_worker` are also where `docker exec` runs heavier local tooling (`make phpstan` alone asks for `--memory-limit=1G`), and a ceiling sized for the running application would starve that on a development machine. The `monitoring` profile's three services carry their limits in the base file instead, since that is their only definition regardless of environment. Full per-service numbers: `docs/operations.md`.
 
 **`php` and `nginx` have healthchecks, and boot order is enforced through `depends_on: condition: service_healthy`.** `php` has no HTTP server of its own — only php-fpm's socket — so its probe speaks FastCGI directly via `cgi-fcgi` to the pool's built-in `ping` responder, rather than asking a route that needs the application fully booted to answer. `nginx` waits on `php` being healthy before it starts proxying, or a fresh boot answers with `502`s for however long php-fpm takes to warm up; `php` in turn waits on `mysql`, `redis` and `rabbitmq`.
 
-**Every service's `logging:` driver carries a `max-size`/`max-file` cap** (`json-file`, ~500M lean stack / ~150M more for the `monitoring` profile, sized independently — see `docs/operations.md`), because the default is unlimited and the log lives on the same disk as the database. `app/var/log` bypasses that driver entirely — it is a bind-mounted file, not stdout/stderr — so `config/packages/monolog.yaml`'s `dev` handler is `type: rotating_file` (`max_files: 7`) instead of a plain `stream`, which had grown unrotated to 640M. Production's `deprecation` channel is `type: null`: it was the one handler never wrapped in `fingers_crossed`, so it wrote every PHP deprecation notice straight to stderr — measured at ~30 lines per request for a single vendor-level deprecation with nothing actionable behind it in production; `failOnDeprecation` in `phpunit.dist.xml` is what actually forces these to be fixed, and `when@dev`/`when@test` still log every one.
+**Every service's `logging:` driver carries a `max-size`/`max-file` cap** (`json-file`, ~500M lean stack / ~150M more for the `monitoring` profile — see `docs/operations.md`), because the default is unlimited and the log lives on the same disk as the database. `app/var/log` bypasses that driver entirely — it is a bind-mounted file, not stdout/stderr — so `config/packages/monolog.yaml`'s `dev` handler is `type: rotating_file` (`max_files: 7`) instead of a plain `stream`, which had grown unrotated to 640M. Production's `deprecation` channel is `type: null`: it was the one handler never wrapped in `fingers_crossed`, so it wrote every PHP deprecation notice straight to stderr, with nothing actionable behind it in production. `failOnDeprecation` in `phpunit.dist.xml` is what actually forces these to be fixed, and `when@dev`/`when@test` still log every one.
 
 ### Scheduler
 
@@ -329,22 +329,21 @@ copy silently shadows every file in the image.
 
 `docker/php/Dockerfile` is multi-stage over a repository-root build context: a
 shared `base` (so the two images never differ in *which extensions exist*), an
-empty `dev`, `assets` (the Encore production build, so a deployed image carries
-the bundle its own code was built against), and `prod` — code copied in,
-`composer install --no-dev`, cache warmed at build time. nginx has its own image
-with `public/` baked in, because `try_files` resolves static files on nginx's own
-filesystem — and it takes that directory **from the application image**, not from
-the build context: `public/build/` and `public/bundles/` are gitignored generated
-output, so copying them from the context yields a working image on a machine that
-happens to have them and a half-empty one on a clean clone. That is what makes
-`make prod-build` two ordered steps.
+empty `dev`, `assets` (the Encore production build), and `prod` — code copied
+in, `composer install --no-dev`, cache warmed at build time. nginx has its own
+image with `public/` baked in, because `try_files` resolves static files on
+nginx's own filesystem — and it takes that directory **from the application
+image, not from the build context**: `public/build/` and `public/bundles/` are
+gitignored generated output, so copying them from the context yields a working
+image on a machine that happens to have them and a half-empty one on a clean
+clone. That is what makes `make prod-build` two ordered steps.
 
 **TLS terminates in nginx, in production only.** Development stays on plain
-HTTP at `:8080`, because a browser already treats localhost as a secure context
-and every E2E suite talks to it. The two site configurations are separate files
-(`default.conf`, `default.prod.conf`) that `include` the same `snippets/`, so
-the serving rules cannot drift apart. In production `:80` answers the ACME
-challenge and 301s everything else; `:443` serves the app.
+HTTP at `:8080` — a browser already treats localhost as a secure context and
+every E2E suite talks to it. The two site configurations (`default.conf`,
+`default.prod.conf`) `include` the same `snippets/`, so the serving rules cannot
+drift apart. In production `:80` answers the ACME challenge and 301s everything
+else; `:443` serves the app.
 
 **The public hostname appears once in the repository — the `DOMAIN=` argument
 to `make prod-cert-init`.** Certificates are issued under the fixed lineage name
@@ -352,8 +351,8 @@ to `make prod-cert-init`.** Certificates are issued under the fixed lineage name
 An entrypoint script symlinks that lineage into `/etc/nginx/certs/` at start, or
 writes a self-signed placeholder when there is none: nginx refuses to start
 without a certificate, and the only way to obtain one is a challenge served by a
-running nginx, so the placeholder is what breaks the deadlock on a fresh host.
-The ACME location is exempt from the redirect for the same reason — the route
+running nginx — the placeholder is what breaks that deadlock on a fresh host.
+The ACME location is exempt from the redirect for the same reason: the route
 back from an expired certificate must not run through HTTPS. Renewal is the
 `certbot` service plus nginx reloading on a timer; both containers share the
 `certbot_webroot` volume, and a mismatch there is a renewal that fails sixty
@@ -429,6 +428,7 @@ environment variables.
 | Backup / restore / rehearse a restore | `make backup-now` / `make restore BACKUP=…` / `make restore-drill` |
 | Cache clear / routes / services | `make cc` / `make routes` / `make services` |
 | Logs (all / per service) | `make logs` / `make logs-{php,nginx,mysql,redis,rabbitmq,worker,scheduler,node}` |
+| Queue depth / DLQ | `make messenger-status` |
 | Monitoring | `make monitoring-up` / `-down` / `-logs` / `-bootstrap` |
 | Fixtures (dev) | `make fixtures` |
 
@@ -491,7 +491,7 @@ The `main` firewall (frontend pages + `/auth/*`) requires HTTP Basic against a s
 
 In the **test** environment `security.yaml`'s `when@test` sets `firewalls.main.security: false`, so the frontend and auth-controller tests need no credentials. The real configuration is proven instead by a test that boots the kernel in `dev`.
 
-**`login_throttling` gates failed panel logins** — Symfony's built-in mechanism, which needs no authenticator-specific wiring because it reacts to the same `CheckPassportEvent` every `AuthenticatorManager`-based firewall goes through, `http_basic` included: 5 attempts per username+IP, 25 per bare IP, both per 15 minutes, both stored in `cache.rate_limiter` (Redis) alongside `api_per_ip`. A locked-out request and a wrong password both come back as a plain 401 with `WWW-Authenticate` — `HttpBasicAuthenticator` never varies the response body by failure reason, so a client cannot distinguish the two from the wire. Every failed attempt is logged to the `auth` channel — the same audit trail OAuth authorize/callback events use, via `LoginFailureAuditListener` filtered to the `main` firewall, since `LoginFailureEvent` also fires for `api`'s key mismatches and those do not belong in an operator-account audit log.
+**`login_throttling` gates failed panel logins** — Symfony's built-in mechanism, which needs no authenticator-specific wiring because it reacts to the same `CheckPassportEvent` every `AuthenticatorManager`-based firewall goes through, `http_basic` included: 5 attempts per username+IP, 25 per bare IP, both per 15 minutes, both stored in `cache.rate_limiter` (Redis) alongside `api_per_ip`. A locked-out request and a wrong password are indistinguishable from the wire — `HttpBasicAuthenticator` never varies the 401 by failure reason. Failed attempts are logged to the `auth` channel via `LoginFailureAuditListener`, filtered to the `main` firewall because `LoginFailureEvent` also fires for `api`'s key mismatches, which do not belong in an operator-account audit log.
 
 ### HTTP headers
 
@@ -501,11 +501,11 @@ Dual layer — nginx and `SecurityHeadersListener` (`kernel.response`, priority 
 
 A location-level nginx `add_header` **replaces** the inherited server-level ones, so any `location` block that sets a header of its own must re-declare the whole set — which is why it `include`s `snippets/security-headers.conf` rather than repeating it, and why the test asserts the include for every such block.
 
-**Content-Security-Policy exists because every page carries the API key in a `<meta>` tag and the interface builds markup through `innerHTML` at roughly 130 call sites — one missed `escHtml` is normally a layout bug, but under that combination it is a full API takeover.** The policy is header-only, never a `<meta>` tag: a `<meta>` CSP cannot carry `frame-ancestors` at all, and the two would combine by intersection if both existed, which is a second thing to keep in sync for no gain. `default-src 'self'` covers script, connect and font by inheritance — every page-served asset is same-origin (Encore's `/build`, the three legacy panels' own `/js/*.js`, Chart.js's lazy same-origin chunk) — and `style-src` keeps `'unsafe-inline'` because progress bars and status badges interpolate a `style="width:${x}%"` attribute directly; `escHtml` protects the surrounding markup, not that attribute, and style injection there cannot reach the API key.
+**Content-Security-Policy exists because every page carries the API key in a `<meta>` tag and the interface builds markup through `innerHTML` at roughly 130 call sites** — one missed `escHtml` is normally a layout bug, but under that combination it is a full API takeover. The policy is header-only, never a `<meta>` tag: a `<meta>` CSP cannot carry `frame-ancestors` at all, and two policies would combine by intersection. `default-src 'self'` covers script, connect and font by inheritance, since every page-served asset is same-origin; `style-src` keeps `'unsafe-inline'` because progress bars interpolate a `style="width:${x}%"` attribute directly, which `escHtml` does not protect and through which style injection cannot reach the API key.
 
-`/api/doc*` (Swagger UI, Redoc) carries a deliberately relaxed policy in its own nginx `map` branch and its own `SecurityHeadersListener` branch: both are vendor templates, neither touches the API key meta tag, and Redoc specifically needs an inline `<style>`, a Google Fonts stylesheet, a `blob:` Worker for its search index and `cdn.redoc.ly` for its logo — verified against a live render rather than guessed. Development additionally allows `https://cdn.jsdelivr.net` in `script-src`, and only there: it is what the FrankenPHP hot-reload script needs, and that script itself only renders under `APP_ENV=dev`.
+`/api/doc*` (Swagger UI, Redoc) carries a deliberately relaxed policy in its own nginx `map` branch and `SecurityHeadersListener` branch: both are vendor templates, neither touches the API key meta tag, and Redoc needs an inline `<style>`, Google Fonts, a `blob:` Worker and `cdn.redoc.ly`. Development additionally allows `https://cdn.jsdelivr.net` in `script-src`, for the hot-reload script that only renders under `APP_ENV=dev`.
 
-Nginx's map is keyed on `$request_uri`, not `$uri` — `app.conf`'s `try_files $uri /index.php$is_args$args` rewrites `$uri` to `/index.php` internally before any PHP-routed response is built, so a map keyed on `$uri` would never see `/api/doc` and would silently fall back to the strict policy for every dynamic page. Both the default and `/api/doc*` policy strings are kept byte-identical between nginx (`snippets/csp-map.conf` production, `snippets/csp-map.dev.conf` development) and `SecurityHeadersListener::CONTENT_SECURITY_POLICY` / `::CONTENT_SECURITY_POLICY_API_DOC` — `ProductionRuntimeConfigTest` enforces it the same way it enforces HSTS, because two layers sending different policies would have a browser enforce their intersection rather than either one.
+**Nginx's map is keyed on `$request_uri`, not `$uri`** — `try_files $uri /index.php$is_args$args` rewrites `$uri` to `/index.php` before any PHP-routed response is built, so a map keyed on `$uri` would never see `/api/doc` and would silently fall back to the strict policy for every dynamic page. Both policy strings are byte-identical between nginx (`snippets/csp-map.conf`, `csp-map.dev.conf`) and `SecurityHeadersListener::CONTENT_SECURITY_POLICY` / `::CONTENT_SECURITY_POLICY_API_DOC`, enforced by `ProductionRuntimeConfigTest` as HSTS is: two layers sending different policies would have a browser enforce their intersection rather than either one.
 
 ### Encryption at rest
 
@@ -531,7 +531,7 @@ Outbound calls are throttled **proactively** by `RateLimitedHttpClient`, which w
 
 `GET /api/health` is public. It probes MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP, 1 s timeout), Search (`ping()`), the workers (heartbeat) and two disk locations.
 
-**The per-component breakdown stays in the public payload, reviewed rather than assumed.** The body only ever carries the three-value status enum per component — no error message, version, hostname or path; those go to the `warning` log line a failed probe writes, never to the response — and an external uptime monitor, which is unauthenticated by construction, is the entire reason this endpoint is public: collapsing to a bare up/down would take away exactly what lets an operator see *which* dependency failed without opening a shell. What closes the actual risk — an unauthenticated endpoint running five network round trips per call, previously with no bound at all — is `health_per_ip` (see Rate limiting), not payload redaction.
+**The per-component breakdown stays in the public payload deliberately.** The body only ever carries the three-value status enum per component — no error message, version, hostname or path; those go to the `warning` log line a failed probe writes. An external uptime monitor is unauthenticated by construction and is the reason this endpoint is public, so collapsing to a bare up/down would remove exactly what lets an operator see *which* dependency failed without opening a shell. What closes the real risk — five network round trips per call, once unbounded — is `health_per_ip` (see Rate limiting), not payload redaction.
 
 Three components report **`degraded` (HTTP 200), never `down`**, on purpose:
 
@@ -539,13 +539,13 @@ Three components report **`degraded` (HTTP 200), never `down`**, on purpose:
 - **Worker** — the instance still serves every request; the fix is restarting a worker, not shifting traffic.
 - **`disk_backups`** — a full backup filesystem stops tonight's dump, not today's requests, and a 503 would free no space. The cost is announced as *critical* by the `backup:*` probes the moment a dump goes missing, short or stale, so this is the warning that arrives before the failure rather than instead of it.
 
-The **worker probe answers a question nothing else does**: the `rabbitmq` probe opens a socket to the broker, and the broker is perfectly happy with nobody consuming. Each worker writes a heartbeat to Redis from its own run loop, one key per transport, and `worker` is `up` only when **every** transport in `WORKER_TRANSPORTS` has beaten within 5 minutes — all of them, not any, because the failure worth catching had the async worker alive and the scheduler dead. Asking RabbitMQ for consumer counts would not work either: `scheduler_default` never touches the broker.
+The **worker probe answers a question nothing else does**: the `rabbitmq` probe opens a socket to the broker, and the broker is perfectly happy with nobody consuming. Each worker writes a heartbeat to Redis from its own run loop, one key per transport, and `worker` is `up` only when **every** transport in `HealthChecker::WORKER_TRANSPORTS` (`async`, `scheduler_default`) has beaten within 5 minutes — all of them, not any, because the failure worth catching had the async worker alive and the scheduler dead. Asking RabbitMQ for consumer counts would not work either: `scheduler_default` never touches the broker.
 
 Known limitation, stated rather than hidden: a single message taking longer than the threshold reads as `degraded` while the worker is busy. The heartbeat also only starts once the workers run this code, so a box that pulls a change without restarting them reports `degraded` until it does.
 
-**Disk is two components, and it measures paths rather than the container it runs in.** `disk_database` reads the filesystem holding `DATABASE_DATA_DIR`, `disk_backups` the one holding `BACKUP_DIR` — which of the two filled up decides whether pruning dumps would help. Same thresholds (`< 80 %` up, `80–95 %` degraded, `≥ 95 %` critical), different meaning of critical: only `disk_database` turns it into `down`, because MySQL flush and binlog die with no headroom. The PHP container's root filesystem is its own image layer and answers for neither, so `php` and `scheduler_worker` mount `mysql_data` **read-only** at `DATABASE_DATA_DIR` — `statvfs` reports on the device holding a path, and both services run the probe (`php` serves the endpoint, `scheduler_worker` runs the monitoring sweep in-process). The prod overlay repeats both mounts, because `volumes: !override` replaces the list.
+**Disk is two components, and it measures paths rather than the container it runs in.** `disk_database` reads the filesystem holding `DATABASE_DATA_DIR`, `disk_backups` the one holding `BACKUP_DIR` — which of the two filled up decides whether pruning dumps would help. Same thresholds (`< 80 %` up, `80–95 %` degraded, `≥ 95 %` critical), different meaning of critical: only `disk_database` turns it into `down`, because MySQL flush and binlog die with no headroom. The PHP container's root filesystem answers for neither, so `php` and `scheduler_worker` both mount `mysql_data` **read-only** at `DATABASE_DATA_DIR` — `statvfs` reports on the device holding a path, and both run the probe. The prod overlay repeats both mounts, because `volumes: !override` replaces the list.
 
-**A failed measurement is `degraded`, never `down`**, logged as a `warning` naming the path: a missing path is a mount that has gone, and not knowing how much space is left is not the same as knowing there is none. The measurement itself sits behind `DiskUsageReaderInterface`, because there is no way to arrange a real 96 %-full filesystem inside a test. `disk_free_space` reports what is free to the application while `disk_total_space` reports the whole device, so a filesystem an ordinary process has entirely filled reads as ~95 % on ext4 — that reserve is not usable space, so it is the right reading to threshold on.
+**A failed measurement is `degraded`, never `down`**, logged as a `warning` naming the path: not knowing how much space is left is not the same as knowing there is none. The measurement sits behind `DiskUsageReaderInterface`, because there is no way to arrange a real 96 %-full filesystem inside a test. `disk_free_space` reports what is free to the application while `disk_total_space` reports the whole device, so a filesystem an ordinary process has entirely filled reads as ~95 % on ext4 — that reserve is not usable space, so it is the right reading to threshold on.
 
 ---
 
@@ -593,16 +593,16 @@ Known limitation, stated rather than hidden: a single message taking longer than
 
 ## Maintaining this file
 
-This file is loaded into context at the start of **every** session, so its size is a standing cost paid on every task. It grew to roughly forty-five thousand words by treating each closed ticket as something to append, and the cost was not only tokens: a file that reads as a description of the present while being written as a history starts to mislead. A sentence true when it was written goes quiet and stays as a rule, and nobody re-checks it, because a historical sentence cannot be checked against the code at all.
+This file is loaded into context at the start of **every** session, so its size is a standing cost paid on every task. It once grew to roughly forty-five thousand words by treating each closed ticket as something to append, and the cost was not only tokens: a sentence true when it was written goes quiet and stays as a rule that nobody re-checks, because a historical sentence cannot be checked against the code at all.
 
 So, when closing a ticket or an epic:
 
-- **Update the description of the current state; do not append a paragraph of history.** If a rule changed, rewrite the rule. If a rule was removed, delete the sentence — do not annotate it as formerly true.
-- **Every sentence here must be verifiable against the code as it stands.** A sentence that is only historically true is deleted, not updated.
-- **No ticket keys and no release numbers as carriers of information.** What matters is the rule, not which ticket introduced it; `git log` and `CHANGELOG.md` are for archaeology. The same rule already applies to the Confluence pages.
-- **Keep the reason, drop the chronology.** "Quiet hours suppress rather than defer, because a held reminder announces a deadline that may already have passed" belongs here. "We first considered deferring them, then changed our minds in a later release" does not.
+- **Update the description of the current state; do not append a paragraph of history.** If a rule changed, rewrite it. If a rule was removed, delete the sentence — do not annotate it as formerly true.
+- **Every sentence here must be verifiable against the code as it stands.** One that is only historically true is deleted, not updated.
+- **No ticket keys and no release numbers as carriers of information.** What matters is the rule, not which ticket introduced it; `git log` and `CHANGELOG.md` are for archaeology. The same applies to the Confluence pages.
+- **Keep the reason, drop the chronology.** Why a rule holds belongs here; which release changed our minds does not.
 - **Ask whether the next reader needs it to write correct code.** A trap that has already cost someone a day — the nullable-embeddable hydration, the CRLF shebang, `require.context` under ESM — earns its lines. A per-endpoint recital of request bodies does not; that is what the OpenAPI contract is for.
-- **Full history lives in `CHANGELOG.md`, on Confluence and in `git log`.** Nothing needs to be duplicated here to be preserved.
+- **New material comes at the cost of rewriting what is already here**, not by appending to it. Full history lives in `CHANGELOG.md`, on Confluence and in `git log`.
 
 ---
 
