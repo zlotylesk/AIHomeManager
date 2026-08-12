@@ -58,10 +58,7 @@ final readonly class LocalDirectoryBackupDestination implements BackupDestinatio
     public function push(string $localPath): void
     {
         if (!is_dir($this->remoteDir)) {
-            throw new RuntimeException(sprintf(
-                'Off-host backup directory %s does not exist — is the remote volume still mounted?',
-                $this->remoteDir,
-            ));
+            throw new RuntimeException(sprintf('Off-host backup directory %s does not exist — is the remote volume still mounted?', $this->remoteDir));
         }
 
         $this->assertDistinctDevice();
@@ -87,12 +84,7 @@ final readonly class LocalDirectoryBackupDestination implements BackupDestinatio
         if (false === $expected || $actual !== $expected) {
             @unlink($staging);
 
-            throw new RuntimeException(sprintf(
-                'The copy at %s is %s bytes, the local backup is %s — the destination is probably full.',
-                $this->remoteDir,
-                var_export($actual, true),
-                var_export($expected, true),
-            ));
+            throw new RuntimeException(sprintf('The copy at %s is %s bytes, the local backup is %s — the destination is probably full.', $this->remoteDir, var_export($actual, true), var_export($expected, true)));
         }
 
         if (!@rename($staging, $target)) {
@@ -165,11 +157,7 @@ final readonly class LocalDirectoryBackupDestination implements BackupDestinatio
         }
 
         if ($remote['dev'] === $local['dev']) {
-            throw new RuntimeException(sprintf(
-                'BACKUP_REMOTE_DIR (%s) is on the same filesystem as BACKUP_DIR (%s), so it is not an off-host copy — one disk failure would take both. Mount remote storage there; or, if something else replicates that directory off the machine, say so with BACKUP_REMOTE_ALLOW_SAME_FILESYSTEM=1; or set BACKUP_REMOTE_BACKEND=none to record that off-host backups are deliberately not configured.',
-                $this->remoteDir,
-                $this->localDir,
-            ));
+            throw new RuntimeException(sprintf('BACKUP_REMOTE_DIR (%s) is on the same filesystem as BACKUP_DIR (%s), so it is not an off-host copy — one disk failure would take both. Mount remote storage there; or, if something else replicates that directory off the machine, say so with BACKUP_REMOTE_ALLOW_SAME_FILESYSTEM=1; or set BACKUP_REMOTE_BACKEND=none to record that off-host backups are deliberately not configured.', $this->remoteDir, $this->localDir));
         }
     }
 }

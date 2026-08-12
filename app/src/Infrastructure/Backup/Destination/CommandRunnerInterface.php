@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Backup\Destination;
 
+use RuntimeException;
+
 /**
  * Runs an external command and returns its standard output.
  *
@@ -20,7 +22,7 @@ interface CommandRunnerInterface
      *
      * @return string standard output
      *
-     * @throws \RuntimeException when the command is missing or exits non-zero
+     * @throws RuntimeException when the command is missing or exits non-zero
      */
     public function run(array $command, int $timeoutSeconds): string;
 }
