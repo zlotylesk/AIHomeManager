@@ -135,7 +135,19 @@ services:
     # `exec` so redis-server becomes PID 1 and receives the TERM from
     # `docker stop` itself, instead of a shell swallowing it and every restart
     # waiting out the ten-second kill timer.
-    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    #
+    # `--maxmemory 192mb --maxmemory-policy allkeys-lru`: without a policy the
+    # server default is `noeviction`, correct for a database and wrong for a
+    # cache — once full it starts rejecting writes with an error instead of
+    # quietly forgetting the oldest entry. `allkeys-lru` rather than
+    # `volatile-lru` because every key this instance holds is already written
+    # with a TTL (see docs/operations.md for the per-key-group review), so the
+    # two policies evict identically today — but `allkeys-lru` always has
+    # something to evict, while `volatile-lru` degrades back to `noeviction`'s
+    # write errors the moment the keyspace ever runs out of expiring keys.
+    # 192mb leaves headroom under the 256M container ceiling (prod overlay)
+    # for Redis's own process, client buffers and a BGSAVE fork.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory 192mb --maxmemory-policy allkeys-lru"]
     # Authenticated, and it has to be: an unauthenticated PING against a
     # password-protected server answers NOAUTH, which redis-cli prints and then
     # exits 0 for. The container would report healthy while every client was

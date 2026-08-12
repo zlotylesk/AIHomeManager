@@ -652,6 +652,33 @@ final class ProductionRuntimeConfigTest extends TestCase
     }
 
     /**
+     * The server default is `noeviction` — correct for a database, wrong for
+     * a cache, because once full it starts rejecting writes with an error
+     * instead of quietly forgetting the oldest entry. `allkeys-lru` rather
+     * than `volatile-lru`: every key this instance holds already carries a
+     * TTL (see docs/operations.md for the per-key-group review), so the two
+     * evict identically today, but `volatile-lru` would degrade back to
+     * `noeviction`'s write errors the moment the keyspace ever filled with a
+     * non-expiring key, which `allkeys-lru` can never do.
+     */
+    public function testRedisHasAMemoryLimitAndAnEvictionPolicySuitedToACache(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+        $command = implode(' ', (array) ($dev['services']['redis']['command'] ?? []));
+
+        self::assertStringContainsString(
+            '--maxmemory 192mb',
+            $command,
+            'Redis is started without a memory ceiling again — writes can fill the container.',
+        );
+        self::assertStringContainsString(
+            '--maxmemory-policy allkeys-lru',
+            $command,
+            'Redis eviction policy regressed away from allkeys-lru — a full cache would start rejecting writes.',
+        );
+    }
+
+    /**
      * The tracked reference file is what someone copies into .env.local when
      * setting an instance up, so a default credential surviving here outlives
      * every correction made in the compose files.

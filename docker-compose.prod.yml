@@ -224,11 +224,12 @@ services:
 
   redis:
     ports: !override []
-    # No `maxmemory` is configured — see docs/operations.md for why an
-    # eviction policy is deliberately not part of this change — so the limit
-    # exists purely as a ceiling against a runaway, not a tuned working set.
-    # What actually lives here (cache pools, lock keys, worker heartbeats) is
-    # tens of megabytes for a single-user instance.
+    # `maxmemory 192mb` and `allkeys-lru` are set on the base file's `command:`
+    # (both environments run the same flags) — see docs/operations.md for the
+    # eviction-policy choice and the per-key-group reversibility review. This
+    # cgroup ceiling stays above that dataset bound so Redis's own eviction
+    # trips before the OOM killer does; actual usage is tens of megabytes for
+    # a single-user instance.
     mem_limit: 256m
 
   rabbitmq:
