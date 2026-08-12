@@ -28,11 +28,11 @@ cd AIHomeManager
 cp app/.env app/.env.local
 ```
 
-On Windows, clone normally and let the repo's `.gitattributes` apply. It pins
+On Windows, clone normally and let `.gitattributes` apply. It pins
 `app/bin/console` to LF, and it has to: a shebang is not a comment, so a CRLF
-checkout makes Linux `env` look for a program literally named `php\r` and every
-Make target that runs `bin/console` fails with a thoroughly misleading error.
-An older working tree needs one re-checkout — see
+checkout makes Linux `env` look for a program named `php\r` and every Make
+target running `bin/console` fails with a misleading error. An older working
+tree needs one re-checkout — see
 [docs/development.md](docs/development.md#windows-note).
 
 Now fill in `app/.env.local`. **Do this before step 2** — `composer install`
@@ -61,6 +61,14 @@ override both before the application is reachable from anything but localhost.
 Everything else is per-integration and optional; see [Secrets and
 keys](#secrets-and-keys) below.
 
+**There are two environment layers, and a fresh clone only has to touch one.**
+`app/.env.local` is what the *application* reads. The repository root holds a
+separate `.env` — the values *Compose* interpolates while building the stack
+(database, Redis and broker credentials, published ports), which cannot live in
+the application file because they are needed before a container exists to read
+it. It is tracked and ships working development values, so development needs no
+edit there; production layers a gitignored root `.env.local` over it instead.
+
 ### 2. Start the stack and migrate
 
 ```bash
@@ -77,10 +85,10 @@ make node-install
 make assets-prod
 ```
 
-Both are required, and neither is part of `make setup`. `node_modules` is not
-committed, so without `make node-install` the Encore build has no binary to run;
-and without the build there is no `entrypoints.json`, so Twig throws a 500 on
-the `encore_entry_*` helpers that `base.html.twig` uses for **every** page.
+Both are required and neither is part of `make setup`. `node_modules` is not
+committed, so without the install the Encore build has no binary to run; and
+without the build there is no `entrypoints.json`, so Twig throws a 500 on the
+`encore_entry_*` helpers `base.html.twig` uses for **every** page.
 
 ### 4. Provision the search index
 
@@ -89,10 +97,9 @@ make search-index
 make search-populate
 ```
 
-Also not part of `make setup`. The shipped configuration runs global search on
-OpenSearch, and an unprovisioned engine does not raise an error — it degrades to
-the MySQL fallback, which is equally empty until the 15-minute reindex first
-fires. So skipping this gives you a search box that quietly finds nothing.
+Also not part of `make setup`. An unprovisioned engine raises no error — it
+degrades to the MySQL fallback, equally empty until the 15-minute reindex first
+fires — so skipping this gives a search box that quietly finds nothing.
 
 ### 5. Verify
 
@@ -101,10 +108,12 @@ make doctor
 curl -s localhost:8080/api/health | jq
 ```
 
-`make doctor` checks the containers, decodes each encryption key to confirm it
-is really 32 bytes, verifies the php image can actually take a backup, and
-reports the dead-letter queue depth. The health endpoint is public and needs no
-key.
+`make doctor` checks Docker and the containers, decodes each encryption key to
+confirm it is really 32 bytes, names any production secret still sitting on its
+development value, verifies the php image can actually take a backup, measures
+disk and the off-host copy, reports the dead-letter queue depth and warns when
+alerting is configured to deliver nowhere. The health endpoint is public and
+needs no key.
 
 Optionally load demo data and run the suites:
 
@@ -120,11 +129,16 @@ make test
 | Application (UI + API) | http://localhost:8080 |
 | Health check (public) | http://localhost:8080/api/health |
 | API docs — Swagger UI / Redoc / raw spec | `/api/doc` · `/api/doc/redoc` · `/api/doc.json` |
-| RabbitMQ Management | http://localhost:15672 (guest/guest) |
+| RabbitMQ Management | http://localhost:15672 (`RABBITMQ_USER` / `RABBITMQ_PASSWORD`, `homemanager`/`homemanager` in dev) |
 | MySQL | localhost:3306 (homemanager/homemanager, DB `homemanager`) |
-| Redis | localhost:6379 |
+| Redis | localhost:6379, password `REDIS_PASSWORD` (`homemanager` in dev) |
 | Search engine (OpenSearch) | http://localhost:9200 |
 | Graylog (optional) | http://localhost:9000 (admin/admin), after `make monitoring-up` |
+
+**Those infrastructure ports are published in development only, deliberately** —
+the host's tooling and the MCP servers talk to them directly. Production
+publishes nginx's 80 and 443 and nothing else. In both environments the broker
+has no `guest` account and Redis requires a password.
 
 UI routes: `/` (the dashboard cockpit), `/series`, `/movies`, `/tasks`,
 `/books`, `/articles`, `/music`, `/podcasts`, `/youtube-progress`, `/goals`,
@@ -140,24 +154,38 @@ JavaScript to use, so an anonymous frontend would hand out full API access.
 
 ## Secrets and keys
 
-`app/.env` is committed and holds placeholders; `app/.env.local` is gitignored
-and holds the real values.
+Two gitignored files hold the real values: **`app/.env.local`** for what the
+application reads, **`.env.local` at the repository root** for what Compose
+interpolates. Their tracked counterparts (`app/.env`, `.env`) hold placeholders
+and development values, and are never edited to deploy.
 
-| Variable | Required | Where it comes from |
+The layering fails silently in one direction: a variable *missing* from the root
+`.env.local` falls through to the tracked development value, and the stack comes
+up healthy on a password printed in a public repository. `make doctor` compares
+the two files for exactly this.
+
+| Variable | File · Required | Where it comes from |
 |---|---|---|
-| `API_KEY` | **yes** | Any strong random string. Sent as `X-API-Key`. |
-| `FRONTEND_USER`, `FRONTEND_PASSWORD_HASH` | **yes** (placeholder shipped) | `bin/console security:hash-password` |
-| `DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `TRAKT_TOKEN_KEY`, `SPOTIFY_TOKEN_KEY` | **yes** | Four *different* 32-byte base64 keys — see step 1. A wrong length is a boot failure, not a runtime one. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Tasks, YouTubeProgress | [console.cloud.google.com](https://console.cloud.google.com) — one OAuth client, Calendar + YouTube scopes |
-| `YOUTUBE_WATCHLIST_PLAYLIST_ID` | YouTubeProgress | The part of the playlist URL after `list=` |
-| `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `DISCOGS_USERNAME` | Music | [discogs.com/settings/developers](https://www.discogs.com/settings/developers) |
-| `LASTFM_API_KEY`, `LASTFM_USERNAME` | Music | [last.fm/api/account/create](https://www.last.fm/api/account/create) |
-| `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` | Series, Movies | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) |
-| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Podcasts | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
-| `MAILER_DSN`, `NOTIFICATIONS_MAIL_FROM/TO` | Notifications (e-mail) | Any Symfony Mailer DSN; `null://null` disables delivery without breaking |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notifications (push) | Generated once — see [docs/configuration.md](docs/configuration.md) |
-| `SEARCH_ENGINE_BACKEND`, `SEARCH_INDEX_ALIAS` | defaults shipped | `opensearch` or `fulltext` — see [docs/search.md](docs/search.md) |
-| `BUDGET_CURRENCY` | defaults to `PLN` | The single currency the ledger is kept in |
+| `API_KEY` | app · **yes** | `openssl rand -hex 32`. Sent as `X-API-Key`. |
+| `API_KEY_PREVIOUS` | app · rotation only | The value `API_KEY` just moved out of; empty otherwise. Both are accepted during a rotation — see [docs/operations.md](docs/operations.md#api-key-rotation) |
+| `FRONTEND_USER`, `FRONTEND_PASSWORD_HASH` | app · **yes** (placeholder shipped) | `bin/console security:hash-password` |
+| `DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `TRAKT_TOKEN_KEY`, `SPOTIFY_TOKEN_KEY` | app · **yes** | Four *different* 32-byte base64 keys — see step 1. A wrong length is a boot failure, not a runtime one. |
+| `BACKUP_ENCRYPTION_KEY` | app · **yes for backups** | `openssl rand -base64 32`. Unset, it fails when a backup runs rather than at boot. **The one key here that cannot be regenerated** — losing it loses every stored backup, off-host copies included, so keep it somewhere that is not the backup directory. |
+| `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` | root · **yes in production** | `openssl rand -base64 24` |
+| `REDIS_PASSWORD` | root · **yes** | `openssl rand -base64 24`. Redis runs with `--requirepass`; the value is interpolated into both `REDIS_URL` and `LOCK_DSN`. |
+| `RABBITMQ_USER`, `RABBITMQ_PASSWORD` | root · **yes** | Any name plus `openssl rand -base64 24`. There is no `guest` account. |
+| `APP_SECRET`, `DEFAULT_URI` and the four OAuth callback URIs | app · **yes in production** | `openssl rand -hex 16`; the callbacks take the instance's public HTTPS address |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | app · Tasks, YouTubeProgress | [console.cloud.google.com](https://console.cloud.google.com) — one OAuth client, Calendar + YouTube scopes |
+| `YOUTUBE_WATCHLIST_PLAYLIST_ID` | app · YouTubeProgress | The part of the playlist URL after `list=` |
+| `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `DISCOGS_USERNAME` | app · Music | [discogs.com/settings/developers](https://www.discogs.com/settings/developers) |
+| `LASTFM_API_KEY`, `LASTFM_USERNAME` | app · Music | [last.fm/api/account/create](https://www.last.fm/api/account/create) |
+| `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` | app · Series, Movies | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | app · Podcasts | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
+| `MAILER_DSN`, `NOTIFICATIONS_MAIL_FROM/TO` | app · Notifications **and alerting** | Any Symfony Mailer DSN. The shipped `null://null` accepts every message and delivers none, reporting success as it does so — which on the alerting path means working probes and no alerts. `make doctor` warns about it. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | app · Notifications (push) | Generated once — see [docs/configuration.md](docs/configuration.md) |
+| `SEARCH_ENGINE_BACKEND`, `SEARCH_INDEX_ALIAS` | app · defaults shipped | `opensearch` or `fulltext` — see [docs/search.md](docs/search.md) |
+| `BACKUP_REMOTE_BACKEND` | app · defaults to `none` | `none`, `directory` or `rclone` — where the encrypted dump is copied off-host. An unrecognised value is refused at boot. |
+| `BUDGET_CURRENCY` | app · defaults to `PLN` | The single currency the ledger is kept in |
 
 An empty integration block disables that integration; the dependent endpoints
 answer 503/400/409 rather than 500. Once the keys are in place, connect each
@@ -174,16 +202,49 @@ buys: **[docs/configuration.md](docs/configuration.md)**.
 ```bash
 make up / make min-up      # start with / without the monitoring stack
 make down                  # stop
-make doctor                # preflight check: env, image, backups, queues
+make doctor                # preflight check: env, image, backups, queues, secrets
 make shell                 # shell in the php container
 make logs                  # tail everything (logs-php, logs-worker, … for one)
 make migrate               # run new migrations
 make assets-watch          # Encore in watch mode while working on the frontend
 make test                  # PHPUnit
 make analyse               # CS Fixer + PHPStan + Deptrac + Composer audit
+make backup-now            # encrypted dump now; restore-drill rehearses recovery
+make monitor-run           # run the alert probes once, out of schedule
 ```
 
 The full table is in [docs/development.md](docs/development.md#makefile-reference).
+
+---
+
+## Production
+
+Development and production are two Compose files, not a flag:
+`docker-compose.yml` plus `docker-compose.prod.yml`, and every `make prod-*`
+target passes both. Development bind-mounts `./app` over the code; production
+runs what is baked into the image, in `APP_ENV=prod`, with OPcache validating no
+timestamps and `composer install --no-dev`. Fill both `.env.local` files first —
+see [Secrets and keys](#secrets-and-keys) — then:
+
+```bash
+make prod-build      # image with the code, the bundle and a warm cache
+make prod-migrate    # creates the schema; brings MySQL up via depends_on
+make prod-up         # starts serving, on a self-signed placeholder certificate
+make prod-cert-init DOMAIN=aihm.example.com EMAIL=you@example.com
+make prod-about      # confirm: env prod, debug off
+```
+
+`prod-up` comes **before** the certificate: the ACME challenge is answered over
+HTTP by the running server, so there is nothing to obtain until nginx is already
+up — which is why it starts on a placeholder rather than refusing to boot.
+Renewal runs on a timer from the `certbot` service, and that `DOMAIN=` argument
+is the only place the public hostname appears in this repository. Updating is
+the same three commands without the certificate step; rolling back is a checkout
+of the previous revision plus `make prod-build && make prod-up`.
+
+Deployment and update procedures, certificate recovery, restoring from an
+encrypted backup, alert response and diagnosing a service with no published
+port: **[docs/operations.md](docs/operations.md)**.
 
 ---
 
@@ -220,21 +281,18 @@ src/Module/{Name}/
 
 The rules that are actually enforced, not merely intended:
 
-- **The Domain imports no framework.** `grep -r "use Doctrine"
-  src/Module/*/Domain/` must come back empty; `make deptrac` gates it in CI, at
-  zero violations and zero `skip_violations`.
-- **No cross-module coupling.** The one sanctioned exception is the shared
-  kernel `src/Shared/`, for value objects and contracts that genuinely belong to
-  more than one context.
-- **A module that reads another module's data does it through a DBAL adapter
-  behind its own Domain port** — raw SQL against the source tables, importing
-  none of its classes. That is how Goals, Search, Dashboard, Notifications and
-  Insights read five other modules and still hold at zero violations.
-- **Query handlers use DBAL, not the ORM.** Reads do not hydrate aggregates.
-- **Doctrine mapping is XML**, deliberately, and is not being migrated to
-  attributes.
-- Command handler: `#[AsMessageHandler(bus: 'command.bus')]`. Query handler:
-  `bus: 'query.bus'`. Event handler: no `bus:` at all.
+- **The Domain imports no framework, and modules do not couple to each other.**
+  `make deptrac` gates both in CI at zero violations and zero `skip_violations`;
+  the one sanctioned exception is the shared kernel `src/Shared/`.
+- **A module reads another module's data through a DBAL adapter behind its own
+  Domain port** — raw SQL against the source tables, importing none of its
+  classes. That is how Goals, Search, Dashboard, Notifications and Insights read
+  five other modules and still hold at zero violations.
+- **Query handlers use DBAL, not the ORM**, and Doctrine mapping is XML by
+  decision rather than by inertia.
+
+The conventions themselves — handler attributes, naming, the persistence traps —
+are in [`CLAUDE.md`](CLAUDE.md).
 
 | Layer | Technology |
 |---|---|
@@ -245,7 +303,7 @@ The rules that are actually enforced, not merely intended:
 | Search | OpenSearch 2.x with `analysis-stempel`, MySQL FULLTEXT as fallback |
 | API contract | OpenAPI 3.1 via NelmioApiDocBundle |
 | Frontend | Webpack Encore + Stimulus (Node 24); three legacy panels on Twig + vanilla JS |
-| Tests | PHPUnit 13, Vitest 4, Playwright 1.61, Newman |
+| Tests | PHPUnit 13, Vitest 4, Playwright 1.62, Newman |
 | Logging | Monolog → Graylog 6.3 (GELF), optionally New Relic |
 
 Architecture decisions are recorded as ADRs on Confluence.
