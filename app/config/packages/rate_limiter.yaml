@@ -6,6 +6,17 @@ framework:
             interval: '1 minute'
             cache_pool: 'cache.rate_limiter'
 
+        # HMAI-434: /api/health used to be fully exempt from `api_per_ip` (a probe
+        # doing five network round trips per call is not the same cost as an ordinary
+        # request). A public, unauthenticated endpoint with literally no limit is
+        # still a knob anyone can turn, so it gets its own — looser, so uptime
+        # monitors and app:monitor:run are never the ones tripping it, but bounded.
+        health_per_ip:
+            policy: 'sliding_window'
+            limit: 120
+            interval: '1 minute'
+            cache_pool: 'cache.rate_limiter'
+
         discogs_api:
             policy: 'token_bucket'
             limit: 60
@@ -56,6 +67,12 @@ when@test:
             api_per_ip:
                 policy: 'sliding_window'
                 limit: 60
+                interval: '1 minute'
+                storage_service: 'rate_limiter.test_storage'
+
+            health_per_ip:
+                policy: 'sliding_window'
+                limit: 120
                 interval: '1 minute'
                 storage_service: 'rate_limiter.test_storage'
 

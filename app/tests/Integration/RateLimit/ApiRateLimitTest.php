@@ -75,9 +75,14 @@ class ApiRateLimitTest extends WebTestCase
         }
     }
 
-    public function testHealthEndpointBypassesRateLimit(): void
+    /**
+     * HMAI-434: /api/health moved from a full rate-limit exemption to its own,
+     * looser limiter (`health_per_ip`, 120/min) — still generous enough that an
+     * uptime monitor or `app:monitor:run` never trips it, but no longer unbounded.
+     */
+    public function testHealthEndpointFirst120RequestsSucceed(): void
     {
-        for ($i = 1; $i <= 80; ++$i) {
+        for ($i = 1; $i <= 120; ++$i) {
             $this->client->request('GET', '/api/health');
             self::assertNotSame(
                 Response::HTTP_TOO_MANY_REQUESTS,
@@ -85,6 +90,17 @@ class ApiRateLimitTest extends WebTestCase
                 sprintf('Request #%d to /api/health returned 429', $i),
             );
         }
+    }
+
+    public function testHealthEndpointRequest121Returns429(): void
+    {
+        for ($i = 1; $i <= 120; ++$i) {
+            $this->client->request('GET', '/api/health');
+        }
+
+        $this->client->request('GET', '/api/health');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_TOO_MANY_REQUESTS);
     }
 
     public function testDifferentIpsHaveSeparateBuckets(): void
