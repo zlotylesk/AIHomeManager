@@ -416,6 +416,57 @@ jobs:
             || { echo "::error::a 5-day-old backup was not reported as stale"; cat /tmp/stale.log; exit 1; }
           echo "fresh and stale backup directories both produce the expected verdict"
 
+      # The other doctor rule CI can run in plain shell, and the one with the
+      # least visible failure mode: a production host whose .env.local is missing
+      # a variable inherits the tracked development password and comes up green
+      # on a credential that is published in this repository.
+      #
+      # Asserted on the output rather than the exit code, for the reason above.
+      # Both directions are pinned, because a check that cannot say "yes" is a
+      # check that will be silenced: an overlay copied verbatim from .env must be
+      # named, and a properly filled one must be accepted without complaint.
+      - name: Production secrets check (scripts/doctor.sh)
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/env-dev /tmp/env-real
+          # The real tracked .env is the baseline in both cases — comparing
+          # against a fabricated one would let the fixture and the file the
+          # operator actually reads drift apart.
+          cp .env /tmp/env-dev/.env
+          cp .env /tmp/env-real/.env
+
+          # The mistake this exists to catch: the overlay was created, and then
+          # filled by pasting from .env. Plus GRAYLOG_ROOT_PASSWORD_SHA2 simply
+          # left out, which is the other half of the same failure.
+          grep -E '^(MYSQL_ROOT_PASSWORD|MYSQL_PASSWORD|REDIS_PASSWORD|RABBITMQ_PASSWORD|GRAYLOG_PASSWORD_SECRET)=' .env > /tmp/env-dev/.env.local
+
+          for name in MYSQL_ROOT_PASSWORD MYSQL_PASSWORD REDIS_PASSWORD RABBITMQ_PASSWORD GRAYLOG_PASSWORD_SECRET GRAYLOG_ROOT_PASSWORD_SHA2; do
+            echo "${name}=$(openssl rand -hex 16)" >> /tmp/env-real/.env.local
+          done
+
+          # Severity follows whether the host actually deploys, and the
+          # production path is the one worth pinning — off it the findings
+          # collapse to a single advisory line. The signal doctor reads is a
+          # container belonging to the `aihm-prod` Compose project, so the
+          # runner gets one. Created, never started: `docker ps -a` is what the
+          # check looks at, and a container that runs nothing cannot interfere
+          # with the service containers this job already has.
+          docker create --name aihm-prod-ci-probe \
+            --label com.docker.compose.project=aihm-prod alpine:3 true > /dev/null
+          trap 'docker rm -f aihm-prod-ci-probe > /dev/null 2>&1 || true' EXIT
+
+          COMPOSE_ENV_DIR=/tmp/env-dev  bash scripts/doctor.sh > /tmp/env-dev.log  2>&1 || true
+          COMPOSE_ENV_DIR=/tmp/env-real bash scripts/doctor.sh > /tmp/env-real.log 2>&1 || true
+
+          [ "$(grep -c 'copied verbatim' /tmp/env-dev.log)" = "5" ] \
+            || { echo "::error::an overlay copied from .env was not reported"; cat /tmp/env-dev.log; exit 1; }
+          grep -q 'GRAYLOG_ROOT_PASSWORD_SHA2 is not set' /tmp/env-dev.log \
+            || { echo "::error::a variable missing from the overlay was not reported"; cat /tmp/env-dev.log; exit 1; }
+          grep -q 'production secrets overridden' /tmp/env-real.log \
+            || { echo "::error::a correctly filled overlay was not accepted"; cat /tmp/env-real.log; exit 1; }
+          echo "development-valued and real overlays both produce the expected verdict"
+
       # HMAI-362: the engine was started right after checkout; block here only
       # for whatever boot time the installs above did not already absorb. A dead
       # engine must fail here, loudly, rather than as a wall of red integration

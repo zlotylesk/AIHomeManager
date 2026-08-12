@@ -41,25 +41,63 @@ secrets `app/.env.local` cannot carry.
 
 | Variable | Used by |
 |---|---|
+| `MYSQL_ROOT_PASSWORD` | The server's root account, and what `make restore` authenticates with. |
+| `MYSQL_PASSWORD` | The application's own account, interpolated into `DATABASE_URL`. (`MYSQL_USER` and `MYSQL_DATABASE` beside it are names, not secrets.) |
 | `REDIS_PASSWORD` | Starts Redis with `--requirepass`, and is interpolated into `REDIS_URL` and `LOCK_DSN` for the application and both workers. |
 | `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | The broker's account, and the credentials in `MESSENGER_TRANSPORT_DSN`. |
+| `GRAYLOG_PASSWORD_SECRET` | The pepper Graylog derives its session and user secrets from. Minimum 16 characters, or it refuses to start. |
+| `GRAYLOG_ROOT_PASSWORD_SHA2` | SHA-256 of the Graylog administrator password. The tracked value is the hash of `admin` — the image's own default. |
 
-The tracked values are development values, deliberately, exactly as `MYSQL_USER`
-and `MYSQL_PASSWORD` beside them are: a fresh clone has to come up with
-`make up` and nothing else. **Production does not use them.** Every `make prod-*`
-target reads `.env` and then `.env.local` — the repository-root one, gitignored
-— on top, so the real passwords are never committed:
+The tracked values are development values, deliberately: a fresh clone has to
+come up with `make up` and nothing else. The file says so at the top, in those
+words, because it is also the only file Compose reads and therefore the one a
+deployment is tempted to edit. **Do not.** A secret committed here is a secret in
+the repository history, which is not somewhere a value comes back out of with one
+command.
+
+**Production overrides them instead**, from a gitignored `.env.local` beside it:
+every `make prod-*` target passes `--env-file .env --env-file .env.local`, in
+that order, and the second one wins. Nothing tracked is edited to deploy.
 
 ```bash
-# .env.local, on the production host only
+# .env.local, on the production host only — never committed
+MYSQL_ROOT_PASSWORD=$(openssl rand -base64 24)
+MYSQL_PASSWORD=$(openssl rand -base64 24)
 REDIS_PASSWORD=$(openssl rand -base64 24)
 RABBITMQ_USER=aihm
 RABBITMQ_PASSWORD=$(openssl rand -base64 24)
+GRAYLOG_PASSWORD_SECRET=$(openssl rand -base64 24)
+GRAYLOG_ROOT_PASSWORD_SHA2=$(printf '%s' 'your-admin-password' | sha256sum | cut -d' ' -f1)
 ```
 
-All three are required rather than defaulted. Compose refuses to start without
-them instead of substituting an empty string, which for `--requirepass` would
-mean a Redis with no password at all while every file said otherwise.
+`REDIS_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD` and both Graylog values
+are `${VAR:?}`-guarded in the compose file — required rather than defaulted, so
+Compose refuses to start rather than substituting an empty string, which for
+`--requirepass` would mean a Redis with no password at all while every file said
+otherwise. Graylog's are guarded even though it sits behind the `monitoring`
+profile: Compose interpolates every service in the file regardless of which
+profile is active.
+
+**A variable left out of `.env.local` does not fail — it falls through.** The
+layering has no way to distinguish "deliberately inherited" from "forgotten", so
+a missing production password silently becomes the development one and the stack
+comes up green on a credential printed in a public repository. That is the one
+failure mode of this design, and `make doctor` is what closes it: its
+**Production secrets** section reads both files and names every variable still
+carrying its `.env` value, whether unset or copied verbatim. It also fails if
+`.env.local` has itself been committed.
+
+Run it on the production host after the first deployment and after every rotation:
+
+```bash
+make doctor        # == Production secrets ==
+```
+
+**Severity follows whether the host actually deploys.** A host running the
+`aihm-prod` Compose project gets one failure per variable; anywhere else the
+same findings collapse to a single warning, because on a workstation they are
+both true and entirely expected — and a check that is red on every development
+machine is one its owner learns to skip.
 
 **Changing `RABBITMQ_USER` or `RABBITMQ_PASSWORD` has no effect on a broker
 whose volume already exists.** RabbitMQ creates the account named by
@@ -72,6 +110,55 @@ contents: the caches are all derived data and refill on the next read, the locks
 are held for seconds, and the worker heartbeats are rewritten within a minute of
 a restart. Redis must be recreated (not merely restarted) for a new password to
 take effect, since it is passed on the server's command line.
+
+## What a production instance must set
+
+Two files, because two different things read them at two different times, and
+**neither is tracked**. Bringing up production means creating these two and
+editing nothing else.
+
+| File | Read by | Holds |
+|---|---|---|
+| `.env.local` (repository root) | Compose, while building the stack | The infrastructure credentials above — there is no container yet to read an application file |
+| `app/.env.local` | The application, at runtime | Everything else: the API key, the frontend account, the five encryption keys, the OAuth secrets, the public address |
+
+The complete set, with how each value is produced:
+
+| Variable | File | How to generate |
+|---|---|---|
+| `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` | `.env.local` | `openssl rand -base64 24` |
+| `REDIS_PASSWORD`, `RABBITMQ_PASSWORD` | `.env.local` | `openssl rand -base64 24` |
+| `RABBITMQ_USER` | `.env.local` | Any name; it is not a secret |
+| `GRAYLOG_PASSWORD_SECRET` | `.env.local` | `openssl rand -base64 24` (≥ 16 characters) |
+| `GRAYLOG_ROOT_PASSWORD_SHA2` | `.env.local` | `printf '%s' 'the password' \| sha256sum \| cut -d' ' -f1` |
+| `API_KEY` | `app/.env.local` | `openssl rand -hex 32` |
+| `FRONTEND_USER` | `app/.env.local` | Any name |
+| `FRONTEND_PASSWORD_HASH` | `app/.env.local` | `bin/console security:hash-password` |
+| `APP_SECRET` | `app/.env.local` | `openssl rand -hex 16` |
+| `DISCOGS_TOKEN_KEY`, `GOOGLE_TOKEN_KEY`, `TRAKT_TOKEN_KEY`, `SPOTIFY_TOKEN_KEY` | `app/.env.local` | `openssl rand -base64 32` — **four different values**, see [above](#startup-critical-variables) |
+| `BACKUP_ENCRYPTION_KEY` | `app/.env.local` | `openssl rand -base64 32`, stored somewhere that is **not** the backup directory — it cannot be regenerated |
+| `DEFAULT_URI` and the four callback URIs | `app/.env.local` | The instance's public HTTPS address, see [below](#public-address-and-oauth-callbacks) |
+| `MAILER_DSN`, `NOTIFICATIONS_MAIL_TO` | `app/.env.local` | A real transport and a real mailbox — the committed defaults accept every alert and deliver none |
+| The per-integration credentials | `app/.env.local` | From each provider's console, [below](#per-integration-variables) |
+
+`make doctor` checks both files: lengths and placeholders in `app/.env.local`,
+and development values still in effect for the root one.
+
+### Secrets in the repository history
+
+Audited across the full history of every tracked environment file. **Nothing
+needs revoking:** the root `.env` has only ever held `secret`, `homemanager` and
+the literal placeholder `ghp_...`, every secret-bearing key in `app/.env` has
+always been committed empty, and no `.env.local` — at either level — has ever
+been committed. The only non-empty credential in the history is the placeholder
+bcrypt hash in `app/.env`, which is documented as a placeholder and is why
+`make doctor` warns when `FRONTEND_PASSWORD_HASH` is not overridden.
+
+If that ever stops being true, the order is: rotate the value at its source
+first, then deploy, and only then consider the history. Rewriting history
+invalidates every clone and does not reach forks or anything that already
+mirrored the repository — a committed secret is compromised from the moment it
+is pushed, and rotation is the only step that actually ends that.
 
 ## Public address and OAuth callbacks
 

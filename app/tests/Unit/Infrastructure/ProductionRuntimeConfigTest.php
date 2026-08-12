@@ -311,6 +311,94 @@ final class ProductionRuntimeConfigTest extends TestCase
         self::assertMatchesRegularExpression('/^LOCK_DSN=redis:\/\/:\S+@/m', $env, 'The reference lock DSN carries no password.');
     }
 
+    /**
+     * Graylog shipped its administrator password and its session pepper as
+     * literals in the compose file — and the password was the image's own
+     * default, so the tracked value and the guessable value were the same one.
+     */
+    public function testGraylogTakesItsCredentialsFromTheEnvironmentWithoutADefault(): void
+    {
+        $environment = $this->parseYaml('docker-compose.yml')['services']['graylog']['environment'] ?? [];
+
+        foreach (['GRAYLOG_PASSWORD_SECRET', 'GRAYLOG_ROOT_PASSWORD_SHA2'] as $variable) {
+            $value = $environment[$variable] ?? null;
+
+            self::assertIsString($value, $variable);
+            self::assertStringStartsWith(
+                '${',
+                $value,
+                sprintf('%s is a literal again; the credential is back in a tracked file.', $variable),
+            );
+
+            // `:?` rather than `:-`. A defaulted variable reads as configurable
+            // while a production stack that sets nothing still comes up on
+            // whatever the default is, and the way that gets discovered is the
+            // login page accepting it.
+            self::assertStringContainsString(
+                ':?',
+                $value,
+                sprintf('%s has a default, so an unset production value fails silently instead of loudly.', $variable),
+            );
+        }
+
+        // sha256("admin"), the image's default administrator password. Named
+        // explicitly because the assertions above pass the moment the literal is
+        // moved rather than replaced — into an env_file, a second compose file,
+        // the default half of a `:-` expression.
+        self::assertStringNotContainsString(
+            '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+            $this->read('docker-compose.yml'),
+            'The default Graylog administrator password is back in the compose file.',
+        );
+    }
+
+    /**
+     * Every `${VAR:?}` in the compose files is a variable with no default, so a
+     * missing one is a stack that refuses to start. That is the right behaviour
+     * for a production secret and the wrong one for `git clone && make up`,
+     * which is why the tracked `.env` has to answer all of them.
+     *
+     * Compose reads only `.env` from the project directory — never `.env.local`
+     * — so this file is the whole of the development baseline.
+     */
+    public function testEveryGuardedComposeVariableHasADevelopmentValueInTheTrackedEnvironment(): void
+    {
+        preg_match_all('/\$\{([A-Z0-9_]+):\?/', $this->read('docker-compose.yml'), $matches);
+
+        $guarded = array_unique($matches[1]);
+        self::assertNotEmpty($guarded, 'No guarded variables found — the pattern this test reads has changed.');
+
+        $tracked = $this->read('.env');
+
+        foreach ($guarded as $variable) {
+            self::assertMatchesRegularExpression(
+                '/^'.preg_quote($variable, '/').'=.+$/m',
+                $tracked,
+                sprintf(
+                    'docker-compose.yml requires %s and the tracked .env does not set it, '
+                    .'so a fresh clone cannot start the stack at all.',
+                    $variable,
+                ),
+            );
+        }
+    }
+
+    /**
+     * The tracked `.env` is the one file a deployment is tempted to edit — it is
+     * the only one Compose reads, and it already has the right variable names in
+     * it. Saying so in the file is the cheapest place to stop that, and the only
+     * one an operator is guaranteed to be looking at when the temptation
+     * arrives.
+     */
+    public function testTheTrackedComposeEnvironmentWarnsAgainstProductionSecrets(): void
+    {
+        self::assertStringContainsString(
+            'DO NOT PUT A PRODUCTION SECRET IN HERE',
+            $this->read('.env'),
+            'The tracked .env no longer says it is development-only, so its next reader has no reason to think it is.',
+        );
+    }
+
     public function testProductionOpcacheDoesNotStatEveryFileOnEveryRequest(): void
     {
         $ini = parse_ini_string($this->read('docker/php/opcache-prod.ini'));
