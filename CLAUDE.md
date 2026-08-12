@@ -479,6 +479,8 @@ environment variables.
 
 `^/api/*` is protected by the stateless `api` firewall and `ApiKeyAuthenticator`, which compares the `X-API-Key` header against `%env(API_KEY)%` with `hash_equals`. The pattern covers both `/api/v1/*` and the `/api/*` alias. Public exceptions: `/api/health` and the three API-doc routes.
 
+**A rotation accepts two keys, never one.** `%env(API_KEY_PREVIOUS)%` is an optional second value `ApiKeyAuthenticator` also compares with `hash_equals` — both comparisons run unconditionally, not short-circuited, so which of the two matched is not observable from response timing. Empty (the default) means no rotation is in progress; it never degenerates into an empty-string match, because a request with no header is rejected on its own path before either comparison runs. Procedure: `docs/operations.md` → [API key rotation](docs/operations.md#api-key-rotation).
+
 **No CSRF token on `^/api/*` (ADR-005)** — the firewall is stateless and authorization travels in a custom header, not a cookie, and a browser does not set custom headers cross-origin. OAuth init uses the `state` parameter.
 
 ### Frontend HTTP Basic
@@ -488,6 +490,8 @@ The `main` firewall (frontend pages + `/auth/*`) requires HTTP Basic against a s
 `access_control` order matters — `{path: ^/api, roles: PUBLIC_ACCESS}` comes **before** `{path: ^/, roles: ROLE_USER}`; first match wins. The two firewalls are disjoint: `ApiUser` only ever carries `ROLE_API`, never `ROLE_USER`.
 
 In the **test** environment `security.yaml`'s `when@test` sets `firewalls.main.security: false`, so the frontend and auth-controller tests need no credentials. The real configuration is proven instead by a test that boots the kernel in `dev`.
+
+**`login_throttling` gates failed panel logins** — Symfony's built-in mechanism, which needs no authenticator-specific wiring because it reacts to the same `CheckPassportEvent` every `AuthenticatorManager`-based firewall goes through, `http_basic` included: 5 attempts per username+IP, 25 per bare IP, both per 15 minutes, both stored in `cache.rate_limiter` (Redis) alongside `api_per_ip`. A locked-out request and a wrong password both come back as a plain 401 with `WWW-Authenticate` — `HttpBasicAuthenticator` never varies the response body by failure reason, so a client cannot distinguish the two from the wire. Every failed attempt is logged to the `auth` channel — the same audit trail OAuth authorize/callback events use, via `LoginFailureAuditListener` filtered to the `main` firewall, since `LoginFailureEvent` also fires for `api`'s key mismatches and those do not belong in an operator-account audit log.
 
 ### HTTP headers
 
@@ -515,7 +519,9 @@ Nginx's map is keyed on `$request_uri`, not `$uri` — `app.conf`'s `try_files $
 
 ### Rate limiting
 
-`ApiRateLimitListener` (`kernel.request`, priority 100 — after `RequestIdListener` at 256, so a 429 still carries the correlator) throttles `^/api/*` per IP at 60/min, exempting `/api/health` and `/auth/*`. A 429 carries `Retry-After`, `X-RateLimit-Remaining`, `X-RateLimit-Limit`.
+`ApiRateLimitListener` (`kernel.request`, priority 100 — after `RequestIdListener` at 256, so a 429 still carries the correlator) throttles `^/api/*` per IP at 60/min, exempting `/auth/*`. A 429 carries `Retry-After`, `X-RateLimit-Remaining`, `X-RateLimit-Limit`.
+
+**`/api/health` carries its own, looser limiter (`health_per_ip`, 120/min) rather than a full exemption** — a public, unauthenticated endpoint that runs five network probes per call is still a knob worth bounding, just not at the threshold that would risk an external uptime monitor or the in-process `app:monitor:run` sweep tripping it.
 
 Outbound calls are throttled **proactively** by `RateLimitedHttpClient`, which waits before the request rather than reacting to a rejection. Six instances: Discogs, Last.fm, National Library, YouTube, Trakt, Spotify. The Google Calendar SDK and the OpenSearch client use their own transports and are deliberately not wrapped — neither is a Symfony `HttpClientInterface`, and the OpenSearch traffic is internal with no external quota.
 
@@ -524,6 +530,8 @@ Outbound calls are throttled **proactively** by `RateLimitedHttpClient`, which w
 ## Health endpoint
 
 `GET /api/health` is public. It probes MySQL (`SELECT 1`), Redis (`PING`), RabbitMQ (TCP, 1 s timeout), Search (`ping()`), the workers (heartbeat) and two disk locations.
+
+**The per-component breakdown stays in the public payload, reviewed rather than assumed.** The body only ever carries the three-value status enum per component — no error message, version, hostname or path; those go to the `warning` log line a failed probe writes, never to the response — and an external uptime monitor, which is unauthenticated by construction, is the entire reason this endpoint is public: collapsing to a bare up/down would take away exactly what lets an operator see *which* dependency failed without opening a shell. What closes the actual risk — an unauthenticated endpoint running five network round trips per call, previously with no bound at all — is `health_per_ip` (see Rate limiting), not payload redaction.
 
 Three components report **`degraded` (HTTP 200), never `down`**, on purpose:
 

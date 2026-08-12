@@ -18,8 +18,15 @@ final class ApiKeyAuthenticator extends AbstractAuthenticator
 {
     public const string HEADER = 'X-API-Key';
 
-    public function __construct(private readonly string $expectedApiKey)
-    {
+    /**
+     * @param string $previousApiKey the key accepted during a rotation window, on top
+     *                               of $expectedApiKey — empty means no rotation in
+     *                               progress
+     */
+    public function __construct(
+        private readonly string $expectedApiKey,
+        private readonly string $previousApiKey = '',
+    ) {
     }
 
     public function supports(Request $request): bool
@@ -47,7 +54,13 @@ final class ApiKeyAuthenticator extends AbstractAuthenticator
             throw new CustomUserMessageAuthenticationException('Missing API key.');
         }
 
-        if (!hash_equals($this->expectedApiKey, $providedKey)) {
+        // Both comparisons always run — a short-circuiting `||` would let a request
+        // during rotation take a measurably different path depending on which key it
+        // matched, which is exactly the timing signal `hash_equals` exists to deny.
+        $matchesCurrent = hash_equals($this->expectedApiKey, $providedKey);
+        $matchesPrevious = '' !== $this->previousApiKey && hash_equals($this->previousApiKey, $providedKey);
+
+        if (!$matchesCurrent && !$matchesPrevious) {
             throw new CustomUserMessageAuthenticationException('Invalid API key.');
         }
 

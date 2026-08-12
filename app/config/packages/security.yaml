@@ -34,6 +34,17 @@ security:
             provider: frontend_user_provider
             http_basic:
                 realm: 'AIHomeManager'
+            # HMAI-434: the password hash is bcrypt at a high cost on purpose (slows
+            # guessing), but that same cost is paid server-side on every attempt, so
+            # an unbounded number of them is a guessing vector and a CPU sink at once.
+            # `login_throttling` fires on the same CheckPassportEvent http_basic's
+            # AuthenticatorManager-based passport goes through, so it needs no
+            # authenticator-specific wiring. Defaults: 5 attempts per username+IP,
+            # 5x that per bare IP, both over the interval below, both in
+            # `cache.rate_limiter` (Redis) alongside `api_per_ip`.
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
 
     # ^/api stays PUBLIC_ACCESS here (the `api` firewall already enforces its own
     # X-API-Key auth — ApiUser only ever carries ROLE_API, never ROLE_USER, so a

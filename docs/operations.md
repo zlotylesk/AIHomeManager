@@ -441,6 +441,91 @@ ships the opposite, baked in and not derived from `RABBITMQ_DEFAULT_USER`, so
 naming a different default account does not confine the old one. That file makes
 deleting the account a housekeeping step rather than an urgent one.
 
+## API key rotation
+
+`API_KEY` used to have no swap procedure at all: changing it meant editing
+`app/.env.local` and restarting `php`, which is a moment where every request
+carrying the old value gets rejected mid-flight. `ApiKeyAuthenticator` now
+accepts a second, optional key — `API_KEY_PREVIOUS` — so a rotation is two
+restarts with no window where a valid key stops working:
+
+```bash
+# 1. Move the current key into the "previous" slot and generate a new current
+#    one. Order matters: write API_KEY_PREVIOUS before you overwrite API_KEY,
+#    or the old value is gone before anything is reading it from its new home.
+CURRENT=$(grep '^API_KEY=' app/.env.local | cut -d= -f2-)
+NEW=$(openssl rand -hex 32)
+
+# edit app/.env.local by hand:
+#   API_KEY_PREVIOUS='<the value CURRENT held>'
+#   API_KEY='<the value of NEW>'
+
+docker compose up -d --force-recreate php scheduler_worker
+# every client presenting the OLD key still authenticates (API_KEY_PREVIOUS),
+# every client already updated authenticates on the NEW one — no gap.
+
+# 2. Once every client is confirmed on the new key (check access logs for
+#    X-API-Key mismatches, or simply wait out however long the slowest client
+#    takes to pick up its own config), close the window:
+#   API_KEY_PREVIOUS=
+
+docker compose up -d --force-recreate php scheduler_worker
+```
+
+`API_KEY_PREVIOUS` is not in the startup-critical set — empty means "no
+rotation in progress", and `ApiKeyAuthenticator` never lets an empty previous
+value match an empty provided one (a request with no key is rejected earlier,
+on its own path). Both comparisons run unconditionally through `hash_equals`
+rather than short-circuiting on the first match, so which of the two keys
+authenticated a request is not observable from response timing.
+
+### Panel login throttling
+
+The frontend account (`FRONTEND_USER`/`FRONTEND_PASSWORD_HASH`) hashes with
+bcrypt at a cost high enough to slow guessing — but that cost is paid by the
+server on every attempt, so an unbounded number of them is a guessing vector
+and a CPU sink in one. `security.yaml`'s `main` firewall now carries
+`login_throttling` (5 attempts per username+IP, 25 per bare IP, both per 15
+minutes, both in `cache.rate_limiter`/Redis) — Symfony's built-in mechanism,
+which needs no authenticator-specific wiring because it fires on the same
+`CheckPassportEvent` every AuthenticatorManager-based firewall goes through,
+`http_basic` included. A failed attempt — and a request rejected only because
+the budget is exhausted — both come back as a plain 401 with the usual
+`WWW-Authenticate` header; `HttpBasicAuthenticator` does not vary the response
+body by failure reason, so there is nothing in the body to distinguish "wrong
+password" from "locked out" (deliberately: telling an attacker which one they
+hit is not useful to the operator and is useful to them).
+
+Every failed panel login is logged to the `auth` channel — the same audit
+trail OAuth authorize/callback events use — with the source IP and the
+failure reason, so a lockout shows up next to the OAuth log rather than in
+`main`'s ordinary access noise.
+
+### The public health payload's scope, reviewed
+
+`/api/health` stays public and keeps reporting every component by name
+(`mysql`, `redis`, `rabbitmq`, `search`, `worker`, `disk_database`,
+`disk_backups`) rather than collapsing to a bare up/down. Two things make
+that an acceptable amount of detail for an unauthenticated caller: the body
+only ever carries the three-value status enum per component — no error
+message, no version string, no hostname or path (those go to the `warning`
+log line a failed probe writes, never to the response) — and an external
+uptime monitor is the entire reason this endpoint is public in the first
+place; collapsing the detail would take away exactly what lets an operator
+see *which* dependency failed from the alert email without opening a shell.
+What the endpoint gained instead is its own bound: `health_per_ip` (see
+below) closes the actual issue the background raised — an unauthenticated,
+formerly *unlimited* endpoint that does five network round trips per call —
+without discarding the diagnostic value the detail provides.
+
+### Health endpoint's own rate limit
+
+`/api/health` used to be fully exempt from `api_per_ip`. It now has its own
+limiter, `health_per_ip` (120 requests/minute/IP, same `cache.rate_limiter`
+storage) — loose enough that neither an external uptime monitor nor the
+in-process `app:monitor:run` sweep is ever the one that trips it, but no
+longer an unbounded public endpoint.
+
 ## Workers
 
 Two of them, and they consume different things:
