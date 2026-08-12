@@ -30,6 +30,14 @@ final class ProductionRuntimeConfigTest extends TestCase
     private const array APP_SERVICES = ['php', 'messenger_worker', 'scheduler_worker'];
 
     /**
+     * The services that hold or carry data and answer to whoever reaches them.
+     *
+     * Development publishes all four to the host — that is what the MCP servers
+     * and every host-side client talk to — and production publishes none.
+     */
+    private const array INFRASTRUCTURE_SERVICES = ['mysql', 'redis', 'rabbitmq', 'search'];
+
+    /**
      * The deployment files sit beside app/, not inside it.
      *
      * A containerised run only has app/ — it is mounted as /var/www/html and the
@@ -139,6 +147,168 @@ final class ProductionRuntimeConfigTest extends TestCase
             );
             self::assertSame('dev', $dev['services'][$service]['build']['target'] ?? null, $service);
         }
+    }
+
+    /**
+     * Nothing outside the host may reach the database, the cache, the broker or
+     * the search engine.
+     *
+     * The assertion is on the OVERRIDE TAG as much as on the value: Compose
+     * appends untagged sequences, so an overlay that listed loopback bindings
+     * without the tag would end up publishing both those and the base file's
+     * 0.0.0.0 mappings — wide open, while reading as closed.
+     */
+    public function testProductionPublishesNoInfrastructurePortToTheNetwork(): void
+    {
+        $prod = $this->parseYaml('docker-compose.prod.yml');
+
+        foreach (self::INFRASTRUCTURE_SERVICES as $service) {
+            $ports = $prod['services'][$service]['ports'] ?? null;
+
+            self::assertInstanceOf(
+                TaggedValue::class,
+                $ports,
+                sprintf(
+                    'Service "%s" does not override its published ports, so it inherits the '
+                    .'development mapping and answers on every interface of the host.',
+                    $service,
+                ),
+            );
+            self::assertSame('override', $ports->getTag(), $service);
+
+            /** @var list<string> $published */
+            $published = $ports->getValue();
+
+            foreach ($published as $mapping) {
+                self::assertStringStartsWith(
+                    '127.0.0.1:',
+                    $mapping,
+                    sprintf('Service "%s" publishes %s beyond the loopback interface.', $service, $mapping),
+                );
+            }
+        }
+    }
+
+    /**
+     * The counterweight to the test above, and the reason it is a separate one:
+     * the cheapest way to make that assertion pass everywhere would be to stop
+     * publishing these ports at all, which would take the host tooling — the
+     * MySQL and Redis MCP servers, a GUI client, the broker's management UI —
+     * down with it for no gain on a development box.
+     */
+    public function testDevelopmentStillPublishesInfrastructurePortsForHostTooling(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        foreach (self::INFRASTRUCTURE_SERVICES as $service) {
+            self::assertNotEmpty(
+                $dev['services'][$service]['ports'] ?? [],
+                sprintf('Development no longer publishes "%s"; host tooling cannot reach it.', $service),
+            );
+        }
+    }
+
+    /**
+     * The broker's built-in account is reachable from anywhere the port is,
+     * because the image ships `loopback_users.guest = false` in its own
+     * conf.d — compiled in, not derived from the environment, so choosing a
+     * different default account does not switch it off.
+     *
+     * Two independent things therefore have to hold, and each covers a case the
+     * other does not: a fresh volume must never create `guest` (RabbitMQ only
+     * creates the default user when it initialises an empty database), and a
+     * volume that already has one must not expose it off the loopback
+     * interface.
+     */
+    public function testTheBrokerDoesNotRunAsTheBuiltInGuestAccount(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+        $environment = $dev['services']['rabbitmq']['environment'] ?? [];
+
+        foreach (['RABBITMQ_DEFAULT_USER', 'RABBITMQ_DEFAULT_PASS'] as $variable) {
+            $value = $environment[$variable] ?? null;
+
+            self::assertIsString($value, $variable);
+            self::assertStringStartsWith(
+                '${',
+                $value,
+                sprintf('%s is a literal again; the credential is back in a tracked file.', $variable),
+            );
+        }
+
+        self::assertStringNotContainsString(
+            'guest',
+            (string) ($environment['RABBITMQ_DEFAULT_USER'] ?? ''),
+            'The broker boots as the built-in guest account, which the image opens to the whole network.',
+        );
+    }
+
+    public function testTheGuestAccountIsConfinedToTheLoopbackInterface(): void
+    {
+        self::assertMatchesRegularExpression(
+            '/^loopback_users\.guest\s*=\s*true$/m',
+            $this->read('docker/rabbitmq/20-aihm.conf'),
+            'The broker configuration no longer confines the built-in account to loopback.',
+        );
+
+        // Mounted, or the file is a note to nobody. It has to sort after the
+        // image's own 10-defaults.conf — RabbitMQ reads conf.d in lexical order
+        // and the later file wins.
+        $mounts = $this->parseYaml('docker-compose.yml')['services']['rabbitmq']['volumes'] ?? [];
+
+        self::assertContains(
+            './docker/rabbitmq/20-aihm.conf:/etc/rabbitmq/conf.d/20-aihm.conf:ro',
+            $mounts,
+            'The broker no longer reads the configuration that confines the guest account.',
+        );
+    }
+
+    /**
+     * Redis had no `requirepass` at all, so anything that could open the port
+     * had full read and write access to the caches, the locks and the worker
+     * heartbeats without so much as a password to guess.
+     */
+    public function testRedisRequiresAPasswordAndEveryClientSendsOne(): void
+    {
+        $dev = $this->parseYaml('docker-compose.yml');
+
+        self::assertStringContainsString(
+            '--requirepass',
+            implode(' ', (array) ($dev['services']['redis']['command'] ?? [])),
+            'Redis is started without a password again.',
+        );
+
+        // LOCK_DSN as well as REDIS_URL, and it is the one worth pinning: it is
+        // a separate variable read by config/packages/lock.yaml rather than
+        // anything derived from REDIS_URL, so it is the one that gets forgotten
+        // — and the symptom is every lock acquisition failing while the caches
+        // carry on working.
+        foreach (self::APP_SERVICES as $service) {
+            foreach (['REDIS_URL', 'LOCK_DSN'] as $variable) {
+                $dsn = $dev['services'][$service]['environment'][$variable] ?? null;
+
+                self::assertIsString($dsn, sprintf('%s does not set %s.', $service, $variable));
+                self::assertStringStartsWith(
+                    'redis://:${',
+                    $dsn,
+                    sprintf('%s reaches Redis without credentials via %s.', $service, $variable),
+                );
+            }
+        }
+    }
+
+    /**
+     * The tracked reference file is what someone copies into .env.local when
+     * setting an instance up, so a default credential surviving here outlives
+     * every correction made in the compose files.
+     */
+    public function testTheTrackedReferenceDsnsCarryNoDefaultCredentials(): void
+    {
+        $env = $this->read('app/.env');
+
+        self::assertStringNotContainsString('amqp://guest:guest@', $env, 'The reference broker DSN is back on the built-in account.');
+        self::assertMatchesRegularExpression('/^REDIS_URL=redis:\/\/:\S+@/m', $env, 'The reference Redis DSN carries no password.');
+        self::assertMatchesRegularExpression('/^LOCK_DSN=redis:\/\/:\S+@/m', $env, 'The reference lock DSN carries no password.');
     }
 
     public function testProductionOpcacheDoesNotStatEveryFileOnEveryRequest(): void

@@ -20,3 +20,10 @@
 # — only what git writes to disk on the next checkout of them.
 *.sh            eol=lf
 app/bin/console eol=lf
+
+# Not a shebang, but the same class of problem: RabbitMQ's configuration parser
+# reads `loopback_users.guest = true\r` as the value "true\r" rather than a
+# boolean, and refuses to start. nginx happens to tolerate the stray CR in its
+# own mounted configuration, so this is pinned for the broker specifically
+# rather than for every *.conf in the tree.
+docker/rabbitmq/*.conf eol=lf

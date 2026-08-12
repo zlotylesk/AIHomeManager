@@ -11,9 +11,8 @@
 # deployment a single reproducible artifact instead of the state of a working
 # copy.
 #
-# Not in scope here, and deliberately so: publishing (or not publishing)
-# infrastructure ports and broker credentials, restart policies and resource
-# limits, log rotation, HTTPS. Each is its own change.
+# Not in scope here, and deliberately so: restart policies and resource limits,
+# log rotation. Each is its own change.
 
 services:
   php:
@@ -153,6 +152,55 @@ services:
     environment:
       APP_ENV: prod
       APP_DEBUG: 0
+
+  # The four infrastructure services, none of which publishes a port here.
+  #
+  # `!override []` rather than a narrowed mapping, and rather than nothing at
+  # all: Compose APPENDS untagged sequences, so an overlay that simply omitted
+  # `ports:` would inherit the base file's publishing wholesale and an overlay
+  # that listed loopback bindings would end up with BOTH — the 0.0.0.0 mapping
+  # from the base file alongside the 127.0.0.1 one, which is the wide-open case
+  # wearing the clothes of the fix.
+  #
+  # Nothing outside the Compose network needs to reach any of them. The
+  # application containers resolve `mysql`, `redis`, `rabbitmq` and `search` by
+  # service name over the internal network, which is unaffected by whether a
+  # port is published; publishing only ever decided whether the HOST — and, on
+  # a machine with a public address, everything that can route to it — could
+  # reach them too. Three of the four answer with no credential worth the name
+  # (the broker's management UI on 15672, an unauthenticated OpenSearch on
+  # 9200, and until this change a Redis with no password at all), so what was
+  # published was not a service with a login screen in front of it.
+  #
+  # Diagnostics do not need them either. `docker compose exec` runs a client
+  # inside the container, which is both closer to the thing being diagnosed and
+  # available on a host where the port never was — docs/operations.md carries
+  # the commands for each service, and `make prod-*` targets several of them.
+  mysql:
+    ports: !override []
+
+  redis:
+    ports: !override []
+
+  rabbitmq:
+    ports: !override []
+
+  search:
+    ports: !override []
+
+  # Graylog is behind the `monitoring` profile and so does not start with
+  # `make prod-up` at all. It is pinned to loopback rather than left alone
+  # because the day someone does start it is not the day to discover that its
+  # web UI went straight to the public address with the image's default
+  # administrator password still in the compose file.
+  #
+  # Loopback rather than nothing, unlike the four above: this one is a web UI
+  # whose whole purpose is to be looked at, and `ssh -L 9000:127.0.0.1:9000` is
+  # a working answer for that. The GELF input stays internal — log shipping
+  # comes from the other containers over the Compose network.
+  graylog:
+    ports: !override
+      - "127.0.0.1:9000:9000"
 
   # Certificate renewal, running as its own process rather than as a host cron
   # job, so it is deployed and started by the same command as everything else
