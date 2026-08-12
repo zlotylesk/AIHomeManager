@@ -30,6 +30,29 @@ development stack.
 
 ### Before the first deployment
 
+**Two untracked files have to exist**, and creating them is the whole of the
+configuration work — no tracked file is edited to deploy.
+
+| File | Read by | Holds |
+|---|---|---|
+| `.env.local` (repository root) | Compose, while building the stack | The database, Redis, broker and Graylog credentials |
+| `app/.env.local` | The application, at runtime | The API key, the frontend account, the encryption keys, the OAuth secrets, the public address |
+
+The root one is separate because Compose needs those values *before* a container
+exists to read an application environment file — and because Compose reads only
+`.env` from the project directory, which is tracked. `make prod-*` therefore
+passes both: `--env-file .env --env-file .env.local`, in that order, with the
+second winning.
+
+**That layering has one failure mode, and it is silent.** A variable left out of
+`.env.local` does not stop anything; it falls through to the development value in
+the tracked `.env`, and the instance comes up entirely healthy on a password that
+is published in the repository. Nothing about the running stack looks wrong.
+`make doctor` is what catches it — its **Production secrets** section names every
+variable still on its `.env` value — so run it on the host after this step and
+after every rotation. `docs/configuration.md` lists the complete set with a
+generation command for each.
+
 `app/.env.local` must exist on the host with the real values. It is deliberately
 **not** in the image — `.dockerignore` excludes it, because a layer that
 captured it would keep the secrets there after any later deletion. Instead the

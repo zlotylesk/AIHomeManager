@@ -14,10 +14,10 @@ Operational. Current release **1.34.0** (2026-08-05), which is also the highest-
 
 | Gate | State |
 |---|---|
-| PHPUnit | 2550 tests |
+| PHPUnit | 2607 tests |
 | Playwright | 169 tests |
 | Vitest | 249 tests |
-| Newman | 121 assertions |
+| Newman | 161 assertions |
 | PHPStan | level 8, clean; one baseline entry |
 | Deptrac | 0 violations, 0 `skip_violations` |
 | Coverage floor | 90 % |
@@ -271,7 +271,9 @@ Two interchangeable engines behind one Domain port, selected by `SEARCH_ENGINE_B
 
 **Production publishes nginx's 80 and 443 and nothing else; development publishes every infrastructure port and keeps doing so.** The two are opposite on purpose — the host clients and MCP servers talk to 3306/6379/5672/15672/9200, and a development box is not what this protects — and `ProductionRuntimeConfigTest` pins both halves. The overlay writes `ports: !override []`, because Compose *appends* untagged sequences: an overlay that merely listed loopback bindings would publish those **and** the base file's `0.0.0.0` mappings. Diagnostics run the client inside the container (`docker compose exec`), which also proves the path the application uses; Graylog is the one production exception, bound to `127.0.0.1` rather than dropped, because a UI exists to be looked at.
 
-**Infrastructure credentials live in the repository-root `.env`, not `app/.env.local`** — Compose reads them while building the stack, before a container exists to read an application env file. The tracked values are development values, like `MYSQL_*` beside them; `make prod-*` layers a gitignored root `.env.local` on top, so production passwords are never committed. All three (`REDIS_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`) are `${VAR:?}`-guarded: an empty `--requirepass` is a Redis with no password while every file claims otherwise.
+**Infrastructure credentials live in the repository-root `.env`, not `app/.env.local`** — Compose reads them while building the stack, before a container exists to read an application env file. The tracked values are development values and the file says so at the top; `make prod-*` layers a gitignored root `.env.local` on top (`--env-file .env --env-file .env.local`, second wins), so production passwords are never committed and no tracked file is edited to deploy. `REDIS_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD` and Graylog's `GRAYLOG_PASSWORD_SECRET` / `GRAYLOG_ROOT_PASSWORD_SHA2` are `${VAR:?}`-guarded, never `:-`-defaulted: an empty `--requirepass` is a Redis with no password while every file claims otherwise, and a defaulted Graylog is one still answering to `admin`. Guarded means the tracked `.env` must carry a development value for each, or a fresh clone cannot start at all — including Graylog's, which Compose interpolates despite its `monitoring` profile.
+
+**The layering fails silently in one direction, and `make doctor` is what covers it.** A variable *missing* from `.env.local` does not stop a deployment — it falls through to the development value and the instance comes up healthy on a password published in a public repository. Nothing about the running stack looks wrong. The **Production secrets** check reads both files and names every variable still on its `.env` value (unset or copied verbatim), compares against what `.env` currently holds rather than a copy of those strings, and fails outright if `.env.local` has itself been committed. **Severity follows whether the host deploys** — one failure per variable where the `aihm-prod` Compose project exists, one collapsed warning anywhere else, because a workstation legitimately keeps a root `.env.local` (the GitHub MCP token) and a check red on every dev box stops being read. `COMPOSE_ENV_DIR` moves both reads and a labelled throwaway container supplies the production signal, which is how CI pins the real verdicts without a production host.
 
 **The broker does not run as `guest`, and renaming the account is only half of it.** RabbitMQ creates `default_user` when it initialises an **empty** database, so a fresh volume never gets a guest account — and an existing one keeps its guest administrator no matter what the environment says. The image also ships `loopback_users.guest = false` baked into its own `conf.d`, unaffected by `RABBITMQ_DEFAULT_USER`, which is why `docker/rabbitmq/20-aihm.conf` sets it back to `true` and is mounted in both environments. Deleting the account on an existing volume is a documented manual step.
 
