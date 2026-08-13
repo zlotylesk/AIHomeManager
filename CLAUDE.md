@@ -10,14 +10,14 @@ Run-and-setup documentation is in `README.md` and `docs/`. This file is the work
 
 ## Status
 
-Operational. Current release **1.34.0** (2026-08-05), which is also the highest-numbered tag and GitHub `latest`.
+Operational. Current release **1.35.0** (2026-08-13), which is also the highest-numbered tag and GitHub `latest`.
 
 | Gate | State |
 |---|---|
-| PHPUnit | 2653 tests |
+| PHPUnit | 2690 tests |
 | Playwright | 169 tests |
 | Vitest | 249 tests |
-| Newman | 165 assertions |
+| Newman | 161 assertions |
 | PHPStan | level 8, clean; one baseline entry |
 | Deptrac | 0 violations, 0 `skip_violations` |
 | Coverage floor | 90 % |
