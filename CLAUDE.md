@@ -315,6 +315,8 @@ The backup job has **three image-level dependencies**: `bash -o pipefail` (POSIX
 
 **Every backup filename is parsed by `BackupFilename`, never per reader** — the writer, both retention sweeps, both probes and the destinations all ask it, so none of them can develop its own idea of what a backup is or when it was taken.
 
+**Off-host retention is measured in whole days, so `RemoteRetention` normalises `$today` to midnight before computing the cutoff.** The dates it compares against are midnight by construction (`BackupFilename` parses with `!`), while the production caller passes `new DateTimeImmutable()` and the dump runs at 03:00 — un-normalised, the copy dated exactly `keepDays` ago lands on whichever side of the cutoff the clock puts it, making the window a day shorter than it reads and a manual `make backup-now` prune a different set than the nightly run. A test that passes a bare date cannot see this; the ones pinning it pass an explicit time of day.
+
 **CI cannot catch either.** It runs PHPUnit on the GitHub runner, never inside the image the app ships in, so an image-level runtime dependency is invisible to every job. `make doctor` is what covers that gap — and it checks the *outcome* (is the newest backup non-empty, and is it recent) rather than only the causes already known.
 
 ### Production configuration

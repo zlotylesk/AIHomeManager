@@ -37,7 +37,18 @@ final readonly class RemoteRetention
             return [];
         }
 
-        $cutoff = $today->modify(sprintf('-%d days', $keepDays));
+        // Normalised to the start of the day before the window is measured. The
+        // dates being compared against come from BackupFilename, which parses
+        // with '!' and so always yields midnight; $today does not, because the
+        // production caller passes `new DateTimeImmutable()` and the dump runs at
+        // 03:00. Left un-normalised, the copy dated exactly $keepDays ago falls
+        // on whichever side of the cutoff the clock happens to put it — kept when
+        // the job is invoked at midnight, deleted at 03:00 — so the window is one
+        // day shorter in production than every test of it describes, and a manual
+        // `make backup-now` prunes differently from the nightly run over the same
+        // set. Retention is expressed in whole days; the time of day it is
+        // evaluated at must not be part of the answer.
+        $cutoff = $today->setTime(0, 0)->modify(sprintf('-%d days', $keepDays));
 
         return array_values(array_filter(
             $backups,
