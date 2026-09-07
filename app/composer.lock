@@ -2460,16 +2460,16 @@
         },
         {
             "name": "nelmio/api-doc-bundle",
-            "version": "v5.11.1",
+            "version": "v5.12.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nelmio/NelmioApiDocBundle.git",
-                "reference": "86d8ca816c0951f542c0095ac3680cab172c7920"
+                "reference": "a8ddb642c9ce1b134bf5084714d8475f79d8d06a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nelmio/NelmioApiDocBundle/zipball/86d8ca816c0951f542c0095ac3680cab172c7920",
-                "reference": "86d8ca816c0951f542c0095ac3680cab172c7920",
+                "url": "https://api.github.com/repos/nelmio/NelmioApiDocBundle/zipball/a8ddb642c9ce1b134bf5084714d8475f79d8d06a",
+                "reference": "a8ddb642c9ce1b134bf5084714d8475f79d8d06a",
                 "shasum": ""
             },
             "require": {
@@ -2570,7 +2570,7 @@
             ],
             "support": {
                 "issues": "https://github.com/nelmio/NelmioApiDocBundle/issues",
-                "source": "https://github.com/nelmio/NelmioApiDocBundle/tree/v5.11.1"
+                "source": "https://github.com/nelmio/NelmioApiDocBundle/tree/v5.12.0"
             },
             "funding": [
                 {
@@ -2578,7 +2578,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-12T10:26:23+00:00"
+            "time": "2026-09-03T13:29:16+00:00"
         },
         {
             "name": "nikic/php-parser",
@@ -3090,16 +3090,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.3",
+            "version": "2.3.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3"
+                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
+                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
                 "shasum": ""
             },
             "require": {
@@ -3131,9 +3131,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.3"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.5"
             },
-            "time": "2026-07-08T07:01:06+00:00"
+            "time": "2026-08-31T16:05:28+00:00"
         },
         {
             "name": "psr/cache",
@@ -7171,16 +7171,16 @@
         },
         {
             "name": "symfony/property-info",
-            "version": "v8.1.5",
+            "version": "v8.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/property-info.git",
-                "reference": "b335f8e7fb1440ed3448fb33340efc6127678e53"
+                "reference": "d25e1dabbaff3f91bb15ba68328cf4fbd1c43c42"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/property-info/zipball/b335f8e7fb1440ed3448fb33340efc6127678e53",
-                "reference": "b335f8e7fb1440ed3448fb33340efc6127678e53",
+                "url": "https://api.github.com/repos/symfony/property-info/zipball/d25e1dabbaff3f91bb15ba68328cf4fbd1c43c42",
+                "reference": "d25e1dabbaff3f91bb15ba68328cf4fbd1c43c42",
                 "shasum": ""
             },
             "require": {
@@ -7233,7 +7233,7 @@
                 "validator"
             ],
             "support": {
-                "source": "https://github.com/symfony/property-info/tree/v8.1.5"
+                "source": "https://github.com/symfony/property-info/tree/v8.1.6"
             },
             "funding": [
                 {
@@ -7253,7 +7253,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-21T17:47:34+00:00"
+            "time": "2026-08-30T08:48:43+00:00"
         },
         {
             "name": "symfony/rate-limiter",
@@ -9022,16 +9022,16 @@
         },
         {
             "name": "symfony/yaml",
-            "version": "v8.1.5",
+            "version": "v8.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/yaml.git",
-                "reference": "b3fc9e8888eeb9daddc33bfbd15d282a61f543cd"
+                "reference": "0b4aa53a67f9fece88c665f1a1dadcfd25d93fe5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/yaml/zipball/b3fc9e8888eeb9daddc33bfbd15d282a61f543cd",
-                "reference": "b3fc9e8888eeb9daddc33bfbd15d282a61f543cd",
+                "url": "https://api.github.com/repos/symfony/yaml/zipball/0b4aa53a67f9fece88c665f1a1dadcfd25d93fe5",
+                "reference": "0b4aa53a67f9fece88c665f1a1dadcfd25d93fe5",
                 "shasum": ""
             },
             "require": {
@@ -9074,7 +9074,7 @@
             "description": "Loads and dumps YAML files",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/yaml/tree/v8.1.5"
+                "source": "https://github.com/symfony/yaml/tree/v8.1.6"
             },
             "funding": [
                 {
@@ -9094,7 +9094,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-21T12:16:08+00:00"
+            "time": "2026-08-30T01:03:44+00:00"
         },
         {
             "name": "thecodingmachine/safe",
@@ -9476,16 +9476,16 @@
         },
         {
             "name": "zircote/swagger-php",
-            "version": "6.5.3",
+            "version": "6.7.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/zircote/swagger-php.git",
-                "reference": "d0a5edd84dd5e116643c79e53d46814c5a5e4c04"
+                "reference": "fc4c4288623406cd1b4679409cd6aefdbd774827"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/zircote/swagger-php/zipball/d0a5edd84dd5e116643c79e53d46814c5a5e4c04",
-                "reference": "d0a5edd84dd5e116643c79e53d46814c5a5e4c04",
+                "url": "https://api.github.com/repos/zircote/swagger-php/zipball/fc4c4288623406cd1b4679409cd6aefdbd774827",
+                "reference": "fc4c4288623406cd1b4679409cd6aefdbd774827",
                 "shasum": ""
             },
             "require": {
@@ -9553,7 +9553,7 @@
             ],
             "support": {
                 "issues": "https://github.com/zircote/swagger-php/issues",
-                "source": "https://github.com/zircote/swagger-php/tree/6.5.3"
+                "source": "https://github.com/zircote/swagger-php/tree/6.7.1"
             },
             "funding": [
                 {
@@ -9561,7 +9561,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-12T04:26:57+00:00"
+            "time": "2026-08-30T07:08:23+00:00"
         }
     ],
     "packages-dev": [
