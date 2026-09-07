@@ -9,7 +9,7 @@
     "core-js": "^3.50.0",
     "jsdom": "^30.0.1",
     "regenerator-runtime": "^0.14.1",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.0",
     "webpack": "^5.110.1",
     "webpack-cli": "^7.2.3",
     "workbox-webpack-plugin": "^7.4.1"
