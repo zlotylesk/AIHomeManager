@@ -65,7 +65,7 @@ final readonly class CachingSearchEngine implements SearchEngineInterface
             // previous backend's answers until the TTL ran out.
             $this->engine::class,
             mb_strtolower(trim($query->term)),
-            $typeFilter?->value ?? '',
+            $typeFilter->value ?? '',
             $query->page,
             $query->perPage,
         ));

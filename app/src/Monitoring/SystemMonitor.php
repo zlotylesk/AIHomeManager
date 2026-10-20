@@ -123,7 +123,7 @@ final readonly class SystemMonitor
                 continue;
             }
 
-            $since = $previous?->since ?? $at;
+            $since = $previous->since ?? $at;
             $delivered = $this->announce(new AlertNotice(
                 key: $key,
                 transition: null === $previous ? AlertTransition::FIRING : AlertTransition::ESCALATED,
