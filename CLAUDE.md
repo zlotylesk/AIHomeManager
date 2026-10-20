@@ -10,7 +10,7 @@ Run-and-setup documentation is in `README.md` and `docs/`. This file is the work
 
 ## Status
 
-Operational. Current release **1.35.0** (2026-08-13), which is also the highest-numbered tag and GitHub `latest`.
+Operational. Current release **1.35.1** (2026-10-20), which is also the highest-numbered tag and GitHub `latest`.
 
 | Gate | State |
 |---|---|
@@ -468,10 +468,12 @@ environment variables.
 - **PHPStan** level 8 with the Symfony, Doctrine and PHPUnit extensions. `app/phpstan-baseline.neon` holds **one** deliberately kept entry — a wire-contract assertion PHPStan reads as a tautology. A new error means a fix, or an explicit baseline addition via `make phpstan-baseline`.
 - **PHP CS Fixer:** `@Symfony` + `@PHP84Migration` + `global_namespace_import`. On Windows the working tree is CRLF while the index is LF, so a local `make cs-check` reports whole-file `line_ending` diffs CI never sees. **When local and CI disagree, the index is the authority** — CI checks out LF; run the fixer against the staged blobs to see what CI sees.
 - **Rector:** `withPhpSets()` + `deadCode`. It will collapse an aggregate with no mutator to `final readonly class`; that is expected, and the class reopens when a ticket adds the behaviour that needs it.
+
+  **Rector and PHPStan can ask for opposite operators, so applying one gate's suggestion verbatim moves the red to the other.** `TernaryToNullsafeCoalesceRector` rewrites a null-check ternary to `$x?->prop ?? $default`, and PHPStan's `nullsafe.neverNull` then calls that `?->` unnecessary. `$x->prop ?? $default` is the form both accept, because `??` evaluates its left side with isset semantics — a property read on null yields the default and emits no warning.
 - **Deptrac:** per-module Domain / Application / Infrastructure layers plus the `Shared` kernel and a `Glue` layer (controllers, listeners, Kernel, Security) that may depend on everything. Zero violations, zero `skip_violations`.
 - **Composer audit** runs in CI. A finding means bumping the package, not suppressing it. The frontend equivalent is `npm audit --audit-level=high` after every `npm ci` in `app/`; the root `package.json` (Playwright + Newman) is deliberately outside the gate, because newman's tree carries advisories with no forward fix and `audit fix --force` would break the collection.
-- **`phpunit/phpunit` is capped below 13.3 (`>=13.1.13 <13.3`), with a matching `dependabot.yml` ignore.** 13.3 deprecates the `--do-not-cache-result` option that paratest passes to every worker it spawns, and `failOnPhpunitDeprecation` turns that into exit 1 on a suite where every test passed — so it breaks only the parallel run CI uses, not `make test`. Upgrading paratest is not a way out: 7.24 is the first release requiring `^13.3.0` and emits the same flag. The cap is what keeps the pair on the last combination that runs clean.
-- **`doctrine/orm` is pinned to an exact `3.6.7`, and `dependabot.yml` ignores anything above it.** 3.6.8 adds `GenerateSchemaEventArgs::setSchema()`, which throws unless DBAL exposes `Schema::edit()` — an API its own source comment calls unreleased (it wants `doctrine/dbal ^4.5`; the newest stable is 4.4.4). `symfony/doctrine-bridge` feature-detects that method with `method_exists()`, so the bump makes the detection a false positive and every `doctrine:schema:validate` a `BadMethodCallException`. Unpin both once DBAL 4.5 ships. The npm-side counterpart is the Encore peer range below.
+- **`phpunit/phpunit` tracks `13.*` and paratest `^7.23`, and `failOnPhpunitDeprecation` is what holds the pair together.** A PHPUnit release that deprecates a CLI option paratest passes to every worker it spawns turns a suite where every test passed into exit 1 — and only in the parallel run CI uses, never in `make test`, so the gate is the one place it shows. 13.4.3 with paratest 7.27.2 runs that job clean. `dependabot.yml` still carries an ignore for `phpunit/phpunit >=13.3.0` from the cap that used to be needed, so bumps for this one arrive by hand until that entry goes.
+- **`doctrine/orm` tracks `3.7.*`, and CI's `doctrine:schema:validate` is the gate that watches it.** 3.6.8 added `GenerateSchemaEventArgs::setSchema()`, which throws unless DBAL exposes `Schema::edit()`; `symfony/doctrine-bridge` feature-detects that method with `method_exists()`, so the bump made the detection a false positive and every `doctrine:schema:validate` a `BadMethodCallException` — CI's first red step, before a single test runs. 3.7.1 validates clean against DBAL 4.4.4, so the exact pin that defect forced is gone without DBAL 4.5 having shipped. `dependabot.yml` still ignores `doctrine/orm >=3.6.8` from that pin, so this one is also manual until the entry is dropped.
 
 ---
 

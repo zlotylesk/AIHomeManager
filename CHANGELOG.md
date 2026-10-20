@@ -4,6 +4,40 @@ Wszystkie znaczące zmiany w projekcie AIHomeManager dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), wersjonowanie wg [SemVer](https://semver.org/lang/pl/).
 
+## [1.35.1] — 2026-10-20
+
+Wydanie łatkowe zbierające dwa miesiące nadzoru nad zależnościami — wszystko, co od 1.35.0 wylądowało na `develop` i nie dotarło na `master`. Bez nowego modułu, bez zmian w domenie, bez migracji bazy i bez nowych zmiennych środowiskowych. **2690/2690 testów PHP** (11 655 asercji), **249** Vitest, **169** Playwright, **161** asercji Newman — każda z tych liczb identyczna jak w 1.35.0, bo poza dwiema linijkami kodu wykonywalnego to wydanie nie wnosi nowego zachowania. PHPStan level 8 clean, Deptrac 0 violations / 0 `skip_violations`.
+
+Z wydaniem nie jest powiązane żadne zadanie Jira. Na siedemdziesiąt commitów sześćdziesiąt trzy to PR-y `dependabot[bot]`, cztery to ręczne przebiegi aktualizacji, a jedyna zmiana w kodzie powstała jako reakcja na czerwoną bramkę CI.
+
+### Changed
+
+- **Dziewięćdziesiąt dziewięć pakietów PHP w nowych wersjach**, jeden dodany (`symfony/polyfill-php86`) i jeden usunięty z drzewa (`ralouphie/getallheaders`). Pięćdziesiąt cztery z nich to `symfony/*` dociągnięte do v8.1.9 (`framework-bundle`, `http-kernel`, `messenger`, `security-*`, `serializer`, `cache`, `scheduler` i pozostałe). Dalej: Doctrine (`orm` 3.6.7 → 3.7.1, `doctrine-bundle` 3.3.2, `collections` 2.6 → 3.1), Twig 3.28 → 3.30, `nelmio/api-doc-bundle` 5.11 → 5.13.1, `zircote/swagger-php` 6.5.2 → 6.12.0, `opensearch-project/opensearch-php` 2.6 → 2.7.1, `google/apiclient` 2.19.4 → 2.20.1, `monolog` 3.10 → 3.12. Narzędzia: PHPStan 2.2.8 → 2.3.1 z wtyczkami, PHPUnit 13.2.6 → 13.4.3, paratest 7.23.1 → 7.27.2, Rector 2.6.1 → 2.7.0, CS Fixer 3.95.18 → 3.95.27, Deptrac 4.7.2. Wśród zależności przechodnich wypadły cztery przeskoki major: `guzzlehttp/guzzle` 7 → 8 wraz z `psr7` 2 → 3 i `promises` 2 → 3 oraz `brick/math` 0.17 → 1.0.
+
+- **Zależności npm.** Vitest 4.1.10 → **5.0.5** (major), webpack 5.109 → 5.112, webpack-cli 7.2.1 → 7.2.3 — nadal w zakresie `^6 || ^7`, który deklaruje Encore. Dalej `@babel/core` i `@babel/preset-env` do 8.0.5, `core-js` 3.38 → 3.50, jsdom 30.0.1 → 30.1.3, `@symfony/stimulus-bridge` zawężony z `^3.2.0 || ^4.0.0` do `^4.0.2`, Playwright 1.62.1 → 1.64.1, Newman 6.2.2 → 6.2.3. Major Vitesta jest pokryty bramką, a nie przyjęty na słowo: 249 testów JS jedzie wewnątrz joba `tests`, nie obok niego.
+
+- **Dwa przypięcia w `app/composer.json` zdjęte, bo powody wygasły.** `doctrine/orm` stoi na `3.7.*` zamiast dokładnie `3.6.7`: `doctrine:schema:validate` przechodzi na 3.7.1 **przy DBAL wciąż 4.4.4**, więc defekt, przez który 3.6.8 zamieniało walidację mapowań w `BadMethodCallException`, nie potrzebował do zniknięcia wydania DBAL 4.5. `phpunit/phpunit` stoi na `13.*` zamiast `>=13.1.13 <13.3`, a para z paratestem 7.27.2 przechodzi równoległy przebieg CI z włączonym `failOnPhpunitDeprecation` — czyli dokładnie tą bramką, która wcześniej zamieniała ten zestaw w exit 1 przy wszystkich testach zielonych. Pozostałe ograniczenia rozluźnione z łatki na minor (`^3.1.6` → `^3.1` i podobne).
+
+- **`CLAUDE.md`** wskazuje 1.35.1 w sekcji Status, a dwa akapity o przypiętych pakietach zostały przepisane na stan faktyczny — opisywały przypięcia, których już nie ma.
+
+### Fixed
+
+- **Rector 2.7.0 i PHPStan żądały przeciwnych operatorów, a bramka Rectora stała czerwona dwa dni.** 2.7.0 wprowadza `TernaryToNullsafeCoalesceRector`, który przepisuje warunek sprawdzający null na `$x?->prop ?? $default`. Reguła `nullsafe.neverNull` PHPStana nazywa wtedy ten `?->` zbędnym i żąda `->`: każdy z operatorów zadowala jedną bramkę i wywraca drugą, więc samo zastosowanie podpowiedzi Rectora przenosi czerwień z jednego joba na drugi. Formą przyjmowaną przez obie jest `->`, bo `??` liczy lewą stronę w semantyce `isset` — odczyt właściwości z nulla zwraca wartość domyślną i nie emituje ostrzeżenia. `CachingSearchEngine::cacheKey()` i `SystemMonitor::reconcile()` używają teraz `$x->prop ?? $default`: nie został ani trójargumentowy warunek do przepisania przez Rectora, ani operator nullsafe do zakwestionowania przez PHPStana. Zmiana jest równoważna, a nie tylko podobna — `SearchResultType::$value` jest niepustym stringiem, a `StoredAlert::$since` polem nienullowalnym, więc `??` sięga po wartość domyślną wyłącznie wtedy, gdy nie ma odpowiednio filtra typu i poprzedniego alertu.
+
+### Coverage
+
+- **2690 testów PHP** (11 655 asercji), **249** Vitest w 19 plikach, **169** Playwright, **161** asercji Newman — bez zmian wobec 1.35.0, zgodnie z oczekiwaniem wobec wydania, które nie dodaje zachowań. PHPStan level 8 clean z jednym zachowanym wpisem baseline, Deptrac 0/0, CS Fixer i `rector --dry-run` zielone, `composer audit` oraz `npm audit --audit-level=high` bez znalezisk.
+
+### Migration
+
+Brak migracji bazy i brak nowych zmiennych środowiskowych. **Po wdrożeniu trzeba zainstalować zależności, a nie tylko zrestartować kontenery** — ten zestaw usuwa z drzewa `ralouphie/getallheaders` i dodaje `symfony/polyfill-php86`, więc `vendor/` sprzed aktualizacji wywraca autoloader na brakującym pliku; w tym stanie nie startuje ani narzędzie z `vendor/bin`, ani workery, które wpadają w pętlę restartów:
+
+```bash
+docker compose exec php composer install --no-interaction
+docker compose exec node npm ci
+docker compose restart messenger_worker scheduler_worker
+```
+
 ## [1.35.0] — 2026-08-13
 
 Wydanie techniczne zamykające epik **HMAI-422** — trzynaście zadań (HMAI-423…435) z przeglądu po 1.34.0. Bez nowego modułu domenowego i bez nowej funkcjonalności użytkownika.
